@@ -1,0 +1,30 @@
+services:
+  postgresql:
+    image: postgres:16-alpine
+    container_name: lens-postgres
+    ports:
+      - '5433:5432'
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    environment:
+      POSTGRES_USER: lens-postgres
+      POSTGRES_PASSWORD: Postgres@#_Lens_EXE202_FPT_FA26
+      POSTGRES_DB: lens
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U lens-postgres -d lens']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - lens-network
+    restart: unless-stopped
+
+volumes:
+  pg-data:
+    name: lens-pg-data
+
+networks:
+  lens-network:
+    name: lens-network
+    driver: bridge

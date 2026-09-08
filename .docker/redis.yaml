@@ -1,0 +1,26 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: lens-redis
+    command: ['redis-server', '--requirepass', 'Redis@#_Lens_EXE202_FPT_FA26']
+    ports:
+      - '6380:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', 'Redis@#_Lens_EXE202_FPT_FA26', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - lens-network
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+    name: lens-redis-data
+
+networks:
+  lens-network:
+    name: lens-network
+    driver: bridge

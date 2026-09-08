@@ -1,0 +1,9 @@
+creation_rules:
+  # Mã hóa các file .env (chỉ mã hóa value, giữ key để git diff xem được)
+  - path_regex: .*\.env(\.enc)?$
+    input_type: dotenv
+    age: age127wj2sx86cpnu5w74wxannu40jl90smv2wycg5r4tl69wp8ycfesfuaxnc
+
+  # Mã hóa các file json / yaml chứa credentials (nếu có)
+  - path_regex: .*\.(json|ya?ml)(\.enc)?$
+    age: age127wj2sx86cpnu5w74wxannu40jl90smv2wycg5r4tl69wp8ycfesfuaxnc

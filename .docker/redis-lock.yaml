@@ -1,0 +1,26 @@
+services:
+  redis-1:
+    image: redis:7-alpine
+    container_name: lens-redis-1
+    command: ['redis-server', '--requirepass', 'Redis@#_Lens_EXE202_FPT_FA26']
+    ports:
+      - '6380:6379'
+    volumes:
+      - redis_data_1:/data
+    restart: unless-stopped
+
+  redis-2:
+    image: redis:7-alpine
+    container_name: lens-redis-2
+    command: ['redis-server', '--requirepass', 'Redis@#_Lens_EXE202_FPT_FA26']
+    ports:
+      - '6381:6379'
+    volumes:
+      - redis_data_2:/data
+    restart: unless-stopped
+
+volumes:
+  redis_data_1:
+    driver: local
+  redis_data_2:
+    driver: local
