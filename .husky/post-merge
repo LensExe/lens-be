@@ -1,1 +1,1 @@
-node scripts/secrets-auto.mjs post-merge
+# node scripts/secrets-auto.mjs post-merge

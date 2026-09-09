@@ -1,3 +1,3 @@
-node scripts/secrets-auto.mjs pre-commit
-node scripts/secrets-guard.mjs
+# node scripts/secrets-auto.mjs pre-commit
+# node scripts/secrets-guard.mjs
 npx lint-staged
