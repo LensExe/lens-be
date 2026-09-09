@@ -18,7 +18,7 @@ export const getTypeOrmConfig = (
     password: db?.password ?? process.env.DB_PASSWORD ?? '',
     database: db?.database ?? process.env.DB_NAME ?? 'lens',
     autoLoadEntities: true,
-    synchronize: db?.synchronize ?? process.env.DB_SYNCHRONIZE === 'true',
+    synchronize: false, // Schema changes are reviewed migrations, never auto-sync.
     logging: db?.logging ?? process.env.DB_LOGGING === 'true',
     extra: {
       max: 20, // Max connection pool

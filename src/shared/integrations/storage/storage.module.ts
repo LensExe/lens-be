@@ -1,17 +1,18 @@
-import { Module } from '@nestjs/common';
+import { Module, Global } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { S3StorageService } from './s3-storage.service';
-import { STORAGE_SERVICE } from './storage.interface';
+import { ObjectStorage } from './storage.port';
+import { S3ObjectStorage } from './s3-storage.service';
 
+@Global()
 @Module({
   imports: [ConfigModule],
   providers: [
-    S3StorageService,
+    S3ObjectStorage,
     {
-      provide: STORAGE_SERVICE,
-      useExisting: S3StorageService,
+      provide: ObjectStorage,
+      useClass: S3ObjectStorage,
     },
   ],
-  exports: [S3StorageService, STORAGE_SERVICE],
+  exports: [ObjectStorage, S3ObjectStorage],
 })
 export class StorageModule {}

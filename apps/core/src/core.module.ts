@@ -1,11 +1,15 @@
 import { Module } from '@nestjs/common';
 import { EnvModule } from '@shared/platform/env';
 import { DatabaseModule } from '@shared/database';
-import { ApiModule } from '@features/api/api.module';
+import { ApiRuntimeModule } from '@features/api/api-runtime.module';
+import { enabledApiFeatureModules } from '@features/api/feature-modules';
 
 @Module({
-  imports: [EnvModule, DatabaseModule, ApiModule],
-  controllers: [],
-  providers: [],
+  imports: [
+    EnvModule,
+    DatabaseModule,
+    ApiRuntimeModule,
+    ...enabledApiFeatureModules,
+  ],
 })
 export class CoreModule {}

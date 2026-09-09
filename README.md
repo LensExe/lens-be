@@ -23,6 +23,8 @@
 
 # Lens Backend 📸
 
+Backend triển khai theo tracker API: xem [hướng dẫn chạy, cấu trúc Clean Architecture/CQRS và Keycloak](docs/backend-implementation.md), [quyết định database](docs/database-decisions.md), và [cấu hình mẫu](lens.env.example). Swagger tại `/docs` sau khi chạy ứng dụng. Schema mới được áp dụng chủ động bằng `pnpm db:migrate`.
+
 Hệ thống backend cho nền tảng kết nối nhiếp ảnh gia và khách hàng (**Lens Platform**) - FPT University EXE202.
 
 Được xây dựng trên nền tảng **NestJS**, kiến trúc **Pragmatic Clean Architecture / Domain-Driven Design (DDD)**, cơ sở dữ liệu **PostgreSQL** kết hợp **Redis / BullMQ** và quản lý bí mật bảo mật bằng **Mozilla SOPS & Age**.

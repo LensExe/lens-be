@@ -81,7 +81,7 @@ src/modules/booking/
 [ Client (Frontend / Mobile) ]
        │  HTTP Request (JSON)
        ▼
-[ Controller ] (features/api/http/booking.controller.ts)
+[ Controller ] (src/features/api/http/booking.controller.ts)
        │  CreateBookingDto
        ▼
 [ Application Service ] (application/services/booking.service.ts)

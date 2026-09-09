@@ -1,45 +1,79 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { IStorageService, UploadFileOptions } from './storage.interface';
+import { Injectable } from '@nestjs/common';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { ObjectStorage } from '../../database/unit-of-work/unit-of-work.port';
+import { DomainError, ensure } from '../../platform/exceptions/domain.error';
 
-/**
- * Service mẫu cho S3 / MinIO Storage.
- * Bạn có thể cài đặt `@aws-sdk/client-s3` và `@aws-sdk/s3-request-presigner` để kết nối AWS S3 / MinIO thực tế.
- */
 @Injectable()
-export class S3StorageService implements IStorageService {
-  private readonly logger = new Logger(S3StorageService.name);
-  private readonly bucket: string;
-  private readonly endpoint?: string;
-
-  constructor(private readonly configService: ConfigService) {
-    this.bucket = process.env.S3_BUCKET_NAME ?? 'lens-storage';
-    this.endpoint = process.env.S3_ENDPOINT ?? 'http://localhost:9000';
-    this.logger.log(`Initialized Storage Service for bucket: ${this.bucket}`);
+export class S3ObjectStorage extends ObjectStorage {
+  private client?: S3Client;
+  private config() {
+    // TODO: INSERT_S3_BUCKET, INSERT_S3_ACCESS_KEY_ID, INSERT_S3_SECRET_ACCESS_KEY.
+    const bucket = process.env.S3_BUCKET_NAME;
+    if (
+      !bucket ||
+      !process.env.S3_ACCESS_KEY_ID ||
+      !process.env.S3_SECRET_ACCESS_KEY
+    )
+      throw new DomainError('unavailable', 'Object storage is not configured');
+    this.client ??= new S3Client({
+      region: process.env.S3_REGION ?? 'us-east-1',
+      endpoint: process.env.S3_ENDPOINT || undefined,
+      forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
+      credentials: {
+        accessKeyId: process.env.S3_ACCESS_KEY_ID,
+        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+      },
+    });
+    return { client: this.client, bucket };
   }
-
-  async uploadFile(options: UploadFileOptions): Promise<string> {
-    this.logger.log(
-      `Uploading file: ${options.key} (${options.contentType}, ${options.buffer.length} bytes)`,
+  async uploadUrl(key: string, type: string, size: number) {
+    const { client, bucket } = this.config();
+    return getSignedUrl(
+      client,
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        ContentType: type,
+        ContentLength: size,
+      }),
+      { expiresIn: 900 },
     );
-    await Promise.resolve();
-    // TODO: Triển khai với S3Client.send(new PutObjectCommand(...))
-    const fileUrl = `${this.endpoint}/${this.bucket}/${options.key}`;
-    return fileUrl;
   }
-
-  async getPresignedUrl(key: string, expiresInSeconds = 3600): Promise<string> {
-    this.logger.log(
-      `Generating presigned URL for: ${key} (expires in ${expiresInSeconds}s)`,
+  async downloadUrl(key: string) {
+    const { client, bucket } = this.config();
+    return getSignedUrl(
+      client,
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+      { expiresIn: 900 },
     );
-    await Promise.resolve();
-    // TODO: Triển khai với getSignedUrl(s3Client, new GetObjectCommand(...), { expiresIn })
-    return `${this.endpoint}/${this.bucket}/${key}?presigned=true&expires=${expiresInSeconds}`;
   }
-
-  async deleteFile(key: string): Promise<void> {
-    this.logger.log(`Deleting file from storage: ${key}`);
-    await Promise.resolve();
-    // TODO: Triển khai với S3Client.send(new DeleteObjectCommand(...))
+  async verify(key: string, type: string, size: number) {
+    const { client, bucket } = this.config();
+    let meta;
+    try {
+      meta = await client.send(
+        new HeadObjectCommand({ Bucket: bucket, Key: key }),
+      );
+    } catch {
+      throw new DomainError(
+        'invalid',
+        'Uploaded object does not exist or storage is unavailable',
+      );
+    }
+    ensure(
+      meta.ContentLength === size && meta.ContentType === type,
+      'Uploaded object metadata mismatch',
+    );
+  }
+  async delete(key: string) {
+    const { client, bucket } = this.config();
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
   }
 }
