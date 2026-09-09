@@ -1,28 +1,36 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { getTypeOrmConfig, getMongoConfig } from './database.config';
+import { RedisModule } from './redis';
 
 @Module({
   imports: [
+    // ── 1. PostgreSQL (Write DB / Command Side) ──
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
+      useFactory: (configService: ConfigService) =>
+        getTypeOrmConfig(configService),
+    }),
+
+    // ── 2. MongoDB (Read DB / Query Side) ──
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        const db = configService.get('database') ?? {};
+        const mongo = getMongoConfig(configService);
         return {
-          type: 'postgres',
-          host: db.host ?? 'localhost',
-          port: db.port ?? 5432,
-          username: db.username ?? 'postgres',
-          password: db.password ?? '',
-          database: db.database ?? 'lens_db',
-          autoLoadEntities: true,
-          synchronize: db.synchronize ?? false,
-          logging: db.logging ?? false,
+          uri: mongo.uri,
+          dbName: mongo.dbName,
         };
       },
     }),
+
+    // ── 3. Redis (In-Memory Database / Cache / PubSub) ──
+    RedisModule,
   ],
-  exports: [TypeOrmModule],
+  exports: [TypeOrmModule, MongooseModule, RedisModule],
 })
 export class DatabaseModule {}

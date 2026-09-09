@@ -1,8 +1,6 @@
 import { createAdapter } from '@socket.io/redis-adapter';
 import { IoAdapter } from '@nestjs/platform-socket.io';
-import type { createClient } from 'redis';
-
-export type RedisClient = ReturnType<typeof createClient>;
+import type { RedisClient } from '@shared/database/redis';
 
 /**
  * Shares Socket.IO rooms across multiple pods/instances via Redis Pub/Sub.

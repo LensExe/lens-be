@@ -19,6 +19,11 @@ export interface DatabaseConfig {
   logging: boolean;
 }
 
+export interface MongoConfig {
+  uri: string;
+  database: string;
+}
+
 export interface RedisConfig {
   host: string;
   port: number;
@@ -48,6 +53,7 @@ export interface EnvConfig {
   app: AppConfig;
   cors: CorsConfig;
   database: DatabaseConfig;
+  mongodb: MongoConfig;
   redis: RedisConfig;
   auth: AuthConfig;
   cookie: CookieConfig;
