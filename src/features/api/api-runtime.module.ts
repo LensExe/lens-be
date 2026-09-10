@@ -3,14 +3,13 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
 import { KeycloakModule } from '@shared/integrations/keycloak/keycloak.module';
 import {
-  ObjectStorage,
   PaymentGateway,
   RealtimePublisher,
   UnitOfWork,
 } from '@shared/database/unit-of-work/unit-of-work.port';
 import { PostgresUnitOfWork } from '@shared/database/unit-of-work/postgres-unit-of-work';
 import { PayOsGateway } from '@shared/integrations/payment/payos-gateway.service';
-import { S3ObjectStorage } from '@shared/integrations/storage/s3-storage.service';
+import { S3Module } from '@shared/integrations/s3/s3.module';
 import { BookingUseCases } from '@modules/booking/application/bookings';
 import { CalendarUseCases } from '@modules/calendar/application/calendar';
 import { ReviewUseCases } from '@modules/feedback/application/reviews';
@@ -43,11 +42,10 @@ const applicationServices = [
 
 @Global()
 @Module({
-  imports: [CqrsModule.forRoot(), KeycloakModule],
+  imports: [CqrsModule.forRoot(), KeycloakModule, S3Module],
   providers: [
     ...applicationServices,
     { provide: UnitOfWork, useClass: PostgresUnitOfWork },
-    { provide: ObjectStorage, useClass: S3ObjectStorage },
     { provide: PaymentGateway, useClass: PayOsGateway },
     { provide: APP_GUARD, useClass: KeycloakGuard },
     { provide: APP_FILTER, useClass: DomainErrorFilter },
@@ -59,7 +57,7 @@ const applicationServices = [
     CqrsModule,
     ...applicationServices,
     UnitOfWork,
-    ObjectStorage,
+    S3Module,
     PaymentGateway,
     RealtimePublisher,
   ],

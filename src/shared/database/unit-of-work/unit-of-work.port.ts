@@ -38,7 +38,7 @@ export abstract class UnitOfWork {
   abstract write<T>(work: (session: Session) => Promise<T>): Promise<T>;
 }
 
-export { ObjectStorage } from '../../integrations/storage/storage.port';
+export { ObjectStorage } from '../../integrations/s3/storage.port';
 export { PaymentGateway } from '../../integrations/payment/payment.port';
 
 export abstract class RealtimePublisher {

@@ -24,7 +24,7 @@ import { setupApi } from '../src/features/api/setup';
 import { OutboxWorker } from '../src/features/workers/outbox.worker';
 import { Booking } from '../src/modules/booking/domain/booking';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';
-import { S3ObjectStorage } from '../src/shared/integrations/storage/s3-storage.service';
+import { S3ObjectStorage } from '../src/shared/integrations/s3/s3-storage.service';
 import {
   S3Client,
   CreateBucketCommand,
@@ -716,12 +716,12 @@ test(
     });
     await client.send(new CreateBucketCommand({ Bucket: bucket }));
     Object.assign(process.env, {
-      S3_BUCKET_NAME: bucket,
-      S3_ENDPOINT: endpoint,
-      S3_REGION: 'us-east-1',
-      S3_FORCE_PATH_STYLE: 'true',
-      S3_ACCESS_KEY_ID: 'lens-test',
-      S3_SECRET_ACCESS_KEY: 'lens-test-only',
+      S3_MINIO_BUCKET: bucket,
+      S3_MINIO_ENDPOINT: endpoint,
+      S3_MINIO_PUBLIC_ENDPOINT: endpoint,
+      S3_MINIO_REGION: 'us-east-1',
+      S3_MINIO_ACCESS_KEY_ID: 'lens-test',
+      S3_MINIO_SECRET_ACCESS_KEY: 'lens-test-only',
     });
     try {
       const storage = new S3ObjectStorage(),
@@ -741,12 +741,12 @@ test(
       await assert.rejects(storage.verify('test-image', 'image/jpeg', 4));
     } finally {
       for (const key of [
-        'S3_BUCKET_NAME',
-        'S3_ENDPOINT',
-        'S3_REGION',
-        'S3_FORCE_PATH_STYLE',
-        'S3_ACCESS_KEY_ID',
-        'S3_SECRET_ACCESS_KEY',
+        'S3_MINIO_BUCKET',
+        'S3_MINIO_ENDPOINT',
+        'S3_MINIO_PUBLIC_ENDPOINT',
+        'S3_MINIO_REGION',
+        'S3_MINIO_ACCESS_KEY_ID',
+        'S3_MINIO_SECRET_ACCESS_KEY',
       ])
         if (saved[key] === undefined) delete process.env[key];
         else process.env[key] = saved[key];
