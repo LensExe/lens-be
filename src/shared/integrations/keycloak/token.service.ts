@@ -6,6 +6,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { AxiosRequestConfig } from 'axios';
+import { KeycloakHttpService } from './keycloak-http.service';
 import { KeycloakJwksService } from './jwks.service';
 import { KeycloakUserService } from './user.service';
 import type { KeycloakUserSummary } from './types/user';
@@ -23,6 +25,7 @@ import type {
 export class KeycloakTokenService {
   constructor(
     private readonly config: ConfigService,
+    private readonly http: KeycloakHttpService,
     private readonly jwks: KeycloakJwksService,
     private readonly users: KeycloakUserService,
   ) {}
@@ -83,32 +86,31 @@ export class KeycloakTokenService {
     params: KeycloakRegisterUserParams,
   ): Promise<string> {
     const adminToken = await this.users.getAdminToken();
-    const response = await fetch(
-      `${this.baseUrl()}/admin/realms/${this.realm()}/users`,
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${adminToken}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: params.username,
-          email: params.email,
-          firstName: params.firstName,
-          lastName: params.lastName,
-          enabled: true,
-          emailVerified: false,
-          credentials: [
-            { type: 'password', value: params.password, temporary: false },
-          ],
-        }),
+    const response = await this.http.request<void>({
+      url: `/admin/realms/${this.realm()}/users`,
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        'content-type': 'application/json',
       },
-    );
+      data: {
+        username: params.username,
+        email: params.email,
+        firstName: params.firstName,
+        lastName: params.lastName,
+        enabled: true,
+        emailVerified: false,
+        credentials: [
+          { type: 'password', value: params.password, temporary: false },
+        ],
+      },
+      validateStatus: (status) =>
+        (status >= 200 && status < 300) || status === 409,
+    });
     if (response.status === 409)
       throw new ConflictException('Keycloak user already exists');
-    this.ensureOk(response);
 
-    const location = response.headers.get('location');
+    const location = response.headers.location as string | undefined;
     if (location) return location.split('/').pop() ?? '';
 
     const query = new URLSearchParams({
@@ -131,7 +133,7 @@ export class KeycloakTokenService {
       {
         method: 'PUT',
         headers: { authorization: `Bearer ${adminToken}` },
-        body: JSON.stringify(['VERIFY_EMAIL']),
+        data: ['VERIFY_EMAIL'],
       },
     );
   }
@@ -180,34 +182,20 @@ export class KeycloakTokenService {
     return this.jsonRequest(path, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams(values),
+      data: new URLSearchParams(values),
     });
   }
 
-  private async jsonRequest<T>(path: string, init: RequestInit): Promise<T> {
-    const response = await fetch(`${this.baseUrl()}${path}`, {
-      ...init,
-      headers: {
-        ...(init.body instanceof URLSearchParams
-          ? {}
-          : { 'content-type': 'application/json' }),
-        ...init.headers,
-      },
+  private async jsonRequest<T>(
+    path: string,
+    config: AxiosRequestConfig,
+  ): Promise<T> {
+    const response = await this.http.request<T>({
+      url: path,
+      ...config,
     });
-    this.ensureOk(response);
-    if (
-      response.status === 204 ||
-      response.headers.get('content-length') === '0'
-    )
-      return undefined as T;
-    return (await response.json()) as T;
-  }
-
-  private ensureOk(response: Response): void {
-    if (!response.ok)
-      throw new BadGatewayException(
-        `Keycloak request failed with status ${response.status}`,
-      );
+    if (response.status === 204) return undefined as T;
+    return response.data;
   }
 
   private clientCredentials(): Record<string, string> {
@@ -216,13 +204,6 @@ export class KeycloakTokenService {
     if (!clientId || !clientSecret)
       throw new ServiceUnavailableException('Keycloak is not configured');
     return { client_id: clientId, client_secret: clientSecret };
-  }
-
-  private baseUrl(): string {
-    const value = this.config.get<string>('auth.keycloakAuthServerUrl');
-    if (!value)
-      throw new ServiceUnavailableException('Keycloak is not configured');
-    return value.replace(/\/$/, '');
   }
 
   private realm(): string {

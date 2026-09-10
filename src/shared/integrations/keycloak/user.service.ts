@@ -1,9 +1,7 @@
-import {
-  BadGatewayException,
-  Injectable,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { AxiosRequestConfig } from 'axios';
+import { KeycloakHttpService } from './keycloak-http.service';
 import type { KeycloakUser } from './types/user';
 
 interface KeycloakAdminTokenResponse {
@@ -13,7 +11,10 @@ interface KeycloakAdminTokenResponse {
 @Injectable()
 /** Keycloak Admin REST API client. */
 export class KeycloakUserService {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly http: KeycloakHttpService,
+  ) {}
 
   async getUserByUsername(username: string): Promise<KeycloakUser | null> {
     const users = await this.request<KeycloakUser[]>(
@@ -45,7 +46,7 @@ export class KeycloakUserService {
       {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
+        data: new URLSearchParams({
           grant_type: 'password',
           client_id:
             this.config.get<string>('auth.keycloakAdminClientId') ??
@@ -63,11 +64,11 @@ export class KeycloakUserService {
       `/admin/realms/${this.realm()}/users/${encodeURIComponent(userId)}/reset-password`,
       {
         method: 'PUT',
-        body: JSON.stringify({
+        data: {
           type: 'password',
           value: password,
           temporary: false,
-        }),
+        },
       },
     );
   }
@@ -78,48 +79,38 @@ export class KeycloakUserService {
       `/admin/realms/${this.realm()}/users/${encodeURIComponent(userId)}`,
       {
         method: 'PUT',
-        body: JSON.stringify({
+        data: {
           ...user,
           emailVerified: true,
           requiredActions: (user.requiredActions ?? []).filter(
             (action) => action !== 'VERIFY_EMAIL',
           ),
-        }),
+        },
       },
     );
   }
 
   private async request<T = void>(
     path: string,
-    init: RequestInit = {},
+    config: AxiosRequestConfig = {},
   ): Promise<T> {
     const token = await this.getAdminToken();
     return this.fetchJson<T>(path, {
-      ...init,
+      ...config,
       headers: {
-        ...(init.body ? { 'content-type': 'application/json' } : {}),
-        ...init.headers,
+        ...config.headers,
         authorization: `Bearer ${token}`,
       },
     });
   }
 
-  private async fetchJson<T>(path: string, init: RequestInit): Promise<T> {
-    const response = await fetch(`${this.baseUrl()}${path}`, init);
-    if (!response.ok) {
-      throw new BadGatewayException(
-        `Keycloak request failed with status ${response.status}`,
-      );
-    }
+  private async fetchJson<T>(
+    path: string,
+    config: AxiosRequestConfig,
+  ): Promise<T> {
+    const response = await this.http.request<T>({ url: path, ...config });
     if (response.status === 204) return undefined as T;
-    return (await response.json()) as T;
-  }
-
-  private baseUrl(): string {
-    const value = this.config.get<string>('auth.keycloakAuthServerUrl');
-    if (!value)
-      throw new ServiceUnavailableException('Keycloak is not configured');
-    return value.replace(/\/$/, '');
+    return response.data;
   }
 
   private realm(): string {

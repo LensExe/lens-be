@@ -52,6 +52,15 @@ export interface PayOSConfig {
   checksumKey?: string;
 }
 
+export interface AxiosConfig {
+  timeoutMs: number;
+  retry: {
+    retries: number;
+    baseDelayMs: number;
+    maxDelayMs: number;
+  };
+}
+
 export interface EnvConfig {
   app: AppConfig;
   cors: CorsConfig;
@@ -61,4 +70,5 @@ export interface EnvConfig {
   auth: AuthConfig;
   cookie: CookieConfig;
   payos: PayOSConfig;
+  axios: AxiosConfig;
 }

@@ -11,3 +11,4 @@ export type {
   KeycloakUser as KeycloakAdminUser,
   KeycloakUserSummary,
 } from './types/user';
+export * from './keycloak-http.service';
