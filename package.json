@@ -10,6 +10,7 @@
     "build:cli": "nest build cli",
     "build:all": "nest build",
     "format": "prettier --write \"apps/**/*.ts\" \"src/**/*.ts\"",
+    "fix": "prettier --write \"apps/**/*.ts\" \"src/**/*.ts\" && eslint \"{src,apps,test}/**/*.ts\" --fix",
     "start": "nest start core",
     "start:dev": "nest start core --watch",
     "start:debug": "nest start core --debug --watch",
