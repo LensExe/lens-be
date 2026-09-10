@@ -9,7 +9,6 @@ import {
   RealtimePublisher,
   NotificationDelivery,
 } from '@shared/database/unit-of-work/unit-of-work.port';
-import { NotificationUseCases } from '@modules/notification/application/notifications';
 
 @Injectable()
 export class OutboxWorker
@@ -20,7 +19,6 @@ export class OutboxWorker
   private readonly logger = new Logger(OutboxWorker.name);
   constructor(
     private readonly uow: UnitOfWork,
-    private readonly notifications: NotificationUseCases,
     private readonly realtime: RealtimePublisher,
     private readonly delivery: NotificationDelivery,
   ) {}
@@ -43,7 +41,20 @@ export class OutboxWorker
           const e = await this.uow.write(async (s) => {
             const event = await s.get('outbox_events', candidate.id);
             if (!event || event.processed_at) return null;
-            await this.notifications.consume(s, event);
+            // Fan-out: write one in-app notification row per recipient
+            for (const user_id of event.recipient_ids) {
+              const [existing] = await s.find('notifications', {
+                user_id,
+                event_id: event.id,
+              });
+              if (!existing)
+                await s.insert('notifications', {
+                  user_id,
+                  event_id: event.id,
+                  title: event.topic,
+                  body: JSON.stringify(event.payload),
+                });
+            }
             for (const userId of event.recipient_ids) {
               const user = await s.get('users', userId);
               if (!user || user.status !== 'active') continue;

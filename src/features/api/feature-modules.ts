@@ -7,7 +7,6 @@ import {
   LocationApiModule,
   MediaApiModule,
   ModerationApiModule,
-  NotificationApiModule,
   PaymentApiModule,
   PhotographerApiModule,
   PortfolioApiModule,
@@ -28,7 +27,6 @@ export const apiFeatureModuleRegistry: ReadonlyArray<
   ['REVIEW', ReviewApiModule],
   ['SUBSCRIPTION', SubscriptionApiModule],
   ['MODERATION', ModerationApiModule],
-  ['NOTIFICATION', NotificationApiModule],
   ['CHAT', ChatApiModule],
   ['LOCATION', LocationApiModule],
 ];

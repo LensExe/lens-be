@@ -5,8 +5,8 @@ import type {
   Session,
 } from '@shared/database/unit-of-work/unit-of-work.port';
 import { currentUser, required, page, role } from '@shared/common/access';
-import { ensure } from '@shared/platform/exceptions/domain.error';
 import type { TableName } from '@shared/database/records/records';
+import { Report } from '../domain/report';
 
 @Injectable()
 export class ModerationUseCases {
@@ -18,7 +18,7 @@ export class ModerationUseCases {
         booking: 'bookings',
         media: 'media',
       }[i.target_type] as TableName;
-    ensure(table, 'Invalid report target');
+    Report.assertValidTargetType(i.target_type);
     await required(s, table, i.target_id);
     return s.insert('reports', { ...i, user_id: u.id });
   }
@@ -54,11 +54,7 @@ export class ModerationUseCases {
     role(a, 'admin');
     const u = await currentUser(s, a),
       r = await required(s, 'reports', i.id);
-    ensure(
-      ['open', 'escalated'].includes(r.status),
-      'Report already resolved',
-      'conflict',
-    );
+    Report.assertResolvable(r.status);
     await s.insert('report_history', {
       report_id: r.id,
       actor_id: u.id,

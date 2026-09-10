@@ -5,19 +5,15 @@ import type {
 } from '@shared/database/unit-of-work/unit-of-work.port';
 import { bookingAccess } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
+import { LocationSession } from '../domain/location-session';
 
 @Injectable()
 export class LocationUseCases {
   async permitted(s: Session, a: Actor, id: string) {
     const context = await bookingAccess(s, a, id, 'photographer'),
       b = context.booking;
-    ensure(
-      ['accepted', 'in_progress'].includes(b.status) &&
-        Date.now() >= Date.parse(b.from) - 36e5 &&
-        Date.now() <= Date.parse(b.to),
-      'Tracking is outside permitted booking window',
-      'conflict',
-    );
+    LocationSession.assertPermittedStatus(b.status);
+    LocationSession.assertWithinWindow(b.from, b.to);
     return context;
   }
   async start(s: Session, a: Actor, i: { id: string }) {
@@ -46,13 +42,8 @@ export class LocationUseCases {
   }
   async get(s: Session, a: Actor, i: { id: string }) {
     const { booking: b } = await bookingAccess(s, a, i.id, 'customer');
-    ensure(
-      ['accepted', 'in_progress'].includes(b.status) &&
-        Date.now() >= Date.parse(b.from) - 36e5 &&
-        Date.now() <= Date.parse(b.to),
-      'Tracking unavailable',
-      'forbidden',
-    );
+    LocationSession.assertPermittedStatus(b.status);
+    LocationSession.assertWithinWindow(b.from, b.to);
     const [session] = await s.find('location_sessions', { booking_id: i.id });
     return {
       booking_id: i.id,

@@ -12,6 +12,7 @@ import {
   emit,
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
+import { Media } from '../domain/media';
 
 @Injectable()
 export class MediaUseCases {
@@ -39,11 +40,8 @@ export class MediaUseCases {
     const u = await currentUser(s, a),
       m = await required(s, 'media', id);
     ensure(m.user_id === u.id, 'Media access denied', 'forbidden');
-    ensure(
-      m.status !== 'deleted' && (!ready || m.status === 'ready'),
-      'Media is not ready',
-      'conflict',
-    );
+    Media.assertNotDeleted(m.status);
+    if (ready) Media.assertReady(m.status);
     return m;
   }
   async complete(s: Session, a: Actor, i: { media_id: string }) {
@@ -120,11 +118,7 @@ export class MediaUseCases {
   }
   async addGallery(s: Session, a: Actor, i: { id: string; media_id: string }) {
     const { booking: b } = await bookingAccess(s, a, i.id, 'photographer');
-    ensure(
-      !b.gallery_published_at,
-      'Published gallery is immutable',
-      'conflict',
-    );
+    Media.assertGalleryMutable(b.gallery_published_at);
     const [g] = await s.find('galleries', { booking_id: i.id });
     ensure(g, 'Create gallery first', 'conflict');
     const m = await this.owned(s, a, i.media_id);
@@ -170,15 +164,9 @@ export class MediaUseCases {
       i.id,
       'photographer',
     );
-    ensure(
-      ['shot', 'completed'].includes(b.status),
-      'Complete the shoot first',
-      'conflict',
-    );
-    ensure(
+    Media.assertBookingReadyForPublish(b.status);
+    Media.assertGalleryNotEmpty(
       (await s.find('booking_deliveries', { booking_id: i.id })).length,
-      'Gallery must contain images',
-      'conflict',
     );
     if (!b.gallery_published_at) {
       await s.update('bookings', b.id, {

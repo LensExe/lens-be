@@ -5,7 +5,6 @@ export { IdentityApiModule } from './identity-api.module';
 export { LocationApiModule } from './location-api.module';
 export { MediaApiModule } from './media-api.module';
 export { ModerationApiModule } from './moderation-api.module';
-export { NotificationApiModule } from './notification-api.module';
 export { PaymentApiModule } from './payment-api.module';
 export { PhotographerApiModule } from './photographer-api.module';
 export { PortfolioApiModule } from './portfolio-api.module';
