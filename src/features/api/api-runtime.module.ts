@@ -3,14 +3,12 @@ import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
 import { KeycloakModule } from '@shared/integrations/keycloak/keycloak.module';
 import {
-  NotificationDelivery,
   ObjectStorage,
   PaymentGateway,
   RealtimePublisher,
   UnitOfWork,
 } from '@shared/database/unit-of-work/unit-of-work.port';
 import { PostgresUnitOfWork } from '@shared/database/unit-of-work/postgres-unit-of-work';
-import { SmtpFcmDelivery } from '@shared/integrations/notification/smtp-fcm-delivery.service';
 import { PayOsGateway } from '@shared/integrations/payment/payos-gateway.service';
 import { S3ObjectStorage } from '@shared/integrations/storage/s3-storage.service';
 import { BookingUseCases } from '@modules/booking/application/bookings';
@@ -51,7 +49,6 @@ const applicationServices = [
     { provide: UnitOfWork, useClass: PostgresUnitOfWork },
     { provide: ObjectStorage, useClass: S3ObjectStorage },
     { provide: PaymentGateway, useClass: PayOsGateway },
-    { provide: NotificationDelivery, useClass: SmtpFcmDelivery },
     { provide: APP_GUARD, useClass: KeycloakGuard },
     { provide: APP_FILTER, useClass: DomainErrorFilter },
     LensGateway,
@@ -64,7 +61,6 @@ const applicationServices = [
     UnitOfWork,
     ObjectStorage,
     PaymentGateway,
-    NotificationDelivery,
     RealtimePublisher,
   ],
 })

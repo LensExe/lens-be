@@ -7,7 +7,6 @@ import {
 import {
   UnitOfWork,
   RealtimePublisher,
-  NotificationDelivery,
 } from '@shared/database/unit-of-work/unit-of-work.port';
 
 @Injectable()
@@ -20,7 +19,6 @@ export class OutboxWorker
   constructor(
     private readonly uow: UnitOfWork,
     private readonly realtime: RealtimePublisher,
-    private readonly delivery: NotificationDelivery,
   ) {}
   onApplicationBootstrap() {
     this.timer = setInterval(() => void this.tick(), 2000);
@@ -54,30 +52,6 @@ export class OutboxWorker
                   title: event.topic,
                   body: JSON.stringify(event.payload),
                 });
-            }
-            for (const userId of event.recipient_ids) {
-              const user = await s.get('users', userId);
-              if (!user || user.status !== 'active') continue;
-              const devices = await s.find('device_tokens', {
-                user_id: userId,
-              });
-              const { invalidTokens } = await this.delivery.send({
-                eventId: event.id,
-                userId,
-                email: user.email,
-                tokens: devices.map((d) => d.token),
-                title:
-                  typeof event.payload.title === 'string'
-                    ? event.payload.title
-                    : event.topic,
-                body:
-                  typeof event.payload.body === 'string'
-                    ? event.payload.body
-                    : JSON.stringify(event.payload),
-              });
-              for (const d of devices)
-                if (invalidTokens.includes(d.token))
-                  await s.delete('device_tokens', d.id);
             }
             await s.update('outbox_events', event.id, {
               processed_at: new Date().toISOString(),

@@ -16,7 +16,6 @@ import {
   UnitOfWork,
   ObjectStorage,
   PaymentGateway,
-  NotificationDelivery,
   type Actor,
 } from '../src/shared/database/unit-of-work/unit-of-work.port';
 import { PostgresUnitOfWork } from '../src/shared/database/unit-of-work/postgres-unit-of-work';
@@ -115,8 +114,6 @@ before(
     const mod = await Test.createTestingModule({ imports: [ApiModule] })
       .overrideProvider(UnitOfWork)
       .useValue(uow)
-      .overrideProvider(NotificationDelivery)
-      .useValue({ send: async () => ({ invalidTokens: [] }) })
       .overrideProvider(KeycloakService)
       .useValue({
         verifyToken: async (token: string) => {

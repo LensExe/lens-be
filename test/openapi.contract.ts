@@ -8,7 +8,6 @@ import { ApiRuntimeModule } from '../src/features/api/api-runtime.module';
 import { selectApiFeatureModules } from '../src/features/api/feature-modules';
 import { setupApi } from '../src/features/api/setup';
 import {
-  NotificationDelivery,
   ObjectStorage,
   PaymentGateway,
   UnitOfWork,
@@ -28,8 +27,6 @@ function compileApi(
     .useValue({})
     .overrideProvider(PaymentGateway)
     .useValue({})
-    .overrideProvider(NotificationDelivery)
-    .useValue({ send: () => Promise.resolve({ invalidTokens: [] }) })
     .overrideProvider(KeycloakService)
     .useValue({
       verifyToken: () => Promise.resolve({ sub: 'swagger-test', roles: [] }),
