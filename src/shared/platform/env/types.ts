@@ -37,6 +37,9 @@ export interface AuthConfig {
   keycloakRealm?: string;
   keycloakClientId?: string;
   keycloakSecret?: string;
+  keycloakAdminClientId?: string;
+  keycloakAdminUsername?: string;
+  keycloakAdminPassword?: string;
 }
 
 export interface CookieConfig {

@@ -29,9 +29,7 @@ export class KeycloakService {
     const auth = this.configService.get('auth') ?? {};
     this.authServerUrl = auth.keycloakAuthServerUrl;
     this.realm = auth.keycloakRealm;
-    // TODO: INSERT_KEYCLOAK_CLIENT_ID via KEYCLOAK_CLIENT_ID (API audience).
     this.audience = auth.keycloakClientId;
-
     if (this.authServerUrl && this.realm) {
       const jwksUri = `${this.authServerUrl}/realms/${this.realm}/protocol/openid-connect/certs`;
       this.jwksClientInstance = jwksClient({
@@ -50,7 +48,6 @@ export class KeycloakService {
    * Xác thực access token từ Keycloak
    */
   async verifyToken(token: string): Promise<KeycloakUser> {
-    // TODO: INSERT_KEYCLOAK_REALM and INSERT_KEYCLOAK_AUTH_SERVER_URL in env.
     // Fail closed: never trust jwt.decode() as authentication.
     if (!this.jwksClientInstance || !this.audience)
       throw new UnauthorizedException('Keycloak is not configured');

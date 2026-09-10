@@ -48,6 +48,9 @@ export const envConfig = (): EnvConfig => {
       keycloakRealm: process.env.KEYCLOAK_REALM,
       keycloakClientId: process.env.KEYCLOAK_CLIENT_ID,
       keycloakSecret: process.env.KEYCLOAK_SECRET,
+      keycloakAdminClientId: process.env.KEYCLOAK_ADMIN_CLIENT_ID,
+      keycloakAdminUsername: process.env.KEYCLOAK_ADMIN_USERNAME,
+      keycloakAdminPassword: process.env.KEYCLOAK_ADMIN_PASSWORD,
     },
     cookie: {
       domain: process.env.COOKIE_DOMAIN,
