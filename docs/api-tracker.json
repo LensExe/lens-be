@@ -72,6 +72,30 @@
     "kind": "Command"
   },
   {
+    "id": "AUTH-007",
+    "module": "Identity & User",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/keycloak/google/login",
+    "summary": "Khởi tạo đăng nhập Google",
+    "description": "Trả về authorization URL sử dụng Keycloak Identity Broker và PKCE.",
+    "role": "Public",
+    "priority": "Must",
+    "kind": "Query"
+  },
+  {
+    "id": "AUTH-008",
+    "module": "Identity & User",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/keycloak/google/callback",
+    "summary": "Xử lý callback Google",
+    "description": "Đổi authorization code lấy token Keycloak và tự động provision hồ sơ Lens.",
+    "role": "Public",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
     "id": "PHO-001",
     "module": "Photographer",
     "service": "Core Backend",

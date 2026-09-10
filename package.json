@@ -30,6 +30,7 @@
     "docker:status": "docker compose -f .docker/compose.yaml ps",
     "db:seed": "node scripts/seed.mjs",
     "db:migrate": "node scripts/migrate-lens.cjs",
+    "keycloak:google:setup": "node --env-file=.env scripts/configure-keycloak-google.mjs",
     "test:openapi": "node -r ts-node/register -r tsconfig-paths/register --test test/openapi.contract.ts",
     "test:integration": "node -r ts-node/register -r tsconfig-paths/register --test test/lens.integration.ts",
     "typecheck": "tsc --noEmit"

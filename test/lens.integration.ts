@@ -173,7 +173,7 @@ test('OpenAPI covers the 94-operation implementation contract with security, bod
     count += Object.keys(path as object).filter((m) =>
       ['get', 'post', 'patch', 'delete'].includes(m),
     ).length;
-  assert.equal(count, 94);
+  assert.equal(count, 96);
   for (const r of tracker) {
     const path = r.path.replace(/:(\w+)/g, '{$1}'),
       op = document.paths[path]?.[r.method.toLowerCase()];

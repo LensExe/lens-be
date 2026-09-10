@@ -110,7 +110,7 @@ void test('disabled feature modules are absent from Swagger', async () => {
 
     assert.ok(!operationIds.some((id) => id.startsWith('CHAT-')));
     assert.ok(!operationIds.some((id) => id.startsWith('NOTI-')));
-    assert.equal(operationIds.length, 86);
+    assert.equal(operationIds.length, 88);
   } finally {
     await app.close();
   }

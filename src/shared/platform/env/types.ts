@@ -40,6 +40,7 @@ export interface AuthConfig {
   keycloakAdminClientId?: string;
   keycloakAdminUsername?: string;
   keycloakAdminPassword?: string;
+  keycloakGoogleRedirectUri?: string;
 }
 
 export interface CookieConfig {

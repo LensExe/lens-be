@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { IdentityController } from '../http/user.controller';
+import { GoogleAuthController } from '../http/google-auth.controller';
+import { GoogleAuthService } from '../auth/google-auth.service';
 import {
   IdentityAddDeviceCommandHandler,
   IdentityDeleteDeviceCommandHandler,
@@ -17,8 +19,9 @@ import {
 } from '@modules/user/application/queries/identity';
 
 @Module({
-  controllers: [IdentityController],
+  controllers: [IdentityController, GoogleAuthController],
   providers: [
+    GoogleAuthService,
     IdentityAddDeviceCommandHandler,
     IdentityDeleteDeviceCommandHandler,
     IdentityRegisterCommandHandler,
