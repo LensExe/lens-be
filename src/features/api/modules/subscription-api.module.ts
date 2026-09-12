@@ -4,12 +4,12 @@ import {
   SubscriptionCancelCommandHandler,
   SubscriptionCreateCommandHandler,
   SubscriptionWebhookCommandHandler,
-} from '@modules/subscription/application/commands/subscriptions';
+} from '@modules/subscription/subscriptions.command';
 import {
   SubscriptionMeQueryHandler,
   SubscriptionPlansQueryHandler,
   SubscriptionUsageQueryHandler,
-} from '@modules/subscription/application/queries/subscriptions';
+} from '@modules/subscription/subscriptions.query';
 
 @Module({
   controllers: [SubscriptionController],

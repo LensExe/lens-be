@@ -1,47 +1,36 @@
-# Google login through Keycloak
+# Đăng nhập Google qua Keycloak
 
-Google is configured as a Keycloak Identity Provider. Lens never accepts a
-Google token directly: Google authenticates the user, Keycloak creates or links
-the realm user, and Lens verifies only access tokens issued by Keycloak.
+Google là Identity Provider của Keycloak. Lens không nhận Google token trực tiếp: trình duyệt đi qua Keycloak, còn backend chỉ đổi và xác minh Keycloak access token. Hai endpoint HTTP hiện tại là `GET /keycloak/google/login` và `GET /keycloak/google/callback`.
 
-## Required configuration
+## Cấu hình
 
-```env
-KEYCLOAK_AUTH_SERVER_URL=http://localhost:8089
+Đặt trong `.env` của môi trường chạy backend và script setup:
+
+```dotenv
+KEYCLOAK_AUTH_SERVER_URL=https://keycloak.example.com
 KEYCLOAK_REALM=lens
 KEYCLOAK_CLIENT_ID=lens-be
-KEYCLOAK_SECRET=<keycloak-client-secret>
-KEYCLOAK_ADMIN_USERNAME=lens-admin-keycloak
-KEYCLOAK_ADMIN_PASSWORD=<keycloak-admin-password>
-
-GOOGLE_CLIENT_ID=<google-oauth-client-id>
-GOOGLE_CLIENT_SECRET=<google-oauth-client-secret>
-KEYCLOAK_GOOGLE_REDIRECT_URI=http://localhost:3000/keycloak/google/callback
+KEYCLOAK_SECRET=<client-secret>
+KEYCLOAK_ADMIN_USERNAME=<admin-username>
+KEYCLOAK_ADMIN_PASSWORD=<admin-password>
+GOOGLE_CLIENT_ID=<google-client-id>
+GOOGLE_CLIENT_SECRET=<google-client-secret>
+KEYCLOAK_GOOGLE_REDIRECT_URI=https://api.example.com/keycloak/google/callback
 ```
 
-`KEYCLOAK_GOOGLE_REDIRECT_URI` must be exposed through the same public API path
-used by the browser. When Kong adds `/api/v1`, configure the URI with that
-prefix.
+`KEYCLOAK_GOOGLE_REDIRECT_URI` là URL callback **của Lens**, phải khớp URL công khai mà trình duyệt truy cập, kể cả prefix do reverse proxy thêm. Có hai redirect URI khác nhau:
 
-Run the idempotent setup after Keycloak is available:
+1. Lens callback: giá trị `KEYCLOAK_GOOGLE_REDIRECT_URI`; Keycloak dùng nó để trả authorization code về Lens.
+2. Keycloak broker callback: script in ra sau khi setup; khai báo giá trị này trong Google Cloud Console ở **Authorized redirect URIs**.
 
-```bash
-pnpm keycloak:google:setup
-```
+Sau khi Keycloak sẵn sàng, chạy `pnpm keycloak:google:setup`. [`configure-keycloak-google.mjs`](../scripts/configure-keycloak-google.mjs) tạo/cập nhật realm client, audience mapper và Google Identity Provider. Script cần quyền admin Keycloak và có thể thay đổi cấu hình client/IdP; kiểm tra biến môi trường đích trước khi chạy.
 
-The command creates or updates the realm client, audience mapper and Google
-Identity Provider. It prints the Keycloak broker callback that must be entered
-as an **Authorized redirect URI** in Google Cloud Console.
+## Luồng đăng nhập
 
-## API flow
+1. Client gọi `GET /keycloak/google/login` và mở `authorization_url` trả về.
+2. Lens tạo state + PKCE, lưu bundle dùng một lần trong Redis trong 10 phút; URL chuyển trình duyệt qua Keycloak/Google.
+3. Keycloak trả `code` và `state` về `GET /keycloak/google/callback` của Lens.
+4. Lens tiêu thụ state, đổi code lấy Keycloak token, xác minh access token rồi tạo hồ sơ local nếu là lần đăng nhập đầu.
+5. Callback trả token set Keycloak và hồ sơ user. Client dùng access token cho các API cần xác thực.
 
-1. Call `GET /keycloak/google/login`.
-2. Navigate the browser to the returned `authorization_url`.
-3. Google returns to Keycloak; Keycloak returns to
-   `GET /keycloak/google/callback?code=...&state=...`.
-4. Lens validates one-time state and PKCE, exchanges the code, verifies the
-   Keycloak token and creates the local domain profile on first login.
-
-The callback response contains Keycloak access and refresh tokens. Clients
-should keep the access token in memory and store refresh credentials using the
-platform's secure storage strategy.
+State đã dùng hoặc hết hạn bị từ chối. Callback trả token trong JSON, vì vậy chỉ dùng HTTPS khi triển khai; không ghi token vào log hoặc URL khác. Xem [secrets](SECRETS_GUIDE.md) và [triển khai backend](backend-implementation.md) cho cấu hình chung.

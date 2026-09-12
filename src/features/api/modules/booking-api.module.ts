@@ -9,13 +9,13 @@ import {
   BookingDisputeCommandHandler,
   BookingRejectCommandHandler,
   BookingStartCommandHandler,
-} from '@modules/booking/application/commands/bookings';
+} from '@modules/booking/bookings.command';
 import {
   BookingAdminQueryHandler,
   BookingGetQueryHandler,
   BookingListQueryHandler,
   BookingTimelineQueryHandler,
-} from '@modules/booking/application/queries/bookings';
+} from '@modules/booking/bookings.query';
 
 @Module({
   controllers: [BookingController],

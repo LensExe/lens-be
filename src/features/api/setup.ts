@@ -10,10 +10,12 @@ export function setupApi(app: INestApplication) {
       forbidUnknownValues: true,
     }),
   );
+
   app.enableCors({
     origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(','),
     credentials: true,
   });
+
   const builder = new DocumentBuilder()
     .setTitle('Lens API')
     .setDescription(
@@ -26,9 +28,11 @@ export function setupApi(app: INestApplication) {
       bearerFormat: 'JWT',
       description: 'Keycloak access token (do not use an ID token)',
     });
+
   const publicUrl = process.env.API_PUBLIC_URL?.trim();
   if (publicUrl)
     builder.addServer(publicUrl.replace(/\/$/, ''), 'Deployed API');
+
   const config = builder.build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document, {

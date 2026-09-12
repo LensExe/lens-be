@@ -10,9 +10,9 @@ import {
 } from '@nestjs/swagger';
 import { Public } from '../auth/keycloak.guard';
 import { GoogleAuthService } from '../auth/google-auth.service';
-import { GoogleCallbackQuery } from '../dto/auth/google-auth.dto';
-import { responseSchema } from '../responses';
-import { IdentityRegisterCommand } from '@modules/user/application/commands/identity';
+import { GoogleCallbackQuery } from '../dto/google-auth.dto';
+import { responseSchema } from '../swagger';
+import { IdentityRegisterCommand } from '@modules/identity/identity.command';
 
 @ApiTags('Authentication')
 @Controller('keycloak/google')

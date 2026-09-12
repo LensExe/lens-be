@@ -1,5 +1,5 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import type { Actor } from '../../database/unit-of-work/unit-of-work.port';
+import type { Actor } from '../../platform/auth/actor';
 
 /**
  * Inject the Keycloak user.

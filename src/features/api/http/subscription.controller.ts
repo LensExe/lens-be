@@ -23,16 +23,16 @@ import {
   ApiConflictResponse,
   ApiServiceUnavailableResponse,
 } from '@nestjs/swagger';
-import type { Actor } from '@shared/database/unit-of-work/unit-of-work.port';
+import type { Actor } from '@shared/platform/auth/actor';
 import { Access, Public } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
-import { responseSchema } from '../responses';
-import { SubscriptionUsageQuery } from '@modules/subscription/application/queries/subscriptions';
-import { SubscriptionMeQuery } from '@modules/subscription/application/queries/subscriptions';
-import { SubscriptionPlansQuery } from '@modules/subscription/application/queries/subscriptions';
-import { SubscriptionCreateCommand } from '@modules/subscription/application/commands/subscriptions';
-import { SubscriptionCancelCommand } from '@modules/subscription/application/commands/subscriptions';
-import { SubscriptionWebhookCommand } from '@modules/subscription/application/commands/subscriptions';
+import { responseSchema } from '../swagger';
+import { SubscriptionUsageQuery } from '@modules/subscription/subscriptions.query';
+import { SubscriptionMeQuery } from '@modules/subscription/subscriptions.query';
+import { SubscriptionPlansQuery } from '@modules/subscription/subscriptions.query';
+import { SubscriptionCreateCommand } from '@modules/subscription/subscriptions.command';
+import { SubscriptionCancelCommand } from '@modules/subscription/subscriptions.command';
+import { SubscriptionWebhookCommand } from '@modules/subscription/subscriptions.command';
 
 @ApiTags('Subscription')
 @Controller()
@@ -45,9 +45,9 @@ export class SubscriptionController {
   @ApiOperation({
     operationId: 'SUB-005',
     summary: 'Xem usage/quota',
-    description: 'Xem dung lượng và quyền lợi đã sử dụng. Role: Customer',
+    description: 'Xem dung lượng và quyền lợi đã sử dụng. Role: Photographer',
   })
-  @Access(['customer'])
+  @Access(['photographer'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
@@ -81,9 +81,9 @@ export class SubscriptionController {
     operationId: 'SUB-003',
     summary: 'Subscription hiện tại',
     description:
-      'Lấy gói, trạng thái, ngày hết hạn và entitlement. Role: Customer',
+      'Lấy gói, trạng thái, ngày hết hạn và entitlement. Role: Photographer',
   })
-  @Access(['customer'])
+  @Access(['photographer'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
@@ -144,9 +144,9 @@ export class SubscriptionController {
   @ApiOperation({
     operationId: 'SUB-002',
     summary: 'Đăng ký gói VIP',
-    description: 'Khởi tạo subscription/payment. Role: Customer',
+    description: 'Khởi tạo subscription/payment. Role: Photographer',
   })
-  @Access(['customer'])
+  @Access(['photographer'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
@@ -186,9 +186,9 @@ export class SubscriptionController {
   @ApiOperation({
     operationId: 'SUB-004',
     summary: 'Hủy gia hạn subscription',
-    description: 'Dừng auto-renew theo chính sách. Role: Customer',
+    description: 'Dừng auto-renew theo chính sách. Role: Photographer',
   })
-  @Access(['customer'])
+  @Access(['photographer'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',

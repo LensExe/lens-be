@@ -1,8 +1,6 @@
 export { BookingApiModule } from './booking-api.module';
 export { CalendarApiModule } from './calendar-api.module';
-export { ChatApiModule } from './chat-api.module';
 export { IdentityApiModule } from './identity-api.module';
-export { LocationApiModule } from './location-api.module';
 export { MediaApiModule } from './media-api.module';
 export { ModerationApiModule } from './moderation-api.module';
 export { PaymentApiModule } from './payment-api.module';

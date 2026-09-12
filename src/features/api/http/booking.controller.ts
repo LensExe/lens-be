@@ -25,22 +25,22 @@ import {
   ApiConflictResponse,
   ApiServiceUnavailableResponse,
 } from '@nestjs/swagger';
-import type { Actor } from '@shared/database/unit-of-work/unit-of-work.port';
+import type { Actor } from '@shared/platform/auth/actor';
 import { Access } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
-import { responseSchema } from '../responses';
-import { BookingAdminQuery } from '@modules/booking/application/queries/bookings';
-import { BookingCreateCommand } from '@modules/booking/application/commands/bookings';
-import { BookingListQuery } from '@modules/booking/application/queries/bookings';
-import { BookingAcceptCommand } from '@modules/booking/application/commands/bookings';
-import { BookingCancelCommand } from '@modules/booking/application/commands/bookings';
-import { BookingCompleteCommand } from '@modules/booking/application/commands/bookings';
-import { BookingCompleteShootCommand } from '@modules/booking/application/commands/bookings';
-import { BookingDisputeCommand } from '@modules/booking/application/commands/bookings';
-import { BookingRejectCommand } from '@modules/booking/application/commands/bookings';
-import { BookingStartCommand } from '@modules/booking/application/commands/bookings';
-import { BookingTimelineQuery } from '@modules/booking/application/queries/bookings';
-import { BookingGetQuery } from '@modules/booking/application/queries/bookings';
+import { responseSchema } from '../swagger';
+import { BookingAdminQuery } from '@modules/booking/bookings.query';
+import { BookingCreateCommand } from '@modules/booking/bookings.command';
+import { BookingListQuery } from '@modules/booking/bookings.query';
+import { BookingAcceptCommand } from '@modules/booking/bookings.command';
+import { BookingCancelCommand } from '@modules/booking/bookings.command';
+import { BookingCompleteCommand } from '@modules/booking/bookings.command';
+import { BookingCompleteShootCommand } from '@modules/booking/bookings.command';
+import { BookingDisputeCommand } from '@modules/booking/bookings.command';
+import { BookingRejectCommand } from '@modules/booking/bookings.command';
+import { BookingStartCommand } from '@modules/booking/bookings.command';
+import { BookingTimelineQuery } from '@modules/booking/bookings.query';
+import { BookingGetQuery } from '@modules/booking/bookings.query';
 
 @ApiTags('Booking')
 @Controller()
@@ -386,7 +386,7 @@ export class BookingController {
     operationId: 'BOOK-011',
     summary: 'Tạo tranh chấp booking',
     description:
-      'Khởi tạo yêu cầu hỗ trợ/tranh chấp. Role: Customer/Photographer',
+      'Khởi tạo report với target là booking. Role: Customer/Photographer',
   })
   @Access(['customer', 'photographer'])
   @ApiBearerAuth()
@@ -516,9 +516,9 @@ export class BookingController {
   @Get('bookings/:id/timeline')
   @ApiOperation({
     operationId: 'BOOK-010',
-    summary: 'Lịch sử trạng thái booking',
+    summary: 'Trạng thái booking',
     description:
-      'Xem timeline và các thay đổi trạng thái. Role: Customer/Photographer',
+      'Xem snapshot trạng thái hiện tại. Role: Customer/Photographer',
   })
   @Access(['customer', 'photographer'])
   @ApiBearerAuth()

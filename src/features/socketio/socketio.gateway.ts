@@ -1,49 +1,11 @@
-import {
-  WebSocketGateway,
-  WebSocketServer,
-  SubscribeMessage,
-  ConnectedSocket,
-  MessageBody,
-} from '@nestjs/websockets';
-import { CommandBus } from '@nestjs/cqrs';
-import {
-  IsUUID,
-  IsString,
-  MinLength,
-  MaxLength,
-  IsBoolean,
-  validate,
-} from 'class-validator';
-import { plainToInstance } from 'class-transformer';
+import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { DataSource } from 'typeorm';
 import { KeycloakService } from '@shared/integrations/keycloak/keycloak.service';
-import {
-  UnitOfWork,
-  RealtimePublisher,
-  type Actor,
-} from '@shared/database/unit-of-work/unit-of-work.port';
+import { RealtimePublisher } from '@shared/integrations/realtime/realtime-publisher.port';
+import type { Actor } from '@shared/platform/auth/actor';
 import { currentUser } from '@shared/common/access';
-import {
-  SendMessageCommand,
-  ReadMessageCommand,
-  ChatSignalCommand,
-} from '@modules/chat/application/realtime';
-import { ChatUseCases } from '@modules/chat/application/chat';
 import { DomainError } from '@shared/platform/exceptions/domain.error';
-
-class ConversationInput {
-  @IsUUID() id!: string;
-}
-class SendInput extends ConversationInput {
-  @IsUUID() client_message_id!: string;
-  @IsString() @MinLength(1) @MaxLength(10000) content!: string;
-}
-class ReadInput extends ConversationInput {
-  @IsUUID() message_id!: string;
-}
-class SignalInput extends ConversationInput {
-  @IsBoolean() active!: boolean;
-}
 @WebSocketGateway({
   namespace: '/lens',
   cors: {
@@ -55,9 +17,7 @@ export class LensGateway extends RealtimePublisher {
   @WebSocketServer() server!: Server;
   constructor(
     private readonly keycloak: KeycloakService,
-    private readonly uow: UnitOfWork,
-    private readonly commands: CommandBus,
-    private readonly chat: ChatUseCases,
+    private readonly dataSource: DataSource,
   ) {
     super();
   }
@@ -74,7 +34,7 @@ export class LensGateway extends RealtimePublisher {
   async handleConnection(socket: Socket) {
     try {
       const actor = await this.actor(socket),
-        user = await this.uow.read((s) => currentUser(s, actor));
+        user = await currentUser(this.dataSource.manager, actor);
       socket.data.userId = user.id;
       await socket.join(`user:${user.id}`);
       const token = await this.keycloak.verifyToken(this.token(socket));
@@ -94,100 +54,6 @@ export class LensGateway extends RealtimePublisher {
   publish(userIds: string[], topic: string, payload: unknown) {
     for (const id of new Set(userIds))
       this.server?.to(`user:${id}`).emit(topic, payload);
-  }
-  private async handle<T extends ConversationInput>(
-    socket: Socket,
-    raw: unknown,
-    type: new () => T,
-    topic: string,
-    command: (actor: Actor, input: T) => object,
-  ) {
-    try {
-      const input = plainToInstance(type, raw);
-      const errors = await validate(input, {
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        forbidUnknownValues: true,
-      });
-      if (errors.length)
-        throw new DomainError('invalid', 'Invalid realtime payload');
-      const actor = await this.actor(socket);
-      await this.uow.read((s) => this.chat.participant(s, actor, input.id));
-      const result = await this.commands.execute(command(actor, input));
-      const { conversation: c } = await this.uow.read((s) =>
-        this.chat.participant(s, actor, input.id),
-      );
-      this.publish([c.customer_user_id, c.photographer_user_id], topic, result);
-      return { ok: true, data: result };
-    } catch (error) {
-      return {
-        ok: false,
-        error:
-          error instanceof DomainError
-            ? error.message
-            : 'Authentication or request failed',
-      };
-    }
-  }
-  @SubscribeMessage('message.send') send(
-    @ConnectedSocket() s: Socket,
-    @MessageBody() b: unknown,
-  ) {
-    return this.handle(
-      s,
-      b,
-      SendInput,
-      'message.created',
-      (a, i) => new SendMessageCommand(a, i),
-    );
-  }
-  @SubscribeMessage('message.read') read(
-    @ConnectedSocket() s: Socket,
-    @MessageBody() b: unknown,
-  ) {
-    return this.handle(
-      s,
-      b,
-      ReadInput,
-      'message.read',
-      (a, i) => new ReadMessageCommand(a, i),
-    );
-  }
-  @SubscribeMessage('typing.start') typingStart(
-    @ConnectedSocket() s: Socket,
-    @MessageBody() b: unknown,
-  ) {
-    return this.handle(
-      s,
-      b,
-      ConversationInput,
-      'typing.start',
-      (a, i) => new ChatSignalCommand(a, { ...i, active: true }),
-    );
-  }
-  @SubscribeMessage('typing.stop') typingStop(
-    @ConnectedSocket() s: Socket,
-    @MessageBody() b: unknown,
-  ) {
-    return this.handle(
-      s,
-      b,
-      ConversationInput,
-      'typing.stop',
-      (a, i) => new ChatSignalCommand(a, { ...i, active: false }),
-    );
-  }
-  @SubscribeMessage('presence.update') presence(
-    @ConnectedSocket() s: Socket,
-    @MessageBody() b: unknown,
-  ) {
-    return this.handle(
-      s,
-      b,
-      SignalInput,
-      'presence.update',
-      (a, i) => new ChatSignalCommand(a, i),
-    );
   }
 }
 

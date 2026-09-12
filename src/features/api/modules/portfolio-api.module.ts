@@ -7,11 +7,11 @@ import {
   PortfolioRemoveItemCommandHandler,
   PortfolioReorderCommandHandler,
   PortfolioUpdateCommandHandler,
-} from '@modules/photographer/application/commands/portfolios';
+} from '@modules/photographer/portfolios.command';
 import {
   PortfolioGetQueryHandler,
   PortfolioListQueryHandler,
-} from '@modules/photographer/application/queries/portfolios';
+} from '@modules/photographer/portfolios.query';
 
 @Module({
   controllers: [PortfolioController],

@@ -1,13 +1,12 @@
+import { EntitySchemas, updateEntity } from '@shared/database';
+import { DataSource, IsNull } from 'typeorm';
 import {
   Injectable,
   Logger,
   OnApplicationBootstrap,
   OnApplicationShutdown,
 } from '@nestjs/common';
-import {
-  UnitOfWork,
-  RealtimePublisher,
-} from '@shared/database/unit-of-work/unit-of-work.port';
+import { RealtimePublisher } from '@shared/integrations/realtime/realtime-publisher.port';
 
 @Injectable()
 export class OutboxWorker
@@ -17,7 +16,7 @@ export class OutboxWorker
   private running = false;
   private readonly logger = new Logger(OutboxWorker.name);
   constructor(
-    private readonly uow: UnitOfWork,
+    private readonly dataSource: DataSource,
     private readonly realtime: RealtimePublisher,
   ) {}
   onApplicationBootstrap() {
@@ -31,37 +30,29 @@ export class OutboxWorker
     if (this.running) return;
     this.running = true;
     try {
-      const pending = await this.uow.read((s) =>
-        s.find('outbox_events', { processed_at: null }, { limit: 50 }),
+      const pending = await this.dataSource.manager.find(
+        EntitySchemas.outbox_events,
+        {
+          where: { processed_at: IsNull() },
+          order: { created_at: 'ASC', id: 'ASC' },
+          take: 50,
+        },
       );
       for (const candidate of pending) {
         try {
-          const e = await this.uow.write(async (s) => {
-            const event = await s.get('outbox_events', candidate.id);
+          const e = await this.dataSource.transaction(async (s) => {
+            const event = await s.findOneBy(EntitySchemas.outbox_events, {
+              id: candidate.id,
+            });
             if (!event || event.processed_at) return null;
-            // Fan-out: write one in-app notification row per recipient
-            for (const user_id of event.recipient_ids) {
-              const [existing] = await s.find('notifications', {
-                user_id,
-                event_id: event.id,
-              });
-              if (!existing)
-                await s.insert('notifications', {
-                  user_id,
-                  event_id: event.id,
-                  title: event.topic,
-                  body: JSON.stringify(event.payload),
-                });
-            }
-            await s.update('outbox_events', event.id, {
+            await updateEntity(s, EntitySchemas.outbox_events, event.id, {
               processed_at: new Date().toISOString(),
             });
             return event;
           });
           if (e)
-            this.realtime.publish(e.recipient_ids, 'notification.created', {
+            this.realtime.publish(e.recipient_ids, e.topic, {
               event_id: e.id,
-              topic: e.topic,
               ...e.payload,
             });
         } catch {

@@ -26,19 +26,19 @@ import {
   ApiConflictResponse,
   ApiServiceUnavailableResponse,
 } from '@nestjs/swagger';
-import type { Actor } from '@shared/database/unit-of-work/unit-of-work.port';
+import type { Actor } from '@shared/platform/auth/actor';
 import { Access, Public } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
-import { responseSchema } from '../responses';
-import { PhotographerLocationCommand } from '@modules/photographer/application/commands/photographers';
-import { PhotographerStatusCommand } from '@modules/photographer/application/commands/photographers';
-import { PhotographerAdminQuery } from '@modules/photographer/application/queries/photographers';
-import { PhotographerUpdateCommand } from '@modules/photographer/application/commands/photographers';
-import { PhotographerMeQuery } from '@modules/photographer/application/queries/photographers';
-import { PhotographerCreateCommand } from '@modules/photographer/application/commands/photographers';
-import { PhotographerTopQuery } from '@modules/photographer/application/queries/photographers';
-import { PhotographerSearchQuery } from '@modules/photographer/application/queries/photographers';
-import { PhotographerGetQuery } from '@modules/photographer/application/queries/photographers';
+import { responseSchema } from '../swagger';
+import { PhotographerLocationCommand } from '@modules/photographer/photographers.command';
+import { PhotographerStatusCommand } from '@modules/photographer/photographers.command';
+import { PhotographerAdminQuery } from '@modules/photographer/photographers.query';
+import { PhotographerUpdateCommand } from '@modules/photographer/photographers.command';
+import { PhotographerMeQuery } from '@modules/photographer/photographers.query';
+import { PhotographerCreateCommand } from '@modules/photographer/photographers.command';
+import { PhotographerTopQuery } from '@modules/photographer/photographers.query';
+import { PhotographerSearchQuery } from '@modules/photographer/photographers.query';
+import { PhotographerGetQuery } from '@modules/photographer/photographers.query';
 
 @ApiTags('Photographer')
 @Controller()

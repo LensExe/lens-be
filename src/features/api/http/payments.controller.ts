@@ -25,19 +25,19 @@ import {
   ApiConflictResponse,
   ApiServiceUnavailableResponse,
 } from '@nestjs/swagger';
-import type { Actor } from '@shared/database/unit-of-work/unit-of-work.port';
+import type { Actor } from '@shared/platform/auth/actor';
 import { Access, Public } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
-import { responseSchema } from '../responses';
-import { PaymentAdminQuery } from '@modules/payment/application/queries/payments';
-import { PaymentDepositCommand } from '@modules/payment/application/commands/payments';
-import { PaymentRemainingCommand } from '@modules/payment/application/commands/payments';
-import { PaymentHistoryQuery } from '@modules/payment/application/queries/payments';
-import { PaymentQrQuery } from '@modules/payment/application/queries/payments';
-import { PaymentRefundCommand } from '@modules/payment/application/commands/payments';
-import { PaymentRefundsQuery } from '@modules/payment/application/queries/payments';
-import { PaymentWebhookCommand } from '@modules/payment/application/commands/payments';
-import { PaymentGetQuery } from '@modules/payment/application/queries/payments';
+import { responseSchema } from '../swagger';
+import { PaymentAdminQuery } from '@modules/payment/payments.query';
+import { PaymentDepositCommand } from '@modules/payment/payments.command';
+import { PaymentRemainingCommand } from '@modules/payment/payments.command';
+import { PaymentHistoryQuery } from '@modules/payment/payments.query';
+import { PaymentQrQuery } from '@modules/payment/payments.query';
+import { PaymentRefundCommand } from '@modules/payment/payments.command';
+import { PaymentRefundsQuery } from '@modules/payment/payments.query';
+import { PaymentWebhookCommand } from '@modules/payment/payments.command';
+import { PaymentGetQuery } from '@modules/payment/payments.query';
 
 @ApiTags('Payment')
 @Controller()

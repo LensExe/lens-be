@@ -1,6 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Actor } from '@shared/database/unit-of-work/unit-of-work.port';
+import type { Actor } from '@shared/platform/auth/actor';
 import {
   KeycloakIdentityProvider,
   KeycloakOidcRedirectService,

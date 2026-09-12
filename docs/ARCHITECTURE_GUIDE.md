@@ -1,109 +1,85 @@
-# HƯỚNG DẪN KIẾN TRÚC PHÁT TRIỂN MODULE (PRAGMATIC CLEAN / DDD)
+# Kiến trúc Lens Backend
 
-> **LƯU Ý QUAN TRỌNG DÀNH CHO TEAM MEMBERS:**  
-> Module `booking` ([src/modules/booking/](file:///Users/donhianh/Desktop/Code/FPT/sem8/exe202/lens-backend/src/modules/booking)) được thiết lập làm **Khuôn Mẫu Chuẩn (Gold Standard Template)** cho toàn bộ dự án `lens-backend`. Khi bạn tạo hoặc phát triển các module mới (`lens`, `user`, `order`, `payment`...), vui lòng tuân thủ cấu trúc và quy tắc phân tầng dưới đây.
+Lens Backend dùng Clean Architecture tinh gọn theo bounded context, NestJS/CQRS cho lớp giao tiếp, và TypeORM `EntityManager` trong application use case. Ranh giới chính là: domain chỉ xử lý dữ liệu và quy tắc; use case điều phối I/O, quyền truy cập, lưu dữ liệu và sự kiện. Đây là biến thể thực dụng: use case phụ thuộc TypeORM, còn domain độc lập TypeORM/NestJS.
 
----
-
-## 1. Tổng Quan Cấu Trúc Thư Mục
+## Cây thư mục
 
 ```text
-src/modules/booking/
-├── booking.module.ts                         # NestJS Module: Khai báo DI, kết nối Service và Repository
-│
-├── domain/                                   # TẦNG 1: NGHIỆP VỤ LÕI (Không phụ thuộc Framework)
-│   ├── entities/
-│   │   └── booking.domain-entity.ts          # Chứa dữ liệu nghiệp vụ & phương thức xử lý (business rules)
-│   ├── enums/
-│   │   └── booking-status.enum.ts            # Định nghĩa các trạng thái (PENDING, CONFIRMED, CANCELLED...)
-│   └── repositories/
-│       └── booking.repository.interface.ts   # Interface Repository (Port) & Token Injection
-│
-├── application/                              # TẦNG 2: ĐIỀU PHỐI USE-CASES & DTO
-│   ├── services/
-│   │   └── booking.service.ts                # Application Service: Gọi repo, xử lý luồng use-case
-│   └── dto/
-│       ├── create-booking.dto.ts             # Input DTO nhận dữ liệu từ Controller
-│       └── booking-response.dto.ts           # Output DTO chuẩn hóa dữ liệu trả về cho Client
-│
-└── infrastructure/                           # TẦNG 3: HẠ TẦNG & CƠ SỞ DỮ LIỆU
-    ├── entities/
-    │   └── booking.orm-entity.ts             # Model bảng Database (TypeORM Entity)
-    ├── mappers/
-    │   └── booking.mapper.ts                 # Chuyển đổi 2 chiều: ORM Entity ⮂ Domain Entity
-    └── repositories/
-        └── booking.repository.ts             # Triển khai thực tế IBookingRepository (sử dụng Mapper)
+apps/
+  core/src/                    Composition root và entrypoint HTTP
+  cli/src/                     Lệnh chạy riêng
+src/
+  modules/<context>/           Nghiệp vụ theo bounded context
+    *.domain.ts                Quy tắc thuần, không I/O (chỉ tạo khi có quy tắc)
+    *.use-case.ts              Điều phối use case bằng EntityManager
+    *.command.ts               Command và CommandHandler cho ghi
+    *.query.ts                 Query và QueryHandler cho đọc
+    ports/                     Hợp đồng do context này cần từ context khác
+  features/
+    api/http/                  Controller HTTP
+    api/modules/               NestJS module ghép controller và handler
+    api/auth/                  Guard và metadata xác thực HTTP
+    api/api-runtime.module.ts  Ghép use case, port và adapter
+    api/dto/                   DTO/validation request theo nhóm API
+    api/swagger/               Record schema và response schema OpenAPI
+    api/responses.ts           Barrel export cho schema OpenAPI
+    socketio/                  Gateway realtime
+    workers/                   Outbox worker
+  shared/
+    contracts/                 Input contract độc lập HTTP
+    domain/                    Giá trị/quy tắc thuần thật sự dùng chung
+    database/entities/         TypeORM entity, mỗi bảng một file
+    database/                  DatabaseModule và helper truy cập dữ liệu
+    integrations/              Keycloak, PayOS, S3, realtime
+    platform/                  Auth, cấu hình và xử lý lỗi chung
+    common/                    Helper application hiện dùng
+migrations/                    Migration SQL
+docs/                          Tài liệu dự án
+test/                          Kiểm thử
 ```
 
-> **Tầng Delivery (Nhận Request từ bên ngoài)**:  
-> Controller được đặt tại `src/features/api/http/booking.controller.ts` để tách biệt hoàn toàn giao thức HTTP khỏi logic nghiệp vụ.
+Không bắt buộc mọi context có `*.domain.ts` hoặc `ports/`: chỉ thêm khi có quy tắc thuần hoặc phụ thuộc cần đảo chiều. Command/query nằm trực tiếp trong context, nhận biết bằng hậu tố file.
 
----
-
-## 2. Trách Nhiệm Của Từng Tầng
-
-### 🟢 1. Tầng Domain (`domain/`)
-
-- **Trách nhiệm**: Nắm giữ toàn bộ luật nghiệp vụ cốt lõi của bài toán.
-- **Nguyên tắc vàng**:
-  - **HOÀN TOÀN ĐỘC LẬP**: Không import bất kỳ thứ gì từ NestJS (`@Injectable`, `@Controller`), TypeORM, hay thư viện bên ngoài.
-  - **Domain Entity (`*.domain-entity.ts`)**: Không chỉ chứa thuộc tính, mà phải chứa logic thay đổi trạng thái và xác thực nghiệp vụ (ví dụ: hàm `confirm()`, `cancel()`).
-  - **Repository Interface (`*.repository.interface.ts`)**: Định nghĩa hợp đồng những gì Domain cần (lưu, tìm, xóa), KHÔNG quan tâm đến database là PostgreSQL, MongoDB hay Redis.
-
-### 🟡 2. Tầng Application (`application/`)
-
-- **Trách nhiệm**: Nhận yêu cầu từ tầng Delivery (Controller), điều phối các đối tượng Domain và gọi Repository để hoàn thành Use-Case.
-- **Nguyên tắc vàng**:
-  - Nhận dữ liệu đầu vào qua **Input DTO** và trả về qua **Output DTO** (tránh trả trực tiếp Domain Entity hoặc ORM Entity ra ngoài).
-  - Inject Repository thông qua Token interface (`@Inject(BOOKING_REPOSITORY)`), không inject trực tiếp class cụ thể của database.
-
-### 🔵 3. Tầng Infrastructure (`infrastructure/`)
-
-- **Trách nhiệm**: Xử lý các chi tiết kỹ thuật: kết nối database, gọi query TypeORM, lưu file, gửi email.
-- **Các thành phần cốt lõi**:
-  - **ORM Entity (`*.orm-entity.ts`)**: Định nghĩa cấu trúc bảng trong PostgreSQL (các cột `@Column`, quan hệ `@ManyToOne`).
-  - **Mapper (`*.mapper.ts`)**: Đảm bảo sự tách biệt giữa Database và Domain:
-    - `toDomain(orm)`: Chuyển dữ liệu thô từ Database thành đối tượng Domain Entity giàu nghiệp vụ.
-    - `toOrm(domain)`: Chuyển Domain Entity thành bản ghi ORM để lưu vào Database.
-  - **Repository (`*.repository.ts`)**: Triển khai `implements IBookingRepository`. Sử dụng Mapper để chuyển đổi trước khi lưu hoặc sau khi lấy từ Database.
-
-### 🟣 4. Tầng Delivery (`src/features/api/http/`)
-
-- **Trách nhiệm**: Tiếp nhận HTTP Request (REST API), validate dữ liệu và trả response HTTP.
-- **Nguyên tắc vàng**:
-  - Controller **chỉ được gọi Service**, tuyệt đối không gọi thẳng Repository hay tự viết query database trong Controller.
-
----
-
-## 3. Sơ Đồ Luồng Dữ Liệu & Vai Trò Của Mapper
+## Ranh giới và luồng xử lý
 
 ```text
-[ Client (Frontend / Mobile) ]
-       │  HTTP Request (JSON)
-       ▼
-[ Controller ] (src/features/api/http/booking.controller.ts)
-       │  CreateBookingDto
-       ▼
-[ Application Service ] (application/services/booking.service.ts)
-       │  BookingDomainEntity (thực thi logic confirm / cancel)
-       ▼
-[ Repository Implementation ] (infrastructure/repositories/booking.repository.ts)
-       │
-       ├──► [ Mapper.toOrm() ] ────► BookingOrmEntity ────► [ PostgreSQL / TypeORM ]
-       │                                                            │
-       └──◄ [ Mapper.toDomain() ] ◄── BookingOrmEntity ◄────────────┘
+POST /bookings
+  → BookingController (HTTP, DTO, auth)
+  → CommandBus → BookingsCommandHandler (mở transaction)
+  → BookingUseCases.create(EntityManager, actor, input)
+  → đọc dữ liệu bằng EntityManager
+  → Booking.prepare(facts) trong booking.domain.ts
+  → lưu booking và ghi outbox bằng cùng EntityManager/transaction
+  → commit → OutboxWorker phát realtime
 ```
 
----
+- `*.domain.ts`: hàm/quy tắc thuần; nhận facts/giá trị, trả kết quả hoặc lỗi nghiệp vụ. Không inject service, gọi DB/API, phát sự kiện hoặc biết controller. Ví dụ [`booking.domain.ts`](../src/modules/booking/booking.domain.ts) quyết định tạo booking hợp lệ và chuyển trạng thái; [`identity.domain.ts`](../src/modules/identity/identity.domain.ts) quyết định chuyển trạng thái tài khoản.
+- `*.use-case.ts`: lấy facts từ database, gọi domain, điều phối nhiều bước, kiểm tra quyền và lưu kết quả. `EntityManager` được truyền từ handler; các command và query handler hiện đều mở `DataSource.transaction()`.
+- `*.command.ts` / `*.query.ts`: adapter CQRS mỏng, chuyển input từ bus vào use case. Handler sở hữu ranh giới transaction, không chứa quy tắc nghiệp vụ.
+- `src/features/`: adapter đầu vào (HTTP) và đầu ra (realtime/worker), cùng wiring NestJS. TypeORM entity trong `src/shared/database/entities/` là mô hình lưu trữ; không đặt quy tắc domain vào entity này.
 
-## 4. Quy Tắc Chiều Phụ Thuộc (Dependency Rule)
+## Port giữa các context
 
-Luồng phụ thuộc phải đi **một chiều từ ngoài vào trong**:
+Port là hợp đồng cho một khả năng mà **module tiêu thụ** cần. Đặt port tại `src/modules/<module-tiêu-thụ>/ports/`, không gom tất cả vào `shared`. Module cung cấp có thể dùng một use-case class thực hiện nhiều port; NestJS `useExisting` ánh xạ từng token về cùng một instance. Chỉ tách adapter riêng khi nó có trách nhiệm/nguồn dữ liệu riêng.
 
-$$\text{Controller (Delivery)} \longrightarrow \text{Service (Application)} \longrightarrow \text{Domain (Core)}$$
-$$\text{Infrastructure (Repo + Mapper)} \longrightarrow \text{Domain (Interface + Domain Entity)}$$
+| Module tiêu thụ        | Port                       | Bên cung cấp                |
+| ---------------------- | -------------------------- | --------------------------- |
+| Booking                | `RatingUpdaterPort`        | `ReviewUseCases` (feedback) |
+| Photographer/Portfolio | `MediaOwnershipPort`       | `MediaUseCases`             |
+| Subscription           | `SubscriptionPaymentsPort` | `PaymentUseCases`           |
 
-- **Domain** không biết ai đang gọi mình (không import Application, Infrastructure hay Delivery).
-- **Application** chỉ phụ thuộc vào Domain (gọi Domain Entity và Repository Interface).
-- **Infrastructure** phụ thuộc vào Domain để hiện thực hóa các Interface.
-- **Delivery** chỉ phụ thuộc vào Application Service và DTO.
+Wiring nằm tại [`api-runtime.module.ts`](../src/features/api/api-runtime.module.ts). Use case tiêu thụ inject port, không inject trực tiếp use case của module khác. Đây là lời gọi đồng bộ khi cần kết quả ngay hoặc phải dùng cùng `EntityManager`/transaction. Tác vụ realtime được ghi vào outbox trong transaction rồi worker phát sau commit. Worker hiện đánh dấu `processed_at` trước khi gọi publisher; nếu publisher thất bại sau bước đó, sự kiện không tự được retry. Không coi outbox hiện tại là cơ chế bảo đảm phát đúng một lần.
+
+Port của tích hợp bên ngoài có phạm vi toàn ứng dụng, như `PaymentGateway` và `RealtimePublisher`, nằm trong `src/shared/integrations/`. Mã domain chung chỉ đặt ở `src/shared/domain/` nếu thật sự không thuộc riêng context nào, ví dụ giá trị khoảng thời gian/tiền dùng bởi booking, calendar và payment.
+
+## Quy tắc phụ thuộc
+
+```text
+features → modules/use-case + modules/ports → modules/domain + shared/domain
+                                   ↓
+                       EntityManager + shared/integrations
+```
+
+Domain không import từ `features`, use case, `platform`, TypeORM hoặc NestJS; lỗi nghiệp vụ thuần là `src/shared/domain/domain.error.ts`. Use case có thể dùng TypeORM và infrastructure chung nhưng không import trực tiếp use case của context khác. Provider có thể `import type` port để TypeScript kiểm tra hợp đồng; runtime injection nằm ở composition root. Tránh đặt quy tắc nghiệp vụ mới trong controller, handler hoặc TypeORM entity.
+
+`CoreModule` chọn HTTP feature module theo `FEATURE_<NAME>_ENABLED`; tên hiện tại: `IDENTITY`, `PHOTOGRAPHER`, `PORTFOLIO`, `BOOKING`, `PAYMENT`, `CALENDAR`, `MEDIA`, `REVIEW`, `SUBSCRIPTION`, `MODERATION`. Xem [phân chia module](MODULES_BREAKDOWN.md) cho tên file và ownership.

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PayOS } from '@payos/node';
-import { PaymentGateway } from '../../database/unit-of-work/unit-of-work.port';
+import { PaymentGateway } from './payment.port';
 import { DomainError, ensure } from '../../platform/exceptions/domain.error';
 
 @Injectable()

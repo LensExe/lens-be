@@ -7,22 +7,18 @@ import { ApiModule } from '../src/features/api/api.module';
 import { ApiRuntimeModule } from '../src/features/api/api-runtime.module';
 import { selectApiFeatureModules } from '../src/features/api/feature-modules';
 import { setupApi } from '../src/features/api/setup';
-import {
-  ObjectStorage,
-  PaymentGateway,
-  UnitOfWork,
-} from '../src/shared/database/unit-of-work/unit-of-work.port';
+import { DataSource } from 'typeorm';
+import { ObjectStorage } from '../src/shared/integrations/s3/storage.port';
+import { PaymentGateway } from '../src/shared/integrations/payment/payment.port';
 import { KeycloakService } from '../src/shared/integrations/keycloak/keycloak.service';
 
 function compileApi(
   imports: Parameters<typeof Test.createTestingModule>[0]['imports'],
 ) {
-  return Test.createTestingModule({ imports })
-    .overrideProvider(UnitOfWork)
-    .useValue({
-      read: (work: (session: object) => unknown) => Promise.resolve(work({})),
-      write: (work: (session: object) => unknown) => Promise.resolve(work({})),
-    })
+  return Test.createTestingModule({
+    imports,
+    providers: [{ provide: DataSource, useValue: {} }],
+  })
     .overrideProvider(ObjectStorage)
     .useValue({})
     .overrideProvider(PaymentGateway)
@@ -92,8 +88,7 @@ void test('every registered HTTP endpoint has a complete Swagger contract', asyn
 void test('disabled feature modules are absent from Swagger', async () => {
   const modules = selectApiFeatureModules({
     ...process.env,
-    FEATURE_CHAT_ENABLED: 'false',
-    FEATURE_NOTIFICATION_ENABLED: 'false',
+    FEATURE_MEDIA_ENABLED: 'false',
   });
   const moduleRef = await compileApi([ApiRuntimeModule, ...modules]);
   const app = moduleRef.createNestApplication({ logger: false });
@@ -108,9 +103,9 @@ void test('disabled feature modules are absent from Swagger', async () => {
       ),
     );
 
-    assert.ok(!operationIds.some((id) => id.startsWith('CHAT-')));
-    assert.ok(!operationIds.some((id) => id.startsWith('NOTI-')));
-    assert.equal(operationIds.length, 88);
+    assert.ok(!operationIds.some((id) => id.startsWith('MEDIA-')));
+    assert.ok(!operationIds.some((id) => id.startsWith('LOC-')));
+    assert.equal(operationIds.length, 71);
   } finally {
     await app.close();
   }

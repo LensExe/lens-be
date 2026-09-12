@@ -25,16 +25,16 @@ import {
   ApiConflictResponse,
   ApiServiceUnavailableResponse,
 } from '@nestjs/swagger';
-import type { Actor } from '@shared/database/unit-of-work/unit-of-work.port';
+import type { Actor } from '@shared/platform/auth/actor';
 import { Access } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
-import { responseSchema } from '../responses';
-import { ModerationDashboardQuery } from '@modules/moderation/application/queries/moderation';
-import { ModerationListQuery } from '@modules/moderation/application/queries/moderation';
-import { ModerationMineQuery } from '@modules/moderation/application/queries/moderation';
-import { ModerationCreateCommand } from '@modules/moderation/application/commands/moderation';
-import { ModerationResolveCommand } from '@modules/moderation/application/commands/moderation';
-import { ModerationGetQuery } from '@modules/moderation/application/queries/moderation';
+import { responseSchema } from '../swagger';
+import { ModerationDashboardQuery } from '@modules/moderation/moderation.query';
+import { ModerationListQuery } from '@modules/moderation/moderation.query';
+import { ModerationMineQuery } from '@modules/moderation/moderation.query';
+import { ModerationCreateCommand } from '@modules/moderation/moderation.command';
+import { ModerationResolveCommand } from '@modules/moderation/moderation.command';
+import { ModerationGetQuery } from '@modules/moderation/moderation.query';
 
 @ApiTags('Moderation')
 @Controller()

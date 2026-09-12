@@ -24,19 +24,19 @@ import {
   ApiConflictResponse,
   ApiServiceUnavailableResponse,
 } from '@nestjs/swagger';
-import type { Actor } from '@shared/database/unit-of-work/unit-of-work.port';
+import type { Actor } from '@shared/platform/auth/actor';
 import { Access } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
-import { responseSchema } from '../responses';
-import { MediaCompleteCommand } from '@modules/media/application/commands/media';
-import { MediaUploadCommand } from '@modules/media/application/commands/media';
-import { MediaDownloadQuery } from '@modules/media/application/queries/media';
-import { MediaAddGalleryCommand } from '@modules/media/application/commands/media';
-import { MediaPublishCommand } from '@modules/media/application/commands/media';
-import { MediaCreateGalleryCommand } from '@modules/media/application/commands/media';
-import { MediaGalleryQuery } from '@modules/media/application/queries/media';
-import { MediaGetQuery } from '@modules/media/application/queries/media';
-import { MediaRemoveCommand } from '@modules/media/application/commands/media';
+import { responseSchema } from '../swagger';
+import { MediaCompleteCommand } from '@modules/media/media.command';
+import { MediaUploadCommand } from '@modules/media/media.command';
+import { MediaDownloadQuery } from '@modules/media/media.query';
+import { MediaAddGalleryCommand } from '@modules/media/media.command';
+import { MediaPublishCommand } from '@modules/media/media.command';
+import { MediaCreateGalleryCommand } from '@modules/media/media.command';
+import { MediaGalleryQuery } from '@modules/media/media.query';
+import { MediaGetQuery } from '@modules/media/media.query';
+import { MediaRemoveCommand } from '@modules/media/media.command';
 
 @ApiTags('Media')
 @Controller()

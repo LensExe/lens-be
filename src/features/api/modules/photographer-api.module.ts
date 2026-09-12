@@ -5,14 +5,14 @@ import {
   PhotographerLocationCommandHandler,
   PhotographerStatusCommandHandler,
   PhotographerUpdateCommandHandler,
-} from '@modules/photographer/application/commands/photographers';
+} from '@modules/photographer/photographers.command';
 import {
   PhotographerAdminQueryHandler,
   PhotographerGetQueryHandler,
   PhotographerMeQueryHandler,
   PhotographerSearchQueryHandler,
   PhotographerTopQueryHandler,
-} from '@modules/photographer/application/queries/photographers';
+} from '@modules/photographer/photographers.query';
 
 @Module({
   controllers: [PhotographerController],

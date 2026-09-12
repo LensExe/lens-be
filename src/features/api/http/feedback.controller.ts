@@ -27,15 +27,15 @@ import {
   ApiConflictResponse,
   ApiServiceUnavailableResponse,
 } from '@nestjs/swagger';
-import type { Actor } from '@shared/database/unit-of-work/unit-of-work.port';
+import type { Actor } from '@shared/platform/auth/actor';
 import { Access, Public } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
-import { responseSchema } from '../responses';
-import { ReviewCreateCommand } from '@modules/feedback/application/commands/reviews';
-import { ReviewSummaryQuery } from '@modules/feedback/application/queries/reviews';
-import { ReviewListQuery } from '@modules/feedback/application/queries/reviews';
-import { ReviewUpdateCommand } from '@modules/feedback/application/commands/reviews';
-import { ReviewRemoveCommand } from '@modules/feedback/application/commands/reviews';
+import { responseSchema } from '../swagger';
+import { ReviewCreateCommand } from '@modules/feedback/reviews.command';
+import { ReviewSummaryQuery } from '@modules/feedback/reviews.query';
+import { ReviewListQuery } from '@modules/feedback/reviews.query';
+import { ReviewUpdateCommand } from '@modules/feedback/reviews.command';
+import { ReviewRemoveCommand } from '@modules/feedback/reviews.command';
 
 @ApiTags('Review')
 @Controller()

@@ -27,18 +27,18 @@ import {
   ApiConflictResponse,
   ApiServiceUnavailableResponse,
 } from '@nestjs/swagger';
-import type { Actor } from '@shared/database/unit-of-work/unit-of-work.port';
+import type { Actor } from '@shared/platform/auth/actor';
 import { Access, Public } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
-import { responseSchema } from '../responses';
-import { PortfolioCreateCommand } from '@modules/photographer/application/commands/portfolios';
-import { PortfolioReorderCommand } from '@modules/photographer/application/commands/portfolios';
-import { PortfolioListQuery } from '@modules/photographer/application/queries/portfolios';
-import { PortfolioAddCommand } from '@modules/photographer/application/commands/portfolios';
-import { PortfolioGetQuery } from '@modules/photographer/application/queries/portfolios';
-import { PortfolioUpdateCommand } from '@modules/photographer/application/commands/portfolios';
-import { PortfolioRemoveCommand } from '@modules/photographer/application/commands/portfolios';
-import { PortfolioRemoveItemCommand } from '@modules/photographer/application/commands/portfolios';
+import { responseSchema } from '../swagger';
+import { PortfolioCreateCommand } from '@modules/photographer/portfolios.command';
+import { PortfolioReorderCommand } from '@modules/photographer/portfolios.command';
+import { PortfolioListQuery } from '@modules/photographer/portfolios.query';
+import { PortfolioAddCommand } from '@modules/photographer/portfolios.command';
+import { PortfolioGetQuery } from '@modules/photographer/portfolios.query';
+import { PortfolioUpdateCommand } from '@modules/photographer/portfolios.command';
+import { PortfolioRemoveCommand } from '@modules/photographer/portfolios.command';
+import { PortfolioRemoveItemCommand } from '@modules/photographer/portfolios.command';
 
 @ApiTags('Portfolio')
 @Controller()

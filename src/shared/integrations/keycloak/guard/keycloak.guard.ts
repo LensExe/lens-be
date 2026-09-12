@@ -7,9 +7,9 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { DataSource } from 'typeorm';
 import { KeycloakService } from '../keycloak.service';
-import { UnitOfWork } from '../../../database/unit-of-work/unit-of-work.port';
-import type { Actor } from '../../../database/unit-of-work/unit-of-work.port';
+import type { Actor } from '../../../platform/auth/actor';
 import { currentUser } from '../../../common/access';
 
 export const Access = (roles: string[]) => SetMetadata('lens:roles', roles);
@@ -21,7 +21,7 @@ export class KeycloakGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly keycloak: KeycloakService,
-    private readonly uow: UnitOfWork,
+    private readonly dataSource: DataSource,
   ) {}
 
   async canActivate(context: ExecutionContext) {
@@ -53,7 +53,7 @@ export class KeycloakGuard implements CanActivate {
     // 3. Ngoại trừ endpoint đăng ký (@Registration), tất cả request khác đều phải có
     // profile tồn tại trong bảng users và tài khoản đang ở trạng thái active
     if (!this.reflector.getAllAndOverride('lens:registration', targets))
-      await this.uow.read((s) => currentUser(s, actor));
+      await currentUser(this.dataSource.manager, actor);
     request.actor = actor;
     return true;
   }

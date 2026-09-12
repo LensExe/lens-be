@@ -7,12 +7,12 @@ import {
   MediaPublishCommandHandler,
   MediaRemoveCommandHandler,
   MediaUploadCommandHandler,
-} from '@modules/media/application/commands/media';
+} from '@modules/media/media.command';
 import {
   MediaDownloadQueryHandler,
   MediaGalleryQueryHandler,
   MediaGetQueryHandler,
-} from '@modules/media/application/queries/media';
+} from '@modules/media/media.query';
 
 @Module({
   controllers: [MediaController],

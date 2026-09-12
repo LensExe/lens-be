@@ -2,9 +2,7 @@ import type { Type } from '@nestjs/common';
 import {
   BookingApiModule,
   CalendarApiModule,
-  ChatApiModule,
   IdentityApiModule,
-  LocationApiModule,
   MediaApiModule,
   ModerationApiModule,
   PaymentApiModule,
@@ -27,8 +25,6 @@ export const apiFeatureModuleRegistry: ReadonlyArray<
   ['REVIEW', ReviewApiModule],
   ['SUBSCRIPTION', SubscriptionApiModule],
   ['MODERATION', ModerationApiModule],
-  ['CHAT', ChatApiModule],
-  ['LOCATION', LocationApiModule],
 ];
 
 export function selectApiFeatureModules(

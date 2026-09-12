@@ -1,29 +1,34 @@
 import { Module } from '@nestjs/common';
-import { IdentityController } from '../http/user.controller';
+import { AuthController } from '../http/auth.controller';
+import { UserController } from '../http/user.controller';
+import { AdminUserController } from '../http/admin-user.controller';
 import { GoogleAuthController } from '../http/google-auth.controller';
-import { GoogleAuthService } from '../auth/google-auth.service';
 import {
-  IdentityAddDeviceCommandHandler,
-  IdentityDeleteDeviceCommandHandler,
+  IdentityAdminBanCommandHandler,
   IdentityRegisterCommandHandler,
   IdentityStatusCommandHandler,
   IdentitySuspendCommandHandler,
   IdentityUnsuspendCommandHandler,
   IdentityUpdateMeCommandHandler,
-} from '@modules/user/application/commands/identity';
+} from '@modules/identity/identity.command';
 import {
   IdentityAdminUserQueryHandler,
   IdentityAdminUsersQueryHandler,
   IdentityGetUserQueryHandler,
   IdentityMeQueryHandler,
-} from '@modules/user/application/queries/identity';
+} from '@modules/identity/identity.query';
+import { GoogleAuthService } from '../auth/google-auth.service';
 
 @Module({
-  controllers: [IdentityController, GoogleAuthController],
+  controllers: [
+    AuthController,
+    UserController,
+    AdminUserController,
+    GoogleAuthController,
+  ],
   providers: [
     GoogleAuthService,
-    IdentityAddDeviceCommandHandler,
-    IdentityDeleteDeviceCommandHandler,
+    IdentityAdminBanCommandHandler,
     IdentityRegisterCommandHandler,
     IdentityStatusCommandHandler,
     IdentitySuspendCommandHandler,

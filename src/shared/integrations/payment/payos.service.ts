@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PayOS } from '@payos/node';
+import { PayOS, type Webhook } from '@payos/node';
 import {
   CreatePaymentOptions,
   IPaymentGateway,
@@ -66,7 +66,7 @@ export class PayOSService implements IPaymentGateway {
   /**
    * Xác thực dữ liệu Webhook nhận được từ PayOS khi khách hàng quét mã VietQR thành công
    */
-  async verifyWebhook(webhookBody: any): Promise<PaymentVerifyResult> {
+  async verifyWebhook(webhookBody: Webhook): Promise<PaymentVerifyResult> {
     try {
       const verifiedData = await this.payOS.webhooks.verify(webhookBody);
       return {
@@ -77,12 +77,16 @@ export class PayOSService implements IPaymentGateway {
         message: 'Thanh toán PayOS thành công',
         data: verifiedData,
       };
-    } catch (error: any) {
-      this.logger.error(`PayOS webhook verification failed: ${error?.message}`);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Chữ ký Webhook PayOS không hợp lệ';
+      this.logger.error(`PayOS webhook verification failed: ${message}`);
       return {
         isSuccess: false,
-        orderCode: webhookBody?.data?.orderCode ?? 0,
-        message: error?.message || 'Chữ ký Webhook PayOS không hợp lệ',
+        orderCode: webhookBody.data.orderCode,
+        message,
       };
     }
   }

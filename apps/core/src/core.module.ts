@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { EnvModule } from '@shared/platform/env';
-import { DatabaseModule } from '@shared/database';
 import { ApiRuntimeModule } from '@features/api/api-runtime.module';
 import { enabledApiFeatureModules } from '@features/api/feature-modules';
 import { AxiosModule } from '@shared/integrations/axios';
@@ -9,7 +8,6 @@ import { AxiosModule } from '@shared/integrations/axios';
   imports: [
     EnvModule,
     AxiosModule,
-    DatabaseModule,
     ApiRuntimeModule,
     ...enabledApiFeatureModules,
   ],

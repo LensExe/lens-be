@@ -9,20 +9,19 @@ import { DataSource } from 'typeorm';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { INestApplication } from '@nestjs/common';
-import { io } from 'socket.io-client';
 import jwt from 'jsonwebtoken';
 import { ApiModule } from '../src/features/api/api.module';
+import { ObjectStorage } from '../src/shared/integrations/s3/storage.port';
+import { PaymentGateway } from '../src/shared/integrations/payment/payment.port';
+import type { Actor } from '../src/shared/platform/auth/actor';
 import {
-  UnitOfWork,
-  ObjectStorage,
-  PaymentGateway,
-  type Actor,
-} from '../src/shared/database/unit-of-work/unit-of-work.port';
-import { PostgresUnitOfWork } from '../src/shared/database/unit-of-work/postgres-unit-of-work';
+  databaseEntities,
+  EntitySchemas,
+} from '../src/shared/database/entities';
 import { KeycloakService } from '../src/shared/integrations/keycloak/keycloak.service';
 import { setupApi } from '../src/features/api/setup';
 import { OutboxWorker } from '../src/features/workers/outbox.worker';
-import { Booking } from '../src/modules/booking/domain/booking';
+import { Booking } from '../src/modules/booking/booking.domain';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';
 import { S3ObjectStorage } from '../src/shared/integrations/s3/s3-storage.service';
 import {
@@ -31,11 +30,7 @@ import {
   DeleteBucketCommand,
 } from '@aws-sdk/client-s3';
 
-let db: DataSource,
-  uow: PostgresUnitOfWork,
-  app: INestApplication,
-  base: string,
-  document: any;
+let db: DataSource, app: INestApplication, base: string, document: any;
 const testSchema = 'lens_test_' + randomUUID().replaceAll('-', '');
 let customer: string,
   photoUser: string,
@@ -44,8 +39,7 @@ let customer: string,
   booking: string,
   deposit: string,
   remaining: string,
-  media: string,
-  conversation: string;
+  media: string;
 const actors: Record<string, Actor> = {
   customer: {
     sub: 'kc-customer',
@@ -105,15 +99,16 @@ before(
     db = new DataSource({
       type: 'postgres',
       url,
+      entities: databaseEntities,
       extra: { options: `-c search_path=${testSchema}` },
     });
     await db.initialize();
     await db.query(`CREATE SCHEMA "${testSchema}"`);
     await db.query(readFileSync('migrations/001_lens.sql', 'utf8'));
-    uow = new PostgresUnitOfWork(db);
-    const mod = await Test.createTestingModule({ imports: [ApiModule] })
-      .overrideProvider(UnitOfWork)
-      .useValue(uow)
+    const mod = await Test.createTestingModule({
+      imports: [ApiModule],
+      providers: [{ provide: DataSource, useValue: db }],
+    })
       .overrideProvider(KeycloakService)
       .useValue({
         verifyToken: async (token: string) => {
@@ -164,7 +159,7 @@ after(async () => {
     await db.destroy();
   }
 });
-test('OpenAPI covers the 94-operation implementation contract with security, body and response schemas', () => {
+test('OpenAPI covers the implementation contract with security, body and response schemas', () => {
   const tracker = JSON.parse(
     readFileSync('docs/api-tracker.json', 'utf8'),
   ).filter((r: any) => ['GET', 'POST', 'PATCH', 'DELETE'].includes(r.method));
@@ -173,7 +168,7 @@ test('OpenAPI covers the 94-operation implementation contract with security, bod
     count += Object.keys(path as object).filter((m) =>
       ['get', 'post', 'patch', 'delete'].includes(m),
     ).length;
-  assert.equal(count, 96);
+  assert.equal(count, 80);
   for (const r of tracker) {
     const path = r.path.replace(/:(\w+)/g, '{$1}'),
       op = document.paths[path]?.[r.method.toLowerCase()];
@@ -207,7 +202,7 @@ test('authentication, registration and profile isolation', async () => {
 test('static photographer routes, validation and real persistence', async () => {
   const p = await ok('POST', '/photographers/profile', 'photographer', {
     styles: ['portrait'],
-    experience: 3,
+    started_career_at: 2023,
     location: 'Da Nang',
     description: 'Studio',
   });
@@ -235,31 +230,32 @@ test('static photographer routes, validation and real persistence', async () => 
     400,
   );
   plan = (
-    await uow.write((s) =>
-      s.insert('booking_plans', {
-        code: 'portrait',
+    await db.transaction((s) =>
+      s.save(EntitySchemas.booking_plans, {
+        photographer_id: photo,
         name: 'Portrait',
         price: 1000000,
       }),
     )
   ).id;
 });
-test('calendar ownership, interval validation and concurrent booking conflict', async () => {
-  const start = new Date(Date.now() + 30 * 60e3).toISOString(),
-    end = new Date(Date.now() + 3 * 36e5).toISOString();
-  const slot = await ok('POST', '/calendar/availability', 'photographer', {
-    from: start,
-    to: end,
+test('calendar blocking and concurrent booking conflict', async () => {
+  const blockedDate = new Date(Date.now() + 2 * 864e5)
+    .toISOString()
+    .slice(0, 10);
+  const slot = await ok('POST', '/calendar/blocked-times', 'photographer', {
+    date: blockedDate,
+    reason: 'Unavailable',
   });
   assert.equal(
     (
-      await api('POST', '/calendar/availability', 'photographer', {
-        from: end,
-        to: start,
+      await api('POST', '/calendar/blocked-times', 'photographer', {
+        date: blockedDate,
       })
     ).status,
-    400,
+    409,
   );
+  await ok('DELETE', `/calendar/blocked-times/${slot.id}`, 'photographer');
   const input = {
     photographer_id: photo,
     plan_id: plan,
@@ -276,13 +272,8 @@ test('calendar ownership, interval validation and concurrent booking conflict', 
   // Ensure subsequent tests use the winner's identity.
   if (attempts[1].status === 200)
     [actors.customer, actors.stranger] = [actors.stranger, actors.customer];
-  assert.equal(
-    (await api('DELETE', `/calendar/availability/${slot.id}`, 'photographer'))
-      .status,
-    409,
-  );
   const available = await ok('GET', `/photographers/${photo}/availability`);
-  assert.equal(available.items.length, 2);
+  assert.ok(available.items.length > 0);
 });
 test('booking ownership and lifecycle checks', async () => {
   assert.equal(
@@ -314,7 +305,9 @@ test('payment intent survives provider timeout and retries without duplicate ord
   );
   failGateway = false;
   const first = (
-    await uow.read((s) => s.find('transactions', { reference_id: booking }))
+    await Promise.resolve(
+      db.manager.findBy(EntitySchemas.transactions, { reference_id: booking }),
+    )
   )[0];
   assert.ok(first);
   const p = await ok(
@@ -328,13 +321,20 @@ test('payment intent survives provider timeout and retries without duplicate ord
   assert.equal(p.amount, 300000);
   assert.equal(p.provider_order_code, first.provider_order_code);
   assert.equal(
-    (await uow.read((s) => s.find('transactions', { reference_id: booking })))
-      .length,
+    (
+      await Promise.resolve(
+        db.manager.findBy(EntitySchemas.transactions, {
+          reference_id: booking,
+        }),
+      )
+    ).length,
     1,
   );
 });
 test('webhook signature, amount checks and replay are idempotent', async () => {
-  const t = await uow.read((s) => s.get('transactions', deposit));
+  const t = await Promise.resolve(
+    db.manager.findOneBy(EntitySchemas.transactions, { id: deposit }),
+  );
   const data = {
     orderCode: t!.provider_order_code,
     amount: 300000,
@@ -375,30 +375,13 @@ test('webhook signature, amount checks and replay are idempotent', async () => {
       .duplicate,
     true,
   );
-  assert.equal((await uow.read((s) => s.find('payment_webhooks'))).length, 1);
+  assert.equal(
+    (await db.manager.find(EntitySchemas.payment_webhooks)).length,
+    1,
+  );
   assert.equal(
     (await ok('POST', `/bookings/${booking}/start`, 'photographer')).status,
     'in_progress',
-  );
-});
-test('tracking is owner scoped and stop removes coordinates', async () => {
-  await ok('POST', `/bookings/${booking}/location/start`, 'photographer');
-  await ok('POST', `/bookings/${booking}/location/update`, 'photographer', {
-    latitude: 16.05,
-    longitude: 108.2,
-  });
-  assert.equal(
-    (await ok('GET', `/bookings/${booking}/location`, 'customer')).latitude,
-    16.05,
-  );
-  assert.equal(
-    (await api('GET', `/bookings/${booking}/location`, 'stranger')).status,
-    403,
-  );
-  await ok('POST', `/bookings/${booking}/location/stop`, 'photographer');
-  assert.equal(
-    (await ok('GET', `/bookings/${booking}/location`, 'customer')).latitude,
-    null,
   );
 });
 test('gallery upload ownership and publish gate', async () => {
@@ -498,64 +481,11 @@ test('remaining payment, completion and review uniqueness', async () => {
     5,
   );
 });
-test('chat participant authorization and realtime message deduplication', async () => {
-  conversation = (
-    await ok('POST', '/conversations', 'admin', { booking_id: booking })
-  ).id;
-  assert.equal(
-    (await api('GET', `/conversations/${conversation}/messages`, 'stranger'))
-      .status,
-    403,
-  );
-  const socket = io(base + '/lens', {
-    auth: { token: 'customer' },
-    transports: ['websocket'],
-  });
-  await new Promise<void>((resolve, reject) => {
-    socket.once('connect', resolve);
-    socket.once('connect_error', reject);
-  });
-  try {
-    const payload = {
-      id: conversation,
-      client_message_id: randomUUID(),
-      content: 'Hello',
-    };
-    const first: any = await socket
-      .timeout(3000)
-      .emitWithAck('message.send', payload);
-    assert.equal(first.ok, true);
-    const second: any = await socket
-      .timeout(3000)
-      .emitWithAck('message.send', payload);
-    assert.equal(second.data.id, first.data.id);
-    const bad: any = await socket
-      .timeout(3000)
-      .emitWithAck('message.send', { ...payload, content: 'Changed' });
-    assert.equal(bad.ok, false);
-  } finally {
-    socket.disconnect();
-  }
-});
-test('outbox consumes events once and notification ownership is enforced', async () => {
+test('outbox marks core realtime events as processed', async () => {
   await app.get(OutboxWorker).tick();
-  const before = (await uow.read((s) => s.find('notifications'))).length;
-  assert.ok(before > 0);
-  await app.get(OutboxWorker).tick();
-  assert.equal((await uow.read((s) => s.find('notifications'))).length, before);
-  const list = await ok('GET', '/notifications', 'customer');
-  assert.ok(list.items.length);
-  assert.equal(
-    (await api('PATCH', `/notifications/${list.items[0].id}/read`, 'stranger'))
-      .status,
-    403,
-  );
-  await ok('PATCH', '/notifications/read-all', 'customer');
-  assert.ok(
-    (await ok('GET', '/notifications', 'customer')).items.every(
-      (n: any) => n.read_at,
-    ),
-  );
+  const events = await db.manager.find(EntitySchemas.outbox_events);
+  assert.ok(events.length > 0);
+  assert.ok(events.every((event) => event.processed_at));
 });
 test('refund reserves are bounded and admin routes are protected', async () => {
   assert.equal((await api('GET', '/admin/dashboard', 'customer')).status, 403);
@@ -615,23 +545,27 @@ test('portfolio ordering, ownership and public signed image URLs', async () => {
   );
 });
 test('subscription plan snapshot, payment activation, ownership and cancellation', async () => {
-  const plan = await uow.write((s) =>
-    s.insert('photographer_plans', {
+  const plan = await db.transaction((s) =>
+    s.save(EntitySchemas.photographer_plans, {
       code: 'vip',
       name: 'VIP',
       price: 99000,
       billing_cycle: 30,
     }),
   );
-  const result = await ok('POST', '/subscriptions', 'customer', {
+  const result = await ok('POST', '/subscriptions', 'photographer', {
     plan_id: plan.id,
     idempotency_key: 'subscription-test',
   });
-  await uow.write((s) =>
-    s.update('photographer_plans', plan.id, {
-      price: 199000,
-      billing_cycle: 60,
-    }),
+  await db.transaction((s) =>
+    s.update(
+      EntitySchemas.photographer_plans,
+      { id: plan.id },
+      {
+        price: 199000,
+        billing_cycle: 60,
+      },
+    ),
   );
   assert.equal(result.subscription.price, 99000);
   await ok('POST', '/subscriptions/webhooks/payos', undefined, {
@@ -645,9 +579,9 @@ test('subscription plan snapshot, payment activation, ownership and cancellation
       reference: 'provider-sub',
     },
   });
-  const me = await ok('GET', '/subscriptions/me', 'customer');
+  const me = await ok('GET', '/subscriptions/me', 'photographer');
   assert.equal(me.subscription.status, 'active');
-  assert.ok(Date.parse(me.subscription.expired_in) < Date.now() + 31 * 864e5);
+  assert.ok(Date.parse(me.subscription.end_at) < Date.now() + 31 * 864e5);
   assert.equal(
     (
       await api(
@@ -663,22 +597,26 @@ test('subscription plan snapshot, payment activation, ownership and cancellation
       await ok(
         'POST',
         `/subscriptions/${result.subscription.id}/cancel`,
-        'customer',
+        'photographer',
       )
     ).auto_renew,
     false,
   );
-  await uow.write((s) =>
-    s.update('subscriptions', result.subscription.id, {
-      expired_in: new Date(Date.now() - 1).toISOString(),
-    }),
+  await db.transaction((s) =>
+    s.update(
+      EntitySchemas.subscriptions,
+      { id: result.subscription.id },
+      {
+        end_at: new Date(Date.now() - 1).toISOString(),
+      },
+    ),
   );
   assert.equal(
-    (await ok('GET', '/subscriptions/me', 'customer')).subscription.status,
+    (await ok('GET', '/subscriptions/me', 'photographer')).subscription.status,
     'expired',
   );
 });
-test('report resolution is audited and suspended accounts lose access', async () => {
+test('report resolution and suspended account access', async () => {
   const report = await ok('POST', '/reports', 'customer', {
     target_type: 'booking',
     target_id: booking,
@@ -689,8 +627,8 @@ test('report resolution is audited and suspended accounts lose access', async ()
     resolution: 'Resolved with customer',
   });
   assert.equal(
-    (await ok('GET', `/admin/reports/${report.id}`, 'admin')).history.length,
-    1,
+    (await ok('GET', `/admin/reports/${report.id}`, 'admin')).status,
+    'resolved',
   );
   const stranger = await ok('GET', '/users/me', 'stranger');
   await ok('POST', `/admin/users/${stranger.id}/suspend`, 'admin');

@@ -5,14 +5,14 @@ import {
   PaymentRefundCommandHandler,
   PaymentRemainingCommandHandler,
   PaymentWebhookCommandHandler,
-} from '@modules/payment/application/commands/payments';
+} from '@modules/payment/payments.command';
 import {
   PaymentAdminQueryHandler,
   PaymentGetQueryHandler,
   PaymentHistoryQueryHandler,
   PaymentQrQueryHandler,
   PaymentRefundsQueryHandler,
-} from '@modules/payment/application/queries/payments';
+} from '@modules/payment/payments.query';
 
 @Module({
   controllers: [PaymentController],
