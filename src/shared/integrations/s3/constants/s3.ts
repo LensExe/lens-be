@@ -1,0 +1,8 @@
+export const DIGITAL_OCEAN_S3 = 'DIGITAL_OCEAN_S3';
+export const DIGITAL_OCEAN_S3_PRESIGN = 'DIGITAL_OCEAN_S3_PRESIGN';
+export const MINIO_S3 = 'MINIO_S3';
+export const MINIO_S3_PRESIGN = 'MINIO_S3_PRESIGN';
+
+export const DEFAULT_S3_REGION = 'us-east-1';
+export const DEFAULT_PRESIGNED_URL_TTL_SECONDS = 900;
+export const S3_DELETE_BATCH_SIZE = 1000;

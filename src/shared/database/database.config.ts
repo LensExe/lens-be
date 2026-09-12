@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import type { DatabaseConfig, MongoConfig } from '@shared/platform/env/types';
+import { databaseEntities } from './entities';
 
 /**
  * Cấu hình TypeORM kết nối PostgreSQL (Write Model trong kiến trúc CQRS)
@@ -18,7 +19,8 @@ export const getTypeOrmConfig = (
     password: db?.password ?? process.env.DB_PASSWORD ?? '',
     database: db?.database ?? process.env.DB_NAME ?? 'lens',
     autoLoadEntities: true,
-    synchronize: db?.synchronize ?? process.env.DB_SYNCHRONIZE === 'true',
+    entities: databaseEntities,
+    synchronize: false, // Schema changes are reviewed migrations, never auto-sync.
     logging: db?.logging ?? process.env.DB_LOGGING === 'true',
     extra: {
       max: 20, // Max connection pool

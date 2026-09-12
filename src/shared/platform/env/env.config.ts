@@ -48,6 +48,10 @@ export const envConfig = (): EnvConfig => {
       keycloakRealm: process.env.KEYCLOAK_REALM,
       keycloakClientId: process.env.KEYCLOAK_CLIENT_ID,
       keycloakSecret: process.env.KEYCLOAK_SECRET,
+      keycloakAdminClientId: process.env.KEYCLOAK_ADMIN_CLIENT_ID,
+      keycloakAdminUsername: process.env.KEYCLOAK_ADMIN_USERNAME,
+      keycloakAdminPassword: process.env.KEYCLOAK_ADMIN_PASSWORD,
+      keycloakGoogleRedirectUri: process.env.KEYCLOAK_GOOGLE_REDIRECT_URI,
     },
     cookie: {
       domain: process.env.COOKIE_DOMAIN,
@@ -56,6 +60,20 @@ export const envConfig = (): EnvConfig => {
       clientId: process.env.PAYOS_CLIENT_ID,
       apiKey: process.env.PAYOS_API_KEY,
       checksumKey: process.env.PAYOS_CHECKSUM_KEY,
+    },
+    axios: {
+      timeoutMs: Number.parseInt(process.env.AXIOS_TIMEOUT_MS ?? '10000', 10),
+      retry: {
+        retries: Number.parseInt(process.env.AXIOS_RETRY_COUNT ?? '3', 10),
+        baseDelayMs: Number.parseInt(
+          process.env.AXIOS_RETRY_BASE_DELAY_MS ?? '250',
+          10,
+        ),
+        maxDelayMs: Number.parseInt(
+          process.env.AXIOS_RETRY_MAX_DELAY_MS ?? '5000',
+          10,
+        ),
+      },
     },
   };
 };

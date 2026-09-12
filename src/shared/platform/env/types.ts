@@ -37,6 +37,10 @@ export interface AuthConfig {
   keycloakRealm?: string;
   keycloakClientId?: string;
   keycloakSecret?: string;
+  keycloakAdminClientId?: string;
+  keycloakAdminUsername?: string;
+  keycloakAdminPassword?: string;
+  keycloakGoogleRedirectUri?: string;
 }
 
 export interface CookieConfig {
@@ -49,6 +53,15 @@ export interface PayOSConfig {
   checksumKey?: string;
 }
 
+export interface AxiosConfig {
+  timeoutMs: number;
+  retry: {
+    retries: number;
+    baseDelayMs: number;
+    maxDelayMs: number;
+  };
+}
+
 export interface EnvConfig {
   app: AppConfig;
   cors: CorsConfig;
@@ -58,4 +71,5 @@ export interface EnvConfig {
   auth: AuthConfig;
   cookie: CookieConfig;
   payos: PayOSConfig;
+  axios: AxiosConfig;
 }

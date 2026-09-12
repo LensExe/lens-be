@@ -1,17 +1,18 @@
-import { Module } from '@nestjs/common';
+import { Module, Global } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { PayOSService } from './payos.service';
-import { PAYMENT_GATEWAY } from './payment.interface';
+import { PaymentGateway } from './payment.port';
+import { PayOsGateway } from './payos-gateway.service';
 
+@Global()
 @Module({
   imports: [ConfigModule],
   providers: [
-    PayOSService,
+    PayOsGateway,
     {
-      provide: PAYMENT_GATEWAY,
-      useExisting: PayOSService,
+      provide: PaymentGateway,
+      useClass: PayOsGateway,
     },
   ],
-  exports: [PayOSService, PAYMENT_GATEWAY],
+  exports: [PaymentGateway, PayOsGateway],
 })
 export class PaymentModule {}

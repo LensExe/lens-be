@@ -1,3 +1,4 @@
 export * from './keycloak';
-export * from './storage';
+export * from './s3';
 export * from './payment';
+export * from './axios';
