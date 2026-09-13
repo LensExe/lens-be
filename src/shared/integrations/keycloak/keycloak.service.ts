@@ -78,6 +78,7 @@ export class KeycloakService {
           audience: this.audience,
         },
         (err, decoded) => {
+          // err exist or token expired
           if (err || !decoded) {
             this.logger.warn(
               `Keycloak token verification failed: ${err instanceof Error ? err.message : 'invalid token'}`,
@@ -86,17 +87,21 @@ export class KeycloakService {
               new UnauthorizedException('Token verification failed'),
             );
           }
+
           const user = decoded as KeycloakUser;
+          // missing subject, expired token, or type is not Bearer
           if (!user.sub || !user.exp || user.typ !== 'Bearer')
             return reject(
               new UnauthorizedException(
                 'A non-expired Keycloak access token is required',
               ),
             );
+
+          // extract roles from token
           user.roles = [
             ...new Set([
-              ...(user.realm_access?.roles ?? []),
-              ...(user.resource_access?.[this.audience!]?.roles ?? []),
+              ...(user.realm_access?.roles ?? []), // role in realm
+              ...(user.resource_access?.[this.audience!]?.roles ?? []), // role in client
             ]),
           ];
           resolve(user);

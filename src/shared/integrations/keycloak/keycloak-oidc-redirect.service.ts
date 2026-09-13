@@ -37,7 +37,7 @@ export class KeycloakOidcRedirectService {
     );
 
     const url = new URL(
-      `${this.baseUrl()}/realms/${this.realm()}/protocol/openid-connect/auth`,
+      `${this.baseKeyCloakUrl()}/realms/${this.realm()}/protocol/openid-connect/auth`,
     );
     url.search = new URLSearchParams({
       client_id: this.clientId(),
@@ -67,22 +67,26 @@ export class KeycloakOidcRedirectService {
     };
   }
 
+  // hash redis key
   private stateKey(state: string): string {
     const digest = createHash('sha256').update(state).digest('hex');
     return `keycloak:oidc-state:${digest}`;
   }
 
+  // convert buffer to base64Url
   private base64Url(value: Buffer): string {
     return value.toString('base64url');
   }
 
-  private baseUrl(): string {
+  // get base url
+  private baseKeyCloakUrl(): string {
     const value = this.config.get<string>('auth.keycloakAuthServerUrl');
     if (!value)
       throw new ServiceUnavailableException('Keycloak is not configured');
     return value.replace(/\/$/, '');
   }
 
+  // get realm
   private realm(): string {
     const value = this.config.get<string>('auth.keycloakRealm');
     if (!value)
@@ -90,6 +94,7 @@ export class KeycloakOidcRedirectService {
     return encodeURIComponent(value);
   }
 
+  // get client id
   private clientId(): string {
     const value = this.config.get<string>('auth.keycloakClientId');
     if (!value)
