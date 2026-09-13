@@ -25,10 +25,14 @@ export class KeycloakOidcRedirectService {
     provider: KeycloakIdentityProvider,
     redirectUri: string,
   ): Promise<string> {
+    //PKCE (Proof Key for Code Exchange) is a security measure that prevents authorization code interception attacks.
+    //code_verifier: A randomly generated secret string (32–128 characters) by the client.
     const codeVerifier = this.base64Url(randomBytes(32));
+    //code_challenge: The SHA256 hash of the code_verifier, Base64URL encoded.
     const codeChallenge = this.base64Url(
       createHash('sha256').update(codeVerifier).digest(),
     );
+    //state: A random string used to prevent CSRF attacks and link the request to the response.
     const state = this.base64Url(randomBytes(32));
     await this.redis.setJson<KeycloakOidcPkceBundle>(
       this.stateKey(state),

@@ -33,6 +33,8 @@ import { SeparateFullname } from '@shared/integrations/keycloak/utils/separate-f
 
 const OTP_EXPIRED_IN_MINUTES = 5;
 const RESET_TOKEN_EXPIRED_IN_MINUTES = 10;
+const MAX_SEND_OTP_TIMES = 5;
+const MAX_SEND_OTP_EXPIRED_IN_MINUTES = 60;
 
 const OTP_CACHE_KEY_REGEX = new RegExp(
   `^otp:(${Object.values(AuthOtpEvent).join('|')}):[^\\s@]+@[^\\s@]+\\.[^\\s@]+$`,
@@ -159,12 +161,26 @@ export class AuthService {
     // Kiểm tra email có tồn tại trong KeyCloak hay không
     const user = await this.keyCloakUser.getUserByEmail(body.email);
     if (!user?.id) {
-      throw new NotFoundException('Không tìm thấy tài khoản người dùng');
+      throw new NotFoundException('Không thể gửi OTP đến tài khoản mail này');
+    }
+
+    const countSendTimesKey = `count:send-otp:${body.email}`;
+    const countSendTimes =
+      await this.cacheManager.get<number>(countSendTimesKey);
+    if (countSendTimes && countSendTimes >= MAX_SEND_OTP_TIMES) {
+      throw new BadRequestException(
+        'Bạn đã gửi quá nhiều OTP, vui lòng thử lại sau',
+      );
+    } else {
+      await this.cacheManager.set(
+        countSendTimesKey,
+        (countSendTimes ?? 0) + 1,
+        MAX_SEND_OTP_EXPIRED_IN_MINUTES * 60,
+      );
     }
 
     // Sinh mã OTP ngẫu nhiên 6 chữ số
     const otp = randomInt(100000, 999999).toString();
-
     // Lưu OTP vào cache theo sự kiện (event) với thời hạn sống (TTL) 5 phút
     const otpKey = this.getCacheKey(body.event, body.email);
     await this.cacheManager.set(
@@ -317,7 +333,13 @@ export class AuthService {
   ) {
     // Lấy OTP từ CacheManager theo event và email
     const otpKey = this.getCacheKey(event, email);
-    const cachedOtp = await this.cacheManager.get<string>(otpKey);
+    const [cachedOtp] = await Promise.all([
+      // Get OTP
+      this.cacheManager.get<string>(otpKey),
+      // Xóa OTP sau khi sử dụng thành công (One-time use)
+      this.cacheManager.del(otpKey),
+    ]);
+
     if (!cachedOtp || cachedOtp !== otp) {
       throw new BadRequestException(
         'Mã OTP đã hết hạn hoặc không tồn tại. Vui lòng gửi lại mã OTP.',
@@ -327,10 +349,6 @@ export class AuthService {
     if (cachedOtp !== otp) {
       throw new BadRequestException('Mã OTP không chính xác');
     }
-
-    // Xóa OTP sau khi sử dụng thành công (One-time use)
-    await this.cacheManager.del(otpKey);
-
     return true;
   }
 }

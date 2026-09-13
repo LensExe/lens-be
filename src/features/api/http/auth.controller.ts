@@ -269,15 +269,14 @@ export class AuthController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiBody({ type: authDto.AuthSendOtpDto })
   @ApiResponse({
     status: 200,
     description: 'Gửi OTP thành công',
   })
   @HttpCode(200)
-  sendEmailOtp(@Body() body: authDto.AuthSendOtpDto) {
+  sendEmailOtp(@Req() req: { actor?: Actor }) {
     return this.authService.sendOTP({
-      email: body.email,
+      email: req.actor?.email || '',
       event: authDto.AuthOtpEvent.VERIFY_EMAIL,
     });
   }
