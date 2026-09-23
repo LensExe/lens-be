@@ -10,9 +10,6 @@ export class IdentityCustomerRegisterCommand {
     public readonly input: Inputs.IdentityCustomerRegisterCommandInput,
   ) {}
 }
-export { IdentityCustomerRegisterCommand as IdentityRegisterCommand };
-export { IdentityCustomerRegisterCommandHandler as IdentityRegisterCommandHandler };
-
 @CommandHandler(IdentityCustomerRegisterCommand)
 export class IdentityCustomerRegisterCommandHandler implements ICommandHandler<IdentityCustomerRegisterCommand> {
   constructor(

@@ -12,8 +12,11 @@ import { KeycloakService } from '../keycloak.service';
 import type { Actor } from '../../../platform/auth/actor';
 import { currentUser } from '../../../common/access';
 
+// set metadata for roles
 export const Access = (roles: string[]) => SetMetadata('lens:roles', roles);
+// set metadata for public
 export const Public = () => SetMetadata('lens:public', true);
+// set metadata for registration
 export const Registration = () => SetMetadata('lens:registration', true);
 
 @Injectable()
@@ -27,8 +30,10 @@ export class KeycloakGuard implements CanActivate {
   async canActivate(context: ExecutionContext) {
     if (context.getType() !== 'http') return true;
     const targets = [context.getHandler(), context.getClass()];
+
     // 1. Nếu route được đánh dấu @Public(), cho phép truy cập ngay mà không cần token
     if (this.reflector.getAllAndOverride('lens:public', targets)) return true;
+
     const request = context.switchToHttp().getRequest<{
       headers: { authorization?: string };
       actor?: Actor;
@@ -36,6 +41,7 @@ export class KeycloakGuard implements CanActivate {
     const header = request.headers.authorization;
     if (typeof header !== 'string' || !/^Bearer \S+$/i.test(header))
       throw new UnauthorizedException('Bearer token required');
+
     const token = await this.keycloak.verifyToken(header.slice(7));
     const actor: Actor = {
       sub: token.sub,

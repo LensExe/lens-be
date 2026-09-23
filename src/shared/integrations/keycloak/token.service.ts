@@ -19,6 +19,7 @@ import type {
   KeycloakRegisterUserParams,
   KeycloakTokenIntrospectResponse,
 } from './types/tokens';
+import { DeriveUsername } from './utils/derive-username';
 
 @Injectable()
 /** Keycloak OpenID Connect and Admin REST API client. */
@@ -30,6 +31,7 @@ export class KeycloakTokenService {
     private readonly users: KeycloakUserService,
   ) {}
 
+  // login with OIDC (Google)
   exchangeCodeForToken(
     params: KeycloakExchangeCodeForTokenParams,
   ): Promise<KeycloakExchangeCodeForTokenResponse> {
@@ -41,13 +43,14 @@ export class KeycloakTokenService {
     });
   }
 
+  // login with username/password
   async exchangePasswordForToken(
     params: KeycloakPasswordLoginParams,
   ): Promise<KeycloakExchangeCodeForTokenResponse> {
     try {
       return await this.tokenRequest({
         grant_type: 'password',
-        username: params.username,
+        email: params.email,
         password: params.password,
         scope: 'openid profile email',
       });
@@ -62,6 +65,7 @@ export class KeycloakTokenService {
     }
   }
 
+  // refresh token
   exchangeRefreshTokenForToken(
     params: KeycloakRefreshTokenParams,
   ): Promise<KeycloakExchangeCodeForTokenResponse> {
@@ -71,6 +75,7 @@ export class KeycloakTokenService {
     });
   }
 
+  // revoke (thu hồi) refresh token
   async revokeRefreshToken(params: KeycloakRefreshTokenParams): Promise<void> {
     await this.formRequest<void>(
       `/realms/${this.realm()}/protocol/openid-connect/revoke`,
@@ -82,6 +87,7 @@ export class KeycloakTokenService {
     );
   }
 
+  // register user
   async registerUserWithPassword(
     params: KeycloakRegisterUserParams,
   ): Promise<string> {
@@ -94,27 +100,36 @@ export class KeycloakTokenService {
         'content-type': 'application/json',
       },
       data: {
-        username: params.username,
+        username: DeriveUsername(params.email),
         email: params.email,
         firstName: params.firstName,
         lastName: params.lastName,
         enabled: true,
         emailVerified: false,
         credentials: [
-          { type: 'password', value: params.password, temporary: false },
+          {
+            type: 'password',
+            value: params.password,
+            temporary: false,
+          },
         ],
       },
+      // notify axios that 409 is not an error
       validateStatus: (status) =>
         (status >= 200 && status < 300) || status === 409,
     });
+
+    // if 409, throw conflict exception
     if (response.status === 409)
       throw new ConflictException('Keycloak user already exists');
 
+    // get user id from location header
     const location = response.headers.location as string | undefined;
     if (location) return location.split('/').pop() ?? '';
 
+    // get user id from query
     const query = new URLSearchParams({
-      username: params.username,
+      username: DeriveUsername(params.email),
       exact: 'true',
     });
     const users = await this.jsonRequest<KeycloakUserSummary[]>(
@@ -126,26 +141,30 @@ export class KeycloakTokenService {
     return users[0].id;
   }
 
-  async sendVerifyEmail(userId: string): Promise<void> {
-    const adminToken = await this.users.getAdminToken();
-    await this.jsonRequest<void>(
-      `/admin/realms/${this.realm()}/users/${encodeURIComponent(userId)}/execute-actions-email`,
-      {
-        method: 'PUT',
-        headers: { authorization: `Bearer ${adminToken}` },
-        data: ['VERIFY_EMAIL'],
-      },
-    );
-  }
+  // send verify email
+  // async sendVerifyEmail(userId: string): Promise<void> {
+  //   const adminToken = await this.users.getAdminToken();
+  //   await this.jsonRequest<void>(
+  //     `/admin/realms/${this.realm()}/users/${encodeURIComponent(userId)}/execute-actions-email`,
+  //     {
+  //       method: 'PUT',
+  //       headers: { authorization: `Bearer ${adminToken}` },
+  //       data: ['VERIFY_EMAIL'],
+  //     },
+  //   );
+  // }
 
+  // verify access-token by jwks (local)
   verifyAccessToken(token: string): Promise<KeycloakTokenIntrospectResponse> {
     return this.jwks.verifyAccessToken(token);
   }
 
+  // verify fresh-token by keycloak server
   verifyRefreshToken(token: string): Promise<KeycloakTokenIntrospectResponse> {
     return this.introspect(token, 'refresh_token');
   }
 
+  // verify access-token by keycloak server
   verifyAccessTokenIntrospect(
     token: string,
   ): Promise<KeycloakTokenIntrospectResponse> {
@@ -175,6 +194,7 @@ export class KeycloakTokenService {
     );
   }
 
+  // send request with form-urlencoded
   private formRequest<T>(
     path: string,
     values: Record<string, string>,
@@ -186,6 +206,7 @@ export class KeycloakTokenService {
     });
   }
 
+  // send request with json
   private async jsonRequest<T>(
     path: string,
     config: AxiosRequestConfig,
@@ -198,6 +219,7 @@ export class KeycloakTokenService {
     return response.data;
   }
 
+  // get client credentials
   private clientCredentials(): Record<string, string> {
     const clientId = this.config.get<string>('auth.keycloakClientId');
     const clientSecret = this.config.get<string>('auth.keycloakSecret');
@@ -206,6 +228,7 @@ export class KeycloakTokenService {
     return { client_id: clientId, client_secret: clientSecret };
   }
 
+  // get realm
   private realm(): string {
     const value = this.config.get<string>('auth.keycloakRealm');
     if (!value)

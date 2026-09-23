@@ -12,7 +12,7 @@ import { Public } from '../auth/keycloak.guard';
 import { GoogleAuthService } from '../auth/google-auth.service';
 import { GoogleCallbackQuery } from '../dto/google-auth.dto';
 import { responseSchema } from '../swagger';
-import { IdentityRegisterCommand } from '@modules/identity/identity.command';
+import { IdentityCustomerRegisterCommand } from '@modules/identity/identity.command';
 
 @ApiTags('Authentication')
 @Controller('keycloak/google')
@@ -64,12 +64,14 @@ export class GoogleAuthController {
     schema: responseSchema('AUTH-008'),
   })
   async callback(@Query() query: GoogleCallbackQuery) {
-    const { actor, fullname, tokenSet } = await this.googleAuth.handleCallback(
+    const { actor, tokenSet } = await this.googleAuth.handleCallback(
       query.code,
       query.state,
     );
     const user = await this.commands.execute(
-      new IdentityRegisterCommand(actor, { fullname }),
+      new IdentityCustomerRegisterCommand(actor, {
+        fullname: actor.name ?? '',
+      }),
     );
     return { ...tokenSet, user };
   }

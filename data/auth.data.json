@@ -1,0 +1,367 @@
+{
+  "module": "auth.module",
+  "description": "Mock data dành cho Frontend và Mobile theo đúng schema các endpoint của Auth Module",
+  "version": "1.0.0",
+  "base_url": "http://localhost:3000",
+  "entities": {
+    "user": {
+      "id": "e4b2d18a-36c1-4b19-968e-5b1287e025da",
+      "keycloak_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "fullname": "Nguyễn Văn An",
+      "email": "nguyenvanan@gmail.com",
+      "phone_number": "0912345678",
+      "avatar_url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500",
+      "gender": "MALE",
+      "dob": "1998-08-20",
+      "status": "ACTIVE",
+      "created_at": "2026-09-14T02:00:00.000Z",
+      "updated_at": "2026-09-14T02:00:00.000Z"
+    },
+    "tokens": {
+      "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImxlbnMta2V5In0.eyJleHAiOjE3ODkzMDYwMDAsImlhdCI6MTc4OTMwNTcwMCwianRpIjoiOGEzMDRmMTAtMzI1OC00Mjg2LTg0MjYtOGMyOGEwZjA5YjNjIiwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwL3JlYWxtcy9sZW5zIiwic3ViIjoiOWIxZGViNGQtM2I3ZC00YmFkLTliZGQtMmIwZDdiM2RjYjZkIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoibGVucy1jbGllbnQiLCJlbWFpbCI6Im5ndXllbnZhbmFuQGdtYWlsLmNvbSIsIm5hbWUiOiJOZ3V54buFbiBWxINuIEFuIiwicm9sZXMiOlsidXNlciIsImN1c3RvbWVyIl19.sample_signature_jwt",
+      "expires_in": 300,
+      "refresh_expires_in": 1800,
+      "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3ODkzMDc1MDAsImlhdCI6MTc4OTMwNTcwMCwianRpIjoiZmIxMmEwOWMtMWExMi00OWJjLWExOWEtMThhYjBkZTEyYTA5Iiwic3ViIjoiOWIxZGViNGQtM2I3ZC00YmFkLTliZGQtMmIwZDdiM2RjYjZkIn0.sample_refresh_signature",
+      "token_type": "Bearer",
+      "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.sample_id_token",
+      "not_before_policy": 0,
+      "session_state": "942b01c3-2b21-4f80-b2de-9426f8d3ac89",
+      "scope": "openid profile email"
+    }
+  },
+  "endpoints": {
+    "register": {
+      "method": "POST",
+      "path": "/auth/register",
+      "operationId": "AUTH-001",
+      "summary": "Đăng ký tài khoản",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "fullname": "Nguyễn Văn An",
+          "email": "nguyenvanan@gmail.com",
+          "password": "Password123@"
+        }
+      },
+      "responses": {
+        "200_OK": {
+          "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImxlbnMta2V5In0.eyJleHAiOjE3ODkzMDYwMDAsImlhdCI6MTc4OTMwNTcwMCwianRpIjoiOGEzMDRmMTAtMzI1OC00Mjg2LTg0MjYtOGMyOGEwZjA5YjNjIiwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwL3JlYWxtcy9sZW5zIiwic3ViIjoiOWIxZGViNGQtM2I3ZC00YmFkLTliZGQtMmIwZDdiM2RjYjZkIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoibGVucy1jbGllbnQiLCJlbWFpbCI6Im5ndXllbnZhbmFuQGdtYWlsLmNvbSIsIm5hbWUiOiJOZ3V54buFbiBWxINuIEFuIiwicm9sZXMiOlsidXNlciIsImN1c3RvbWVyIl19.sample_signature_jwt",
+          "expires_in": 300,
+          "refresh_expires_in": 1800,
+          "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sample_refresh_signature",
+          "token_type": "Bearer",
+          "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.sample_id_token",
+          "not_before_policy": 0,
+          "session_state": "942b01c3-2b21-4f80-b2de-9426f8d3ac89",
+          "scope": "openid profile email",
+          "user": {
+            "id": "e4b2d18a-36c1-4b19-968e-5b1287e025da",
+            "keycloak_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+            "fullname": "Nguyễn Văn An",
+            "email": "nguyenvanan@gmail.com",
+            "phone_number": null,
+            "avatar_url": null,
+            "gender": null,
+            "dob": null,
+            "status": "ACTIVE",
+            "created_at": "2026-09-14T02:00:00.000Z",
+            "updated_at": "2026-09-14T02:00:00.000Z"
+          }
+        },
+        "409_CONFLICT": {
+          "statusCode": 409,
+          "message": "Keycloak user already exists",
+          "error": "Conflict"
+        },
+        "400_BAD_REQUEST": {
+          "statusCode": 400,
+          "message": [
+            "email must be an email",
+            "password must be longer than or equal to 6 characters"
+          ],
+          "error": "Bad Request"
+        }
+      }
+    },
+    "login": {
+      "method": "POST",
+      "path": "/auth/login",
+      "operationId": "AUTH-002",
+      "summary": "Đăng nhập tài khoản",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "email": "nguyenvanan@gmail.com",
+          "password": "Password123@"
+        }
+      },
+      "responses": {
+        "200_OK": {
+          "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImxlbnMta2V5In0.eyJleHAiOjE3ODkzMDYwMDAsImlhdCI6MTc4OTMwNTcwMCwianRpIjoiOGEzMDRmMTAtMzI1OC00Mjg2LTg0MjYtOGMyOGEwZjA5YjNjIiwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwL3JlYWxtcy9sZW5zIiwic3ViIjoiOWIxZGViNGQtM2I3ZC00YmFkLTliZGQtMmIwZDdiM2RjYjZkIiwidHlwIjoiQmVhcmVyIiwiYXpwIjoibGVucy1jbGllbnQiLCJlbWFpbCI6Im5ndXllbnZhbmFuQGdtYWlsLmNvbSIsIm5hbWUiOiJOZ3V54buFbiBWxINuIEFuIiwicm9sZXMiOlsidXNlciIsImN1c3RvbWVyIl19.sample_signature_jwt",
+          "expires_in": 300,
+          "refresh_expires_in": 1800,
+          "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sample_refresh_signature",
+          "token_type": "Bearer",
+          "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.sample_id_token",
+          "not_before_policy": 0,
+          "session_state": "942b01c3-2b21-4f80-b2de-9426f8d3ac89",
+          "scope": "openid profile email",
+          "user": {
+            "id": "e4b2d18a-36c1-4b19-968e-5b1287e025da",
+            "keycloak_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+            "fullname": "Nguyễn Văn An",
+            "email": "nguyenvanan@gmail.com",
+            "phone_number": "0912345678",
+            "avatar_url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500",
+            "gender": "MALE",
+            "dob": "1998-08-20",
+            "status": "ACTIVE",
+            "created_at": "2026-09-14T02:00:00.000Z",
+            "updated_at": "2026-09-14T02:00:00.000Z"
+          }
+        },
+        "401_UNAUTHORIZED": {
+          "statusCode": 401,
+          "message": "Invalid user credentials",
+          "error": "Unauthorized"
+        }
+      }
+    },
+    "refresh": {
+      "method": "POST",
+      "path": "/auth/refresh",
+      "operationId": "AUTH-003",
+      "summary": "Làm mới access token",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sample_refresh_signature"
+        }
+      },
+      "responses": {
+        "200_OK": {
+          "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImxlbnMta2V5In0.new_access_token_sample",
+          "expires_in": 300,
+          "refresh_expires_in": 1800,
+          "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.new_refresh_token_sample",
+          "token_type": "Bearer",
+          "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.sample_id_token",
+          "not_before_policy": 0,
+          "session_state": "942b01c3-2b21-4f80-b2de-9426f8d3ac89",
+          "scope": "openid profile email"
+        },
+        "401_UNAUTHORIZED": {
+          "statusCode": 401,
+          "message": "Refresh token is invalid or expired",
+          "error": "Unauthorized"
+        }
+      }
+    },
+    "logout": {
+      "method": "POST",
+      "path": "/auth/logout",
+      "operationId": "AUTH-004",
+      "summary": "Đăng xuất khỏi hệ thống",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sample_refresh_signature"
+        }
+      },
+      "responses": {
+        "200_OK": {
+          "success": true,
+          "message": "Đăng xuất thành công"
+        }
+      }
+    },
+    "change_password": {
+      "method": "POST",
+      "path": "/auth/change-password",
+      "operationId": "AUTH-005",
+      "summary": "Đổi mật khẩu khi đã đăng nhập",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImxlbnMta2V5In0..."
+        },
+        "body": {
+          "current_password": "Password123@",
+          "new_password": "NewPassword456@",
+          "confirm_password": "NewPassword456@"
+        }
+      },
+      "responses": {
+        "200_OK": {
+          "success": true,
+          "message": "Đổi mật khẩu thành công"
+        },
+        "400_BAD_REQUEST": {
+          "statusCode": 400,
+          "message": "New password and confirm password do not match",
+          "error": "Bad Request"
+        },
+        "401_UNAUTHORIZED": {
+          "statusCode": 401,
+          "message": "Mật khẩu hiện tại không chính xác",
+          "error": "Unauthorized"
+        }
+      }
+    },
+    "forgot_password_send_otp": {
+      "method": "POST",
+      "path": "/auth/forgot-password/send-otp",
+      "operationId": "AUTH-006",
+      "summary": "Gửi mã OTP quên mật khẩu về email",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "email": "nguyenvanan@gmail.com"
+        }
+      },
+      "responses": {
+        "200_OK": {
+          "success": true,
+          "message": "Mã OTP đã được gửi đến email của bạn"
+        },
+        "404_NOT_FOUND": {
+          "statusCode": 404,
+          "message": "Không tìm thấy tài khoản người dùng",
+          "error": "Not Found"
+        },
+        "503_SERVICE_UNAVAILABLE": {
+          "statusCode": 503,
+          "message": "Dịch vụ gửi email hiện đang bận hoặc không khả dụng, vui lòng thử lại sau",
+          "error": "Service Unavailable"
+        }
+      }
+    },
+    "forgot_password_verify_otp": {
+      "method": "POST",
+      "path": "/auth/forgot-password/verify",
+      "operationId": "AUTH-006-VERIFY-OTP",
+      "summary": "Xác minh mã OTP để lấy reset_token",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "email": "nguyenvanan@gmail.com",
+          "otp": "123456"
+        }
+      },
+      "responses": {
+        "200_OK": {
+          "success": true,
+          "message": "Xác minh mã OTP thành công",
+          "reset_token": "a1f94c7b8e2d4f5a9c3e1b7d8f6a0c2b5e4d3f2a1c9e8b7d6f5a4c3e2b1a0f9e"
+        },
+        "400_BAD_REQUEST_EXPIRED": {
+          "statusCode": 400,
+          "message": "Mã OTP đã hết hạn hoặc không tồn tại. Vui lòng gửi lại mã OTP.",
+          "error": "Bad Request"
+        },
+        "400_BAD_REQUEST_INCORRECT": {
+          "statusCode": 400,
+          "message": "Mã OTP không chính xác",
+          "error": "Bad Request"
+        }
+      }
+    },
+    "forgot_password_reset": {
+      "method": "POST",
+      "path": "/auth/forgot-password/reset",
+      "operationId": "AUTH-006-RESET-PASSWORD",
+      "summary": "Đặt lại mật khẩu mới bằng reset_token",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "reset_token": "a1f94c7b8e2d4f5a9c3e1b7d8f6a0c2b5e4d3f2a1c9e8b7d6f5a4c3e2b1a0f9e",
+          "new_password": "NewSecretPassword789@",
+          "confirm_password": "NewSecretPassword789@"
+        }
+      },
+      "responses": {
+        "200_OK": {
+          "success": true,
+          "message": "Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới."
+        },
+        "400_BAD_REQUEST_MISMATCH": {
+          "statusCode": 400,
+          "message": "Mật khẩu mới và mật khẩu xác nhận không trùng khớp",
+          "error": "Bad Request"
+        },
+        "400_BAD_REQUEST_EXPIRED_TOKEN": {
+          "statusCode": 400,
+          "message": "Mã xác thực đổi mật khẩu đã hết hạn hoặc không hợp lệ. Vui lòng thực hiện lại.",
+          "error": "Bad Request"
+        }
+      }
+    },
+    "email_send_otp": {
+      "method": "POST",
+      "path": "/auth/email/send-otp",
+      "operationId": "AUTH-007-SEND-OTP",
+      "summary": "Gửi mã OTP xác minh email tài khoản",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImxlbnMta2V5In0..."
+        },
+        "body": {
+          "email": "nguyenvanan@gmail.com"
+        }
+      },
+      "responses": {
+        "200_OK": {
+          "success": true,
+          "message": "Mã OTP đã được gửi đến email của bạn"
+        },
+        "404_NOT_FOUND": {
+          "statusCode": 404,
+          "message": "Không tìm thấy tài khoản người dùng",
+          "error": "Not Found"
+        }
+      }
+    },
+    "email_verify": {
+      "method": "POST",
+      "path": "/auth/email/verify",
+      "operationId": "AUTH-007-VERIFY-EMAIL",
+      "summary": "Xác minh email bằng OTP",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImxlbnMta2V5In0..."
+        },
+        "body": {
+          "email": "nguyenvanan@gmail.com",
+          "otp": "123456"
+        }
+      },
+      "responses": {
+        "200_OK": {
+          "success": true,
+          "message": "Xác minh email thành công"
+        },
+        "400_BAD_REQUEST": {
+          "statusCode": 400,
+          "message": "Mã OTP không chính xác",
+          "error": "Bad Request"
+        }
+      }
+    }
+  }
+}

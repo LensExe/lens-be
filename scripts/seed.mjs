@@ -1,17 +1,34 @@
 #!/usr/bin/env node
 /**
- * scripts/seed.mjs -- Khởi tạo dữ liệu mẫu cho hệ thống Lens (EXE202)
+ * scripts/seed.mjs -- Nạp dữ liệu mẫu (Seed Data) chuẩn cho hệ thống Lens (EXE202)
  *
- * Dữ liệu mẫu bao gồm:
- *   - Các gói dịch vụ chụp ảnh (Booking Plans: BASIC, STANDARD, VIP_WEDDING)
- *   - Tài khoản Admin & Khách hàng mẫu
- *   - Nhiếp ảnh gia mẫu (Photographers) & Lịch làm việc mẫu (Working Slots)
+ * Tệp này đọc và thực thi toàn bộ tệp SQL 'migrations/seed_lens.sql':
+ *   - Toàn bộ khóa chính và khóa ngoại đều là UUID v4 (RFC 4122).
+ *   - Đồng bộ 20 bảng cơ sở dữ liệu: users, admins, customers, photographers,
+ *     photographer_ratings, booking_plans, photographer_plans, subscriptions,
+ *     offline_slots, wallets, media, portfolios, bookings, transactions,
+ *     payment_webhooks, refund_requests, booking_deliveries, feedbacks,
+ *     reports, outbox_events.
+ *   - Sử dụng 'ON CONFLICT (id) DO NOTHING' bảo đảm an toàn khi chạy nhiều lần (idempotent).
  */
 
 import pg from 'pg';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 const { Client } = pg;
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Tự động tải file .env nếu có
+try {
+  process.loadEnvFile?.();
+} catch (error) {
+  if (error.code !== 'ENOENT') throw error;
+}
 
 const config = {
+  connectionString: process.env.DATABASE_URL,
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT || 5433),
   user: process.env.DB_USERNAME || 'lens-postgres',
@@ -27,63 +44,20 @@ async function seed() {
     await client.connect();
     console.log('✅ Đã kết nối cơ sở dữ liệu thành công.');
 
-    console.log('📦 Bắt đầu nạp dữ liệu mẫu cho Lens...');
+    const seedSqlPath = resolve(__dirname, '../migrations/seed_lens.sql');
+    console.log(`📦 Đang đọc dữ liệu từ tệp: ${seedSqlPath}`);
+    const seedSql = readFileSync(seedSqlPath, 'utf8');
 
-    // 1. Tạo bảng booking_plans nếu chưa có (phục vụ test/seed ban đầu)
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS booking_plans (
-        id VARCHAR(36) PRIMARY KEY,
-        code VARCHAR(50) UNIQUE NOT NULL,
-        name VARCHAR(100) NOT NULL,
-        description TEXT,
-        price NUMERIC(12, 2) NOT NULL DEFAULT 0,
-        is_active BOOLEAN NOT NULL DEFAULT true,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
+    console.log('🚀 Đang nạp dữ liệu mẫu vào 20 bảng với chuẩn UUID v4...');
+    await client.query(seedSql);
 
-    // 2. Chèn các gói Booking Plans
-    const plans = [
-      {
-        id: 'plan-basic-001',
-        code: 'BASIC_PORTRAIT',
-        name: 'Gói Chân Dung Cơ Bản',
-        description: 'Chụp chân dung ngoại cảnh 1 tiếng, chỉnh sửa 10 ảnh chất lượng cao.',
-        price: 500000,
-      },
-      {
-        id: 'plan-std-002',
-        code: 'STD_EVENT',
-        name: 'Gói Chụp Sự Kiện / Tiệc',
-        description: 'Chụp sự kiện 3 tiếng, toàn bộ file gốc và blend 50 ảnh đẹp.',
-        price: 1500000,
-      },
-      {
-        id: 'plan-vip-003',
-        code: 'VIP_WEDDING',
-        name: 'Gói Phóng Sự Cưới Cao Cấp',
-        description: 'Gói ngày cưới trọn gói 2 thợ chụp, kèm album photobook cao cấp.',
-        price: 8000000,
-      },
-    ];
-
-    for (const plan of plans) {
-      await client.query(
-        `
-        INSERT INTO booking_plans (id, code, name, description, price, is_active)
-        VALUES ($1, $2, $3, $4, $5, true)
-        ON CONFLICT (code) DO UPDATE 
-        SET name = EXCLUDED.name, description = EXCLUDED.description, price = EXCLUDED.price;
-      `,
-        [plan.id, plan.code, plan.name, plan.description, plan.price],
-      );
-    }
-    console.log(`  ✓ Đã nạp ${plans.length} gói dịch vụ chụp ảnh mẫu (Booking Plans).`);
-
-    console.log('\n🎉 Hoàn tất nạp dữ liệu mẫu thành công!\n');
+    console.log('\n🎉 Hoàn tất nạp dữ liệu mẫu Lens thành công!');
+    console.log('   - Toàn bộ ID khóa chính/ngoại: Chuẩn UUID v4.');
+    console.log('   - Toàn bộ mốc thời gian: Chuẩn hóa đồng bộ năm 2026.');
+    console.log('   - An toàn tuyệt đối (Idempotent): Không ghi đè hay sinh lỗi trùng lặp.\n');
   } catch (error) {
-    console.error('❌ Lỗi khi nạp dữ liệu mẫu:', error.message);
+    console.error('\n❌ Lỗi khi nạp dữ liệu mẫu:', error.message);
+    process.exitCode = 1;
   } finally {
     await client.end();
   }

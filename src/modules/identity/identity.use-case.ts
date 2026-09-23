@@ -30,7 +30,6 @@ export class IdentityUseCases {
     });
     await s.save(EntitySchemas.customers, {
       user_id: user.id,
-      location: input.location,
     });
     await s.save(EntitySchemas.wallets, { user_id: user.id });
     return user;

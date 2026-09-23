@@ -12,3 +12,4 @@ export type {
   KeycloakUserSummary,
 } from './types/user';
 export * from './keycloak-http.service';
+export * from './utils/separate-fullname';
