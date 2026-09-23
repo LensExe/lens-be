@@ -297,6 +297,7 @@ Toàn bộ tài liệu kiến trúc và hướng dẫn vận hành chi tiết đ
 
 | Tài liệu                                                                 | Mô tả chi tiết                                                                                      |
 | :----------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------- |
+| 🧭 **[Tổng quan Dự án](docs/PROJECT_OVERVIEW.md)**                       | Mục tiêu, actor, flow nghiệp vụ, module, API, database, hạ tầng, bảo mật, kiểm thử và roadmap.      |
 | 🏛️ **[Hướng dẫn Kiến trúc](docs/ARCHITECTURE_GUIDE.md)**                 | Chi tiết phân tầng Clean Architecture, nguyên tắc CQRS, ranh giới Domain, cách dùng Port & Adapter. |
 | ⚙️ **[Hướng dẫn Triển khai & Vận hành](docs/backend-implementation.md)** | Hướng dẫn cấu hình runtime, chi tiết luồng nghiệp vụ Booking/Payment, cơ chế Outbox và kiểm thử.    |
 | 🗄️ **[Quyết định Cơ sở dữ liệu](docs/database-decisions.md)**            | Thiết kế 20 thực thể bảng, chiến lược phân rã schema SQL và quy trình quản lý migration an toàn.    |

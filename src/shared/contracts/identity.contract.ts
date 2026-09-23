@@ -5,8 +5,6 @@
 export interface IdentityCustomerRegisterCommandInput {
   /** Họ và tên đầy đủ của người dùng */
   fullname: string;
-  /** Địa chỉ / khu vực hoạt động (tùy chọn) */
-  location?: string;
 }
 
 /**

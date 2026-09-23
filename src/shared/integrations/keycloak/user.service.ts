@@ -26,12 +26,23 @@ export class KeycloakUserService {
     return users[0] ?? null;
   }
 
+  async getUserByEmail(email: string): Promise<KeycloakUser | null> {
+    const users = await this.request<KeycloakUser[]>(
+      `/admin/realms/${this.realm()}/users?${new URLSearchParams({
+        email,
+        exact: 'true',
+      })}`,
+    );
+    return users[0] ?? null;
+  }
+
   getUserById(userId: string): Promise<KeycloakUser> {
     return this.request(
       `/admin/realms/${this.realm()}/users/${encodeURIComponent(userId)}`,
     );
   }
 
+  // get admin access token
   async getAdminToken(): Promise<string> {
     const username = this.config.get<string>('auth.keycloakAdminUsername');
     const password = this.config.get<string>('auth.keycloakAdminPassword');

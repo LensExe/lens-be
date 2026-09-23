@@ -5,7 +5,7 @@ import { AdminUserController } from '../http/admin-user.controller';
 import { GoogleAuthController } from '../http/google-auth.controller';
 import {
   IdentityAdminBanCommandHandler,
-  IdentityRegisterCommandHandler,
+  IdentityCustomerRegisterCommandHandler,
   IdentityStatusCommandHandler,
   IdentitySuspendCommandHandler,
   IdentityUnsuspendCommandHandler,
@@ -18,6 +18,7 @@ import {
   IdentityMeQueryHandler,
 } from '@modules/identity/identity.query';
 import { GoogleAuthService } from '../auth/google-auth.service';
+import { AuthService } from '../auth/auth.service';
 
 @Module({
   controllers: [
@@ -27,9 +28,10 @@ import { GoogleAuthService } from '../auth/google-auth.service';
     GoogleAuthController,
   ],
   providers: [
+    AuthService,
     GoogleAuthService,
     IdentityAdminBanCommandHandler,
-    IdentityRegisterCommandHandler,
+    IdentityCustomerRegisterCommandHandler,
     IdentityStatusCommandHandler,
     IdentitySuspendCommandHandler,
     IdentityUnsuspendCommandHandler,

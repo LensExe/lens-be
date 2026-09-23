@@ -10,9 +10,8 @@ import {
 } from '@shared/integrations/keycloak';
 
 export interface GoogleCallbackResult {
-  actor: Actor;
-  fullname: string;
   tokenSet: KeycloakExchangeCodeForTokenResponse;
+  actor: Actor;
 }
 
 @Injectable()
@@ -45,20 +44,17 @@ export class GoogleAuthService {
       codeVerifier: pkce.codeVerifier,
     });
     const claims = await this.keycloak.verifyToken(tokenSet.access_token);
-    return {
-      tokenSet,
-      fullname:
+    const actor: Actor = {
+      sub: claims.sub,
+      email: claims.email,
+      name:
         claims.name ??
         claims.preferred_username ??
         claims.email?.split('@')[0] ??
         'Google user',
-      actor: {
-        sub: claims.sub,
-        email: claims.email,
-        name: claims.name,
-        roles: claims.roles ?? [],
-      },
+      roles: claims.roles ?? [],
     };
+    return { tokenSet, actor };
   }
 
   private redirectUri(): string {

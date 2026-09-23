@@ -25,10 +25,14 @@ export class KeycloakOidcRedirectService {
     provider: KeycloakIdentityProvider,
     redirectUri: string,
   ): Promise<string> {
+    //PKCE (Proof Key for Code Exchange) is a security measure that prevents authorization code interception attacks.
+    //code_verifier: A randomly generated secret string (32–128 characters) by the client.
     const codeVerifier = this.base64Url(randomBytes(32));
+    //code_challenge: The SHA256 hash of the code_verifier, Base64URL encoded.
     const codeChallenge = this.base64Url(
       createHash('sha256').update(codeVerifier).digest(),
     );
+    //state: A random string used to prevent CSRF attacks and link the request to the response.
     const state = this.base64Url(randomBytes(32));
     await this.redis.setJson<KeycloakOidcPkceBundle>(
       this.stateKey(state),
@@ -37,7 +41,7 @@ export class KeycloakOidcRedirectService {
     );
 
     const url = new URL(
-      `${this.baseUrl()}/realms/${this.realm()}/protocol/openid-connect/auth`,
+      `${this.baseKeyCloakUrl()}/realms/${this.realm()}/protocol/openid-connect/auth`,
     );
     url.search = new URLSearchParams({
       client_id: this.clientId(),
@@ -67,22 +71,26 @@ export class KeycloakOidcRedirectService {
     };
   }
 
+  // hash redis key
   private stateKey(state: string): string {
     const digest = createHash('sha256').update(state).digest('hex');
     return `keycloak:oidc-state:${digest}`;
   }
 
+  // convert buffer to base64Url
   private base64Url(value: Buffer): string {
     return value.toString('base64url');
   }
 
-  private baseUrl(): string {
+  // get base url
+  private baseKeyCloakUrl(): string {
     const value = this.config.get<string>('auth.keycloakAuthServerUrl');
     if (!value)
       throw new ServiceUnavailableException('Keycloak is not configured');
     return value.replace(/\/$/, '');
   }
 
+  // get realm
   private realm(): string {
     const value = this.config.get<string>('auth.keycloakRealm');
     if (!value)
@@ -90,6 +98,7 @@ export class KeycloakOidcRedirectService {
     return encodeURIComponent(value);
   }
 
+  // get client id
   private clientId(): string {
     const value = this.config.get<string>('auth.keycloakClientId');
     if (!value)
