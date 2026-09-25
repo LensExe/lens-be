@@ -103,9 +103,20 @@ void test('disabled feature modules are absent from Swagger', async () => {
       ),
     );
 
+    const expected = (
+      JSON.parse(readFileSync('docs/api-tracker.json', 'utf8')) as {
+        id: string;
+        method: string;
+      }[]
+    ).filter(
+      (row) =>
+        ['GET', 'POST', 'PATCH', 'DELETE'].includes(row.method) &&
+        !row.id.startsWith('MEDIA-'),
+    ).length;
+
     assert.ok(!operationIds.some((id) => id.startsWith('MEDIA-')));
     assert.ok(!operationIds.some((id) => id.startsWith('LOC-')));
-    assert.equal(operationIds.length, 71);
+    assert.equal(operationIds.length, expected);
   } finally {
     await app.close();
   }

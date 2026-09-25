@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
-import { DatabaseModule } from '@shared/database';
+import { DatabaseModule, LensCacheModule, RedisModule } from '@shared/database';
 import { KeycloakModule } from '@shared/integrations/keycloak/keycloak.module';
 import { PaymentGateway } from '@shared/integrations/payment/payment.port';
 import { RealtimePublisher } from '@shared/integrations/realtime/realtime-publisher.port';
@@ -46,6 +46,8 @@ const applicationServices = [
     EnvModule,
     CqrsModule.forRoot(),
     DatabaseModule,
+    RedisModule,
+    LensCacheModule,
     KeycloakModule,
     S3Module,
   ],
