@@ -15,15 +15,37 @@ import {
 } from 'class-validator';
 
 export class CalendarBlockCommandBodyDto {
-  @ApiProperty({
-    description: 'Blocked date',
+  @ApiPropertyOptional({
+    description:
+      'Block the whole day in Vietnam time. Send either date, or from and to',
     format: 'date',
     example: '2026-12-01',
   })
+  @ValidateIf((_object, value) => value !== undefined)
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
-  date!: string;
+  date?: string;
 
-  @ApiPropertyOptional({ description: 'Reason for blocking the date' })
+  @ApiPropertyOptional({
+    description: 'Start of the blocked time (may span several days)',
+    format: 'date-time',
+    example: '2026-12-01T14:00:00+07:00',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsISO8601({ strict: true })
+  @Matches(/T.*(Z|[+-]\d{2}:\d{2})$/)
+  from?: string;
+
+  @ApiPropertyOptional({
+    description: 'End of the blocked time (exclusive)',
+    format: 'date-time',
+    example: '2026-12-01T16:00:00+07:00',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsISO8601({ strict: true })
+  @Matches(/T.*(Z|[+-]\d{2}:\d{2})$/)
+  to?: string;
+
+  @ApiPropertyOptional({ description: 'Reason for blocking' })
   @ValidateIf((_object, value) => value !== undefined)
   @IsString()
   @MaxLength(10000)

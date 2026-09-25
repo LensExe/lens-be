@@ -48,8 +48,9 @@ export class CalendarController {
   @Post('calendar/blocked-times')
   @ApiOperation({
     operationId: 'CAL-006',
-    summary: 'Khóa ngày',
-    description: 'Đánh dấu một ngày không nhận booking. Role: Photographer',
+    summary: 'Chặn lịch',
+    description:
+      'Đánh dấu khoảng bận không nhận booking: nguyên ngày (date, giờ VN) hoặc from–to. Role: Photographer',
   })
   @Access(['photographer'])
   @ApiBearerAuth()

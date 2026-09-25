@@ -25,19 +25,14 @@ export class CalendarUseCases {
     if (!p.is_available) return { items: [] };
     const start = input.from ?? new Date().toISOString();
     const end = input.to ?? new Date(Date.now() + 30 * 864e5).toISOString();
-    const offlineDates = await s.findBy(EntitySchemas.offline_slots, {
+    const blockedTimes = await s.findBy(EntitySchemas.offline_slots, {
       photographer_id: p.id,
     });
     const bookings = await s.findBy(EntitySchemas.bookings, {
       photographer_id: p.id,
     });
     return {
-      items: Calendar.availability(
-        start,
-        end,
-        offlineDates.map((slot) => slot.date),
-        bookings,
-      ),
+      items: Calendar.availability(start, end, blockedTimes, bookings),
     };
   }
 
@@ -102,28 +97,35 @@ export class CalendarUseCases {
     };
   }
 
+  /**
+   * Thợ chặn một khoảng bận: nguyên ngày theo giờ Việt Nam hoặc khoảng `from`–`to` (có thể qua nhiều ngày).
+   * Khoá dòng hồ sơ thợ để không chạy song song với tạo booking (booking cũng khoá dòng này).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người đang gọi API (thợ)
+   * @param input `date`, hoặc `from` + `to`; kèm `reason` tuỳ chọn
+   * @returns Khoảng chặn vừa lưu; 400 nếu sai kiểu hoặc đã qua, 409 nếu đè booking hoặc chồng khoảng chặn khác
+   */
   async block(
     s: EntityManager,
     a: Actor,
     input: Inputs.CalendarBlockCommandInput,
   ) {
     const p = await photographer(s, a);
-    const bookings = await s.findBy(EntitySchemas.bookings, {
-      photographer_id: p.id,
+    await s.findOne(EntitySchemas.photographers, {
+      where: { id: p.id },
+      lock: { mode: 'pessimistic_write' },
     });
-    const existing = await s.findBy(EntitySchemas.offline_slots, {
-      photographer_id: p.id,
-      date: input.date,
-    });
+    const range = Calendar.blockRange(input);
     Calendar.assertCanBlock(
-      input.date,
-      bookings,
-      existing.length > 0,
+      range,
+      await s.findBy(EntitySchemas.bookings, { photographer_id: p.id }),
+      await s.findBy(EntitySchemas.offline_slots, { photographer_id: p.id }),
       Date.now(),
     );
     return s.save(EntitySchemas.offline_slots, {
       photographer_id: p.id,
-      date: input.date,
+      ...range,
       reason: input.reason ?? null,
     });
   }

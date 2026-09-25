@@ -1,5 +1,8 @@
+/** Chặn lịch: gửi `date` (nguyên ngày giờ VN) hoặc cả `from` và `to`. */
 export interface CalendarBlockCommandInput {
-  date: string;
+  date?: string;
+  from?: string;
+  to?: string;
   reason?: string;
 }
 

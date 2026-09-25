@@ -21,7 +21,7 @@ test('booking domain prepares a valid draft and rejects an overlapping booking',
     location: 'Studio',
     from: '2030-01-01T09:00:00.000Z',
     to: '2030-01-01T10:00:00.000Z',
-    offlineDates: [] as string[],
+    blockedTimes: [] as { from: string; to: string }[],
     bookings: [] as { from: string; to: string; status: string }[],
     now: Date.parse('2029-01-01T00:00:00.000Z'),
   };

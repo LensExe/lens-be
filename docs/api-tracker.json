@@ -485,8 +485,8 @@
     "service": "Core Backend",
     "method": "POST",
     "path": "/calendar/blocked-times",
-    "summary": "Khóa ngày",
-    "description": "Đánh dấu một ngày không nhận booking.",
+    "summary": "Chặn lịch",
+    "description": "Đánh dấu khoảng bận không nhận booking: nguyên ngày (date, giờ VN) hoặc from–to.",
     "role": "Photographer",
     "priority": "Should",
     "kind": "Command"

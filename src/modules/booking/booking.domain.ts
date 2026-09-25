@@ -1,10 +1,5 @@
 import { ensure } from '@shared/domain/domain.error';
-import {
-  interval,
-  money,
-  overlaps,
-  utcDayInterval,
-} from '@shared/domain/booking-values';
+import { interval, money, overlaps } from '@shared/domain/booking-values';
 import {
   BookingStatus,
   OCCUPIED_BOOKING_STATUSES,
@@ -25,7 +20,7 @@ export interface BookingDraftInput {
   location: string;
   from: string;
   to: string;
-  offlineDates: readonly string[];
+  blockedTimes: readonly { from: string; to: string }[];
   bookings: readonly { from: string; to: string; status: string }[];
   now: number;
 }
@@ -49,8 +44,8 @@ export class Booking {
     const range = interval(input.from, input.to);
     ensure(Date.parse(range.from) > input.now, 'Booking must start in future');
     ensure(
-      !input.offlineDates.some((date) => overlaps(range, utcDayInterval(date))),
-      'Photographer is unavailable on this date',
+      !input.blockedTimes.some((blocked) => overlaps(range, blocked)),
+      'Photographer is unavailable at this time',
       'conflict',
     );
     ensure(

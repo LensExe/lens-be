@@ -477,14 +477,43 @@ test('calendar blocking and concurrent booking conflict', async () => {
     date: blockedDate,
     reason: 'Unavailable',
   });
+  // a blocked date is the whole day in Vietnam time
+  assert.equal(
+    slot.from,
+    new Date(`${blockedDate}T00:00:00+07:00`).toISOString(),
+  );
+  assert.equal(
+    slot.to,
+    new Date(`${blockedDate}T24:00:00+07:00`).toISOString(),
+  );
+  const at = (hour: number) =>
+    new Date(
+      Date.parse(`${blockedDate}T00:00:00+07:00`) + hour * 36e5,
+    ).toISOString();
+  for (const body of [{ date: blockedDate }, { from: at(20), to: at(30) }])
+    assert.equal(
+      (await api('POST', '/calendar/blocked-times', 'photographer', body))
+        .status,
+      409,
+    );
   assert.equal(
     (
       await api('POST', '/calendar/blocked-times', 'photographer', {
         date: blockedDate,
+        from: at(30),
+        to: at(32),
       })
     ).status,
-    409,
+    400,
   );
+  // a range may span days and may start right where another block ends
+  const range = await ok('POST', '/calendar/blocked-times', 'photographer', {
+    from: at(24),
+    to: at(60),
+  });
+  const mine = await ok('GET', '/calendar/me', 'photographer');
+  assert.ok(mine.blocked.some((b: { id: string }) => b.id === range.id));
+  await ok('DELETE', `/calendar/blocked-times/${range.id}`, 'photographer');
   await ok('DELETE', `/calendar/blocked-times/${slot.id}`, 'photographer');
   const input = {
     photographer_id: photo,

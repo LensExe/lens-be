@@ -456,10 +456,15 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'photographer id',
         format: 'uuid',
       },
-      date: {
+      from: {
         type: 'string',
-        description: 'date',
-        format: 'date',
+        description: 'from',
+        format: 'date-time',
+      },
+      to: {
+        type: 'string',
+        description: 'to',
+        format: 'date-time',
       },
       reason: {
         type: 'string',
@@ -477,7 +482,14 @@ export const recordSchemas: Record<string, SchemaObject> = {
         format: 'date-time',
       },
     },
-    required: ['id', 'photographer_id', 'date', 'created_at', 'updated_at'],
+    required: [
+      'id',
+      'photographer_id',
+      'from',
+      'to',
+      'created_at',
+      'updated_at',
+    ],
   },
   bookings: {
     type: 'object',
