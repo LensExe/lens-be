@@ -39,7 +39,7 @@ void test('every registered HTTP endpoint has a complete Swagger contract', asyn
     const contract = JSON.parse(
       readFileSync('docs/api-tracker.json', 'utf8'),
     ).filter((row: { method: string }) =>
-      ['GET', 'POST', 'PATCH', 'DELETE'].includes(row.method),
+      ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(row.method),
     ) as {
       id: string;
       method: string;
@@ -48,7 +48,7 @@ void test('every registered HTTP endpoint has a complete Swagger contract', asyn
     }[];
     const documentedOperations = Object.values(document.paths).flatMap((path) =>
       Object.entries(path ?? {}).filter(([method]) =>
-        ['get', 'post', 'patch', 'delete'].includes(method),
+        ['get', 'post', 'put', 'patch', 'delete'].includes(method),
       ),
     );
 
@@ -110,7 +110,7 @@ void test('disabled feature modules are absent from Swagger', async () => {
       }[]
     ).filter(
       (row) =>
-        ['GET', 'POST', 'PATCH', 'DELETE'].includes(row.method) &&
+        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(row.method) &&
         !row.id.startsWith('MEDIA-'),
     ).length;
 

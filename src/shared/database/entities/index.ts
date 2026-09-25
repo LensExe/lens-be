@@ -8,6 +8,7 @@ export * from './entity.registry';
 export * from './feedback.entity';
 export * from './media.entity';
 export * from './offline-slot.entity';
+export * from './working-hour.entity';
 export * from './outbox-event.entity';
 export * from './payment-webhook.entity';
 export * from './photographer-plan.entity';

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Put,
   Post,
   Delete,
   Param,
@@ -34,6 +35,8 @@ import { CalendarBlockCommand } from '@modules/calendar/calendar.command';
 import { CalendarMeQuery } from '@modules/calendar/calendar.query';
 import { CalendarUnblockCommand } from '@modules/calendar/calendar.command';
 import { CalendarAvailabilityQuery } from '@modules/calendar/calendar.query';
+import { CalendarWorkingHoursQuery } from '@modules/calendar/calendar.query';
+import { CalendarSetWorkingHoursCommand } from '@modules/calendar/calendar.command';
 
 @ApiTags('Calendar')
 @Controller()
@@ -79,6 +82,84 @@ export class CalendarController {
   ) {
     return this.commands.execute(
       new CalendarBlockCommand(req.actor ?? { sub: '', roles: [] }, {
+        ...body,
+      }),
+    );
+  }
+
+  @Get('calendar/me/working-hours')
+  @ApiOperation({
+    operationId: 'CAL-008',
+    summary: 'Xem giờ làm việc',
+    description:
+      'Thợ xem lịch làm việc theo tuần; chưa khai thì trả giờ mặc định 08:00-20:00. Role: Photographer',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('CAL-008'),
+  })
+  workingHours(@Req() req: { actor?: Actor }) {
+    return this.queries.execute(
+      new CalendarWorkingHoursQuery(req.actor ?? { sub: '', roles: [] }, {}),
+    );
+  }
+
+  @Put('calendar/me/working-hours')
+  @ApiOperation({
+    operationId: 'CAL-009',
+    summary: 'Khai giờ làm việc',
+    description:
+      'Thợ thay toàn bộ lịch làm việc theo tuần (giờ Việt Nam); danh sách rỗng thì quay về giờ mặc định. Role: Photographer',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiBody({ type: Dto.CalendarSetWorkingHoursCommandBodyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('CAL-009'),
+  })
+  setWorkingHours(
+    @Req() req: { actor?: Actor },
+    @Body() body: Dto.CalendarSetWorkingHoursCommandBodyDto,
+  ) {
+    return this.commands.execute(
+      new CalendarSetWorkingHoursCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
       }),
     );

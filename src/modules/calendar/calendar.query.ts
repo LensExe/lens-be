@@ -41,3 +41,22 @@ export class CalendarAvailabilityQueryHandler implements IQueryHandler<CalendarA
     );
   }
 }
+
+export class CalendarWorkingHoursQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.CalendarWorkingHoursQueryInput,
+  ) {}
+}
+@QueryHandler(CalendarWorkingHoursQuery)
+export class CalendarWorkingHoursQueryHandler implements IQueryHandler<CalendarWorkingHoursQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: CalendarUseCases,
+  ) {}
+  execute(message: CalendarWorkingHoursQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.workingHours(s, message.actor),
+    );
+  }
+}

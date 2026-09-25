@@ -41,3 +41,22 @@ export class CalendarUnblockCommandHandler implements ICommandHandler<CalendarUn
     );
   }
 }
+
+export class CalendarSetWorkingHoursCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.CalendarSetWorkingHoursCommandInput,
+  ) {}
+}
+@CommandHandler(CalendarSetWorkingHoursCommand)
+export class CalendarSetWorkingHoursCommandHandler implements ICommandHandler<CalendarSetWorkingHoursCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: CalendarUseCases,
+  ) {}
+  execute(message: CalendarSetWorkingHoursCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.setWorkingHours(s, message.actor, message.input),
+    );
+  }
+}

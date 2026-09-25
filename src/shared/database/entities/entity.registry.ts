@@ -6,6 +6,7 @@ import { CustomerEntity } from './customer.entity';
 import { FeedbackEntity } from './feedback.entity';
 import { MediaEntity } from './media.entity';
 import { OfflineSlotEntity } from './offline-slot.entity';
+import { WorkingHourEntity } from './working-hour.entity';
 import { OutboxEventEntity } from './outbox-event.entity';
 import { PaymentWebhookEntity } from './payment-webhook.entity';
 import { PhotographerPlanEntity } from './photographer-plan.entity';
@@ -35,6 +36,7 @@ export const databaseEntities = [
   PhotographerPlanEntity,
   SubscriptionEntity,
   OfflineSlotEntity,
+  WorkingHourEntity,
   BookingEntity,
   WalletEntity,
   TransactionEntity,
@@ -61,6 +63,7 @@ export const EntitySchemas = {
   photographer_plans: PhotographerPlanEntity,
   subscriptions: SubscriptionEntity,
   offline_slots: OfflineSlotEntity,
+  working_hours: WorkingHourEntity,
   bookings: BookingEntity,
   wallets: WalletEntity,
   transactions: TransactionEntity,

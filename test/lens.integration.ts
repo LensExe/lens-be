@@ -178,11 +178,13 @@ after(async () => {
 test('OpenAPI covers the implementation contract with security, body and response schemas', () => {
   const tracker = JSON.parse(
     readFileSync('docs/api-tracker.json', 'utf8'),
-  ).filter((r: any) => ['GET', 'POST', 'PATCH', 'DELETE'].includes(r.method));
+  ).filter((r: any) =>
+    ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(r.method),
+  );
   let count = 0;
   for (const path of Object.values(document.paths))
     count += Object.keys(path as object).filter((m) =>
-      ['get', 'post', 'patch', 'delete'].includes(m),
+      ['get', 'post', 'put', 'patch', 'delete'].includes(m),
     ).length;
   assert.equal(count, tracker.length);
   for (const r of tracker) {
@@ -416,6 +418,56 @@ test('only verified photographers are public; unavailable ones rank last', async
     [applicant],
   );
   assert.equal(found.total, 1);
+});
+test('photographer declares weekly working hours in Vietnam time', async () => {
+  const initial = await ok('GET', '/calendar/me/working-hours', 'photographer');
+  assert.equal(initial.is_default, true);
+  assert.equal(initial.items.length, 7);
+  assert.deepEqual(initial.items[0], {
+    weekday: 1,
+    start_time: '08:00',
+    end_time: '20:00',
+  });
+  const week = [
+    { weekday: 1, start_time: '08:00', end_time: '12:00' },
+    { weekday: 1, start_time: '14:00', end_time: '18:00' },
+    { weekday: 6, start_time: '07:00', end_time: '21:00' },
+  ];
+  assert.equal(
+    (
+      await api('PUT', '/calendar/me/working-hours', 'photographer', {
+        items: [
+          ...week,
+          { weekday: 1, start_time: '11:00', end_time: '13:00' },
+        ],
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await api('PUT', '/calendar/me/working-hours', 'photographer', {
+        items: [{ weekday: 9, start_time: '08:00', end_time: '12:00' }],
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await api('PUT', '/calendar/me/working-hours', 'customer', {
+        items: week,
+      })
+    ).status,
+    403,
+  );
+  const saved = await ok('PUT', '/calendar/me/working-hours', 'photographer', {
+    items: week,
+  });
+  assert.deepEqual(saved, { items: week, is_default: false });
+  const reset = await ok('PUT', '/calendar/me/working-hours', 'photographer', {
+    items: [],
+  });
+  assert.equal(reset.is_default, true);
 });
 test('calendar blocking and concurrent booking conflict', async () => {
   const blockedDate = new Date(Date.now() + 2 * 864e5)

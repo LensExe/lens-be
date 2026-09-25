@@ -5,6 +5,12 @@ export interface CalendarBlockCommandInput {
 
 export type CalendarMeQueryInput = Record<string, never>;
 
+export type CalendarWorkingHoursQueryInput = Record<string, never>;
+
+export interface CalendarSetWorkingHoursCommandInput {
+  items: { weekday: number; start_time: string; end_time: string }[];
+}
+
 export interface CalendarUnblockCommandInput {
   id: string;
 }

@@ -504,6 +504,30 @@
     "kind": "Command"
   },
   {
+    "id": "CAL-008",
+    "module": "Calendar",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/calendar/me/working-hours",
+    "summary": "Xem giờ làm việc",
+    "description": "Thợ xem lịch làm việc theo tuần; chưa khai thì trả giờ mặc định 08:00-20:00.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Query"
+  },
+  {
+    "id": "CAL-009",
+    "module": "Calendar",
+    "service": "Core Backend",
+    "method": "PUT",
+    "path": "/calendar/me/working-hours",
+    "summary": "Khai giờ làm việc",
+    "description": "Thợ thay toàn bộ lịch làm việc theo tuần (giờ Việt Nam); danh sách rỗng thì quay về giờ mặc định.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
     "id": "BOOK-001",
     "module": "Booking",
     "service": "Core Backend",
