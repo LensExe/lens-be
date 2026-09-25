@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
+import { ScheduleModule } from '@nestjs/schedule';
 import { DatabaseModule, LensCacheModule, RedisModule } from '@shared/database';
 import { KeycloakModule } from '@shared/integrations/keycloak/keycloak.module';
 import { PaymentGateway } from '@shared/integrations/payment/payment.port';
@@ -45,6 +46,7 @@ const applicationServices = [
   imports: [
     EnvModule,
     CqrsModule.forRoot(),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     RedisModule,
     LensCacheModule,
