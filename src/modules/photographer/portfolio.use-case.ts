@@ -1,7 +1,11 @@
 import type { EntityManager } from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import { Injectable } from '@nestjs/common';
-import { photographer, required } from '@shared/common/access';
+import {
+  photographer,
+  publicPhotographer,
+  required,
+} from '@shared/common/access';
 import { ObjectStorage } from '@shared/integrations/s3/storage.port';
 import type { Actor } from '@shared/platform/auth/actor';
 import { ensure } from '@shared/platform/exceptions/domain.error';
@@ -38,9 +42,7 @@ export class PortfolioUseCases {
   }
 
   async list(s: EntityManager, _a: Actor, i: Inputs.PortfolioListQueryInput) {
-    const p = await required(s, 'photographers', i.id),
-      u = await required(s, 'users', p.user_id);
-    ensure(u.status === 'active', 'Photographer not found', 'missing');
+    await publicPhotographer(s, i.id);
     return {
       items: await s.findBy(EntitySchemas.portfolios, {
         photographer_id: i.id,
@@ -49,10 +51,8 @@ export class PortfolioUseCases {
   }
 
   async get(s: EntityManager, _a: Actor, i: Inputs.PortfolioGetQueryInput) {
-    const album = await required(s, 'portfolios', i.id),
-      p = await required(s, 'photographers', album.photographer_id),
-      u = await required(s, 'users', p.user_id);
-    ensure(u.status === 'active', 'Portfolio not found', 'missing');
+    const album = await required(s, 'portfolios', i.id);
+    await publicPhotographer(s, album.photographer_id);
     const items = [] as {
       id: string;
       portfolio_id: string;

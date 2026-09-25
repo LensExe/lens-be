@@ -77,8 +77,9 @@ export async function photographer(s: EntityManager, actor: Actor) {
 }
 
 /**
- * Lấy hồ sơ Nhiếp ảnh gia để hiển thị public (khách xem hồ sơ, gói chụp, lịch...).
- * Thợ không tồn tại hoặc tài khoản không còn 'active' ➔ 404, để người ngoài không phân biệt được.
+ * Lấy hồ sơ Nhiếp ảnh gia để hiển thị public (khách xem hồ sơ, portfolio, gói chụp...).
+ * Chỉ thợ đã được admin duyệt (`verified`) và tài khoản còn 'active' mới hiện.
+ * Không thỏa ➔ 404, để người ngoài không phân biệt "chưa duyệt / bị khoá / không tồn tại".
  *
  * @param s EntityManager của TypeORM
  * @param id ID hồ sơ photographer (`photographers.id`)
@@ -87,7 +88,11 @@ export async function photographer(s: EntityManager, actor: Actor) {
 export async function publicPhotographer(s: EntityManager, id: string) {
   const p = await required(s, 'photographers', id),
     u = await required(s, 'users', p.user_id);
-  ensure(u.status === 'active', 'Photographer not found', 'missing');
+  ensure(
+    u.status === 'active' && p.verification_status === 'verified',
+    'Photographer not found',
+    'missing',
+  );
   return { photographer: p, user: u };
 }
 

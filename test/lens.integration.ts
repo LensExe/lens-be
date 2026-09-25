@@ -380,6 +380,38 @@ test('rejected photographer application can be fixed and resubmitted', async () 
   assert.equal(resubmitted.verification_status, 'pending');
   assert.equal(resubmitted.rejection_reason, null);
 });
+test('only verified photographers are public; unavailable ones rank last', async () => {
+  const applicant = (await ok('GET', '/photographers/me', 'applicant')).id;
+  const publicIds = async () =>
+    (await ok('GET', '/photographers?limit=100')).items.map((p: any) => p.id);
+  // pending applicant is hidden everywhere public
+  assert.equal((await api('GET', `/photographers/${applicant}`)).status, 404);
+  assert.equal(
+    (await api('GET', `/photographers/${applicant}/portfolios`)).status,
+    404,
+  );
+  assert.equal(
+    (await api('GET', `/photographers/${applicant}/booking-plans`)).status,
+    404,
+  );
+  assert.deepEqual(await publicIds(), [photo]);
+  // once approved it shows up; switched off it ranks after available ones
+  await ok('POST', `/admin/photographers/${applicant}/approve`, 'admin');
+  await ok('GET', `/photographers/${applicant}`);
+  await ok('PATCH', '/photographers/me/status', 'photographer', {
+    is_available: false,
+  });
+  assert.deepEqual(await publicIds(), [applicant, photo]);
+  await ok('PATCH', '/photographers/me/status', 'photographer', {
+    is_available: true,
+  });
+  const found = await ok('GET', '/photographers?keyword=wedd&location=hu');
+  assert.deepEqual(
+    found.items.map((p: any) => p.id),
+    [applicant],
+  );
+  assert.equal(found.total, 1);
+});
 test('calendar blocking and concurrent booking conflict', async () => {
   const blockedDate = new Date(Date.now() + 2 * 864e5)
     .toISOString()

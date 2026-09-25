@@ -10,6 +10,7 @@ import {
   page,
   role,
   emit,
+  publicPhotographer,
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { VerificationStatus } from '@shared/database/entities/photographer.entity';
@@ -135,11 +136,19 @@ export class PhotographerUseCases {
     return admin;
   }
 
+  /**
+   * Dựng hồ sơ thợ để trả về API.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param id ID hồ sơ thợ
+   * @param privateView `true`: góc nhìn chủ hồ sơ/admin (mọi trạng thái, thêm mã số thuế, lý do từ chối);
+   *   `false`: góc nhìn public (chỉ thợ `verified` và còn active, không thì 404)
+   * @returns Hồ sơ thợ kèm rating
+   */
   async details(s: EntityManager, id: string, privateView = false) {
-    const p = await required(s, 'photographers', id),
-      u = await required(s, 'users', p.user_id);
-    if (!privateView)
-      ensure(u.status === 'active', 'Photographer not found', 'missing');
+    const { photographer: p, user: u } = privateView
+      ? await this.owner(s, id)
+      : await publicPhotographer(s, id);
     const [rating] = await s.findBy(EntitySchemas.ratings, {
       photographer_id: id,
     });
@@ -206,42 +215,71 @@ export class PhotographerUseCases {
     return this.details(s, p.id, true);
   }
 
+  /**
+   * Hồ sơ thợ và user sở hữu, không lọc trạng thái (dùng cho góc nhìn chủ hồ sơ / admin).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param id ID hồ sơ thợ
+   * @returns Hồ sơ photographer và user; 404 nếu không có
+   */
+  private async owner(s: EntityManager, id: string) {
+    const photographer = await required(s, 'photographers', id),
+      user = await required(s, 'users', photographer.user_id);
+    return { photographer, user };
+  }
+
+  /**
+   * Khách tìm thợ: chỉ thợ `verified` và còn active. Lọc, sắp xếp, phân trang ngay trong DB.
+   * Thứ tự: thợ đang nhận việc trước, rồi rating cao trước, cuối cùng theo id cho ổn định.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param _a Người đang gọi API (không dùng; API public)
+   * @param input Bộ lọc `location`, `keyword` (tên hoặc style), `min_rating` và phân trang `limit`/`offset`
+   * @returns `{ items, total, offset, limit }`
+   */
   async search(
     s: EntityManager,
     _a: Actor,
     input: Inputs.PhotographerSearchQueryInput,
   ) {
-    const results: any[] = [];
-    for (const p of await s.find(EntitySchemas.photographers)) {
-      const u = await required(s, 'users', p.user_id);
-      if (u.status !== 'active') continue;
-      const item = await this.details(s, p.id);
-      if (
-        input.location &&
-        !p.location.toLowerCase().includes(input.location.toLowerCase())
-      )
-        continue;
-      if (
-        input.keyword &&
-        ![u.fullname, ...p.styles]
-          .join(' ')
-          .toLowerCase()
-          .includes(input.keyword.toLowerCase())
-      )
-        continue;
-      if (
-        input.min_rating &&
-        (item.rating?.average_rating ?? 0) < input.min_rating
-      )
-        continue;
-      results.push(item);
-    }
-    results.sort(
-      (x, y) =>
-        (y.rating?.average_rating ?? 0) - (x.rating?.average_rating ?? 0) ||
-        x.id.localeCompare(y.id),
-    );
-    return page(results, input);
+    const offset = input.offset ?? 0,
+      limit = input.limit ?? 20,
+      contains = (value: string) => `%${value.replace(/[\\%_]/g, '\\$&')}%`;
+    const query = s
+      .createQueryBuilder(EntitySchemas.photographers, 'p')
+      .innerJoin(EntitySchemas.users, 'u', 'u.id = p.user_id')
+      .leftJoin(EntitySchemas.ratings, 'r', 'r.photographer_id = p.id')
+      .where('u.status = :active', { active: 'active' })
+      .andWhere('p.verification_status = :verified', {
+        verified: VerificationStatus.VERIFIED,
+      });
+    if (input.location)
+      query.andWhere('p.location ILIKE :location', {
+        location: contains(input.location),
+      });
+    if (input.keyword)
+      query.andWhere(
+        '(u.fullname ILIKE :keyword OR p.styles::text ILIKE :keyword)',
+        {
+          keyword: contains(input.keyword),
+        },
+      );
+    if (input.min_rating)
+      query.andWhere('COALESCE(r.average_rating, 0) >= :minRating', {
+        minRating: input.min_rating,
+      });
+    const total = await query.getCount();
+    const rows = await query
+      .select('p.id', 'id')
+      .orderBy('p.is_available', 'DESC')
+      .addOrderBy('COALESCE(r.average_rating, 0)', 'DESC')
+      .addOrderBy('p.id', 'ASC')
+      .offset(offset)
+      .limit(limit)
+      .getRawMany<{ id: string }>();
+    const items: Awaited<ReturnType<PhotographerUseCases['details']>>[] = [];
+    for (const row of rows) items.push(await this.details(s, row.id));
+    return { items, total, offset, limit };
   }
 
   top(s: EntityManager, a: Actor, input: Inputs.PhotographerTopQueryInput) {
