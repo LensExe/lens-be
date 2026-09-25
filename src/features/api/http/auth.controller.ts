@@ -70,7 +70,7 @@ export class AuthController {
   @Post('auth/login')
   @Public()
   @ApiOperation({
-    operationId: 'AUTH-002',
+    operationId: 'AUTH-009',
     summary: 'Đăng nhập tài khoản',
     description: 'User đăng nhập bằng Email và Mật khẩu. Role: Public',
   })
@@ -87,6 +87,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'Token Keycloak và thông tin hồ sơ người dùng',
+    schema: responseSchema('AUTH-009'),
   })
   @HttpCode(200)
   async login(@Body() body: authDto.AuthLoginQueryDto) {
@@ -101,7 +102,7 @@ export class AuthController {
   @Post('auth/refresh')
   @Public()
   @ApiOperation({
-    operationId: 'AUTH-003',
+    operationId: 'AUTH-010',
     summary: 'Làm mới token',
     description: 'Làm mới token bằng Refresh Token. Role: Public',
   })
@@ -118,6 +119,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'New Keycloak Tokens',
+    schema: responseSchema('AUTH-010'),
   })
   @HttpCode(200)
   refresh(@Body() body: authDto.AuthRefreshDto) {
@@ -127,7 +129,7 @@ export class AuthController {
   @Post('auth/logout')
   @Public()
   @ApiOperation({
-    operationId: 'AUTH-004',
+    operationId: 'AUTH-011',
     summary: 'Đăng xuất',
     description: 'Đăng xuất khỏi hệ thống. Role: Public',
   })
@@ -141,7 +143,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'Successful result',
-    schema: responseSchema('AUTH-004'),
+    schema: responseSchema('AUTH-011'),
   })
   @HttpCode(200)
   logout(@Body() body: authDto.AuthLogoutDto) {
@@ -152,7 +154,7 @@ export class AuthController {
   @Access([])
   @ApiBearerAuth()
   @ApiOperation({
-    operationId: 'AUTH-005',
+    operationId: 'AUTH-012',
     summary: 'Thay đổi mật khẩu',
     description: 'Thay đổi mật khẩu của tài khoản. Role: Registration',
   })
@@ -169,7 +171,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'Successful result',
-    schema: responseSchema('AUTH-005'),
+    schema: responseSchema('AUTH-012'),
   })
   changePassword(
     @Req() req: { actor?: Actor },
@@ -181,7 +183,7 @@ export class AuthController {
   @Post('auth/forgot-password/send-otp')
   @Public()
   @ApiOperation({
-    operationId: 'AUTH-006',
+    operationId: 'AUTH-013',
     summary: 'Quên mật khẩu. Gửi OTP',
     description:
       'Quên mật khẩu của tài khoản. Role: Public. Gửi OTP để đổi mật khẩu',
@@ -196,6 +198,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'Successful result',
+    schema: responseSchema('AUTH-013'),
   })
   @HttpCode(200)
   sendForgotPasswordOtp(@Body() body: authDto.AuthSendOtpDto) {
@@ -208,7 +211,7 @@ export class AuthController {
   @Post('auth/forgot-password/verify')
   @Public()
   @ApiOperation({
-    operationId: 'AUTH-006-VERIFY-OTP',
+    operationId: 'AUTH-014',
     summary: 'Xác minh OTP quên mật khẩu',
     description:
       'Xác minh mã OTP để lấy reset_token đổi mật khẩu mới. Role: Public',
@@ -223,6 +226,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'Xác minh OTP thành công và trả về reset_token',
+    schema: responseSchema('AUTH-014'),
   })
   @HttpCode(200)
   verifyForgotPasswordOtp(
@@ -234,7 +238,7 @@ export class AuthController {
   @Post('auth/forgot-password/reset')
   @Public()
   @ApiOperation({
-    operationId: 'AUTH-006-RESET-PASSWORD',
+    operationId: 'AUTH-015',
     summary: 'Đặt lại mật khẩu mới',
     description: 'Đặt lại mật khẩu tài khoản bằng reset_token. Role: Public',
   })
@@ -249,6 +253,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'Đặt lại mật khẩu thành công',
+    schema: responseSchema('AUTH-015'),
   })
   @HttpCode(200)
   resetPassword(@Body() body: authDto.AuthResetPasswordDto) {
@@ -259,7 +264,7 @@ export class AuthController {
   @Access([])
   @ApiBearerAuth()
   @ApiOperation({
-    operationId: 'AUTH-007-SEND-OTP',
+    operationId: 'AUTH-016',
     summary: 'Gửi OTP xác minh Email',
     description: 'Gửi mã OTP để xác minh Email của tài khoản.',
   })
@@ -272,6 +277,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'Gửi OTP thành công',
+    schema: responseSchema('AUTH-016'),
   })
   @HttpCode(200)
   sendEmailOtp(@Req() req: { actor?: Actor }) {
@@ -285,7 +291,7 @@ export class AuthController {
   @Access([])
   @ApiBearerAuth()
   @ApiOperation({
-    operationId: 'AUTH-007-VERIFY-EMAIL',
+    operationId: 'AUTH-017',
     summary: 'Xác minh Email',
     description: 'Xác minh Email của tài khoản.',
   })
@@ -299,6 +305,7 @@ export class AuthController {
   @ApiResponse({
     status: 200,
     description: 'Xác minh email thành công',
+    schema: responseSchema('AUTH-017'),
   })
   @HttpCode(200)
   verifyEmail(

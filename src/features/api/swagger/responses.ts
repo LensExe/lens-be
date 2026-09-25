@@ -72,6 +72,18 @@ const subscription = obj({
 
 const webhook = obj({ received: bool, duplicate: bool });
 
+const tokenSet = obj({
+  access_token: str,
+  expires_in: num,
+  refresh_token: str,
+  scope: str,
+  token_type: str,
+});
+
+const authSession = obj({ ...tokenSet.properties, user: records.users });
+
+const authResult = obj({ success: bool, message: str });
+
 const schemas: Record<string, SchemaObject> = {
   'AUTH-001': records.users,
   'AUTH-002': records.users,
@@ -90,6 +102,15 @@ const schemas: Record<string, SchemaObject> = {
     token_type: str,
     user: records.users,
   }),
+  'AUTH-009': authSession,
+  'AUTH-010': tokenSet,
+  'AUTH-011': authResult,
+  'AUTH-012': authResult,
+  'AUTH-013': authResult,
+  'AUTH-014': obj({ ...authResult.properties, reset_token: str }),
+  'AUTH-015': authResult,
+  'AUTH-016': authResult,
+  'AUTH-017': authResult,
   'PHO-001': privatePhotographer,
   'PHO-002': photographer,
   'PHO-003': privatePhotographer,
