@@ -4,6 +4,7 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { ScheduleModule } from '@nestjs/schedule';
 import { DatabaseModule, LensCacheModule, RedisModule } from '@shared/database';
 import { KeycloakModule } from '@shared/integrations/keycloak/keycloak.module';
+import { NotificationModule } from '@shared/integrations/notification/notification.module';
 import { PaymentGateway } from '@shared/integrations/payment/payment.port';
 import { RealtimePublisher } from '@shared/integrations/realtime/realtime-publisher.port';
 import { PayOsGateway } from '@shared/integrations/payment/payos-gateway.service';
@@ -51,6 +52,7 @@ const applicationServices = [
     RedisModule,
     LensCacheModule,
     KeycloakModule,
+    NotificationModule,
     S3Module,
   ],
   providers: [
