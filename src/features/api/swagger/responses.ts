@@ -41,6 +41,7 @@ const photographer = obj({
   is_available: bool,
   description: str,
   rating: records.ratings,
+  rank: { ...str, enum: ['newbie', 'bronze', 'silver', 'gold', 'diamond'] },
 });
 
 const privatePhotographer = obj({
@@ -49,6 +50,7 @@ const privatePhotographer = obj({
   user_id: str,
   rejection_reason: { ...str, nullable: true },
   reviewed_at: { ...str, nullable: true },
+  commission_percent: num,
 });
 
 const gallery = obj({

@@ -254,10 +254,13 @@ test('static photographer routes, validation and real persistence', async () => 
       .status,
     409,
   );
-  assert.equal(
-    (await ok('GET', '/photographers/me', 'photographer')).id,
-    photo,
-  );
+  const me = await ok('GET', '/photographers/me', 'photographer');
+  assert.equal(me.id, photo);
+  assert.equal(me.rank, 'newbie');
+  assert.equal(me.commission_percent, 10);
+  const publicProfile = await ok('GET', `/photographers/${photo}`);
+  assert.equal(publicProfile.rank, 'newbie');
+  assert.equal(publicProfile.commission_percent, undefined);
   assert.equal((await ok('GET', '/photographers/top-rated')).items.length, 1);
   assert.equal((await api('GET', '/photographers?limit=1000')).status, 400);
   assert.equal(

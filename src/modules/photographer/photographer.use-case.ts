@@ -15,6 +15,7 @@ import {
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { VerificationStatus } from '@shared/database/entities/photographer.entity';
 import { PhotographerApplication } from './photographer.domain';
+import { PhotographerRank } from './photographer-rank.domain';
 import { PhotographerRolePort } from './ports/photographer-role.port';
 
 /** Application use cases for photographer profiles. */
@@ -143,7 +144,7 @@ export class PhotographerUseCases {
    * @param id ID hồ sơ thợ
    * @param privateView `true`: góc nhìn chủ hồ sơ/admin (mọi trạng thái, thêm mã số thuế, lý do từ chối);
    *   `false`: góc nhìn public (chỉ thợ `verified` và còn active, không thì 404)
-   * @returns Hồ sơ thợ kèm rating
+   * @returns Hồ sơ thợ kèm rating và hạng (`rank`); góc nhìn private có thêm `commission_percent`
    */
   async details(s: EntityManager, id: string, privateView = false) {
     const { photographer: p, user: u } = privateView
@@ -152,6 +153,7 @@ export class PhotographerUseCases {
     const [rating] = await s.findBy(EntitySchemas.ratings, {
       photographer_id: id,
     });
+    const rank = PhotographerRank.of(rating?.total_bookings ?? 0);
     const result = {
       id: p.id,
       fullname: u.fullname,
@@ -164,6 +166,7 @@ export class PhotographerUseCases {
       is_available: p.is_available,
       description: p.description,
       rating,
+      rank: rank.rank,
     };
     return privateView
       ? {
@@ -172,6 +175,7 @@ export class PhotographerUseCases {
           user_id: p.user_id,
           rejection_reason: p.rejection_reason,
           reviewed_at: p.reviewed_at,
+          commission_percent: rank.commission_percent,
         }
       : result;
   }
