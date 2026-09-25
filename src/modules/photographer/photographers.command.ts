@@ -117,3 +117,22 @@ export class PhotographerRejectCommandHandler implements ICommandHandler<Photogr
     );
   }
 }
+
+export class PhotographerAwardBadgesCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.PhotographerAwardBadgesCommandInput,
+  ) {}
+}
+@CommandHandler(PhotographerAwardBadgesCommand)
+export class PhotographerAwardBadgesCommandHandler implements ICommandHandler<PhotographerAwardBadgesCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: PhotographerUseCases,
+  ) {}
+  execute(message: PhotographerAwardBadgesCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.awardAllBadges(s, message.actor),
+    );
+  }
+}

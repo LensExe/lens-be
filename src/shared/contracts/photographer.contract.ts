@@ -54,3 +54,5 @@ export interface PhotographerSearchQueryInput {
 export interface PhotographerGetQueryInput {
   id: string;
 }
+
+export type PhotographerAwardBadgesCommandInput = Record<string, never>;
