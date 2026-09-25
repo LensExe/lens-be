@@ -185,9 +185,9 @@
     "service": "Core Backend",
     "method": "POST",
     "path": "/photographers/profile",
-    "summary": "Tạo hồ sơ photographer",
-    "description": "Tạo hồ sơ nghề nghiệp của photographer.",
-    "role": "Photographer",
+    "summary": "Đăng ký làm photographer",
+    "description": "Customer gửi (hoặc gửi lại) hồ sơ làm thợ; hồ sơ chờ admin duyệt.",
+    "role": "Customer",
     "priority": "Must",
     "kind": "Command"
   },
@@ -258,8 +258,8 @@
     "method": "GET",
     "path": "/photographers/me",
     "summary": "Lấy hồ sơ photographer hiện tại",
-    "description": "Trang quản trị hồ sơ cho photographer.",
-    "role": "Photographer",
+    "description": "Hồ sơ thợ của chính mình, gồm trạng thái duyệt và lý do từ chối.",
+    "role": "Customer, Photographer",
     "priority": "Must",
     "kind": "Query"
   },
@@ -274,6 +274,66 @@
     "role": "Photographer",
     "priority": "Should",
     "kind": "Command"
+  },
+  {
+    "id": "PHO-009",
+    "module": "Photographer",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/photographers/me/booking-plans",
+    "summary": "Tạo gói chụp",
+    "description": "Thợ tạo gói chụp mới để khách chọn khi đặt lịch.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
+    "id": "PHO-010",
+    "module": "Photographer",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/photographers/me/booking-plans",
+    "summary": "Gói chụp của tôi",
+    "description": "Thợ xem mọi gói chụp của mình, kể cả gói đã tắt.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Query"
+  },
+  {
+    "id": "PHO-011",
+    "module": "Photographer",
+    "service": "Core Backend",
+    "method": "PATCH",
+    "path": "/booking-plans/:id",
+    "summary": "Sửa gói chụp",
+    "description": "Thợ sửa gói chụp của mình, bật/tắt bằng is_active.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
+    "id": "PHO-012",
+    "module": "Photographer",
+    "service": "Core Backend",
+    "method": "DELETE",
+    "path": "/booking-plans/:id",
+    "summary": "Xoá gói chụp",
+    "description": "Xoá gói chưa có booking; gói đã có booking chỉ được tắt.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
+    "id": "PHO-013",
+    "module": "Photographer",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/photographers/:id/booking-plans",
+    "summary": "Gói chụp của thợ",
+    "description": "Khách xem các gói chụp đang bán của một thợ.",
+    "role": "Public",
+    "priority": "Must",
+    "kind": "Query"
   },
   {
     "id": "PORT-001",
@@ -1065,6 +1125,30 @@
     "description": "Cấm tài khoản người dùng vi phạm nghiêm trọng chính sách.",
     "role": "Admin",
     "priority": "Should",
+    "kind": "Command"
+  },
+  {
+    "id": "ADM-009",
+    "module": "Admin",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/admin/photographers/:id/approve",
+    "summary": "Duyệt hồ sơ photographer",
+    "description": "Admin duyệt hồ sơ đang chờ; người gửi được gán role photographer.",
+    "role": "Admin",
+    "priority": "Could",
+    "kind": "Command"
+  },
+  {
+    "id": "ADM-010",
+    "module": "Admin",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/admin/photographers/:id/reject",
+    "summary": "Từ chối hồ sơ photographer",
+    "description": "Admin từ chối hồ sơ đang chờ kèm lý do; người gửi sửa và gửi lại được.",
+    "role": "Admin",
+    "priority": "Could",
     "kind": "Command"
   }
 ]

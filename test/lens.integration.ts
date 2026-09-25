@@ -22,6 +22,8 @@ import { KeycloakService } from '../src/shared/integrations/keycloak/keycloak.se
 import { setupApi } from '../src/features/api/setup';
 import { OutboxWorker } from '../src/features/workers/outbox.worker';
 import { Booking } from '../src/modules/booking/booking.domain';
+import { CommandBus } from '@nestjs/cqrs';
+import { IdentityCustomerRegisterCommand } from '../src/modules/identity/identity.command';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';
 import { S3ObjectStorage } from '../src/shared/integrations/s3/s3-storage.service';
 import {
@@ -33,6 +35,7 @@ import {
 let db: DataSource, app: INestApplication, base: string, document: any;
 const testSchema = 'lens_test_' + randomUUID().replaceAll('-', '');
 let customer: string,
+  adminUser: string,
   photoUser: string,
   photo: string,
   plan: string,
@@ -49,7 +52,12 @@ const actors: Record<string, Actor> = {
   photographer: {
     sub: 'kc-photographer',
     email: 'photographer@example.test',
-    roles: ['photographer'],
+    roles: ['customer', 'photographer'],
+  },
+  applicant: {
+    sub: 'kc-applicant',
+    email: 'applicant@example.test',
+    roles: ['customer'],
   },
   stranger: {
     sub: 'kc-stranger',
@@ -109,10 +117,13 @@ before(
       .filter((f) => /^\d{3}_[a-z0-9_-]+\.sql$/i.test(f))
       .sort())
       await db.query(readFileSync(`migrations/${file}`, 'utf8'));
+    // overrideProvider (not a root provider) replaces the DataSource that DatabaseModule
+    // injects into handlers; otherwise tests write into the .env database.
     const mod = await Test.createTestingModule({
       imports: [ApiModule],
-      providers: [{ provide: DataSource, useValue: db }],
     })
+      .overrideProvider(DataSource)
+      .useValue(db)
       .overrideProvider(KeycloakService)
       .useValue({
         verifyToken: async (token: string) => {
@@ -172,7 +183,7 @@ test('OpenAPI covers the implementation contract with security, body and respons
     count += Object.keys(path as object).filter((m) =>
       ['get', 'post', 'patch', 'delete'].includes(m),
     ).length;
-  assert.equal(count, 80);
+  assert.equal(count, tracker.length);
   for (const r of tracker) {
     const path = r.path.replace(/:(\w+)/g, '{$1}'),
       op = document.paths[path]?.[r.method.toLowerCase()];
@@ -184,11 +195,21 @@ test('OpenAPI covers the implementation contract with security, body and respons
 });
 test('authentication, registration and profile isolation', async () => {
   assert.equal((await api('GET', '/users/me')).status, 401);
+  // POST /auth/register now creates the Keycloak account first, so tests create the
+  // local profile through the same command the register flow ends with.
   for (const token of Object.keys(actors)) {
-    const u = await ok('POST', '/auth/register', token, { fullname: token });
+    const u = await app
+      .get(CommandBus)
+      .execute(
+        new IdentityCustomerRegisterCommand(actors[token], { fullname: token }),
+      );
     if (token === 'customer') customer = u.id;
     if (token === 'photographer') photoUser = u.id;
+    if (token === 'admin') adminUser = u.id;
   }
+  await db.transaction((s) =>
+    s.save(EntitySchemas.admins, { user_id: adminUser }),
+  );
   assert.equal((await ok('GET', '/users/me', 'customer')).id, customer);
   assert.equal(
     (await api('PATCH', '/users/me', 'customer', { status: 'suspended' }))
@@ -211,10 +232,35 @@ test('static photographer routes, validation and real persistence', async () => 
     description: 'Studio',
   });
   photo = p.id;
+  assert.equal(p.verification_status, 'pending');
   assert.equal(
-    (await ok('GET', '/photographers/me', 'photographer')).id,
-    photo,
+    (
+      await api('POST', '/photographers/profile', 'photographer', {
+        styles: ['portrait'],
+        location: 'Da Nang',
+      })
+    ).status,
+    409,
   );
+  const approved = await ok(
+    'POST',
+    `/admin/photographers/${photo}/approve`,
+    'admin',
+  );
+  assert.equal(approved.verification_status, 'verified');
+  assert.equal(approved.is_verified, true);
+  assert.equal(
+    (await api('POST', `/admin/photographers/${photo}/approve`, 'admin'))
+      .status,
+    409,
+  );
+  const me = await ok('GET', '/photographers/me', 'photographer');
+  assert.equal(me.id, photo);
+  assert.equal(me.rank, 'newbie');
+  assert.equal(me.commission_percent, 10);
+  const publicProfile = await ok('GET', `/photographers/${photo}`);
+  assert.equal(publicProfile.rank, 'newbie');
+  assert.equal(publicProfile.commission_percent, undefined);
   assert.equal((await ok('GET', '/photographers/top-rated')).items.length, 1);
   assert.equal((await api('GET', '/photographers?limit=1000')).status, 400);
   assert.equal(
@@ -233,15 +279,141 @@ test('static photographer routes, validation and real persistence', async () => 
     ).status,
     400,
   );
+  const planBody = {
+    name: 'Portrait',
+    price: 1000000,
+    duration_minutes: 60,
+    photo_count: 20,
+    retouched_photo_count: 5,
+    features: ['All original photos'],
+  };
   plan = (
-    await db.transaction((s) =>
-      s.save(EntitySchemas.booking_plans, {
-        photographer_id: photo,
-        name: 'Portrait',
-        price: 1000000,
-      }),
+    await ok(
+      'POST',
+      '/photographers/me/booking-plans',
+      'photographer',
+      planBody,
     )
   ).id;
+  assert.equal(
+    (
+      await api('POST', '/photographers/me/booking-plans', 'photographer', {
+        ...planBody,
+        retouched_photo_count: 21,
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (await api('POST', '/photographers/me/booking-plans', 'customer', planBody))
+      .status,
+    403,
+  );
+  const spare = await ok(
+    'POST',
+    '/photographers/me/booking-plans',
+    'photographer',
+    { ...planBody, name: 'Spare' },
+  );
+  await ok('PATCH', `/booking-plans/${spare.id}`, 'photographer', {
+    is_active: false,
+  });
+  const publicPlans = await ok('GET', `/photographers/${photo}/booking-plans`);
+  assert.deepEqual(
+    publicPlans.items.map((p: any) => p.id),
+    [plan],
+  );
+  assert.equal(
+    (await ok('GET', '/photographers/me/booking-plans', 'photographer')).items
+      .length,
+    2,
+  );
+  assert.deepEqual(
+    await ok('DELETE', `/booking-plans/${spare.id}`, 'photographer'),
+    { deleted: true },
+  );
+});
+test('rejected photographer application can be fixed and resubmitted', async () => {
+  const application = await ok('POST', '/photographers/profile', 'applicant', {
+    styles: ['wedding'],
+    location: 'Hue',
+  });
+  const pending = await ok(
+    'GET',
+    '/admin/photographers?verification_status=pending',
+    'admin',
+  );
+  assert.deepEqual(
+    pending.items.map((p: any) => p.id),
+    [application.id],
+  );
+  assert.equal(
+    (
+      await api(
+        'POST',
+        `/admin/photographers/${application.id}/reject`,
+        'customer',
+        { reason: 'x' },
+      )
+    ).status,
+    403,
+  );
+  await ok('POST', `/admin/photographers/${application.id}/reject`, 'admin', {
+    reason: 'Need more portfolio photos',
+  });
+  const mine = await ok('GET', '/photographers/me', 'applicant');
+  assert.equal(mine.verification_status, 'rejected');
+  assert.equal(mine.rejection_reason, 'Need more portfolio photos');
+  assert.equal(
+    (
+      await api(
+        'POST',
+        `/admin/photographers/${application.id}/approve`,
+        'admin',
+      )
+    ).status,
+    409,
+  );
+  const resubmitted = await ok('POST', '/photographers/profile', 'applicant', {
+    styles: ['wedding'],
+    location: 'Hue',
+    description: 'Added portfolio',
+  });
+  assert.equal(resubmitted.id, application.id);
+  assert.equal(resubmitted.verification_status, 'pending');
+  assert.equal(resubmitted.rejection_reason, null);
+});
+test('only verified photographers are public; unavailable ones rank last', async () => {
+  const applicant = (await ok('GET', '/photographers/me', 'applicant')).id;
+  const publicIds = async () =>
+    (await ok('GET', '/photographers?limit=100')).items.map((p: any) => p.id);
+  // pending applicant is hidden everywhere public
+  assert.equal((await api('GET', `/photographers/${applicant}`)).status, 404);
+  assert.equal(
+    (await api('GET', `/photographers/${applicant}/portfolios`)).status,
+    404,
+  );
+  assert.equal(
+    (await api('GET', `/photographers/${applicant}/booking-plans`)).status,
+    404,
+  );
+  assert.deepEqual(await publicIds(), [photo]);
+  // once approved it shows up; switched off it ranks after available ones
+  await ok('POST', `/admin/photographers/${applicant}/approve`, 'admin');
+  await ok('GET', `/photographers/${applicant}`);
+  await ok('PATCH', '/photographers/me/status', 'photographer', {
+    is_available: false,
+  });
+  assert.deepEqual(await publicIds(), [applicant, photo]);
+  await ok('PATCH', '/photographers/me/status', 'photographer', {
+    is_available: true,
+  });
+  const found = await ok('GET', '/photographers?keyword=wedd&location=hu');
+  assert.deepEqual(
+    found.items.map((p: any) => p.id),
+    [applicant],
+  );
+  assert.equal(found.total, 1);
 });
 test('calendar blocking and concurrent booking conflict', async () => {
   const blockedDate = new Date(Date.now() + 2 * 864e5)
@@ -295,6 +467,17 @@ test('booking ownership and lifecycle checks', async () => {
   assert.equal(
     (await api('POST', `/bookings/${booking}/start`, 'photographer')).status,
     409,
+  );
+});
+test('booking plan with bookings can only be deactivated', async () => {
+  assert.equal(
+    (await api('DELETE', `/booking-plans/${plan}`, 'photographer')).status,
+    409,
+  );
+  assert.equal(
+    (await api('PATCH', `/booking-plans/${plan}`, 'stranger', { name: 'x' }))
+      .status,
+    403,
   );
 });
 test('payment intent survives provider timeout and retries without duplicate order', async () => {
@@ -546,6 +729,28 @@ test('portfolio ordering, ownership and public signed image URLs', async () => {
   assert.equal(
     (await api('DELETE', `/portfolios/${album.id}`, 'stranger')).status,
     403,
+  );
+  const second = await ok(
+    'POST',
+    '/photographers/me/portfolios',
+    'photographer',
+    { name: 'Weddings' },
+  );
+  const firstPage = await ok(
+    'GET',
+    `/photographers/${photo}/portfolios?limit=1`,
+  );
+  assert.deepEqual(
+    { ...firstPage, items: firstPage.items.map((p: any) => p.id) },
+    { items: [album.id], total: 2, offset: 0, limit: 1 },
+  );
+  const secondPage = await ok(
+    'GET',
+    `/photographers/${photo}/portfolios?limit=1&offset=1`,
+  );
+  assert.deepEqual(
+    secondPage.items.map((p: any) => p.id),
+    [second.id],
   );
 });
 test('subscription plan snapshot, payment activation, ownership and cancellation', async () => {

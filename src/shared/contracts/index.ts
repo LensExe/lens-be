@@ -1,4 +1,5 @@
 export * from './booking.contract';
+export * from './booking-plan.contract';
 export * from './calendar.contract';
 export * from './identity.contract';
 export * from './media.contract';

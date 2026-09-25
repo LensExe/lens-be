@@ -77,6 +77,26 @@ export async function photographer(s: EntityManager, actor: Actor) {
 }
 
 /**
+ * Lấy hồ sơ Nhiếp ảnh gia để hiển thị public (khách xem hồ sơ, portfolio, gói chụp...).
+ * Chỉ thợ đã được admin duyệt (`verified`) và tài khoản còn 'active' mới hiện.
+ * Không thỏa ➔ 404, để người ngoài không phân biệt "chưa duyệt / bị khoá / không tồn tại".
+ *
+ * @param s EntityManager của TypeORM
+ * @param id ID hồ sơ photographer (`photographers.id`)
+ * @returns Hồ sơ photographer và user sở hữu
+ */
+export async function publicPhotographer(s: EntityManager, id: string) {
+  const p = await required(s, 'photographers', id),
+    u = await required(s, 'users', p.user_id);
+  ensure(
+    u.status === 'active' && p.verification_status === 'verified',
+    'Photographer not found',
+    'missing',
+  );
+  return { photographer: p, user: u };
+}
+
+/**
  * Kiểm tra quyền truy cập vào một đơn đặt lịch (Booking).
  * Xác thực xem người dùng hiện tại có phải là Khách hàng (Customer) hoặc Thợ chụp (Photographer) của đơn đó không,
  * hoặc có phải là Admin/Hệ thống hay không.

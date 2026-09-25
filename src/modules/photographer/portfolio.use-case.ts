@@ -1,7 +1,11 @@
 import type { EntityManager } from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import { Injectable } from '@nestjs/common';
-import { photographer, required } from '@shared/common/access';
+import {
+  photographer,
+  publicPhotographer,
+  required,
+} from '@shared/common/access';
 import { ObjectStorage } from '@shared/integrations/s3/storage.port';
 import type { Actor } from '@shared/platform/auth/actor';
 import { ensure } from '@shared/platform/exceptions/domain.error';
@@ -37,22 +41,30 @@ export class PortfolioUseCases {
     return s.save(EntitySchemas.portfolios, { ...i, photographer_id: p.id });
   }
 
+  /**
+   * Khách xem danh sách portfolio của một thợ (public), phân trang trong DB.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param _a Người đang gọi API (không dùng; API public)
+   * @param i ID hồ sơ thợ và phân trang `limit` (mặc định 20) / `offset` (mặc định 0)
+   * @returns `{ items, total, offset, limit }`, portfolio cũ nhất trước; 404 nếu thợ không public
+   */
   async list(s: EntityManager, _a: Actor, i: Inputs.PortfolioListQueryInput) {
-    const p = await required(s, 'photographers', i.id),
-      u = await required(s, 'users', p.user_id);
-    ensure(u.status === 'active', 'Photographer not found', 'missing');
-    return {
-      items: await s.findBy(EntitySchemas.portfolios, {
-        photographer_id: i.id,
-      }),
-    };
+    await publicPhotographer(s, i.id);
+    const offset = i.offset ?? 0,
+      limit = i.limit ?? 20;
+    const [items, total] = await s.findAndCount(EntitySchemas.portfolios, {
+      where: { photographer_id: i.id },
+      order: { created_at: 'ASC', id: 'ASC' },
+      skip: offset,
+      take: limit,
+    });
+    return { items, total, offset, limit };
   }
 
   async get(s: EntityManager, _a: Actor, i: Inputs.PortfolioGetQueryInput) {
-    const album = await required(s, 'portfolios', i.id),
-      p = await required(s, 'photographers', album.photographer_id),
-      u = await required(s, 'users', p.user_id);
-    ensure(u.status === 'active', 'Portfolio not found', 'missing');
+    const album = await required(s, 'portfolios', i.id);
+    await publicPhotographer(s, album.photographer_id);
     const items = [] as {
       id: string;
       portfolio_id: string;

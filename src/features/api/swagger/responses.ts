@@ -41,12 +41,16 @@ const photographer = obj({
   is_available: bool,
   description: str,
   rating: records.ratings,
+  rank: { ...str, enum: ['newbie', 'bronze', 'silver', 'gold', 'diamond'] },
 });
 
 const privatePhotographer = obj({
   ...photographer.properties,
   tax_code: { ...str, nullable: true },
   user_id: str,
+  rejection_reason: { ...str, nullable: true },
+  reviewed_at: { ...str, nullable: true },
+  commission_percent: num,
 });
 
 const gallery = obj({
@@ -119,6 +123,11 @@ const schemas: Record<string, SchemaObject> = {
   'PHO-006': paged(photographer),
   'PHO-007': privatePhotographer,
   'PHO-008': privatePhotographer,
+  'PHO-009': records.booking_plans,
+  'PHO-010': items(records.booking_plans),
+  'PHO-011': records.booking_plans,
+  'PHO-012': deleted,
+  'PHO-013': items(records.booking_plans),
   'PORT-001': records.portfolios,
   'PORT-002': paged(records.portfolios),
   'PORT-003': portfolio,
@@ -222,6 +231,8 @@ const schemas: Record<string, SchemaObject> = {
   'ADM-006': paged(records.transactions),
   'ADM-007': paged(records.photographers),
   'ADM-008': records.users,
+  'ADM-009': privatePhotographer,
+  'ADM-010': privatePhotographer,
 };
 export function responseSchema(id: string): SchemaObject {
   const schema = schemas[id];
