@@ -1,5 +1,6 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
+import { timestampTransformer } from './utils/column-transformers';
 
 /**
  * Trạng thái xét duyệt / xác minh hồ sơ của Nhiếp ảnh gia
@@ -55,6 +56,14 @@ export class PhotographerEntity extends BaseEntity {
   /** ID của Quản trị viên (Admin) đã phê duyệt hồ sơ thợ ảnh này */
   @Column('uuid', { nullable: true })
   approved_by!: string | null;
+
+  /** Lý do admin từ chối hồ sơ (null khi chưa bị từ chối hoặc đã gửi lại) */
+  @Column('text', { nullable: true })
+  rejection_reason!: string | null;
+
+  /** Thời điểm admin duyệt hoặc từ chối hồ sơ gần nhất */
+  @Column('timestamptz', { nullable: true, transformer: timestampTransformer })
+  reviewed_at!: string | null;
 
   /** Trạng thái sẵn sàng nhận đơn đặt lịch (bật/tắt nhận booking) */
   @Column({ default: true })

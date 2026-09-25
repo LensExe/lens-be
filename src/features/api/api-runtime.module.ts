@@ -23,6 +23,7 @@ import { IdentityUseCases } from '@modules/identity/identity.use-case';
 import { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.port';
 import { MediaOwnershipPort } from '@modules/photographer/ports/media-ownership.port';
 import { SubscriptionPaymentsPort } from '@modules/subscription/ports/subscription-payments.port';
+import { PhotographerRolePort } from '@modules/photographer/ports/photographer-role.port';
 import { LensGateway } from '../socketio/socketio.gateway';
 import { OutboxWorker } from '../workers/outbox.worker';
 import { KeycloakGuard } from './auth/keycloak.guard';
@@ -62,6 +63,15 @@ const applicationServices = [
     { provide: RatingUpdaterPort, useExisting: ReviewUseCases },
     { provide: MediaOwnershipPort, useExisting: MediaUseCases },
     { provide: SubscriptionPaymentsPort, useExisting: PaymentUseCases },
+    // TODO(identity): thay bằng provider thật của identity (docs/IDENTITY_TODO.md, việc 7).
+    // Tạm thời duyệt hồ sơ không gán role Keycloak.
+    {
+      provide: PhotographerRolePort,
+      useValue: {
+        grant: () => Promise.resolve(),
+        revoke: () => Promise.resolve(),
+      },
+    },
     { provide: PaymentGateway, useClass: PayOsGateway },
     { provide: APP_GUARD, useClass: KeycloakGuard },
     { provide: APP_FILTER, useClass: DomainErrorFilter },

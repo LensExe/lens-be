@@ -9,6 +9,16 @@ export interface PhotographerStatusCommandInput {
 export interface PhotographerAdminQueryInput {
   limit?: number;
   offset?: number;
+  verification_status?: 'unverified' | 'pending' | 'verified' | 'rejected';
+}
+
+export interface PhotographerApproveCommandInput {
+  id: string;
+}
+
+export interface PhotographerRejectCommandInput {
+  id: string;
+  reason: string;
 }
 
 export interface PhotographerUpdateCommandInput {

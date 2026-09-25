@@ -47,6 +47,8 @@ const privatePhotographer = obj({
   ...photographer.properties,
   tax_code: { ...str, nullable: true },
   user_id: str,
+  rejection_reason: { ...str, nullable: true },
+  reviewed_at: { ...str, nullable: true },
 });
 
 const gallery = obj({
@@ -227,6 +229,8 @@ const schemas: Record<string, SchemaObject> = {
   'ADM-006': paged(records.transactions),
   'ADM-007': paged(records.photographers),
   'ADM-008': records.users,
+  'ADM-009': privatePhotographer,
+  'ADM-010': privatePhotographer,
 };
 export function responseSchema(id: string): SchemaObject {
   const schema = schemas[id];

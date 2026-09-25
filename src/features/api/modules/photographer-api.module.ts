@@ -11,7 +11,9 @@ import {
   BookingPlanMeQueryHandler,
 } from '@modules/photographer/booking-plans.query';
 import {
+  PhotographerApproveCommandHandler,
   PhotographerCreateCommandHandler,
+  PhotographerRejectCommandHandler,
   PhotographerLocationCommandHandler,
   PhotographerStatusCommandHandler,
   PhotographerUpdateCommandHandler,
@@ -27,7 +29,9 @@ import {
 @Module({
   controllers: [PhotographerController, BookingPlanController],
   providers: [
+    PhotographerApproveCommandHandler,
     PhotographerCreateCommandHandler,
+    PhotographerRejectCommandHandler,
     PhotographerLocationCommandHandler,
     PhotographerStatusCommandHandler,
     PhotographerUpdateCommandHandler,

@@ -35,6 +35,7 @@ import {
 let db: DataSource, app: INestApplication, base: string, document: any;
 const testSchema = 'lens_test_' + randomUUID().replaceAll('-', '');
 let customer: string,
+  adminUser: string,
   photoUser: string,
   photo: string,
   plan: string,
@@ -51,7 +52,12 @@ const actors: Record<string, Actor> = {
   photographer: {
     sub: 'kc-photographer',
     email: 'photographer@example.test',
-    roles: ['photographer'],
+    roles: ['customer', 'photographer'],
+  },
+  applicant: {
+    sub: 'kc-applicant',
+    email: 'applicant@example.test',
+    roles: ['customer'],
   },
   stranger: {
     sub: 'kc-stranger',
@@ -199,7 +205,11 @@ test('authentication, registration and profile isolation', async () => {
       );
     if (token === 'customer') customer = u.id;
     if (token === 'photographer') photoUser = u.id;
+    if (token === 'admin') adminUser = u.id;
   }
+  await db.transaction((s) =>
+    s.save(EntitySchemas.admins, { user_id: adminUser }),
+  );
   assert.equal((await ok('GET', '/users/me', 'customer')).id, customer);
   assert.equal(
     (await api('PATCH', '/users/me', 'customer', { status: 'suspended' }))
@@ -222,6 +232,28 @@ test('static photographer routes, validation and real persistence', async () => 
     description: 'Studio',
   });
   photo = p.id;
+  assert.equal(p.verification_status, 'pending');
+  assert.equal(
+    (
+      await api('POST', '/photographers/profile', 'photographer', {
+        styles: ['portrait'],
+        location: 'Da Nang',
+      })
+    ).status,
+    409,
+  );
+  const approved = await ok(
+    'POST',
+    `/admin/photographers/${photo}/approve`,
+    'admin',
+  );
+  assert.equal(approved.verification_status, 'verified');
+  assert.equal(approved.is_verified, true);
+  assert.equal(
+    (await api('POST', `/admin/photographers/${photo}/approve`, 'admin'))
+      .status,
+    409,
+  );
   assert.equal(
     (await ok('GET', '/photographers/me', 'photographer')).id,
     photo,
@@ -297,6 +329,56 @@ test('static photographer routes, validation and real persistence', async () => 
     await ok('DELETE', `/booking-plans/${spare.id}`, 'photographer'),
     { deleted: true },
   );
+});
+test('rejected photographer application can be fixed and resubmitted', async () => {
+  const application = await ok('POST', '/photographers/profile', 'applicant', {
+    styles: ['wedding'],
+    location: 'Hue',
+  });
+  const pending = await ok(
+    'GET',
+    '/admin/photographers?verification_status=pending',
+    'admin',
+  );
+  assert.deepEqual(
+    pending.items.map((p: any) => p.id),
+    [application.id],
+  );
+  assert.equal(
+    (
+      await api(
+        'POST',
+        `/admin/photographers/${application.id}/reject`,
+        'customer',
+        { reason: 'x' },
+      )
+    ).status,
+    403,
+  );
+  await ok('POST', `/admin/photographers/${application.id}/reject`, 'admin', {
+    reason: 'Need more portfolio photos',
+  });
+  const mine = await ok('GET', '/photographers/me', 'applicant');
+  assert.equal(mine.verification_status, 'rejected');
+  assert.equal(mine.rejection_reason, 'Need more portfolio photos');
+  assert.equal(
+    (
+      await api(
+        'POST',
+        `/admin/photographers/${application.id}/approve`,
+        'admin',
+      )
+    ).status,
+    409,
+  );
+  const resubmitted = await ok('POST', '/photographers/profile', 'applicant', {
+    styles: ['wedding'],
+    location: 'Hue',
+    description: 'Added portfolio',
+  });
+  assert.equal(resubmitted.id, application.id);
+  assert.equal(resubmitted.verification_status, 'pending');
+  assert.equal(resubmitted.rejection_reason, null);
 });
 test('calendar blocking and concurrent booking conflict', async () => {
   const blockedDate = new Date(Date.now() + 2 * 864e5)

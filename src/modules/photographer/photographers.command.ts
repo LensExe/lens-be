@@ -79,3 +79,41 @@ export class PhotographerCreateCommandHandler implements ICommandHandler<Photogr
     );
   }
 }
+
+export class PhotographerApproveCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.PhotographerApproveCommandInput,
+  ) {}
+}
+@CommandHandler(PhotographerApproveCommand)
+export class PhotographerApproveCommandHandler implements ICommandHandler<PhotographerApproveCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: PhotographerUseCases,
+  ) {}
+  execute(message: PhotographerApproveCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.approve(s, message.actor, message.input),
+    );
+  }
+}
+
+export class PhotographerRejectCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.PhotographerRejectCommandInput,
+  ) {}
+}
+@CommandHandler(PhotographerRejectCommand)
+export class PhotographerRejectCommandHandler implements ICommandHandler<PhotographerRejectCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: PhotographerUseCases,
+  ) {}
+  execute(message: PhotographerRejectCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.reject(s, message.actor, message.input),
+    );
+  }
+}

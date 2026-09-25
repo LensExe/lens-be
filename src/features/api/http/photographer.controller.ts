@@ -36,6 +36,10 @@ import { PhotographerAdminQuery } from '@modules/photographer/photographers.quer
 import { PhotographerUpdateCommand } from '@modules/photographer/photographers.command';
 import { PhotographerMeQuery } from '@modules/photographer/photographers.query';
 import { PhotographerCreateCommand } from '@modules/photographer/photographers.command';
+import {
+  PhotographerApproveCommand,
+  PhotographerRejectCommand,
+} from '@modules/photographer/photographers.command';
 import { PhotographerTopQuery } from '@modules/photographer/photographers.query';
 import { PhotographerSearchQuery } from '@modules/photographer/photographers.query';
 import { PhotographerGetQuery } from '@modules/photographer/photographers.query';
@@ -166,6 +170,12 @@ export class PhotographerController {
     type: 'number',
     description: 'offset',
   })
+  @ApiQuery({
+    name: 'verification_status',
+    required: false,
+    enum: ['unverified', 'pending', 'verified', 'rejected'],
+    description: 'verification status',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -178,6 +188,95 @@ export class PhotographerController {
     return this.queries.execute(
       new PhotographerAdminQuery(req.actor ?? { sub: '', roles: [] }, {
         ...query,
+      }),
+    );
+  }
+
+  @Post('admin/photographers/:id/approve')
+  @ApiOperation({
+    operationId: 'ADM-009',
+    summary: 'Duyệt hồ sơ photographer',
+    description:
+      'Admin duyệt hồ sơ đang chờ; người gửi được gán role photographer. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('ADM-009'),
+  })
+  @HttpCode(200)
+  approve(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.commands.execute(
+      new PhotographerApproveCommand(req.actor ?? { sub: '', roles: [] }, {
+        id,
+      }),
+    );
+  }
+
+  @Post('admin/photographers/:id/reject')
+  @ApiOperation({
+    operationId: 'ADM-010',
+    summary: 'Từ chối hồ sơ photographer',
+    description:
+      'Admin từ chối hồ sơ đang chờ kèm lý do; người gửi sửa và gửi lại được. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiBody({ type: Dto.PhotographerRejectCommandBodyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('ADM-010'),
+  })
+  @HttpCode(200)
+  reject(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: Dto.PhotographerRejectCommandBodyDto,
+  ) {
+    return this.commands.execute(
+      new PhotographerRejectCommand(req.actor ?? { sub: '', roles: [] }, {
+        ...body,
+        id,
       }),
     );
   }
@@ -228,9 +327,10 @@ export class PhotographerController {
   @ApiOperation({
     operationId: 'PHO-007',
     summary: 'Lấy hồ sơ photographer hiện tại',
-    description: 'Trang quản trị hồ sơ cho photographer. Role: Photographer',
+    description:
+      'Hồ sơ thợ của chính mình, gồm trạng thái duyệt và lý do từ chối. Role: Customer, Photographer',
   })
-  @Access(['photographer'])
+  @Access(['customer', 'photographer'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
@@ -262,10 +362,11 @@ export class PhotographerController {
   @Post('photographers/profile')
   @ApiOperation({
     operationId: 'PHO-001',
-    summary: 'Tạo hồ sơ photographer',
-    description: 'Tạo hồ sơ nghề nghiệp của photographer. Role: Photographer',
+    summary: 'Đăng ký làm photographer',
+    description:
+      'Customer gửi (hoặc gửi lại sau khi bị từ chối) hồ sơ làm thợ; hồ sơ chờ admin duyệt. Role: Customer',
   })
-  @Access(['photographer'])
+  @Access(['customer'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
