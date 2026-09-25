@@ -261,32 +261,31 @@ export const recordSchemas: Record<string, SchemaObject> = {
   booking_plans: {
     type: 'object',
     properties: {
-      id: {
+      id: { type: 'string', description: 'id', format: 'uuid' },
+      photographer_id: {
         type: 'string',
-        description: 'id',
+        description: 'photographer id',
         format: 'uuid',
       },
-      code: {
-        type: 'string',
-        description: 'code',
-      },
-      name: {
-        type: 'string',
-        description: 'name',
-      },
+      name: { type: 'string', description: 'name' },
       description: {
         type: 'string',
         description: 'description',
         nullable: true,
       },
-      price: {
+      price: { type: 'number', description: 'price (VND)' },
+      duration_minutes: { type: 'number', description: 'duration minutes' },
+      photo_count: { type: 'number', description: 'photo count' },
+      retouched_photo_count: {
         type: 'number',
-        description: 'price',
+        description: 'retouched photo count',
       },
-      is_active: {
-        type: 'boolean',
-        description: 'is active',
+      features: {
+        type: 'array',
+        description: 'features',
+        items: { type: 'string' },
       },
+      is_active: { type: 'boolean', description: 'is active' },
       created_at: {
         type: 'string',
         description: 'created at',
@@ -300,9 +299,13 @@ export const recordSchemas: Record<string, SchemaObject> = {
     },
     required: [
       'id',
-      'code',
+      'photographer_id',
       'name',
       'price',
+      'duration_minutes',
+      'photo_count',
+      'retouched_photo_count',
+      'features',
       'is_active',
       'created_at',
       'updated_at',

@@ -17,6 +17,7 @@ import { ModerationUseCases } from '@modules/moderation/moderation.use-case';
 import { PaymentUseCases } from '@modules/payment/payment.use-case';
 import { PhotographerUseCases } from '@modules/photographer/photographer.use-case';
 import { PortfolioUseCases } from '@modules/photographer/portfolio.use-case';
+import { BookingPlanUseCases } from '@modules/photographer/booking-plan.use-case';
 import { SubscriptionUseCases } from '@modules/subscription/subscription.use-case';
 import { IdentityUseCases } from '@modules/identity/identity.use-case';
 import { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.port';
@@ -38,6 +39,7 @@ const applicationServices = [
   PaymentUseCases,
   PhotographerUseCases,
   PortfolioUseCases,
+  BookingPlanUseCases,
   SubscriptionUseCases,
   IdentityUseCases,
 ];

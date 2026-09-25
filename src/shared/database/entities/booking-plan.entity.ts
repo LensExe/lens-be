@@ -1,6 +1,5 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
-import { PlanFeature } from './photographer-plan.entity';
 import { bigintColumn } from './utils/column-transformers';
 
 /**
@@ -42,7 +41,7 @@ export class BookingPlanEntity extends BaseEntity {
    * Ví dụ: ["Hỗ trợ 1 bộ trang phục", "Miễn phí trang điểm nhẹ", "Trả ảnh sau 3 ngày"]
    */
   @Column('jsonb', { default: [] })
-  features!: PlanFeature[];
+  features!: string[];
 
   /** Trạng thái gói dịch vụ còn nhận khách hay tạm đóng */
   @Column({ default: true })

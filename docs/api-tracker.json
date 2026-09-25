@@ -276,6 +276,66 @@
     "kind": "Command"
   },
   {
+    "id": "PHO-009",
+    "module": "Photographer",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/photographers/me/booking-plans",
+    "summary": "Tạo gói chụp",
+    "description": "Thợ tạo gói chụp mới để khách chọn khi đặt lịch.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
+    "id": "PHO-010",
+    "module": "Photographer",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/photographers/me/booking-plans",
+    "summary": "Gói chụp của tôi",
+    "description": "Thợ xem mọi gói chụp của mình, kể cả gói đã tắt.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Query"
+  },
+  {
+    "id": "PHO-011",
+    "module": "Photographer",
+    "service": "Core Backend",
+    "method": "PATCH",
+    "path": "/booking-plans/:id",
+    "summary": "Sửa gói chụp",
+    "description": "Thợ sửa gói chụp của mình, bật/tắt bằng is_active.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
+    "id": "PHO-012",
+    "module": "Photographer",
+    "service": "Core Backend",
+    "method": "DELETE",
+    "path": "/booking-plans/:id",
+    "summary": "Xoá gói chụp",
+    "description": "Xoá gói chưa có booking; gói đã có booking chỉ được tắt.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
+    "id": "PHO-013",
+    "module": "Photographer",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/photographers/:id/booking-plans",
+    "summary": "Gói chụp của thợ",
+    "description": "Khách xem các gói chụp đang bán của một thợ.",
+    "role": "Public",
+    "priority": "Must",
+    "kind": "Query"
+  },
+  {
     "id": "PORT-001",
     "module": "Portfolio",
     "service": "Core Backend",

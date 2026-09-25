@@ -1,6 +1,7 @@
 export * from './auth.dto';
 export * from './google-auth.dto';
 export * from './booking.dto';
+export * from './booking-plan.dto';
 export * from './calendar.dto';
 export * from './identity.dto';
 export * from './media.dto';

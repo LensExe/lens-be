@@ -22,6 +22,8 @@ import { KeycloakService } from '../src/shared/integrations/keycloak/keycloak.se
 import { setupApi } from '../src/features/api/setup';
 import { OutboxWorker } from '../src/features/workers/outbox.worker';
 import { Booking } from '../src/modules/booking/booking.domain';
+import { CommandBus } from '@nestjs/cqrs';
+import { IdentityCustomerRegisterCommand } from '../src/modules/identity/identity.command';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';
 import { S3ObjectStorage } from '../src/shared/integrations/s3/s3-storage.service';
 import {
@@ -109,10 +111,13 @@ before(
       .filter((f) => /^\d{3}_[a-z0-9_-]+\.sql$/i.test(f))
       .sort())
       await db.query(readFileSync(`migrations/${file}`, 'utf8'));
+    // overrideProvider (not a root provider) replaces the DataSource that DatabaseModule
+    // injects into handlers; otherwise tests write into the .env database.
     const mod = await Test.createTestingModule({
       imports: [ApiModule],
-      providers: [{ provide: DataSource, useValue: db }],
     })
+      .overrideProvider(DataSource)
+      .useValue(db)
       .overrideProvider(KeycloakService)
       .useValue({
         verifyToken: async (token: string) => {
@@ -172,7 +177,7 @@ test('OpenAPI covers the implementation contract with security, body and respons
     count += Object.keys(path as object).filter((m) =>
       ['get', 'post', 'patch', 'delete'].includes(m),
     ).length;
-  assert.equal(count, 80);
+  assert.equal(count, tracker.length);
   for (const r of tracker) {
     const path = r.path.replace(/:(\w+)/g, '{$1}'),
       op = document.paths[path]?.[r.method.toLowerCase()];
@@ -184,8 +189,14 @@ test('OpenAPI covers the implementation contract with security, body and respons
 });
 test('authentication, registration and profile isolation', async () => {
   assert.equal((await api('GET', '/users/me')).status, 401);
+  // POST /auth/register now creates the Keycloak account first, so tests create the
+  // local profile through the same command the register flow ends with.
   for (const token of Object.keys(actors)) {
-    const u = await ok('POST', '/auth/register', token, { fullname: token });
+    const u = await app
+      .get(CommandBus)
+      .execute(
+        new IdentityCustomerRegisterCommand(actors[token], { fullname: token }),
+      );
     if (token === 'customer') customer = u.id;
     if (token === 'photographer') photoUser = u.id;
   }
@@ -233,15 +244,59 @@ test('static photographer routes, validation and real persistence', async () => 
     ).status,
     400,
   );
+  const planBody = {
+    name: 'Portrait',
+    price: 1000000,
+    duration_minutes: 60,
+    photo_count: 20,
+    retouched_photo_count: 5,
+    features: ['All original photos'],
+  };
   plan = (
-    await db.transaction((s) =>
-      s.save(EntitySchemas.booking_plans, {
-        photographer_id: photo,
-        name: 'Portrait',
-        price: 1000000,
-      }),
+    await ok(
+      'POST',
+      '/photographers/me/booking-plans',
+      'photographer',
+      planBody,
     )
   ).id;
+  assert.equal(
+    (
+      await api('POST', '/photographers/me/booking-plans', 'photographer', {
+        ...planBody,
+        retouched_photo_count: 21,
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (await api('POST', '/photographers/me/booking-plans', 'customer', planBody))
+      .status,
+    403,
+  );
+  const spare = await ok(
+    'POST',
+    '/photographers/me/booking-plans',
+    'photographer',
+    { ...planBody, name: 'Spare' },
+  );
+  await ok('PATCH', `/booking-plans/${spare.id}`, 'photographer', {
+    is_active: false,
+  });
+  const publicPlans = await ok('GET', `/photographers/${photo}/booking-plans`);
+  assert.deepEqual(
+    publicPlans.items.map((p: any) => p.id),
+    [plan],
+  );
+  assert.equal(
+    (await ok('GET', '/photographers/me/booking-plans', 'photographer')).items
+      .length,
+    2,
+  );
+  assert.deepEqual(
+    await ok('DELETE', `/booking-plans/${spare.id}`, 'photographer'),
+    { deleted: true },
+  );
 });
 test('calendar blocking and concurrent booking conflict', async () => {
   const blockedDate = new Date(Date.now() + 2 * 864e5)
@@ -295,6 +350,17 @@ test('booking ownership and lifecycle checks', async () => {
   assert.equal(
     (await api('POST', `/bookings/${booking}/start`, 'photographer')).status,
     409,
+  );
+});
+test('booking plan with bookings can only be deactivated', async () => {
+  assert.equal(
+    (await api('DELETE', `/booking-plans/${plan}`, 'photographer')).status,
+    409,
+  );
+  assert.equal(
+    (await api('PATCH', `/booking-plans/${plan}`, 'stranger', { name: 'x' }))
+      .status,
+    403,
   );
 });
 test('payment intent survives provider timeout and retries without duplicate order', async () => {

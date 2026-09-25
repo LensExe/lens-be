@@ -77,7 +77,7 @@ Domain không import từ `features`, NestJS, TypeORM hoặc integration. Use ca
 | Bounded context | Business files                       | API module              | Controller                                                                        | Phạm vi nghiệp vụ                                                           |
 | --------------- | ------------------------------------ | ----------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | Identity        | `src/modules/identity`               | `IdentityApiModule`     | `AuthController`, `GoogleAuthController`, `UserController`, `AdminUserController` | Auth flow, user profile, customer profile, wallet, quản trị trạng thái user |
-| Photographer    | `src/modules/photographer`           | `PhotographerApiModule` | `PhotographerController`                                                          | Hồ sơ, tìm kiếm và trạng thái photographer                                  |
+| Photographer    | `src/modules/photographer`           | `PhotographerApiModule` | `PhotographerController`, `BookingPlanController`                                 | Hồ sơ, tìm kiếm, trạng thái photographer và gói chụp (booking plan)         |
 | Portfolio       | Vẫn thuộc `src/modules/photographer` | `PortfolioApiModule`    | `PortfolioController`                                                             | Portfolio và portfolio item của photographer                                |
 | Booking         | `src/modules/booking`                | `BookingApiModule`      | `BookingController`                                                               | Tạo, nhận, hủy, hoàn tất, dispute và timeline booking                       |
 | Calendar        | `src/modules/calendar`               | `CalendarApiModule`     | `CalendarController`                                                              | Offline slot và availability                                                |
@@ -88,6 +88,8 @@ Domain không import từ `features`, NestJS, TypeORM hoặc integration. Use ca
 | Moderation      | `src/modules/moderation`             | `ModerationApiModule`   | `ModerationController`                                                            | Report, moderation dashboard và resolve report                              |
 
 Lưu ý: tên API module không phải lúc nào cũng trùng tên thư mục business. Ví dụ `PortfolioApiModule` dùng các command/query trong `src/modules/photographer` vì portfolio đang được ownership bởi context photographer.
+
+Gói chụp (`booking_plans`) là danh mục dịch vụ thợ tự quản lý nên thuộc context photographer; booking chỉ đọc gói và lưu snapshot giá (`total_amount`) lúc đặt.
 
 ## 3. Flow xử lý request
 
