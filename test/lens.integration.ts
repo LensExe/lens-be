@@ -21,6 +21,7 @@ import {
 import { KeycloakService } from '../src/shared/integrations/keycloak/keycloak.service';
 import { setupApi } from '../src/features/api/setup';
 import { OutboxWorker } from '../src/features/workers/outbox.worker';
+import { PhotographerBadgeJob } from '../src/features/workers/photographer-badge.job';
 import { Booking } from '../src/modules/booking/booking.domain';
 import { CommandBus } from '@nestjs/cqrs';
 import { IdentityCustomerRegisterCommand } from '../src/modules/identity/identity.command';
@@ -260,6 +261,7 @@ test('static photographer routes, validation and real persistence', async () => 
   assert.equal(me.commission_percent, 10);
   const publicProfile = await ok('GET', `/photographers/${photo}`);
   assert.equal(publicProfile.rank, 'newbie');
+  assert.deepEqual(publicProfile.badges, []);
   assert.equal(publicProfile.commission_percent, undefined);
   assert.equal((await ok('GET', '/photographers/top-rated')).items.length, 1);
   assert.equal((await api('GET', '/photographers?limit=1000')).status, 400);
@@ -843,6 +845,74 @@ test('report resolution and suspended account access', async () => {
   await ok('POST', `/admin/users/${stranger.id}/suspend`, 'admin');
   assert.equal((await api('GET', '/users/me', 'stranger')).status, 403);
   await ok('POST', `/admin/users/${stranger.id}/unsuspend`, 'admin');
+});
+test('photographer badges come from visible reviews and returning customers', async () => {
+  // Booking completion is blocked by the payment bug on dev, so the stats are written directly.
+  await db.transaction(async (s) => {
+    const [c] = await s.findBy(EntitySchemas.customers, { user_id: customer });
+    for (let i = 0; i < 10; i++) {
+      const from = new Date(Date.UTC(2020, 0, i + 1, 3)).toISOString();
+      const to = new Date(Date.UTC(2020, 0, i + 1, 5)).toISOString();
+      const b = await s.save(EntitySchemas.bookings, {
+        customer_id: c.id,
+        photographer_id: photo,
+        booking_plan_id: plan,
+        location: 'Da Nang',
+        from,
+        to,
+        deposit_amount: 300000,
+        total_amount: 1000000,
+        status: 'completed',
+      });
+      await s.save(EntitySchemas.feedbacks, {
+        booking_id: b.id,
+        customer_id: c.id,
+        rating: 5,
+        punctuality_rating: 5,
+        attitude_rating: 5,
+      });
+    }
+    const [rating] = await s.findBy(EntitySchemas.ratings, {
+      photographer_id: photo,
+    });
+    await s.update(EntitySchemas.ratings, rating.id, {
+      average_rating: 4.9,
+      total_feedbacks: 10,
+      return_customers: 5,
+    });
+  });
+  const job = app.get(PhotographerBadgeJob);
+  assert.equal(await job.run(), true);
+  const badges = (await ok('GET', `/photographers/${photo}`)).badges;
+  assert.deepEqual(
+    badges.map((b: any) => b.code),
+    ['top-rated', 'punctual', 'loyal'],
+  );
+  assert.ok(badges.every((b: any) => !Number.isNaN(Date.parse(b.earned_at))));
+  const events = await db.manager.findBy(EntitySchemas.outbox_events, {
+    topic: 'photographer.badge_earned',
+  });
+  assert.equal(events.length, 3);
+  // D13: once earned, badges stay even when the stats drop
+  await db.transaction(async (s) => {
+    const [rating] = await s.findBy(EntitySchemas.ratings, {
+      photographer_id: photo,
+    });
+    await s.update(EntitySchemas.ratings, rating.id, {
+      average_rating: 3,
+      return_customers: 0,
+    });
+  });
+  await job.run();
+  assert.equal((await ok('GET', `/photographers/${photo}`)).badges.length, 3);
+  assert.equal(
+    (
+      await db.manager.findBy(EntitySchemas.outbox_events, {
+        topic: 'photographer.badge_earned',
+      })
+    ).length,
+    3,
+  );
 });
 test(
   'S3 adapter signs uploads, verifies metadata and removes objects',

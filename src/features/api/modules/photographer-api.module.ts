@@ -10,8 +10,10 @@ import {
   BookingPlanListQueryHandler,
   BookingPlanMeQueryHandler,
 } from '@modules/photographer/booking-plans.query';
+import { PhotographerBadgeJob } from '../../workers/photographer-badge.job';
 import {
   PhotographerApproveCommandHandler,
+  PhotographerAwardBadgesCommandHandler,
   PhotographerCreateCommandHandler,
   PhotographerRejectCommandHandler,
   PhotographerLocationCommandHandler,
@@ -30,6 +32,8 @@ import {
   controllers: [PhotographerController, BookingPlanController],
   providers: [
     PhotographerApproveCommandHandler,
+    PhotographerAwardBadgesCommandHandler,
+    PhotographerBadgeJob,
     PhotographerCreateCommandHandler,
     PhotographerRejectCommandHandler,
     PhotographerLocationCommandHandler,

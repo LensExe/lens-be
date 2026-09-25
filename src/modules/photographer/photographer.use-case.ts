@@ -16,6 +16,7 @@ import { ensure } from '@shared/platform/exceptions/domain.error';
 import { VerificationStatus } from '@shared/database/entities/photographer.entity';
 import { PhotographerApplication } from './photographer.domain';
 import { PhotographerRank } from './photographer-rank.domain';
+import { PhotographerBadges } from './photographer-badge.domain';
 import { PhotographerRolePort } from './ports/photographer-role.port';
 
 /** Application use cases for photographer profiles. */
@@ -144,7 +145,7 @@ export class PhotographerUseCases {
    * @param id ID hồ sơ thợ
    * @param privateView `true`: góc nhìn chủ hồ sơ/admin (mọi trạng thái, thêm mã số thuế, lý do từ chối);
    *   `false`: góc nhìn public (chỉ thợ `verified` và còn active, không thì 404)
-   * @returns Hồ sơ thợ kèm rating và hạng (`rank`); góc nhìn private có thêm `commission_percent`
+   * @returns Hồ sơ thợ kèm rating, hạng (`rank`) và huy hiệu đã đạt (`badges`: mã + ngày đạt); góc nhìn private có thêm `commission_percent`
    */
   async details(s: EntityManager, id: string, privateView = false) {
     const { photographer: p, user: u } = privateView
@@ -153,7 +154,13 @@ export class PhotographerUseCases {
     const [rating] = await s.findBy(EntitySchemas.ratings, {
       photographer_id: id,
     });
-    const rank = PhotographerRank.of(rating?.total_bookings ?? 0);
+    const rank = PhotographerRank.of(rating?.total_bookings ?? 0),
+      badges = (
+        await s.find(EntitySchemas.photographer_badges, {
+          where: { photographer_id: p.id },
+          order: { earned_at: 'ASC' },
+        })
+      ).map((b) => ({ code: b.code, earned_at: b.earned_at }));
     const result = {
       id: p.id,
       fullname: u.fullname,
@@ -167,6 +174,7 @@ export class PhotographerUseCases {
       description: p.description,
       rating,
       rank: rank.rank,
+      badges,
     };
     return privateView
       ? {
@@ -217,6 +225,86 @@ export class PhotographerUseCases {
     const p = await photographer(s, a);
     await updateEntity(s, EntitySchemas.photographers, p.id, input);
     return this.details(s, p.id, true);
+  }
+
+  /**
+   * Số liệu để xét huy hiệu (D11): thống kê rating và điểm đúng giờ trung bình của review đang hiện.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @returns Số liệu đầu vào cho `PhotographerBadges.of`
+   */
+  private async badgeStats(s: EntityManager, photographerId: string) {
+    const [rating] = await s.findBy(EntitySchemas.ratings, {
+      photographer_id: photographerId,
+    });
+    const row = await s
+      .createQueryBuilder(EntitySchemas.feedbacks, 'f')
+      .innerJoin(EntitySchemas.bookings, 'b', 'b.id = f.booking_id')
+      .select('AVG(f.punctuality_rating)', 'punctuality')
+      .where('b.photographer_id = :photographerId', { photographerId })
+      .andWhere('f.is_visible = true')
+      .getRawOne<{ punctuality: string | null }>();
+    return {
+      averageRating: rating?.average_rating ?? 0,
+      averagePunctuality: Number(row?.punctuality ?? 0),
+      visibleReviews: rating?.total_feedbacks ?? 0,
+      returnCustomers: rating?.return_customers ?? 0,
+    };
+  }
+
+  /**
+   * Xét và cấp huy hiệu mới cho một thợ (D13). Huy hiệu đã đạt giữ vĩnh viễn, không bao giờ bị gỡ.
+   * Mỗi huy hiệu mới: ghi `earned_at` và báo realtime `photographer.badge_earned` cho thợ.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @returns Mã các huy hiệu vừa đạt trong lần xét này
+   */
+  async awardBadges(s: EntityManager, photographerId: string) {
+    const earned = PhotographerBadges.of(
+        await this.badgeStats(s, photographerId),
+      ),
+      owned = new Set(
+        (
+          await s.findBy(EntitySchemas.photographer_badges, {
+            photographer_id: photographerId,
+          })
+        ).map((b) => b.code),
+      ),
+      fresh = earned.filter((code) => !owned.has(code));
+    if (!fresh.length) return fresh;
+    const p = await required(s, 'photographers', photographerId);
+    for (const code of fresh) {
+      await s.save(EntitySchemas.photographer_badges, {
+        photographer_id: photographerId,
+        code,
+        earned_at: new Date().toISOString(),
+      });
+      await emit(s, 'photographer.badge_earned', [p.user_id], {
+        photographer_id: photographerId,
+        code,
+      });
+    }
+    return fresh;
+  }
+
+  /**
+   * Job hằng ngày (role `system`): xét huy hiệu cho mọi thợ đã được duyệt.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người gọi (phải có role `system`)
+   * @returns `{ checked, awarded }`: số thợ đã xét và số huy hiệu mới cấp
+   */
+  async awardAllBadges(s: EntityManager, a: Actor) {
+    role(a, 'system');
+    const photographers = await s.findBy(EntitySchemas.photographers, {
+      verification_status: VerificationStatus.VERIFIED,
+    });
+    let awarded = 0;
+    for (const p of photographers)
+      awarded += (await this.awardBadges(s, p.id)).length;
+    return { checked: photographers.length, awarded };
   }
 
   /**

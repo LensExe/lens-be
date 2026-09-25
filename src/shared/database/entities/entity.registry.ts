@@ -10,6 +10,7 @@ import { OutboxEventEntity } from './outbox-event.entity';
 import { PaymentWebhookEntity } from './payment-webhook.entity';
 import { PhotographerPlanEntity } from './photographer-plan.entity';
 import { PhotographerEntity } from './photographer.entity';
+import { PhotographerBadgeEntity } from './photographer-badge.entity';
 import { PortfolioEntity } from './portfolio.entity';
 import { RatingEntity } from './rating.entity';
 import { RefundRequestEntity } from './refund-request.entity';
@@ -25,6 +26,7 @@ export const databaseEntities = [
   AdminEntity,
   PhotographerEntity,
   RatingEntity,
+  PhotographerBadgeEntity,
   BookingPlanEntity,
   PhotographerPlanEntity,
   SubscriptionEntity,
@@ -48,6 +50,7 @@ export const EntitySchemas = {
   admins: AdminEntity,
   photographers: PhotographerEntity,
   ratings: RatingEntity,
+  photographer_badges: PhotographerBadgeEntity,
   booking_plans: BookingPlanEntity,
   photographer_plans: PhotographerPlanEntity,
   subscriptions: SubscriptionEntity,

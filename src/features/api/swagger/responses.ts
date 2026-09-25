@@ -42,6 +42,12 @@ const photographer = obj({
   description: str,
   rating: records.ratings,
   rank: { ...str, enum: ['newbie', 'bronze', 'silver', 'gold', 'diamond'] },
+  badges: array(
+    obj({
+      code: { ...str, enum: ['top-rated', 'punctual', 'loyal'] },
+      earned_at: str,
+    }),
+  ),
 });
 
 const privatePhotographer = obj({
