@@ -2,7 +2,7 @@
 import 'reflect-metadata';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { randomUUID, generateKeyPairSync } from 'node:crypto';
 import { createServer } from 'node:http';
 import { DataSource } from 'typeorm';
@@ -104,7 +104,11 @@ before(
     });
     await db.initialize();
     await db.query(`CREATE SCHEMA "${testSchema}"`);
-    await db.query(readFileSync('migrations/001_lens.sql', 'utf8'));
+    // Apply every numbered migration in order, same as scripts/migrate-lens.cjs.
+    for (const file of readdirSync('migrations')
+      .filter((f) => /^\d{3}_[a-z0-9_-]+\.sql$/i.test(f))
+      .sort())
+      await db.query(readFileSync(`migrations/${file}`, 'utf8'));
     const mod = await Test.createTestingModule({
       imports: [ApiModule],
       providers: [{ provide: DataSource, useValue: db }],
