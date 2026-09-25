@@ -730,6 +730,28 @@ test('portfolio ordering, ownership and public signed image URLs', async () => {
     (await api('DELETE', `/portfolios/${album.id}`, 'stranger')).status,
     403,
   );
+  const second = await ok(
+    'POST',
+    '/photographers/me/portfolios',
+    'photographer',
+    { name: 'Weddings' },
+  );
+  const firstPage = await ok(
+    'GET',
+    `/photographers/${photo}/portfolios?limit=1`,
+  );
+  assert.deepEqual(
+    { ...firstPage, items: firstPage.items.map((p: any) => p.id) },
+    { items: [album.id], total: 2, offset: 0, limit: 1 },
+  );
+  const secondPage = await ok(
+    'GET',
+    `/photographers/${photo}/portfolios?limit=1&offset=1`,
+  );
+  assert.deepEqual(
+    secondPage.items.map((p: any) => p.id),
+    [second.id],
+  );
 });
 test('subscription plan snapshot, payment activation, ownership and cancellation', async () => {
   const plan = await db.transaction((s) =>
