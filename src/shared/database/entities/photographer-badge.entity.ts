@@ -12,7 +12,7 @@ export class PhotographerBadgeEntity extends BaseEntity {
   @Column('uuid')
   photographer_id!: string;
 
-  /** Mã huy hiệu: 'top-rated' | 'punctual' | 'loyal' */
+  /** Mã huy hiệu (khóa ngoại `badges.code`) */
   @Column('text')
   code!: string;
 

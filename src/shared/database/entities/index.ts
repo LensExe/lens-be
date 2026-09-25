@@ -13,6 +13,8 @@ export * from './payment-webhook.entity';
 export * from './photographer-plan.entity';
 export * from './photographer.entity';
 export * from './photographer-badge.entity';
+export * from './rank.entity';
+export * from './badge.entity';
 export * from './portfolio.entity';
 export * from './rating.entity';
 export * from './refund-request.entity';

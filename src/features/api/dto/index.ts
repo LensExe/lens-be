@@ -8,6 +8,8 @@ export * from './media.dto';
 export * from './moderation.dto';
 export * from './payment.dto';
 export * from './photographer.dto';
+export * from './rank.dto';
+export * from './badge.dto';
 export * from './portfolio.dto';
 export * from './review.dto';
 export * from './subscription.dto';

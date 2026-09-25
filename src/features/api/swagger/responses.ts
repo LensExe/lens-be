@@ -41,13 +41,30 @@ const photographer = obj({
   is_available: bool,
   description: str,
   rating: records.ratings,
-  rank: { ...str, enum: ['newbie', 'bronze', 'silver', 'gold', 'diamond'] },
-  badges: array(
-    obj({
-      code: { ...str, enum: ['top-rated', 'punctual', 'loyal'] },
-      earned_at: str,
-    }),
-  ),
+  rank: obj({ code: str, name: str }),
+  badges: array(obj({ code: str, name: str, earned_at: str })),
+});
+
+const rank = obj({
+  id: str,
+  code: str,
+  name: str,
+  min_completed: num,
+  commission_percent: num,
+});
+
+const badge = obj({
+  id: str,
+  code: str,
+  name: str,
+  description: str,
+  metric: {
+    ...str,
+    enum: ['average_rating', 'average_punctuality', 'return_customers'],
+  },
+  min_value: num,
+  min_reviews: num,
+  is_active: bool,
 });
 
 const privatePhotographer = obj({
@@ -134,6 +151,8 @@ const schemas: Record<string, SchemaObject> = {
   'PHO-011': records.booking_plans,
   'PHO-012': deleted,
   'PHO-013': items(records.booking_plans),
+  'PHO-014': items(rank),
+  'PHO-015': items(badge),
   'PORT-001': records.portfolios,
   'PORT-002': paged(records.portfolios),
   'PORT-003': portfolio,
@@ -239,6 +258,8 @@ const schemas: Record<string, SchemaObject> = {
   'ADM-008': records.users,
   'ADM-009': privatePhotographer,
   'ADM-010': privatePhotographer,
+  'ADM-011': rank,
+  'ADM-012': badge,
 };
 export function responseSchema(id: string): SchemaObject {
   const schema = schemas[id];

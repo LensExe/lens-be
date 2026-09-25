@@ -6,6 +6,8 @@ export * from './media.contract';
 export * from './moderation.contract';
 export * from './payment.contract';
 export * from './photographer.contract';
+export * from './rank.contract';
+export * from './badge.contract';
 export * from './portfolio.contract';
 export * from './review.contract';
 export * from './subscription.contract';

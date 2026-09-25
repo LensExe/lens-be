@@ -257,10 +257,10 @@ test('static photographer routes, validation and real persistence', async () => 
   );
   const me = await ok('GET', '/photographers/me', 'photographer');
   assert.equal(me.id, photo);
-  assert.equal(me.rank, 'newbie');
+  assert.equal(me.rank.code, 'newbie');
   assert.equal(me.commission_percent, 10);
   const publicProfile = await ok('GET', `/photographers/${photo}`);
-  assert.equal(publicProfile.rank, 'newbie');
+  assert.equal(publicProfile.rank.code, 'newbie');
   assert.deepEqual(publicProfile.badges, []);
   assert.equal(publicProfile.commission_percent, undefined);
   assert.equal((await ok('GET', '/photographers/top-rated')).items.length, 1);
@@ -846,6 +846,68 @@ test('report resolution and suspended account access', async () => {
   assert.equal((await api('GET', '/users/me', 'stranger')).status, 403);
   await ok('POST', `/admin/users/${stranger.id}/unsuspend`, 'admin');
 });
+test('ranks and badges are public and editable by admin only', async () => {
+  const ranks = (await ok('GET', '/ranks')).items;
+  assert.deepEqual(
+    ranks.map((r: any) => [r.code, r.min_completed, r.commission_percent]),
+    [
+      ['newbie', 0, 10],
+      ['bronze', 10, 9],
+      ['silver', 30, 8],
+      ['gold', 60, 7],
+      ['diamond', 120, 5],
+    ],
+  );
+  assert.deepEqual(
+    (await ok('GET', '/badges')).items.map((b: any) => b.code),
+    ['top-rated', 'punctual', 'loyal'],
+  );
+  assert.equal(
+    (
+      await api('PATCH', '/admin/ranks/newbie', 'customer', {
+        name: 'x',
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await api('PATCH', '/admin/ranks/unknown', 'admin', {
+        name: 'x',
+      })
+    ).status,
+    404,
+  );
+  // the catalog must keep a tier starting at 0 completed bookings
+  assert.equal(
+    (
+      await api('PATCH', '/admin/ranks/newbie', 'admin', {
+        min_completed: 1,
+      })
+    ).status,
+    400,
+  );
+  const renamed = await ok('PATCH', '/admin/ranks/newbie', 'admin', {
+    name: 'Người mới',
+    commission_percent: 9.5,
+  });
+  assert.equal(renamed.commission_percent, 9.5);
+  const me = await ok('GET', '/photographers/me', 'photographer');
+  assert.deepEqual(me.rank, { code: 'newbie', name: 'Người mới' });
+  assert.equal(me.commission_percent, 9.5);
+  await ok('PATCH', '/admin/ranks/newbie', 'admin', {
+    name: 'Tân binh',
+    commission_percent: 10,
+  });
+  await ok('PATCH', '/admin/badges/loyal', 'admin', {
+    name: 'Khách trung thành',
+  });
+  assert.equal(
+    (await ok('GET', '/badges')).items.find((b: any) => b.code === 'loyal')
+      .name,
+    'Khách trung thành',
+  );
+});
 test('photographer badges come from visible reviews and returning customers', async () => {
   // Booking completion is blocked by the payment bug on dev, so the stats are written directly.
   await db.transaction(async (s) => {
@@ -888,6 +950,7 @@ test('photographer badges come from visible reviews and returning customers', as
     badges.map((b: any) => b.code),
     ['top-rated', 'punctual', 'loyal'],
   );
+  assert.equal(badges[2].name, 'Khách trung thành');
   assert.ok(badges.every((b: any) => !Number.isNaN(Date.parse(b.earned_at))));
   const events = await db.manager.findBy(EntitySchemas.outbox_events, {
     topic: 'photographer.badge_earned',

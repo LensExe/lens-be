@@ -15,8 +15,8 @@ import {
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { VerificationStatus } from '@shared/database/entities/photographer.entity';
 import { PhotographerApplication } from './photographer.domain';
-import { PhotographerRank } from './photographer-rank.domain';
-import { PhotographerBadges } from './photographer-badge.domain';
+import { Rank } from './rank.domain';
+import { Badge } from './badge.domain';
 import { PhotographerRolePort } from './ports/photographer-role.port';
 
 /** Application use cases for photographer profiles. */
@@ -145,7 +145,7 @@ export class PhotographerUseCases {
    * @param id ID hồ sơ thợ
    * @param privateView `true`: góc nhìn chủ hồ sơ/admin (mọi trạng thái, thêm mã số thuế, lý do từ chối);
    *   `false`: góc nhìn public (chỉ thợ `verified` và còn active, không thì 404)
-   * @returns Hồ sơ thợ kèm rating, hạng (`rank`) và huy hiệu đã đạt (`badges`: mã + ngày đạt); góc nhìn private có thêm `commission_percent`
+   * @returns Hồ sơ thợ kèm rating, hạng (`rank`: mã + tên) và huy hiệu đã đạt (`badges`: mã, tên, ngày đạt); góc nhìn private có thêm `commission_percent`
    */
   async details(s: EntityManager, id: string, privateView = false) {
     const { photographer: p, user: u } = privateView
@@ -154,13 +154,23 @@ export class PhotographerUseCases {
     const [rating] = await s.findBy(EntitySchemas.ratings, {
       photographer_id: id,
     });
-    const rank = PhotographerRank.of(rating?.total_bookings ?? 0),
+    const rank = Rank.of(
+        rating?.total_bookings ?? 0,
+        await s.find(EntitySchemas.ranks),
+      ),
+      names = new Map(
+        (await s.find(EntitySchemas.badges)).map((d) => [d.code, d.name]),
+      ),
       badges = (
         await s.find(EntitySchemas.photographer_badges, {
           where: { photographer_id: p.id },
           order: { earned_at: 'ASC' },
         })
-      ).map((b) => ({ code: b.code, earned_at: b.earned_at }));
+      ).map((b) => ({
+        code: b.code,
+        name: names.get(b.code) ?? b.code,
+        earned_at: b.earned_at,
+      }));
     const result = {
       id: p.id,
       fullname: u.fullname,
@@ -173,7 +183,7 @@ export class PhotographerUseCases {
       is_available: p.is_available,
       description: p.description,
       rating,
-      rank: rank.rank,
+      rank: { code: rank.code, name: rank.name },
       badges,
     };
     return privateView
@@ -232,7 +242,7 @@ export class PhotographerUseCases {
    *
    * @param s EntityManager của transaction hiện tại
    * @param photographerId ID hồ sơ thợ
-   * @returns Số liệu đầu vào cho `PhotographerBadges.of`
+   * @returns Số liệu đầu vào cho `Badge.earned`
    */
   private async badgeStats(s: EntityManager, photographerId: string) {
     const [rating] = await s.findBy(EntitySchemas.ratings, {
@@ -262,8 +272,11 @@ export class PhotographerUseCases {
    * @returns Mã các huy hiệu vừa đạt trong lần xét này
    */
   async awardBadges(s: EntityManager, photographerId: string) {
-    const earned = PhotographerBadges.of(
+    const earned = Badge.earned(
         await this.badgeStats(s, photographerId),
+        await s.find(EntitySchemas.badges, {
+          order: { created_at: 'ASC' },
+        }),
       ),
       owned = new Set(
         (

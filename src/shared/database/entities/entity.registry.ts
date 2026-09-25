@@ -11,6 +11,8 @@ import { PaymentWebhookEntity } from './payment-webhook.entity';
 import { PhotographerPlanEntity } from './photographer-plan.entity';
 import { PhotographerEntity } from './photographer.entity';
 import { PhotographerBadgeEntity } from './photographer-badge.entity';
+import { RankEntity } from './rank.entity';
+import { BadgeEntity } from './badge.entity';
 import { PortfolioEntity } from './portfolio.entity';
 import { RatingEntity } from './rating.entity';
 import { RefundRequestEntity } from './refund-request.entity';
@@ -27,6 +29,8 @@ export const databaseEntities = [
   PhotographerEntity,
   RatingEntity,
   PhotographerBadgeEntity,
+  RankEntity,
+  BadgeEntity,
   BookingPlanEntity,
   PhotographerPlanEntity,
   SubscriptionEntity,
@@ -51,6 +55,8 @@ export const EntitySchemas = {
   photographers: PhotographerEntity,
   ratings: RatingEntity,
   photographer_badges: PhotographerBadgeEntity,
+  ranks: RankEntity,
+  badges: BadgeEntity,
   booking_plans: BookingPlanEntity,
   photographer_plans: PhotographerPlanEntity,
   subscriptions: SubscriptionEntity,
