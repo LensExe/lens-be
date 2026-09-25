@@ -474,7 +474,7 @@
     "method": "GET",
     "path": "/calendar/me",
     "summary": "Xem lịch cá nhân",
-    "description": "Photographer xem booking và các ngày đã chặn.",
+    "description": "Photographer xem booking và các khoảng đã chặn, lọc theo from/to.",
     "role": "Photographer",
     "priority": "Must",
     "kind": "Query"
@@ -485,8 +485,8 @@
     "service": "Core Backend",
     "method": "POST",
     "path": "/calendar/blocked-times",
-    "summary": "Khóa ngày",
-    "description": "Đánh dấu một ngày không nhận booking.",
+    "summary": "Chặn lịch",
+    "description": "Đánh dấu khoảng bận không nhận booking: nguyên ngày (date, giờ VN) hoặc from–to.",
     "role": "Photographer",
     "priority": "Should",
     "kind": "Command"
@@ -501,6 +501,30 @@
     "description": "Xóa blocked time.",
     "role": "Photographer",
     "priority": "Should",
+    "kind": "Command"
+  },
+  {
+    "id": "CAL-008",
+    "module": "Calendar",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/calendar/me/working-hours",
+    "summary": "Xem giờ làm việc",
+    "description": "Thợ xem lịch làm việc theo tuần; chưa khai thì trả giờ mặc định 08:00-20:00.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Query"
+  },
+  {
+    "id": "CAL-009",
+    "module": "Calendar",
+    "service": "Core Backend",
+    "method": "PUT",
+    "path": "/calendar/me/working-hours",
+    "summary": "Khai giờ làm việc",
+    "description": "Thợ thay toàn bộ lịch làm việc theo tuần (giờ Việt Nam); danh sách rỗng thì quay về giờ mặc định.",
+    "role": "Photographer",
+    "priority": "Must",
     "kind": "Command"
   },
   {

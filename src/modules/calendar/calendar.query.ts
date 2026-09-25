@@ -18,7 +18,7 @@ export class CalendarMeQueryHandler implements IQueryHandler<CalendarMeQuery> {
   ) {}
   execute(message: CalendarMeQuery) {
     return this.dataSource.transaction((s) =>
-      this.useCases.me(s, message.actor),
+      this.useCases.me(s, message.actor, message.input),
     );
   }
 }
@@ -38,6 +38,25 @@ export class CalendarAvailabilityQueryHandler implements IQueryHandler<CalendarA
   execute(message: CalendarAvailabilityQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.availability(s, message.actor, message.input),
+    );
+  }
+}
+
+export class CalendarWorkingHoursQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.CalendarWorkingHoursQueryInput,
+  ) {}
+}
+@QueryHandler(CalendarWorkingHoursQuery)
+export class CalendarWorkingHoursQueryHandler implements IQueryHandler<CalendarWorkingHoursQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: CalendarUseCases,
+  ) {}
+  execute(message: CalendarWorkingHoursQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.workingHours(s, message.actor),
     );
   }
 }

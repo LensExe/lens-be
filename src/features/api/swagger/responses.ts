@@ -67,6 +67,11 @@ const badge = obj({
   is_active: bool,
 });
 
+const workingHours = obj({
+  items: array(obj({ weekday: num, start_time: str, end_time: str })),
+  is_default: bool,
+});
+
 const privatePhotographer = obj({
   ...photographer.properties,
   tax_code: { ...str, nullable: true },
@@ -168,6 +173,8 @@ const schemas: Record<string, SchemaObject> = {
   }),
   'CAL-006': records.offline_slots,
   'CAL-007': deleted,
+  'CAL-008': workingHours,
+  'CAL-009': workingHours,
   'BOOK-001': records.bookings,
   'BOOK-002': records.bookings,
   'BOOK-003': paged(records.bookings),

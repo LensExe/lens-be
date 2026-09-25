@@ -38,7 +38,7 @@ export class BookingUseCases {
     const pu = await required(s, 'users', p.user_id),
       plan = await required(s, 'booking_plans', input.plan_id);
 
-    const blockedDates = await s.findBy(EntitySchemas.offline_slots, {
+    const blockedTimes = await s.findBy(EntitySchemas.offline_slots, {
       photographer_id: p.id,
     });
 
@@ -60,7 +60,7 @@ export class BookingUseCases {
       location: input.location,
       from: input.from,
       to: input.to,
-      offlineDates: blockedDates.map((slot) => slot.date),
+      blockedTimes,
       bookings,
       now: Date.now(),
     });

@@ -21,7 +21,7 @@ test('booking domain prepares a valid draft and rejects an overlapping booking',
     location: 'Studio',
     from: '2030-01-01T09:00:00.000Z',
     to: '2030-01-01T10:00:00.000Z',
-    offlineDates: [] as string[],
+    blockedTimes: [] as { from: string; to: string }[],
     bookings: [] as { from: string; to: string; status: string }[],
     now: Date.parse('2029-01-01T00:00:00.000Z'),
   };
@@ -47,6 +47,7 @@ test('calendar clips bookings to the requested window', () => {
     '2030-01-01T09:00:00.000Z',
     '2030-01-01T17:00:00.000Z',
     [],
+    [],
     [
       {
         from: '2030-01-01T08:00:00.000Z',
@@ -55,10 +56,11 @@ test('calendar clips bookings to the requested window', () => {
       },
     ],
   );
+  // the default shift ends at 20:00 Vietnam time = 13:00 UTC
   assert.deepEqual(items, [
     {
       from: '2030-01-01T10:00:00.000Z',
-      to: '2030-01-01T17:00:00.000Z',
+      to: '2030-01-01T13:00:00.000Z',
     },
   ]);
 });

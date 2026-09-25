@@ -178,11 +178,13 @@ after(async () => {
 test('OpenAPI covers the implementation contract with security, body and response schemas', () => {
   const tracker = JSON.parse(
     readFileSync('docs/api-tracker.json', 'utf8'),
-  ).filter((r: any) => ['GET', 'POST', 'PATCH', 'DELETE'].includes(r.method));
+  ).filter((r: any) =>
+    ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(r.method),
+  );
   let count = 0;
   for (const path of Object.values(document.paths))
     count += Object.keys(path as object).filter((m) =>
-      ['get', 'post', 'patch', 'delete'].includes(m),
+      ['get', 'post', 'put', 'patch', 'delete'].includes(m),
     ).length;
   assert.equal(count, tracker.length);
   for (const r of tracker) {
@@ -399,6 +401,10 @@ test('only verified photographers are public; unavailable ones rank last', async
     (await api('GET', `/photographers/${applicant}/booking-plans`)).status,
     404,
   );
+  assert.equal(
+    (await api('GET', `/photographers/${applicant}/availability`)).status,
+    404,
+  );
   assert.deepEqual(await publicIds(), [photo]);
   // once approved it shows up; switched off it ranks after available ones
   await ok('POST', `/admin/photographers/${applicant}/approve`, 'admin');
@@ -417,6 +423,56 @@ test('only verified photographers are public; unavailable ones rank last', async
   );
   assert.equal(found.total, 1);
 });
+test('photographer declares weekly working hours in Vietnam time', async () => {
+  const initial = await ok('GET', '/calendar/me/working-hours', 'photographer');
+  assert.equal(initial.is_default, true);
+  assert.equal(initial.items.length, 7);
+  assert.deepEqual(initial.items[0], {
+    weekday: 1,
+    start_time: '08:00',
+    end_time: '20:00',
+  });
+  const week = [
+    { weekday: 1, start_time: '08:00', end_time: '12:00' },
+    { weekday: 1, start_time: '14:00', end_time: '18:00' },
+    { weekday: 6, start_time: '07:00', end_time: '21:00' },
+  ];
+  assert.equal(
+    (
+      await api('PUT', '/calendar/me/working-hours', 'photographer', {
+        items: [
+          ...week,
+          { weekday: 1, start_time: '11:00', end_time: '13:00' },
+        ],
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await api('PUT', '/calendar/me/working-hours', 'photographer', {
+        items: [{ weekday: 9, start_time: '08:00', end_time: '12:00' }],
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await api('PUT', '/calendar/me/working-hours', 'customer', {
+        items: week,
+      })
+    ).status,
+    403,
+  );
+  const saved = await ok('PUT', '/calendar/me/working-hours', 'photographer', {
+    items: week,
+  });
+  assert.deepEqual(saved, { items: week, is_default: false });
+  const reset = await ok('PUT', '/calendar/me/working-hours', 'photographer', {
+    items: [],
+  });
+  assert.equal(reset.is_default, true);
+});
 test('calendar blocking and concurrent booking conflict', async () => {
   const blockedDate = new Date(Date.now() + 2 * 864e5)
     .toISOString()
@@ -425,14 +481,60 @@ test('calendar blocking and concurrent booking conflict', async () => {
     date: blockedDate,
     reason: 'Unavailable',
   });
+  // a blocked date is the whole day in Vietnam time
+  assert.equal(
+    slot.from,
+    new Date(`${blockedDate}T00:00:00+07:00`).toISOString(),
+  );
+  assert.equal(
+    slot.to,
+    new Date(`${blockedDate}T24:00:00+07:00`).toISOString(),
+  );
+  const at = (hour: number) =>
+    new Date(
+      Date.parse(`${blockedDate}T00:00:00+07:00`) + hour * 36e5,
+    ).toISOString();
+  for (const body of [{ date: blockedDate }, { from: at(20), to: at(30) }])
+    assert.equal(
+      (await api('POST', '/calendar/blocked-times', 'photographer', body))
+        .status,
+      409,
+    );
   assert.equal(
     (
       await api('POST', '/calendar/blocked-times', 'photographer', {
         date: blockedDate,
+        from: at(30),
+        to: at(32),
       })
     ).status,
-    409,
+    400,
   );
+  // a range may span days and may start right where another block ends
+  const range = await ok('POST', '/calendar/blocked-times', 'photographer', {
+    from: at(24),
+    to: at(60),
+  });
+  const mine = await ok('GET', '/calendar/me', 'photographer');
+  assert.ok(mine.blocked.some((b: { id: string }) => b.id === range.id));
+  // from/to keeps only items overlapping the window
+  const dayAfter = await ok(
+    'GET',
+    `/calendar/me?from=${encodeURIComponent(at(24))}&to=${encodeURIComponent(at(48))}`,
+    'photographer',
+  );
+  assert.deepEqual(
+    dayAfter.blocked.map((b: { id: string }) => b.id),
+    [range.id],
+  );
+  // free time is the 08:00-20:00 Vietnam shift minus blocks: nothing on the
+  // blocked day, the next day's shift starts only after the range ends
+  const free = await ok(
+    'GET',
+    `/photographers/${photo}/availability?from=${encodeURIComponent(at(0))}&to=${encodeURIComponent(at(72))}`,
+  );
+  assert.deepEqual(free.items, [{ from: at(60), to: at(68) }]);
+  await ok('DELETE', `/calendar/blocked-times/${range.id}`, 'photographer');
   await ok('DELETE', `/calendar/blocked-times/${slot.id}`, 'photographer');
   const input = {
     photographer_id: photo,
