@@ -1,6 +1,7 @@
 // Explicit migration command. No automatic migration during application startup.
+// Runs every migrations/NNN_<name>.sql file in name order, once. Other files (seed_*.sql) are ignored.
 const { Client } = require('pg');
-const { readFileSync } = require('node:fs');
+const { readFileSync, readdirSync } = require('node:fs');
 const { createHash } = require('node:crypto');
 const { resolve } = require('node:path');
 try {
@@ -8,6 +9,25 @@ try {
 } catch (error) {
   if (error.code !== 'ENOENT') throw error;
 }
+
+const MIGRATIONS_DIR = resolve(__dirname, '../migrations');
+const MIGRATION_FILE = /^\d{3}_[a-z0-9_-]+\.sql$/i;
+
+/** Lists migration files as { name, sql, checksum }, sorted by file name. */
+function loadMigrations() {
+  return readdirSync(MIGRATIONS_DIR)
+    .filter((file) => MIGRATION_FILE.test(file))
+    .sort()
+    .map((file) => {
+      const sql = readFileSync(resolve(MIGRATIONS_DIR, file), 'utf8');
+      return {
+        name: file.replace(/\.sql$/, ''),
+        sql,
+        checksum: createHash('sha256').update(sql).digest('hex'),
+      };
+    });
+}
+
 async function main() {
   const client = new Client({
     connectionString: process.env.DATABASE_URL,
@@ -24,29 +44,33 @@ async function main() {
     await client.query(
       'CREATE TABLE IF NOT EXISTS lens_migrations (name text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())',
     );
-    const sql = readFileSync(
-      resolve(__dirname, '../migrations/001_lens.sql'),
-      'utf8',
-    );
-    const checksum = createHash('sha256').update(sql).digest('hex');
     const { rows } = await client.query(
-      'SELECT checksum FROM lens_migrations WHERE name=$1',
-      ['001_lens'],
+      'SELECT name, checksum FROM lens_migrations',
     );
-    if (rows.length) {
-      if (rows[0].checksum !== checksum)
-        throw new Error(
-          'Applied migration checksum changed; create a new migration',
-        );
-    } else {
-      await client.query(sql);
+    const applied = new Map(rows.map((row) => [row.name, row.checksum]));
+    const ran = [];
+    for (const migration of loadMigrations()) {
+      const checksum = applied.get(migration.name);
+      if (checksum !== undefined) {
+        if (checksum !== migration.checksum)
+          throw new Error(
+            `Applied migration ${migration.name} changed; create a new migration`,
+          );
+        continue;
+      }
+      await client.query(migration.sql);
       await client.query(
         'INSERT INTO lens_migrations(name,checksum) VALUES($1,$2)',
-        ['001_lens', checksum],
+        [migration.name, migration.checksum],
       );
+      ran.push(migration.name);
     }
     await client.query('COMMIT');
-    console.log(rows.length ? 'Migration already applied' : 'Applied 001_lens');
+    console.log(
+      ran.length
+        ? `Applied ${ran.join(', ')}`
+        : 'All migrations already applied',
+    );
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
