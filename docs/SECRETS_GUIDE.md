@@ -9,6 +9,7 @@
 | Redis      | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`                                                                          | Cache/trạng thái OIDC              |
 | Keycloak   | `KEYCLOAK_AUTH_SERVER_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_SECRET`, `KEYCLOAK_GOOGLE_REDIRECT_URI` | JWT, Google login                  |
 | PayOS      | `PAYOS_CLIENT_ID`, `PAYOS_API_KEY`, `PAYOS_CHECKSUM_KEY`, `PAYOS_RETURN_URL`, `PAYOS_CANCEL_URL`                      | Tạo thanh toán và xác minh webhook |
+| Thông báo  | `NOTIFICATION_SERVICE_URL`                                                                                            | Email OTP; thiếu thì trả 503       |
 | S3/MinIO   | `S3_MINIO_*` hoặc `S3_CLOUD_*`                                                                                        | Object storage và presigned URL    |
 
 Google setup còn cần `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `KEYCLOAK_ADMIN_USERNAME`, `KEYCLOAK_ADMIN_PASSWORD`; xem [hướng dẫn Google login](keycloak-google-login.md). Danh sách biến S3 chính xác nằm tại [`s3.config.ts`](../src/shared/integrations/s3/s3.config.ts).

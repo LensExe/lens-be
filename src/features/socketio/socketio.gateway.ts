@@ -51,9 +51,10 @@ export class LensGateway extends RealtimePublisher {
       socket.data.expiry as ReturnType<typeof setTimeout> | undefined,
     );
   }
-  publish(userIds: string[], topic: string, payload: unknown) {
+  publish(userIds: string[], topic: string, payload: unknown): Promise<void> {
     for (const id of new Set(userIds))
       this.server?.to(`user:${id}`).emit(topic, payload);
+    return Promise.resolve();
   }
 }
 

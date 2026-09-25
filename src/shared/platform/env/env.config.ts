@@ -61,6 +61,9 @@ export const envConfig = (): EnvConfig => {
       apiKey: process.env.PAYOS_API_KEY,
       checksumKey: process.env.PAYOS_CHECKSUM_KEY,
     },
+    notification: {
+      serviceUrl: process.env.NOTIFICATION_SERVICE_URL,
+    },
     axios: {
       timeoutMs: Number.parseInt(process.env.AXIOS_TIMEOUT_MS ?? '10000', 10),
       retry: {

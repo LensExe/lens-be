@@ -28,4 +28,19 @@ export class OutboxEventEntity extends BaseEntity {
     transformer: timestampTransformer,
   })
   processed_at!: string | null;
+
+  /** Số lần worker đã thử publish mà thất bại */
+  @Column('integer', { default: 0 })
+  attempts!: number;
+
+  /** Thông báo lỗi của lần publish thất bại gần nhất */
+  @Column('text', { nullable: true })
+  last_error!: string | null;
+
+  /** Thời điểm bỏ cuộc sau khi thất bại quá số lần cho phép (dead-letter); worker không lấy lại nữa */
+  @Column('timestamptz', {
+    nullable: true,
+    transformer: timestampTransformer,
+  })
+  failed_at!: string | null;
 }

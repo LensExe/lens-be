@@ -53,6 +53,11 @@ export interface PayOSConfig {
   checksumKey?: string;
 }
 
+export interface NotificationConfig {
+  /** Base URL của notification service (gửi email/thông báo), ví dụ `http://localhost:3001` */
+  serviceUrl?: string;
+}
+
 export interface AxiosConfig {
   timeoutMs: number;
   retry: {
@@ -71,5 +76,6 @@ export interface EnvConfig {
   auth: AuthConfig;
   cookie: CookieConfig;
   payos: PayOSConfig;
+  notification: NotificationConfig;
   axios: AxiosConfig;
 }
