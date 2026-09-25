@@ -6,7 +6,11 @@ export interface CalendarBlockCommandInput {
   reason?: string;
 }
 
-export type CalendarMeQueryInput = Record<string, never>;
+/** Lọc lịch cá nhân: mục chồng lên [from, to); mốc nào không gửi thì không lọc phía đó. */
+export interface CalendarMeQueryInput {
+  from?: string;
+  to?: string;
+}
 
 export type CalendarWorkingHoursQueryInput = Record<string, never>;
 

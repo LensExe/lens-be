@@ -18,7 +18,7 @@ export class CalendarMeQueryHandler implements IQueryHandler<CalendarMeQuery> {
   ) {}
   execute(message: CalendarMeQuery) {
     return this.dataSource.transaction((s) =>
-      this.useCases.me(s, message.actor),
+      this.useCases.me(s, message.actor, message.input),
     );
   }
 }

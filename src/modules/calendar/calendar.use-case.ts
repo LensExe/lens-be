@@ -1,9 +1,13 @@
-import type { EntityManager } from 'typeorm';
+import { LessThan, MoreThan, type EntityManager } from 'typeorm';
 import { EntitySchemas } from '@shared/database';
 import type * as Inputs from '@shared/contracts/contracts';
 import { Injectable } from '@nestjs/common';
 import type { Actor } from '@shared/platform/auth/actor';
-import { photographer, required } from '@shared/common/access';
+import {
+  photographer,
+  publicPhotographer,
+  required,
+} from '@shared/common/access';
 import { Calendar } from './calendar.domain';
 import {
   DEFAULT_WORKING_HOURS,
@@ -11,28 +15,57 @@ import {
 } from '@shared/domain/work-schedule';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 
+/**
+ * Điều kiện tìm các mục (khoảng chặn, booking) của thợ chồng lên [from, to); mốc nào không gửi thì không lọc phía đó.
+ *
+ * @param photographerId ID hồ sơ thợ
+ * @param window `from`/`to` ISO, đều tuỳ chọn
+ * @returns Tuỳ chọn `find` của TypeORM, xếp theo `from` tăng dần
+ */
+function overlapping(
+  photographerId: string,
+  window: { from?: string; to?: string },
+) {
+  return {
+    where: {
+      photographer_id: photographerId,
+      ...(window.from !== undefined && { to: MoreThan(window.from) }),
+      ...(window.to !== undefined && { from: LessThan(window.to) }),
+    },
+    order: { from: 'ASC' as const },
+  };
+}
+
 /** Application use cases for photographer calendar operations. */
 @Injectable()
 export class CalendarUseCases {
+  /**
+   * Khách xem lịch trống của thợ (public): ca làm theo giờ Việt Nam trừ khoảng chặn và booking.
+   * Chỉ thợ đã duyệt, tài khoản active; thợ tắt nhận lịch (`is_available = false`) thì rỗng.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param _a Người đang gọi API (không dùng; API public)
+   * @param input ID hồ sơ thợ; `from`/`to` mặc định từ bây giờ tới 30 ngày sau
+   * @returns `{ items }`: các khoảng `{ from, to }` còn trống; 404 nếu thợ không public
+   */
   async availability(
     s: EntityManager,
     _a: Actor,
     input: Inputs.CalendarAvailabilityQueryInput,
   ) {
-    const p = await required(s, 'photographers', input.id),
-      u = await required(s, 'users', p.user_id);
-    ensure(u.status === 'active', 'Photographer not found', 'missing');
+    const { photographer: p } = await publicPhotographer(s, input.id);
     if (!p.is_available) return { items: [] };
-    const start = input.from ?? new Date().toISOString();
-    const end = input.to ?? new Date(Date.now() + 30 * 864e5).toISOString();
-    const blockedTimes = await s.findBy(EntitySchemas.offline_slots, {
-      photographer_id: p.id,
-    });
-    const bookings = await s.findBy(EntitySchemas.bookings, {
-      photographer_id: p.id,
-    });
+    const from = input.from ?? new Date().toISOString();
+    const to = input.to ?? new Date(Date.now() + 30 * 864e5).toISOString();
+    const window = { from, to };
     return {
-      items: Calendar.availability(start, end, blockedTimes, bookings),
+      items: Calendar.availability(
+        from,
+        to,
+        await s.findBy(EntitySchemas.working_hours, { photographer_id: p.id }),
+        await s.find(EntitySchemas.offline_slots, overlapping(p.id, window)),
+        await s.find(EntitySchemas.bookings, overlapping(p.id, window)),
+      ),
     };
   }
 
@@ -85,15 +118,22 @@ export class CalendarUseCases {
     return this.workingHours(s, a);
   }
 
-  async me(s: EntityManager, a: Actor) {
+  /**
+   * Thợ xem lịch của mình: các khoảng đã chặn và booking, lọc theo khoảng thời gian nếu có.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người đang gọi API (thợ)
+   * @param input `from`: chỉ lấy mục kết thúc sau mốc này; `to`: chỉ lấy mục bắt đầu trước mốc này
+   * @returns `{ blocked, bookings }`, xếp theo thời gian bắt đầu
+   */
+  async me(s: EntityManager, a: Actor, input: Inputs.CalendarMeQueryInput) {
     const p = await photographer(s, a);
     return {
-      blocked: await s.findBy(EntitySchemas.offline_slots, {
-        photographer_id: p.id,
-      }),
-      bookings: await s.findBy(EntitySchemas.bookings, {
-        photographer_id: p.id,
-      }),
+      blocked: await s.find(
+        EntitySchemas.offline_slots,
+        overlapping(p.id, input),
+      ),
+      bookings: await s.find(EntitySchemas.bookings, overlapping(p.id, input)),
     };
   }
 

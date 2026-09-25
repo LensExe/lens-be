@@ -171,7 +171,7 @@ export class CalendarController {
     operationId: 'CAL-002',
     summary: 'Xem lịch cá nhân',
     description:
-      'Photographer xem lịch booking và các ngày đã chặn. Role: Photographer',
+      'Photographer xem booking và các khoảng đã chặn, lọc theo from/to. Role: Photographer',
   })
   @Access(['photographer'])
   @ApiBearerAuth()
@@ -196,9 +196,12 @@ export class CalendarController {
     description: 'Successful result',
     schema: responseSchema('CAL-002'),
   })
-  me(@Req() req: { actor?: Actor }) {
+  me(
+    @Req() req: { actor?: Actor },
+    @Query() query: Dto.CalendarMeQueryQueryDto,
+  ) {
     return this.queries.execute(
-      new CalendarMeQuery(req.actor ?? { sub: '', roles: [] }, {}),
+      new CalendarMeQuery(req.actor ?? { sub: '', roles: [] }, query),
     );
   }
 
@@ -246,7 +249,7 @@ export class CalendarController {
     operationId: 'CAL-001',
     summary: 'Xem lịch trống',
     description:
-      'Khách hàng xem thời gian khả dụng, mặc định 24/7 trừ ngày chặn và booking. Role: Public',
+      'Khách hàng xem thời gian trống: ca làm theo giờ VN (mặc định 08:00–20:00) trừ khoảng chặn và booking. Role: Public',
   })
   @Public()
   @ApiBadRequestResponse({

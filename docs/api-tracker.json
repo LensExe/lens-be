@@ -474,7 +474,7 @@
     "method": "GET",
     "path": "/calendar/me",
     "summary": "Xem lịch cá nhân",
-    "description": "Photographer xem booking và các ngày đã chặn.",
+    "description": "Photographer xem booking và các khoảng đã chặn, lọc theo from/to.",
     "role": "Photographer",
     "priority": "Must",
     "kind": "Query"

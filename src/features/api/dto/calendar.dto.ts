@@ -52,6 +52,28 @@ export class CalendarBlockCommandBodyDto {
   reason?: string;
 }
 
+export class CalendarMeQueryQueryDto {
+  @ApiPropertyOptional({
+    description: 'only items ending after this time',
+    format: 'date-time',
+    example: '2026-12-01T00:00:00+07:00',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsISO8601({ strict: true })
+  @Matches(/T.*(Z|[+-]\d{2}:\d{2})$/)
+  from?: string;
+
+  @ApiPropertyOptional({
+    description: 'only items starting before this time',
+    format: 'date-time',
+    example: '2026-12-08T00:00:00+07:00',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsISO8601({ strict: true })
+  @Matches(/T.*(Z|[+-]\d{2}:\d{2})$/)
+  to?: string;
+}
+
 export class CalendarAvailabilityQueryQueryDto {
   @ApiPropertyOptional({
     description: 'from',

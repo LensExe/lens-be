@@ -401,6 +401,10 @@ test('only verified photographers are public; unavailable ones rank last', async
     (await api('GET', `/photographers/${applicant}/booking-plans`)).status,
     404,
   );
+  assert.equal(
+    (await api('GET', `/photographers/${applicant}/availability`)).status,
+    404,
+  );
   assert.deepEqual(await publicIds(), [photo]);
   // once approved it shows up; switched off it ranks after available ones
   await ok('POST', `/admin/photographers/${applicant}/approve`, 'admin');
@@ -513,6 +517,23 @@ test('calendar blocking and concurrent booking conflict', async () => {
   });
   const mine = await ok('GET', '/calendar/me', 'photographer');
   assert.ok(mine.blocked.some((b: { id: string }) => b.id === range.id));
+  // from/to keeps only items overlapping the window
+  const dayAfter = await ok(
+    'GET',
+    `/calendar/me?from=${encodeURIComponent(at(24))}&to=${encodeURIComponent(at(48))}`,
+    'photographer',
+  );
+  assert.deepEqual(
+    dayAfter.blocked.map((b: { id: string }) => b.id),
+    [range.id],
+  );
+  // free time is the 08:00-20:00 Vietnam shift minus blocks: nothing on the
+  // blocked day, the next day's shift starts only after the range ends
+  const free = await ok(
+    'GET',
+    `/photographers/${photo}/availability?from=${encodeURIComponent(at(0))}&to=${encodeURIComponent(at(72))}`,
+  );
+  assert.deepEqual(free.items, [{ from: at(60), to: at(68) }]);
   await ok('DELETE', `/calendar/blocked-times/${range.id}`, 'photographer');
   await ok('DELETE', `/calendar/blocked-times/${slot.id}`, 'photographer');
   const input = {
