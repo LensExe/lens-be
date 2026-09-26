@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import type { EntityManager } from 'typeorm';
+import { EntitySchemas } from '../src/shared/database';
 import { BookingPlan } from '../src/modules/photographer/booking-plan.domain';
 import {
   PhotographerApplication,
@@ -88,4 +89,48 @@ test("the photographer's own plan list flags plans that no longer fit the workin
       ['wedding', false],
     ],
   );
+});
+
+test('viewing a portfolio costs the same number of queries for 1 or 3 photos', async () => {
+  const run = async (count: number) => {
+    const items = Array.from({ length: count }, (_, i) => `m${i}`);
+    let reads = 0;
+    const s = {
+      findOneBy: async (entity: unknown, where: { id: string }) => {
+        reads++;
+        if (entity === EntitySchemas.portfolios)
+          return {
+            id: 'album',
+            photographer_id: 'p1',
+            items,
+            cover_media_id: null,
+          };
+        if (entity === EntitySchemas.photographers)
+          return { id: 'p1', user_id: 'u1', verification_status: 'verified' };
+        if (entity === EntitySchemas.users)
+          return { id: 'u1', status: 'active' };
+        return { id: where.id, file_key: `key-${where.id}` };
+      },
+      findBy: async () => {
+        reads++;
+        return items.map((id) => ({ id, file_key: `key-${id}` }));
+      },
+    } as unknown as EntityManager;
+    const storage = {
+      downloadUrl: async (key: string) => `https://files/${key}`,
+    } as unknown as ObjectStorage;
+    const album = await new PortfolioUseCases(
+      {} as MediaOwnershipPort,
+      storage,
+    ).get(s, { sub: '', roles: [] }, { id: 'album' });
+    assert.deepEqual(
+      album.items.map((i: { media_id: string; download_url: string }) => [
+        i.media_id,
+        i.download_url,
+      ]),
+      items.map((id) => [id, `https://files/key-${id}`]),
+    );
+    return reads;
+  };
+  assert.equal(await run(3), await run(1));
 });

@@ -1,4 +1,4 @@
-import type { EntityManager } from 'typeorm';
+import { In, type EntityManager } from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import { Injectable } from '@nestjs/common';
 import {
@@ -100,8 +100,14 @@ export class PortfolioUseCases {
       position: number;
       download_url: string;
     }[];
+    const media = new Map(
+      (await s.findBy(EntitySchemas.media, { id: In([...album.items]) })).map(
+        (m) => [m.id, m],
+      ),
+    );
     for (const [position, mediaId] of album.items.entries()) {
-      const m = await required(s, 'media', mediaId);
+      const m = media.get(mediaId);
+      ensure(m, 'media not found', 'missing');
       items.push({
         id: mediaId,
         portfolio_id: album.id,
