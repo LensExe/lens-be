@@ -4,6 +4,7 @@ import {
   BookingAcceptCommandHandler,
   BookingAutoCompleteCommandHandler,
   BookingCancelCommandHandler,
+  BookingCancelUnpaidCommandHandler,
   BookingCollaboratorAcceptCommandHandler,
   BookingCollaboratorDeclineCommandHandler,
   BookingCollaboratorInviteCommandHandler,
@@ -27,6 +28,7 @@ import {
 } from '@modules/booking/bookings.query';
 import { BookingAutoCompleteJob } from '../../workers/booking-auto-complete.job';
 import { BookingExpirePendingJob } from '../../workers/booking-expire-pending.job';
+import { BookingCancelUnpaidJob } from '../../workers/booking-cancel-unpaid.job';
 
 @Module({
   controllers: [BookingController],
@@ -34,6 +36,7 @@ import { BookingExpirePendingJob } from '../../workers/booking-expire-pending.jo
     BookingAcceptCommandHandler,
     BookingAutoCompleteCommandHandler,
     BookingCancelCommandHandler,
+    BookingCancelUnpaidCommandHandler,
     BookingCollaboratorAcceptCommandHandler,
     BookingCollaboratorDeclineCommandHandler,
     BookingCollaboratorInviteCommandHandler,
@@ -54,6 +57,7 @@ import { BookingExpirePendingJob } from '../../workers/booking-expire-pending.jo
     BookingTimelineQueryHandler,
     BookingAutoCompleteJob,
     BookingExpirePendingJob,
+    BookingCancelUnpaidJob,
   ],
 })
 export class BookingApiModule {}

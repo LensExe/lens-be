@@ -24,6 +24,7 @@ import { OutboxWorker } from '../src/features/workers/outbox.worker';
 import { PhotographerBadgeJob } from '../src/features/workers/photographer-badge.job';
 import { BookingAutoCompleteJob } from '../src/features/workers/booking-auto-complete.job';
 import { BookingExpirePendingJob } from '../src/features/workers/booking-expire-pending.job';
+import { BookingCancelUnpaidJob } from '../src/features/workers/booking-cancel-unpaid.job';
 import { Booking } from '../src/modules/booking/booking.domain';
 import { CommandBus } from '@nestjs/cqrs';
 import { IdentityCustomerRegisterCommand } from '../src/modules/identity/identity.command';
@@ -587,6 +588,11 @@ test('booking ownership and lifecycle checks', async () => {
   assert.equal(
     (await api('POST', `/bookings/${booking}/start`, 'photographer')).status,
     409,
+  );
+  // accepting records when, so the deposit deadline can be counted from it
+  assert.ok(
+    (await db.manager.findOneByOrFail(EntitySchemas.bookings, { id: booking }))
+      .accepted_at,
   );
   // accepting one request turns down the other requests for the same time
   const turnedDown = await ok('GET', `/bookings/${rival}`, 'stranger');
@@ -1547,6 +1553,69 @@ test('job expires pending requests at whichever comes first: 24 hours or the sho
     assert.equal(history[0].to_status, 'expired');
     assert.equal(history[0].actor_role, 'system');
     assert.match(history[0].reason ?? '', /did not respond/);
+  }
+});
+test('job cancels accepted bookings whose deposit is not paid in time', async () => {
+  const base = await db.manager.findOneByOrFail(EntitySchemas.bookings, {
+    id: booking,
+  });
+  const customer = await db.manager.findOneByOrFail(EntitySchemas.customers, {
+    id: base.customer_id,
+  });
+  const at = (hours: number) =>
+    new Date(Date.now() + hours * 36e5).toISOString();
+  // [accepted at, shoot starts, deposit paid] -> expected status
+  const cases = [
+    [at(-25), at(48), false, 'cancelled'], // 24 hours without paying
+    [at(-1), at(-0.1), false, 'cancelled'], // shoot started, still unpaid
+    [at(-25), at(48), true, 'accepted'], // paid in time
+    [at(-1), at(48), false, 'accepted'], // still has time
+  ] as const;
+  const ids: string[] = [];
+  for (const [accepted, start, paid] of cases) {
+    const row = await db.manager.save(EntitySchemas.bookings, {
+      customer_id: base.customer_id,
+      photographer_id: base.photographer_id,
+      booking_plan_id: base.booking_plan_id,
+      location: 'Studio',
+      from: start,
+      to: new Date(Date.parse(start) + 36e5).toISOString(),
+      deposit_amount: 300000,
+      total_amount: 1000000,
+      status: 'accepted',
+      accepted_at: accepted,
+    });
+    ids.push(row.id);
+    if (paid)
+      await db.manager.save(EntitySchemas.transactions, {
+        user_id: customer.user_id,
+        transaction_code: `DEP-${row.id}`,
+        type: 'deposit',
+        reference_id: row.id,
+        amount: 300000,
+        status: 'paid',
+        idempotency_key: `dep-${row.id}`,
+      });
+  }
+  const job = app.get(BookingCancelUnpaidJob);
+  for (let run = 0; run < 2; run++) {
+    assert.equal(await job.run(), true);
+    const rows = await Promise.all(
+      ids.map((id) =>
+        db.manager.findOneByOrFail(EntitySchemas.bookings, { id }),
+      ),
+    );
+    assert.deepEqual(
+      rows.map((b) => b.status),
+      cases.map((c) => c[3]),
+    );
+    const history = await db.manager.findBy(
+      EntitySchemas.booking_status_history,
+      { booking_id: ids[0] },
+    );
+    assert.equal(history.length, 1);
+    assert.equal(history[0].actor_role, 'system');
+    assert.match(history[0].reason ?? '', /Deposit not paid in time/);
   }
 });
 test('domain rejects unsupported booking transitions', () => {

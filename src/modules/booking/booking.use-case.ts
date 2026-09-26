@@ -38,6 +38,9 @@ import type {
   BookingEntity,
 } from '@shared/database/entities';
 
+/** Lý do ghi khi booking bị huỷ vì khách không trả cọc kịp. */
+const UNPAID_REASON = 'Deposit not paid in time';
+
 /** Lý do ghi khi yêu cầu pending hết hạn vì thợ không trả lời kịp. */
 const EXPIRED_REASON = 'Photographer did not respond in time';
 
@@ -294,7 +297,11 @@ export class BookingUseCases implements PendingBookingsPort {
     const { affected } = await s.update(
       EntitySchemas.bookings,
       { id: b.id, status: b.status },
-      { status, updated_at: updatedAt },
+      {
+        status,
+        updated_at: updatedAt,
+        ...(status === BookingStatus.ACCEPTED && { accepted_at: updatedAt }),
+      },
     );
     if (affected !== 1) return null;
     await this.recordHistory(s, b.id, b.status, status, actor, reason);
@@ -303,7 +310,12 @@ export class BookingUseCases implements PendingBookingsPort {
       booking_id: b.id,
       status,
     });
-    return { ...b, status, updated_at: updatedAt };
+    return {
+      ...b,
+      status,
+      updated_at: updatedAt,
+      ...(status === BookingStatus.ACCEPTED && { accepted_at: updatedAt }),
+    };
   }
 
   /**
@@ -669,6 +681,50 @@ export class BookingUseCases implements PendingBookingsPort {
       )
         expired++;
     return { expired };
+  }
+
+  /**
+   * Job nền (role `system`): huỷ booking đã được nhận mà khách chưa trả đủ cọc, ở mốc tới trước
+   * trong hai mốc: 24 giờ sau khi thợ nhận, hoặc lúc bắt đầu buổi chụp. Nhả lịch cho thợ.
+   * Idempotent: booking đã huỷ không còn `accepted` nên chạy lại không đổi gì.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người gọi (phải có role `system`)
+   * @returns `{ cancelled }`: số booking vừa huỷ
+   */
+  async cancelUnpaid(s: EntityManager, a: Actor) {
+    role(a, 'system');
+    const now = Date.now();
+    const due = await s.find(EntitySchemas.bookings, {
+      where: [
+        {
+          status: BookingStatus.ACCEPTED,
+          accepted_at: LessThanOrEqual(Booking.paymentDueCutoff(now)),
+        },
+        {
+          status: BookingStatus.ACCEPTED,
+          from: LessThanOrEqual(new Date(now).toISOString()),
+        },
+      ],
+      lock: { mode: 'pessimistic_write', onLocked: 'skip_locked' },
+    });
+    let cancelled = 0;
+    for (const b of due) {
+      if ((await this.paidAmount(s, b.id)) >= Number(b.deposit_amount))
+        continue;
+      if (
+        await this.tryApply(
+          s,
+          b,
+          'cancel',
+          { role: BookingActorRole.SYSTEM, userId: null },
+          UNPAID_REASON,
+          await this.recipients(s, b),
+        )
+      )
+        cancelled++;
+    }
+    return { cancelled };
   }
 
   /**

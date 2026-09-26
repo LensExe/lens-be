@@ -127,3 +127,10 @@ test('a request past 24 hours or past the shoot start can no longer be accepted'
       /request has expired/,
     );
 });
+
+test('the deposit is due 24 hours after the photographer accepts', () => {
+  assert.equal(
+    Booking.paymentDueCutoff(Date.parse('2030-01-02T10:00:00.000Z')),
+    '2030-01-01T10:00:00.000Z',
+  );
+});

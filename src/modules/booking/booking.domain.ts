@@ -56,6 +56,9 @@ export type BookingAction =
 /** Số giờ thợ có để trả lời một yêu cầu; quá hạn (hoặc tới giờ chụp) thì yêu cầu hết hạn. */
 export const PENDING_EXPIRES_AFTER_HOURS = 24;
 
+/** Số giờ khách có để trả cọc sau khi thợ nhận; quá hạn (hoặc tới giờ chụp) thì booking bị huỷ. */
+export const PAYMENT_DUE_AFTER_HOURS = 24;
+
 export class Booking {
   /** @param status Trạng thái hiện tại của booking */
   constructor(public status: BookingStatus) {}
@@ -200,6 +203,17 @@ export class Booking {
       'Booking request has expired',
       'conflict',
     );
+  }
+
+  /**
+   * Mốc hạn thanh toán: booking được nhận từ mốc này trở về trước mà chưa trả đủ cọc là quá hạn.
+   * Cũng quá hạn khi tới giờ chụp (`from <= now`), điều kiện đó do use case lọc.
+   *
+   * @param now Thời điểm hiện tại (ms)
+   * @returns Thời điểm ISO UTC = `now` trừ `PAYMENT_DUE_AFTER_HOURS` giờ
+   */
+  static paymentDueCutoff(now: number) {
+    return new Date(now - PAYMENT_DUE_AFTER_HOURS * 36e5).toISOString();
   }
 
   /**

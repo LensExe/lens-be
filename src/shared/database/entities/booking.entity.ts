@@ -82,6 +82,13 @@ export class BookingEntity extends BaseEntity {
   @Column({ default: BookingStatus.PENDING })
   status!: BookingStatus;
 
+  /** Lúc thợ nhận booking; tính hạn thanh toán cọc từ mốc này. `null` khi chưa được nhận */
+  @Column('timestamptz', {
+    nullable: true,
+    transformer: timestampTransformer,
+  })
+  accepted_at!: string | null;
+
   /** Thời điểm album ảnh sản phẩm được bàn giao và công khai cho khách xem */
   @Column('timestamptz', {
     nullable: true,
