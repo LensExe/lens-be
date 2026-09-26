@@ -380,6 +380,8 @@ Ví dụ hiện có:
 | Calendar               | `CollaborationTimesPort`   | Booking          |
 | Calendar               | `PhotographerBookingsPort` | Booking          |
 | Photographer           | `WorkingHoursPort`         | Calendar         |
+| Photographer           | `PhotographerRatingsPort`  | Feedback/Review  |
+| Photographer           | `PlanBookingsPort`         | Booking          |
 | Photographer/Portfolio | `MediaOwnershipPort`       | Media            |
 | Subscription           | `SubscriptionPaymentsPort` | Payment          |
 

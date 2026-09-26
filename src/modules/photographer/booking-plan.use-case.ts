@@ -11,13 +11,17 @@ import { ensure } from '@shared/platform/exceptions/domain.error';
 import type * as Inputs from '@shared/contracts/contracts';
 import { BookingPlan } from './booking-plan.domain';
 import { WorkingHoursPort } from './ports/working-hours.port';
+import { PlanBookingsPort } from './ports/plan-bookings.port';
 
 /**
  * Nghiệp vụ gói chụp (booking plan): thợ tự tạo, sửa, bật/tắt, xoá gói; khách xem gói đang bán.
  */
 @Injectable()
 export class BookingPlanUseCases {
-  constructor(private readonly workingHours: WorkingHoursPort) {}
+  constructor(
+    private readonly workingHours: WorkingHoursPort,
+    private readonly planBookings: PlanBookingsPort,
+  ) {}
 
   /**
    * Lấy gói chụp và đảm bảo gói thuộc hồ sơ thợ của người đang gọi.
@@ -108,7 +112,7 @@ export class BookingPlanUseCases {
   ) {
     await this.own(s, a, i.id);
     BookingPlan.assertRemovable(
-      await s.countBy(EntitySchemas.bookings, { booking_plan_id: i.id }),
+      await this.planBookings.bookingCountForPlan(s, i.id),
     );
     await s.delete(EntitySchemas.booking_plans, i.id);
     return { deleted: true };

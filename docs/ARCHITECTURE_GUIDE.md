@@ -70,6 +70,8 @@ Port là hợp đồng cho một khả năng mà **module tiêu thụ** cần. �
 | Calendar               | `CollaborationTimesPort`   | `BookingUseCases` (booking)   |
 | Calendar               | `PhotographerBookingsPort` | `BookingUseCases` (booking)   |
 | Photographer           | `WorkingHoursPort`         | `CalendarUseCases` (calendar) |
+| Photographer           | `PhotographerRatingsPort`  | `ReviewUseCases` (feedback)   |
+| Photographer           | `PlanBookingsPort`         | `BookingUseCases` (booking)   |
 | Photographer/Portfolio | `MediaOwnershipPort`       | `MediaUseCases`               |
 | Subscription           | `SubscriptionPaymentsPort` | `PaymentUseCases`             |
 
