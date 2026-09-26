@@ -1322,6 +1322,20 @@ test('remaining payment, completion and review uniqueness', async () => {
   const listed = await ok('GET', `/photographers/${photo}/reviews?limit=1`);
   assert.equal(listed.total, 1);
   assert.equal(listed.items[0].id, review.id);
+  // the public list shows who wrote it, never the customer or booking id
+  assert.ok(listed.items[0].customer.name);
+  for (const field of ['customer_id', 'booking_id', 'status'])
+    assert.equal(field in listed.items[0], false);
+  // an edit tells the photographer and keeps the old reply
+  const edited = await ok('PATCH', `/reviews/${review.id}`, 'customer', {
+    comment: 'Great, edited',
+  });
+  assert.equal(edited.photographer_reply, 'Thank you so much');
+  assert.ok(
+    await db.manager.existsBy(EntitySchemas.outbox_events, {
+      topic: 'review.updated',
+    }),
+  );
   // an empty edit is rejected instead of marking the review as edited
   assert.equal(
     (await api('PATCH', `/reviews/${review.id}`, 'customer', {})).status,
@@ -1365,6 +1379,23 @@ test('remaining payment, completion and review uniqueness', async () => {
     (await api('POST', `/admin/reviews/${review.id}/restore`, 'customer'))
       .status,
     403,
+  );
+  // the admin finds hidden reviews in the admin list, customers cannot
+  assert.equal((await api('GET', '/admin/reviews', 'customer')).status, 403);
+  const hiddenList = await ok(
+    'GET',
+    `/admin/reviews?status=hidden_by_admin&photographer_id=${photo}`,
+    'admin',
+  );
+  assert.deepEqual(
+    hiddenList.items.map((r: { id: string }) => r.id),
+    [review.id],
+  );
+  assert.equal(
+    (await ok('GET', '/admin/reviews?status=visible', 'admin')).items.some(
+      (r: { id: string }) => r.id === review.id,
+    ),
+    false,
   );
   const restored = await ok(
     'POST',

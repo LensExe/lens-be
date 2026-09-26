@@ -1,6 +1,9 @@
 import { In, type EntityManager } from 'typeorm';
 import type { RatingEntity } from '@shared/database/entities/rating.entity';
-import { ReviewStatus } from '@shared/database/entities/feedback.entity';
+import {
+  ReviewStatus,
+  type FeedbackEntity,
+} from '@shared/database/entities/feedback.entity';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import { Review } from './review.domain';
 import type * as Inputs from '@shared/contracts/contracts';
@@ -57,6 +60,8 @@ export class ReviewUseCases implements RatingUpdaterPort {
 
   /**
    * Review đang hiện của một thợ, mới trước, phân trang bằng SQL. Thợ chưa duyệt / bị khoá thì 404.
+   * Chỉ trả phần người ngoài được xem: điểm, bình luận, trả lời, tên và ảnh đại diện của khách; không
+   * trả ID khách / booking.
    *
    * @param s EntityManager của transaction hiện tại
    * @param _a Người đang gọi API (không dùng; API public)
@@ -66,13 +71,78 @@ export class ReviewUseCases implements RatingUpdaterPort {
   async list(s: EntityManager, _a: Actor, i: Inputs.ReviewListQueryInput) {
     const { photographer: p } = await publicPhotographer(s, i.id);
     const { offset, limit } = pageWindow(i);
-    const [items, total] = await s.findAndCount(EntitySchemas.feedbacks, {
+    const [rows, total] = await s.findAndCount(EntitySchemas.feedbacks, {
       where: { photographer_id: p.id, status: ReviewStatus.VISIBLE },
       order: { created_at: 'DESC', id: 'ASC' },
       skip: offset,
       take: limit,
     });
+    return paged(await this.publicReviews(s, rows), total, i);
+  }
+
+  /**
+   * Admin xem mọi review (kể cả đã xoá / bị ẩn), lọc theo trạng thái và thợ, mới trước, phân trang
+   * bằng SQL. Dùng để tìm review cần ẩn hoặc hiện lại.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (admin)
+   * @param i `status`, `photographer_id`, `limit`, `offset`
+   * @returns `{ items, total, offset, limit }`, mỗi item là bản ghi review đầy đủ
+   */
+  async adminList(
+    s: EntityManager,
+    a: Actor,
+    i: Inputs.ReviewAdminListQueryInput,
+  ) {
+    role(a, 'admin');
+    await currentUser(s, a);
+    const { offset, limit } = pageWindow(i);
+    const [items, total] = await s.findAndCount(EntitySchemas.feedbacks, {
+      where: {
+        ...(i.status ? { status: i.status } : {}),
+        ...(i.photographer_id ? { photographer_id: i.photographer_id } : {}),
+      },
+      order: { created_at: 'DESC', id: 'ASC' },
+      skip: offset,
+      take: limit,
+    });
     return paged(items, total, i);
+  }
+
+  /**
+   * Đổi một trang review sang bản public, lấy tên và ảnh đại diện của khách bằng hai query cho cả
+   * trang (không query theo từng review).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param rows Các review của trang
+   * @returns Review bản public, giữ nguyên thứ tự
+   */
+  private async publicReviews(s: EntityManager, rows: FeedbackEntity[]) {
+    if (!rows.length) return [];
+    const customers = await s.findBy(EntitySchemas.customers, {
+      id: In([...new Set(rows.map((r) => r.customer_id))]),
+    });
+    const users = await s.findBy(EntitySchemas.users, {
+      id: In([...new Set(customers.map((c) => c.user_id))]),
+    });
+    const userOf = new Map(
+      customers.map((c) => [c.id, users.find((u) => u.id === c.user_id)]),
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      rating: r.rating,
+      punctuality_rating: r.punctuality_rating,
+      attitude_rating: r.attitude_rating,
+      comment: r.comment,
+      is_edited: r.is_edited,
+      photographer_reply: r.photographer_reply,
+      replied_at: r.replied_at,
+      created_at: r.created_at,
+      customer: {
+        name: userOf.get(r.customer_id)?.fullname ?? '',
+        avatar_url: userOf.get(r.customer_id)?.avatar_url ?? null,
+      },
+    }));
   }
 
   /**
@@ -143,7 +213,8 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Người viết sửa review đang hiện trong 7 ngày, đánh dấu đã sửa và tính lại điểm review của thợ.
+   * Người viết sửa review đang hiện trong 7 ngày, đánh dấu đã sửa, tính lại điểm review của thợ và
+   * báo thợ (câu trả lời cũ của thợ giữ nguyên, thợ tự sửa nếu muốn).
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor (khách đã viết)
@@ -153,8 +224,8 @@ export class ReviewUseCases implements RatingUpdaterPort {
    */
   async update(s: EntityManager, a: Actor, i: Inputs.ReviewUpdateCommandInput) {
     const { id, ...fields } = i,
-      r = await this.lockedReview(s, id);
-    await bookingAccess(s, a, r.booking_id, 'customer');
+      r = await this.lockedReview(s, id),
+      { photographer: p } = await bookingAccess(s, a, r.booking_id, 'customer');
     Review.requireVisible(r.status);
     Review.requireEditWindow(r.created_at);
     Review.requireChanges(fields);
@@ -163,6 +234,11 @@ export class ReviewUseCases implements RatingUpdaterPort {
       is_edited: true,
     });
     await this.refreshReviewStats(s, r.photographer_id);
+    await emit(s, 'review.updated', [p.user_id], {
+      review_id: r.id,
+      booking_id: r.booking_id,
+      rating: result.rating,
+    });
     return result;
   }
 

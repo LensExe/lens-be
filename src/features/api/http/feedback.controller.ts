@@ -35,6 +35,7 @@ import { responseSchema } from '../swagger';
 import { ReviewCreateCommand } from '@modules/feedback/reviews.command';
 import { ReviewSummaryQuery } from '@modules/feedback/reviews.query';
 import { ReviewListQuery } from '@modules/feedback/reviews.query';
+import { ReviewAdminListQuery } from '@modules/feedback/reviews.query';
 import { ReviewUpdateCommand } from '@modules/feedback/reviews.command';
 import { ReviewReplyCommand } from '@modules/feedback/reviews.command';
 import { ReviewRestoreCommand } from '@modules/feedback/reviews.command';
@@ -130,7 +131,8 @@ export class ReviewController {
   @ApiOperation({
     operationId: 'REV-002',
     summary: 'Danh sách đánh giá',
-    description: 'Phân trang review của photographer. Role: Public',
+    description:
+      'Phân trang review đang hiện của photographer, kèm tên và ảnh đại diện của khách (không trả ID khách / booking). Role: Public',
   })
   @Public()
   @ApiBadRequestResponse({
@@ -385,6 +387,47 @@ export class ReviewController {
       new ReviewHideCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
         id,
+      }),
+    );
+  }
+
+  @Get('admin/reviews')
+  @ApiOperation({
+    operationId: 'REV-008',
+    summary: 'Admin xem danh sách đánh giá',
+    description:
+      'Admin xem mọi review (kể cả đã xoá / bị ẩn), lọc theo trạng thái và thợ, để ẩn hoặc hiện lại. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('REV-008'),
+  })
+  adminList(
+    @Req() req: { actor?: Actor },
+    @Query() query: Dto.ReviewAdminListQueryQueryDto,
+  ) {
+    return this.queries.execute(
+      new ReviewAdminListQuery(req.actor ?? { sub: '', roles: [] }, {
+        ...query,
       }),
     );
   }

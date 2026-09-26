@@ -9,6 +9,7 @@ import {
   ReviewUpdateCommandHandler,
 } from '@modules/feedback/reviews.command';
 import {
+  ReviewAdminListQueryHandler,
   ReviewListQueryHandler,
   ReviewSummaryQueryHandler,
 } from '@modules/feedback/reviews.query';
@@ -22,6 +23,7 @@ import {
     ReviewReplyCommandHandler,
     ReviewRestoreCommandHandler,
     ReviewUpdateCommandHandler,
+    ReviewAdminListQueryHandler,
     ReviewListQueryHandler,
     ReviewSummaryQueryHandler,
   ],

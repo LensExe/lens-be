@@ -1,3 +1,5 @@
+import type { ReviewStatus } from '@shared/database/entities/feedback.entity';
+
 export interface ReviewCreateCommandInput {
   id: string;
   rating: number;
@@ -40,4 +42,11 @@ export interface ReviewRestoreCommandInput {
 export interface ReviewHideCommandInput {
   id: string;
   reason: string;
+}
+
+export interface ReviewAdminListQueryInput {
+  limit?: number;
+  offset?: number;
+  status?: ReviewStatus;
+  photographer_id?: string;
 }

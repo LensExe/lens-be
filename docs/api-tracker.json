@@ -1002,7 +1002,7 @@
     "method": "GET",
     "path": "/photographers/:id/reviews",
     "summary": "Danh sách đánh giá",
-    "description": "Phân trang review của photographer.",
+    "description": "Phân trang review đang hiện của photographer, kèm tên và ảnh đại diện của khách (không trả ID khách / booking).",
     "role": "Public",
     "priority": "Must",
     "kind": "Query"
@@ -1066,6 +1066,18 @@
     "role": "Admin",
     "priority": "Should",
     "kind": "Command"
+  },
+  {
+    "id": "REV-008",
+    "module": "Review",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/admin/reviews",
+    "summary": "Admin xem danh sách đánh giá",
+    "description": "Admin xem mọi review (kể cả đã xoá / bị ẩn), lọc theo trạng thái và thợ, để ẩn hoặc hiện lại.",
+    "role": "Admin",
+    "priority": "Should",
+    "kind": "Query"
   },
   {
     "id": "REV-009",

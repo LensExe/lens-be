@@ -41,3 +41,22 @@ export class ReviewListQueryHandler implements IQueryHandler<ReviewListQuery> {
     );
   }
 }
+
+export class ReviewAdminListQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.ReviewAdminListQueryInput,
+  ) {}
+}
+@QueryHandler(ReviewAdminListQuery)
+export class ReviewAdminListQueryHandler implements IQueryHandler<ReviewAdminListQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: ReviewUseCases,
+  ) {}
+  execute(message: ReviewAdminListQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.adminList(s, message.actor, message.input),
+    );
+  }
+}

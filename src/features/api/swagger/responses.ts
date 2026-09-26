@@ -29,6 +29,19 @@ const portfolioItem = obj({
   download_url: str,
 });
 
+const publicReview = obj({
+  id: str,
+  rating: num,
+  punctuality_rating: num,
+  attitude_rating: num,
+  comment: str,
+  is_edited: bool,
+  photographer_reply: { ...str, nullable: true },
+  replied_at: { ...str, nullable: true },
+  created_at: str,
+  customer: obj({ name: str, avatar_url: { ...str, nullable: true } }),
+});
+
 const photographer = obj({
   id: str,
   fullname: str,
@@ -227,7 +240,7 @@ const schemas: Record<string, SchemaObject> = {
   'MEDIA-008': gallery,
   'MEDIA-009': gallery,
   'REV-001': records.feedbacks,
-  'REV-002': paged(records.feedbacks),
+  'REV-002': paged(publicReview),
   'REV-003': obj({
     average_rating: num,
     total_feedbacks: num,
@@ -237,6 +250,7 @@ const schemas: Record<string, SchemaObject> = {
   'REV-005': deleted,
   'REV-006': records.feedbacks,
   'REV-007': records.feedbacks,
+  'REV-008': paged(records.feedbacks),
   'REV-009': records.feedbacks,
   'SUB-001': obj({
     items: array(
