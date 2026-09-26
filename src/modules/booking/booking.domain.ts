@@ -47,8 +47,15 @@ export type BookingAction =
   | 'confirmReceipt';
 
 export class Booking {
+  /** @param status Trạng thái hiện tại của booking */
   constructor(public status: BookingStatus) {}
 
+  /**
+   * Kiểm luật tạo booking và tính tiền: cọc = làm tròn lên 30% tổng giá gói.
+   *
+   * @param input Dữ kiện khách, thợ, gói, lịch và các booking/khoảng chặn chồng giờ
+   * @returns Dữ liệu booking `pending` để lưu; ném 400/404/409 khi sai luật
+   */
   static prepare(input: BookingDraftInput) {
     ensure(input.photographerVerified, 'Photographer not found', 'missing');
     ensure(
@@ -137,6 +144,14 @@ export class Booking {
     return new Date(now - AUTO_COMPLETE_AFTER_DAYS * 864e5).toISOString();
   }
 
+  /**
+   * Chuyển trạng thái theo hành động; kiểm đã trả cọc (start) và đã trả đủ + đã giao ảnh (hoàn tất).
+   *
+   * @param action Hành động
+   * @param paid Đã trả đủ số tiền hành động này cần
+   * @param delivered Gallery đã publish
+   * @returns Trạng thái mới; 409 nếu hành động không hợp lệ ở trạng thái hiện tại
+   */
   transition(
     action: BookingAction,
     paid: boolean,

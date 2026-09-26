@@ -620,6 +620,35 @@ test('cancel reason is kept in the booking history', async () => {
   assert.equal(items[1].actor_role, 'customer');
   assert.equal(items[1].reason, 'Changed plans');
 });
+test('booking lists are filtered and paged in the database', async () => {
+  const all = await ok('GET', '/bookings', 'customer');
+  assert.equal(all.total, 2);
+  const page1 = await ok('GET', '/bookings?limit=1&offset=1', 'customer');
+  assert.equal(page1.total, 2);
+  assert.deepEqual(
+    page1.items.map((b: { id: string }) => b.id),
+    [all.items[1].id],
+  );
+  const accepted = await ok('GET', '/bookings?status=accepted', 'photographer');
+  assert.deepEqual(
+    accepted.items.map((b: { id: string }) => b.id),
+    [booking],
+  );
+  const later = new Date(Date.now() + 30 * 864e5).toISOString();
+  assert.equal(
+    (await ok('GET', `/bookings?from=${encodeURIComponent(later)}`, 'customer'))
+      .total,
+    0,
+  );
+  assert.equal((await ok('GET', '/bookings', 'stranger')).total, 0);
+  const admin = await ok(
+    'GET',
+    '/admin/bookings?status=cancelled&limit=5',
+    'admin',
+  );
+  assert.equal(admin.total, 1);
+  assert.equal(admin.limit, 5);
+});
 test('main photographer invites a collaborator who answers once', async () => {
   // approval gives the applicant the photographer role on the next token
   actors.applicant.roles = ['customer', 'photographer'];

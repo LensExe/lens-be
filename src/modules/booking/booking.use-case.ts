@@ -1,4 +1,11 @@
-import { LessThanOrEqual, type EntityManager } from 'typeorm';
+import {
+  LessThan,
+  LessThanOrEqual,
+  MoreThan,
+  MoreThanOrEqual,
+  type EntityManager,
+  type FindOptionsWhere,
+} from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import type * as Inputs from '@shared/contracts/contracts';
 import { Injectable } from '@nestjs/common';
@@ -10,7 +17,6 @@ import {
   required,
   bookingAccess,
   emit,
-  page,
   role,
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
@@ -26,6 +32,51 @@ import type {
   BookingCollaboratorEntity,
   BookingEntity,
 } from '@shared/database/entities';
+
+/**
+ * Điều kiện "khoảng chặn / booking của thợ chồng lên khoảng mới" (khoảng nửa mở `[from, to)`),
+ * để khi tạo booking chỉ đọc các dòng có thể trùng thay vì toàn bộ lịch sử của thợ.
+ *
+ * @param photographerId ID hồ sơ thợ
+ * @param range Khoảng giờ của booking mới
+ * @returns Điều kiện `where` cho `findBy`
+ */
+function overlapping(
+  photographerId: string,
+  range: { from: string; to: string },
+) {
+  return {
+    photographer_id: photographerId,
+    to: MoreThan(new Date(range.from).toISOString()),
+    from: LessThan(new Date(range.to).toISOString()),
+  };
+}
+
+/**
+ * Offset / limit của một trang, cùng mặc định với `page()`.
+ *
+ * @param query `limit`, `offset` từ query string
+ * @returns `{ offset, limit }`
+ */
+function pageWindow(query: { limit?: number; offset?: number }) {
+  return { offset: query.offset ?? 0, limit: query.limit ?? 20 };
+}
+
+/**
+ * Dạng response phân trang chuẩn của repo.
+ *
+ * @param items Các dòng của trang
+ * @param total Tổng số dòng khớp điều kiện
+ * @param query `limit`, `offset` từ query string
+ * @returns `{ items, total, offset, limit }`
+ */
+function paged<T>(
+  items: T[],
+  total: number,
+  query: { limit?: number; offset?: number },
+) {
+  return { items, total, ...pageWindow(query) };
+}
 
 /** Bên thực hiện ghi vào lịch sử; `userId` là `null` khi job nền (`role = 'system'`). */
 type HistoryActor = { role: BookingActorRole; userId: string | null };
@@ -44,6 +95,14 @@ const ACTION_SIDE: Partial<Record<BookingAction, 'customer' | 'photographer'>> =
 export class BookingUseCases {
   constructor(private readonly reviews: RatingUpdaterPort) {}
 
+  /**
+   * Khách đặt lịch với thợ theo một gói chụp. Khoá dòng thợ để hai khách không đặt trùng giờ.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (khách, phải có hồ sơ customer)
+   * @param input Thợ, gói, địa điểm, khoảng giờ `from`–`to`
+   * @returns Booking `pending`; 404 thợ chưa duyệt, 400 sai thời lượng, 409 ngoài ca làm / trùng lịch
+   */
   async create(
     s: EntityManager,
     a: Actor,
@@ -67,13 +126,15 @@ export class BookingUseCases {
       photographer_id: p.id,
     });
 
-    const blockedTimes = await s.findBy(EntitySchemas.offline_slots, {
-      photographer_id: p.id,
-    });
+    const blockedTimes = await s.findBy(
+      EntitySchemas.offline_slots,
+      overlapping(p.id, input),
+    );
 
-    const bookings = await s.findBy(EntitySchemas.bookings, {
-      photographer_id: p.id,
-    });
+    const bookings = await s.findBy(
+      EntitySchemas.bookings,
+      overlapping(p.id, input),
+    );
 
     const draft = Booking.prepare({
       customerId: c.id,
@@ -113,28 +174,41 @@ export class BookingUseCases {
     return booking;
   }
 
+  /**
+   * Chi tiết một booking; chỉ khách, thợ chính, admin hoặc system xem được.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor
+   * @param input ID booking
+   * @returns Booking; 403 nếu không liên quan, 404 nếu không có
+   */
   async get(s: EntityManager, a: Actor, input: Inputs.BookingGetQueryInput) {
     return (await bookingAccess(s, a, input.id)).booking;
   }
 
+  /**
+   * Booking của tôi: là khách hoặc là thợ chính, mới tạo trước. Lọc và phân trang bằng SQL.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor
+   * @param input Lọc `status`, `from` (bắt đầu từ), `to` (kết thúc trước), `limit`, `offset`
+   * @returns `{ items, total, offset, limit }`
+   */
   async list(s: EntityManager, a: Actor, input: Inputs.BookingListQueryInput) {
     const u = await currentUser(s, a),
       [c] = await s.findBy(EntitySchemas.customers, { user_id: u.id }),
       [p] = await s.findBy(EntitySchemas.photographers, { user_id: u.id });
-    return page(
-      (
-        await s.find(EntitySchemas.bookings, {
-          order: { created_at: 'DESC', id: 'ASC' },
-        })
-      ).filter(
-        (b) =>
-          (b.customer_id === c?.id || b.photographer_id === p?.id) &&
-          (!input.status || b.status === input.status) &&
-          (!input.from || Date.parse(b.from) >= Date.parse(input.from)) &&
-          (!input.to || Date.parse(b.to) <= Date.parse(input.to)),
-      ),
-      input,
-    );
+    const filters = {
+      ...(input.status && { status: input.status as BookingStatus }),
+      ...(input.from && { from: MoreThanOrEqual(input.from) }),
+      ...(input.to && { to: LessThanOrEqual(input.to) }),
+    };
+    const where = [
+      ...(c ? [{ customer_id: c.id, ...filters }] : []),
+      ...(p ? [{ photographer_id: p.id, ...filters }] : []),
+    ];
+    if (!where.length) return paged([], 0, input);
+    return this.pageOfBookings(s, where, input);
   }
 
   /**
@@ -276,22 +350,62 @@ export class BookingUseCases {
     await this.reviews.recalculate(s, b.photographer_id);
   }
 
+  /**
+   * Thợ chính nhận booking: `pending → accepted`.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (thợ chính)
+   * @param i ID booking
+   * @returns Booking sau khi đổi; 409 nếu sai trạng thái
+   */
   accept(s: EntityManager, a: Actor, i: Inputs.BookingAcceptCommandInput) {
     return this.transition(s, a, i, 'accept');
   }
 
+  /**
+   * Thợ chính từ chối booking kèm lý do: `pending → rejected`.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (thợ chính)
+   * @param i ID booking và lý do
+   * @returns Booking sau khi đổi; 409 nếu sai trạng thái
+   */
   reject(s: EntityManager, a: Actor, i: Inputs.BookingRejectCommandInput) {
     return this.transition(s, a, i, 'reject');
   }
 
+  /**
+   * Khách hoặc thợ chính huỷ booking kèm lý do: `pending | accepted → cancelled`.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (khách hoặc thợ của booking)
+   * @param i ID booking và lý do
+   * @returns Booking sau khi đổi; 409 nếu sai trạng thái
+   */
   cancel(s: EntityManager, a: Actor, i: Inputs.BookingCancelCommandInput) {
     return this.transition(s, a, i, 'cancel');
   }
 
+  /**
+   * Thợ chính bắt đầu buổi chụp: `accepted → in_progress`, cần đã trả đủ cọc.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (thợ chính)
+   * @param i ID booking
+   * @returns Booking sau khi đổi; 409 nếu sai trạng thái hoặc chưa trả cọc
+   */
   start(s: EntityManager, a: Actor, i: Inputs.BookingStartCommandInput) {
     return this.transition(s, a, i, 'start');
   }
 
+  /**
+   * Thợ chính báo đã chụp xong: `in_progress → shot`.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (thợ chính)
+   * @param i ID booking
+   * @returns Booking sau khi đổi; 409 nếu sai trạng thái
+   */
   completeShoot(
     s: EntityManager,
     a: Actor,
@@ -300,6 +414,14 @@ export class BookingUseCases {
     return this.transition(s, a, i, 'completeShoot');
   }
 
+  /**
+   * Admin / system chốt hoàn tất: `shot → completed`, cần đã trả đủ và gallery đã publish.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (admin hoặc system)
+   * @param i ID booking
+   * @returns Booking sau khi đổi; 409 nếu sai trạng thái hoặc chưa đủ điều kiện
+   */
   complete(s: EntityManager, a: Actor, i: Inputs.BookingCompleteCommandInput) {
     return this.transition(s, a, i, 'complete');
   }
@@ -638,6 +760,14 @@ export class BookingUseCases {
     return row;
   }
 
+  /**
+   * Lịch sử trạng thái của booking theo thời gian.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (khách, thợ chính, admin hoặc system)
+   * @param i ID booking
+   * @returns `{ items }` các dòng lịch sử, cũ trước
+   */
   async timeline(
     s: EntityManager,
     a: Actor,
@@ -652,6 +782,14 @@ export class BookingUseCases {
     };
   }
 
+  /**
+   * Khách hoặc thợ chính khiếu nại booking: tạo report `target_type = booking`.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (bên liên quan tới booking)
+   * @param input ID booking và lý do
+   * @returns Report vừa tạo
+   */
   async dispute(
     s: EntityManager,
     a: Actor,
@@ -666,6 +804,14 @@ export class BookingUseCases {
     });
   }
 
+  /**
+   * Admin xem mọi booking, mới tạo trước, lọc theo trạng thái. Lọc và phân trang bằng SQL.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (admin)
+   * @param input Lọc `status`, `limit`, `offset`
+   * @returns `{ items, total, offset, limit }`
+   */
   async admin(
     s: EntityManager,
     a: Actor,
@@ -673,11 +819,33 @@ export class BookingUseCases {
   ) {
     role(a, 'admin');
     await currentUser(s, a);
-    return page(
-      (await s.find(EntitySchemas.bookings)).filter(
-        (b) => !input.status || b.status === input.status,
-      ),
+    return this.pageOfBookings(
+      s,
+      input.status ? { status: input.status as BookingStatus } : {},
       input,
     );
+  }
+
+  /**
+   * Một trang booking theo điều kiện, mới tạo trước; DB chỉ trả đúng số dòng của trang.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param where Điều kiện TypeORM (mảng = OR)
+   * @param query `limit` (mặc định 20), `offset` (mặc định 0)
+   * @returns `{ items, total, offset, limit }`
+   */
+  private async pageOfBookings(
+    s: EntityManager,
+    where: FindOptionsWhere<BookingEntity> | FindOptionsWhere<BookingEntity>[],
+    query: { limit?: number; offset?: number },
+  ) {
+    const { offset, limit } = pageWindow(query);
+    const [items, total] = await s.findAndCount(EntitySchemas.bookings, {
+      where,
+      order: { created_at: 'DESC', id: 'ASC' },
+      skip: offset,
+      take: limit,
+    });
+    return paged(items, total, query);
   }
 }
