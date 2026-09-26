@@ -1,4 +1,5 @@
 import {
+  In,
   LessThan,
   LessThanOrEqual,
   MoreThan,
@@ -143,7 +144,7 @@ export class BookingUseCases implements PendingBookingsPort {
   }
 
   /**
-   * Chi tiết một booking; khách, thợ chính, thợ liên kết đã nhận lời, admin hoặc system xem được.
+   * Chi tiết một booking; khách, thợ chính, thợ liên kết đã nhận lời và admin xem được.
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor
@@ -151,19 +152,7 @@ export class BookingUseCases implements PendingBookingsPort {
    * @returns Booking; 403 nếu không liên quan, 404 nếu không có
    */
   async get(s: EntityManager, a: Actor, input: Inputs.BookingGetQueryInput) {
-    const user = await currentUser(s, a),
-      [mine] = await s.findBy(EntitySchemas.photographers, {
-        user_id: user.id,
-      });
-    const collaborator =
-      !!mine &&
-      (await s.existsBy(EntitySchemas.booking_collaborators, {
-        booking_id: input.id,
-        photographer_id: mine.id,
-        status: BookingCollaboratorStatus.ACCEPTED,
-      }));
-    if (collaborator) return required(s, 'bookings', input.id);
-    return (await bookingAccess(s, a, input.id)).booking;
+    return this.viewable(s, a, input.id, [BookingCollaboratorStatus.ACCEPTED]);
   }
 
   /**
@@ -215,19 +204,25 @@ export class BookingUseCases implements PendingBookingsPort {
       photographer,
       recipients,
     } = await bookingAccess(s, a, input.id, side);
+    const actorRole = Booking.actorRole(
+      user.id,
+      customer.user_id,
+      photographer.user_id,
+      a.roles,
+    );
+    // huỷ thường chỉ dành cho khách hoặc thợ của booking; admin huỷ qua route admin riêng
+    if (action === 'cancel')
+      ensure(
+        actorRole === BookingActorRole.CUSTOMER ||
+          actorRole === BookingActorRole.PHOTOGRAPHER,
+        'Booking access denied',
+        'forbidden',
+      );
     return this.apply(
       s,
       b,
       action,
-      {
-        role: Booking.actorRole(
-          user.id,
-          customer.user_id,
-          photographer.user_id,
-          a.roles,
-        ),
-        userId: user.id,
-      },
+      { role: actorRole, userId: user.id },
       input.reason ?? null,
       recipients,
     );
@@ -794,32 +789,56 @@ export class BookingUseCases implements PendingBookingsPort {
     a: Actor,
     input: Inputs.BookingCollaboratorListQueryInput,
   ) {
-    const user = await currentUser(s, a),
-      b = await required(s, 'bookings', input.id),
-      c = await required(s, 'customers', b.customer_id),
-      [mine] = await s.findBy(EntitySchemas.photographers, {
-        user_id: user.id,
-      });
-    const invited =
-      !!mine &&
-      (await s.existsBy(EntitySchemas.booking_collaborators, {
-        booking_id: b.id,
-        photographer_id: mine.id,
-      }));
-    ensure(
-      c.user_id === user.id ||
-        mine?.id === b.photographer_id ||
-        invited ||
-        a.roles.includes('admin'),
-      'Booking access denied',
-      'forbidden',
-    );
+    const b = await this.viewable(s, a, input.id, [
+      BookingCollaboratorStatus.INVITED,
+      BookingCollaboratorStatus.ACCEPTED,
+    ]);
     return {
       items: await s.find(EntitySchemas.booking_collaborators, {
         where: { booking_id: b.id },
         order: { created_at: 'ASC' },
       }),
     };
+  }
+
+  /**
+   * Booking mà actor được xem: khách, thợ chính, admin/system, hoặc thợ liên kết có lời mời
+   * ở một trong các trạng thái cho phép. Một chỗ duy nhất quyết định ai xem được booking.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor
+   * @param id ID booking
+   * @param collaboratorStatuses Trạng thái lời mời liên kết được tính là được xem
+   * @returns Booking; 403 nếu không liên quan, 404 nếu không có
+   */
+  private async viewable(
+    s: EntityManager,
+    a: Actor,
+    id: string,
+    collaboratorStatuses: BookingCollaboratorStatus[],
+  ) {
+    const user = await currentUser(s, a),
+      b = await required(s, 'bookings', id),
+      c = await required(s, 'customers', b.customer_id),
+      [mine] = await s.findBy(EntitySchemas.photographers, {
+        user_id: user.id,
+      });
+    const collaborator =
+      !!mine &&
+      (await s.existsBy(EntitySchemas.booking_collaborators, {
+        booking_id: b.id,
+        photographer_id: mine.id,
+        status: In(collaboratorStatuses),
+      }));
+    ensure(
+      c.user_id === user.id ||
+        mine?.id === b.photographer_id ||
+        collaborator ||
+        a.roles.some((r) => ['admin', 'system'].includes(r)),
+      'Booking access denied',
+      'forbidden',
+    );
+    return b;
   }
 
   /**
@@ -1004,7 +1023,7 @@ export class BookingUseCases implements PendingBookingsPort {
    * Lịch sử trạng thái của booking theo thời gian.
    *
    * @param s EntityManager của transaction hiện tại
-   * @param a Actor (khách, thợ chính, admin hoặc system)
+   * @param a Actor (khách, thợ chính, thợ liên kết đã nhận lời hoặc admin)
    * @param i ID booking
    * @returns `{ items }` các dòng lịch sử, cũ trước
    */
@@ -1013,7 +1032,9 @@ export class BookingUseCases implements PendingBookingsPort {
     a: Actor,
     i: Inputs.BookingTimelineQueryInput,
   ) {
-    const { booking } = await bookingAccess(s, a, i.id);
+    const booking = await this.viewable(s, a, i.id, [
+      BookingCollaboratorStatus.ACCEPTED,
+    ]);
     return {
       items: await s.find(EntitySchemas.booking_status_history, {
         where: { booking_id: booking.id },

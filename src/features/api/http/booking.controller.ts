@@ -568,9 +568,9 @@ export class BookingController {
     operationId: 'BOOK-010',
     summary: 'Lịch sử trạng thái booking',
     description:
-      'Các lần tạo / đổi trạng thái theo thời gian: từ, sang, bên thực hiện, lý do (reject/cancel). Role: Customer/Photographer',
+      'Các lần tạo / đổi trạng thái theo thời gian: từ, sang, bên thực hiện, lý do (reject/cancel). Role: Customer/Photographer/Admin',
   })
-  @Access(['customer', 'photographer'])
+  @Access(['customer', 'photographer', 'admin'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
@@ -608,9 +608,9 @@ export class BookingController {
     operationId: 'BOOK-002',
     summary: 'Chi tiết booking',
     description:
-      'Lấy toàn bộ thông tin booking theo quyền truy cập. Role: Customer/Photographer',
+      'Lấy toàn bộ thông tin booking theo quyền truy cập. Role: Customer/Photographer/Admin',
   })
-  @Access(['customer', 'photographer'])
+  @Access(['customer', 'photographer', 'admin'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',

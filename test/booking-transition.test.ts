@@ -54,3 +54,55 @@ test('a status change only applies if the booking is still in the status it was 
     /changed by someone else/,
   );
 });
+
+test('only the customer or photographer of the booking may cancel it, not an admin', async () => {
+  const useCases = new BookingUseCases({} as RatingUpdaterPort);
+  // u9 is neither the customer (u1) nor the photographer (u2) of the booking
+  const s = manager(1);
+  Object.assign(s, {
+    findBy: async (entity: unknown) =>
+      entity === EntitySchemas.users
+        ? [{ id: 'u9', keycloak_id: 'kc-admin', status: 'active' }]
+        : [],
+  });
+  await assert.rejects(
+    useCases.cancel(
+      s,
+      { sub: 'kc-admin', roles: ['admin', 'customer'] },
+      { id: 'b1', reason: 'x' },
+    ),
+    /Booking access denied/,
+  );
+  assert.equal(s.updates.length, 0);
+});
+
+test('a photographer who declined or was revoked no longer sees the collaborator list', async () => {
+  const useCases = new BookingUseCases({} as RatingUpdaterPort);
+  const lookups: object[] = [];
+  const s = {
+    findBy: async (entity: unknown) =>
+      entity === EntitySchemas.users
+        ? [{ id: 'u3', keycloak_id: 'kc-b', status: 'active' }]
+        : entity === EntitySchemas.photographers
+          ? [{ id: 'p3', user_id: 'u3' }]
+          : [],
+    findOneBy: async (entity: unknown) =>
+      entity === EntitySchemas.bookings ? booking : { id: 'c1', user_id: 'u1' },
+    existsBy: async (_entity: unknown, where: object) => {
+      lookups.push(where);
+      return false; // only a declined invitation exists
+    },
+    find: async () => [],
+  } as unknown as EntityManager;
+  await assert.rejects(
+    useCases.collaborators(
+      s,
+      { sub: 'kc-b', roles: ['photographer'] },
+      { id: 'b1' },
+    ),
+    /Booking access denied/,
+  );
+  // the lookup only counts live invitations
+  assert.match(JSON.stringify(lookups[0]), /invited/);
+  assert.match(JSON.stringify(lookups[0]), /accepted/);
+});

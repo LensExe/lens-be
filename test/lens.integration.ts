@@ -602,6 +602,11 @@ test('booking ownership and lifecycle checks', async () => {
   assert.equal(last.actor_role, 'system');
   assert.equal(last.actor_user_id, null);
   assert.match(last.reason, /accepted another booking/);
+  // an admin can look into any booking to handle disputes
+  assert.equal((await ok('GET', `/bookings/${booking}`, 'admin')).id, booking);
+  assert.ok(
+    (await ok('GET', `/bookings/${booking}/timeline`, 'admin')).items.length,
+  );
   // every transition leaves one history row with who did it
   const timeline = await ok('GET', `/bookings/${booking}/timeline`, 'customer');
   assert.deepEqual(
@@ -815,6 +820,11 @@ test('main photographer invites a collaborator who answers once', async () => {
       )
     ).status,
     'accepted',
+  );
+  // once accepted, the collaborator also follows the booking history
+  assert.ok(
+    (await ok('GET', `/bookings/${booking}/timeline`, 'applicant')).items
+      .length,
   );
   // once accepted, the collaborator sees where and when to shoot
   assert.equal(
