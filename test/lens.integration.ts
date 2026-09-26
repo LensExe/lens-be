@@ -787,9 +787,22 @@ test('remaining payment, completion and review uniqueness', async () => {
       reference: 'provider-2',
     },
   });
+  // only the customer of the booking confirms receiving the photos (D2)
+  for (const who of ['photographer', 'stranger'])
+    assert.equal(
+      (await api('POST', `/bookings/${booking}/confirm-receipt`, who)).status,
+      403,
+    );
   assert.equal(
-    (await ok('POST', `/bookings/${booking}/complete`, 'admin')).status,
+    (await ok('POST', `/bookings/${booking}/confirm-receipt`, 'customer'))
+      .status,
     'completed',
+  );
+  const history = await ok('GET', `/bookings/${booking}/timeline`, 'customer');
+  assert.equal(history.items.at(-1).actor_role, 'customer');
+  assert.equal(
+    (await api('POST', `/bookings/${booking}/complete`, 'admin')).status,
+    409,
   );
   const body = {
     rating: 5,

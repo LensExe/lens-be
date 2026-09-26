@@ -12,3 +12,22 @@ test('history records the side of the booking before the token role', () => {
   assert.equal(role('admin-user', ['admin']), 'admin');
   assert.equal(role('service-user', ['system']), 'system');
 });
+
+test('customer confirms receipt only from shot, with full payment and a published gallery', () => {
+  assert.equal(
+    new Booking('shot').transition('confirmReceipt', true, true),
+    'completed',
+  );
+  assert.throws(
+    () => new Booking('shot').transition('confirmReceipt', false, true),
+    /Full payment and published gallery required/,
+  );
+  assert.throws(
+    () => new Booking('shot').transition('confirmReceipt', true, false),
+    /Full payment and published gallery required/,
+  );
+  assert.throws(
+    () => new Booking('in_progress').transition('confirmReceipt', true, true),
+    /Cannot confirmReceipt booking in in_progress/,
+  );
+});

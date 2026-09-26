@@ -636,6 +636,18 @@
     "kind": "Command"
   },
   {
+    "id": "BOOK-012",
+    "module": "Booking",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/bookings/:id/confirm-receipt",
+    "summary": "Khách xác nhận đã nhận ảnh",
+    "description": "Khách của booking xác nhận đã nhận ảnh, booking chuyển shot → completed. Cần đã trả đủ và gallery đã publish (D2).",
+    "role": "Customer",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
     "id": "BOOK-010",
     "module": "Booking",
     "service": "Core Backend",

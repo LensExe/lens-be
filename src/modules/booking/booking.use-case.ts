@@ -130,7 +130,9 @@ export class BookingUseCases {
   ) {
     const side = ['accept', 'reject', 'start', 'completeShoot'].includes(action)
       ? 'photographer'
-      : undefined;
+      : action === 'confirmReceipt'
+        ? 'customer'
+        : undefined;
     if (action === 'complete') role(a, 'admin', 'system');
     const {
       booking: b,
@@ -248,6 +250,15 @@ export class BookingUseCases {
 
   complete(s: EntityManager, a: Actor, i: Inputs.BookingCompleteCommandInput) {
     return this.transition(s, a, i, 'complete');
+  }
+
+  /** Khách của booking xác nhận đã nhận ảnh (D2): `shot → completed`, cùng điều kiện với `complete`. */
+  confirmReceipt(
+    s: EntityManager,
+    a: Actor,
+    i: Inputs.BookingConfirmReceiptCommandInput,
+  ) {
+    return this.transition(s, a, i, 'confirmReceipt');
   }
 
   async timeline(

@@ -36,6 +36,7 @@ import { BookingAcceptCommand } from '@modules/booking/bookings.command';
 import { BookingCancelCommand } from '@modules/booking/bookings.command';
 import { BookingCompleteCommand } from '@modules/booking/bookings.command';
 import { BookingCompleteShootCommand } from '@modules/booking/bookings.command';
+import { BookingConfirmReceiptCommand } from '@modules/booking/bookings.command';
 import { BookingDisputeCommand } from '@modules/booking/bookings.command';
 import { BookingRejectCommand } from '@modules/booking/bookings.command';
 import { BookingStartCommand } from '@modules/booking/bookings.command';
@@ -335,6 +336,49 @@ export class BookingController {
   ) {
     return this.commands.execute(
       new BookingCompleteCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+    );
+  }
+
+  @Post('bookings/:id/confirm-receipt')
+  @ApiOperation({
+    operationId: 'BOOK-012',
+    summary: 'Khách xác nhận đã nhận ảnh',
+    description:
+      'Khách của booking xác nhận đã nhận ảnh, booking chuyển shot → completed. Cần đã trả đủ và gallery đã publish. Role: Customer',
+  })
+  @Access(['customer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('BOOK-012'),
+  })
+  @HttpCode(200)
+  confirmReceipt(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.commands.execute(
+      new BookingConfirmReceiptCommand(req.actor ?? { sub: '', roles: [] }, {
+        id,
+      }),
     );
   }
 

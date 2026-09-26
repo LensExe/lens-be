@@ -121,6 +121,7 @@ export class Booking {
       start: [['accepted'], 'in_progress'],
       completeShoot: [['in_progress'], 'shot'],
       complete: [['shot'], 'completed'],
+      confirmReceipt: [['shot'], 'completed'],
     };
     const rule = transitions[action];
     ensure(
@@ -130,7 +131,7 @@ export class Booking {
     );
     if (action === 'start')
       ensure(paid, 'Deposit must be paid before starting', 'conflict');
-    if (action === 'complete')
+    if (action === 'complete' || action === 'confirmReceipt')
       ensure(
         paid && delivered,
         'Full payment and published gallery required',

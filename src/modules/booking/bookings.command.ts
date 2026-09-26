@@ -79,6 +79,25 @@ export class BookingCompleteCommandHandler implements ICommandHandler<BookingCom
   }
 }
 
+export class BookingConfirmReceiptCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.BookingConfirmReceiptCommandInput,
+  ) {}
+}
+@CommandHandler(BookingConfirmReceiptCommand)
+export class BookingConfirmReceiptCommandHandler implements ICommandHandler<BookingConfirmReceiptCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: BookingUseCases,
+  ) {}
+  execute(message: BookingConfirmReceiptCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.confirmReceipt(s, message.actor, message.input),
+    );
+  }
+}
+
 export class BookingCompleteShootCommand {
   constructor(
     public readonly actor: Actor,

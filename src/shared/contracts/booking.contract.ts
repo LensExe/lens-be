@@ -33,6 +33,10 @@ export interface BookingCompleteCommandInput {
   id: string;
 }
 
+export interface BookingConfirmReceiptCommandInput {
+  id: string;
+}
+
 export interface BookingCompleteShootCommandInput {
   id: string;
 }
