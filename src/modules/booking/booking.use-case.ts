@@ -1,5 +1,6 @@
 import {
   In,
+  type SelectQueryBuilder,
   LessThan,
   LessThanOrEqual,
   MoreThan,
@@ -25,6 +26,7 @@ import {
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { WorkSchedule, type WorkingShift } from '@shared/domain/work-schedule';
 import { RatingUpdaterPort } from './ports/rating-updater.port';
+import { PaidAmountsPort } from './ports/paid-amounts.port';
 import type { PendingBookingsPort } from '@modules/calendar/ports/pending-bookings.port';
 import {
   Booking,
@@ -43,12 +45,9 @@ import type {
   BookingEntity,
 } from '@shared/database/entities';
 
-/** Số booking tối đa mỗi lần chạy job; phần còn lại để lần chạy sau (job chạy định kỳ). */
+/** Số booking mỗi trang khi job duyệt danh sách tới hạn, và số trang tối đa mỗi lần chạy. */
 const JOB_BATCH_SIZE = 100;
-
-/** Tổng tiền khách đã trả cho booking `b` (cọc + phần còn lại, giao dịch `paid`), dùng trong SQL của job. */
-const PAID_SQL = `SELECT COALESCE(SUM(t.amount), 0) FROM transactions t
-  WHERE t.reference_id = b.id AND t.status = 'paid' AND t.type IN ('deposit', 'remaining')`;
+const JOB_MAX_PAGES = 10;
 
 /** Lý do ghi khi booking bị huỷ vì khách không trả cọc kịp. */
 const UNPAID_REASON = 'Deposit not paid in time';
@@ -73,7 +72,10 @@ const ACTION_SIDE: Partial<Record<BookingAction, 'customer' | 'photographer'>> =
 
 @Injectable()
 export class BookingUseCases implements PendingBookingsPort {
-  constructor(private readonly reviews: RatingUpdaterPort) {}
+  constructor(
+    private readonly reviews: RatingUpdaterPort,
+    private readonly payments: PaidAmountsPort,
+  ) {}
 
   /**
    * Khách đặt lịch với thợ theo một gói chụp. Khoá dòng thợ để không đua với lúc thợ nhận booking
@@ -302,7 +304,7 @@ export class BookingUseCases implements PendingBookingsPort {
   ) {
     const status = new Booking(b.status).transition(action, {
       paidAmount: Booking.needsPayment(action)
-        ? await this.paidAmount(s, b.id)
+        ? (await this.payments.paidAmounts(s, [b.id]))[b.id]
         : 0,
       depositAmount: Number(b.deposit_amount),
       totalAmount: Number(b.total_amount),
@@ -359,23 +361,6 @@ export class BookingUseCases implements PendingBookingsPort {
       actor_user_id: actor.userId,
       reason,
     });
-  }
-
-  /**
-   * Tổng tiền khách đã trả cho booking (cọc + phần còn lại, chỉ giao dịch `paid`).
-   *
-   * @param s EntityManager của transaction hiện tại
-   * @param bookingId ID booking
-   * @returns Số tiền VND
-   */
-  private async paidAmount(s: EntityManager, bookingId: string) {
-    return (
-      await s.findBy(EntitySchemas.transactions, {
-        reference_id: bookingId,
-        status: 'paid',
-        type: In(['deposit', 'remaining']),
-      })
-    ).reduce((sum, t) => sum + Number(t.amount), 0);
   }
 
   /**
@@ -631,7 +616,7 @@ export class BookingUseCases implements PendingBookingsPort {
 
   /**
    * Job nền (role `system`): tự hoàn tất booking `shot` đã publish gallery đủ 7 ngày mà khách
-   * chưa xác nhận. Booking chưa trả đủ bị lọc ngay trong SQL; mỗi lần tối đa `JOB_BATCH_SIZE` dòng.
+   * chưa xác nhận. Booking chưa trả đủ thì bỏ qua (hỏi payment qua port), lần chạy sau xét lại.
    * Idempotent: booking đã completed không còn ở `shot` nên chạy lại không đổi gì.
    *
    * @param s EntityManager của transaction hiện tại
@@ -640,33 +625,35 @@ export class BookingUseCases implements PendingBookingsPort {
    */
   async autoComplete(s: EntityManager, a: Actor) {
     role(a, 'system');
-    const due = await s
-      .createQueryBuilder(EntitySchemas.bookings, 'b')
-      .where('b.status = :status', { status: BookingStatus.SHOT })
-      .andWhere('b.gallery_published_at <= :cutoff', {
-        cutoff: Booking.autoCompleteCutoff(Date.now()),
-      })
-      .andWhere(`(${PAID_SQL}) >= b.total_amount`)
-      .orderBy('b.gallery_published_at', 'ASC')
-      .addOrderBy('b.id', 'ASC')
-      .limit(JOB_BATCH_SIZE)
-      .setLock('pessimistic_write')
-      .setOnLocked('skip_locked')
-      .getMany();
-    let completed = 0;
-    for (const b of due)
-      if (
-        await this.tryApply(
-          s,
-          b,
-          'complete',
-          { role: BookingActorRole.SYSTEM, userId: null },
-          null,
-          await this.recipients(s, b),
-        )
-      )
-        completed++;
-    return { checked: due.length, completed };
+    const cutoff = Booking.autoCompleteCutoff(Date.now());
+    let checked = 0,
+      completed = 0;
+    await this.inDuePages(
+      s,
+      (qb) =>
+        qb
+          .where('b.status = :status', { status: BookingStatus.SHOT })
+          .andWhere('b.gallery_published_at <= :cutoff', { cutoff }),
+      'gallery_published_at',
+      async (page, paid) => {
+        for (const b of page) {
+          checked++;
+          if (paid[b.id] < Number(b.total_amount)) continue;
+          if (
+            await this.tryApply(
+              s,
+              b,
+              'complete',
+              { role: BookingActorRole.SYSTEM, userId: null },
+              null,
+              await this.recipients(s, b),
+            )
+          )
+            completed++;
+        }
+      },
+    );
+    return { checked, completed };
   }
 
   /**
@@ -737,34 +724,81 @@ export class BookingUseCases implements PendingBookingsPort {
   async cancelUnpaid(s: EntityManager, a: Actor) {
     role(a, 'system');
     const now = Date.now();
-    const due = await s
-      .createQueryBuilder(EntitySchemas.bookings, 'b')
-      .where('b.status = :status', { status: BookingStatus.ACCEPTED })
-      .andWhere('(b.accepted_at <= :cutoff OR b."from" <= :now)', {
-        cutoff: Booking.paymentDueCutoff(now),
-        now: new Date(now).toISOString(),
-      })
-      .andWhere(`(${PAID_SQL}) < b.deposit_amount`)
-      .orderBy('b.accepted_at', 'ASC')
-      .addOrderBy('b.id', 'ASC')
-      .limit(JOB_BATCH_SIZE)
-      .setLock('pessimistic_write')
-      .setOnLocked('skip_locked')
-      .getMany();
     let cancelled = 0;
-    for (const b of due)
-      if (
-        await this.tryApply(
-          s,
-          b,
-          'cancel',
-          { role: BookingActorRole.SYSTEM, userId: null },
-          UNPAID_REASON,
-          await this.recipients(s, b),
-        )
-      )
-        cancelled++;
+    await this.inDuePages(
+      s,
+      (qb) =>
+        qb
+          .where('b.status = :status', { status: BookingStatus.ACCEPTED })
+          .andWhere('(b.accepted_at <= :cutoff OR b."from" <= :now)', {
+            cutoff: Booking.paymentDueCutoff(now),
+            now: new Date(now).toISOString(),
+          }),
+      'accepted_at',
+      async (page, paid) => {
+        for (const b of page) {
+          if (paid[b.id] >= Number(b.deposit_amount)) continue;
+          if (
+            await this.tryApply(
+              s,
+              b,
+              'cancel',
+              { role: BookingActorRole.SYSTEM, userId: null },
+              UNPAID_REASON,
+              await this.recipients(s, b),
+            )
+          )
+            cancelled++;
+        }
+      },
+    );
     return { cancelled };
+  }
+
+  /**
+   * Duyệt các booking tới hạn của job theo từng trang (khoá dòng, bỏ qua dòng đang bị khoá), hỏi
+   * payment số tiền đã trả cho cả trang một lần. Đi hết danh sách tới hạn chứ không chỉ trang đầu,
+   * nên booking chưa đủ tiền không chặn các booking phía sau; tối đa `JOB_MAX_PAGES` trang mỗi lần chạy.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param filter Điều kiện tới hạn trên alias `b`
+   * @param orderField Cột thời gian để xếp và đi trang (kèm `id` cho ổn định)
+   * @param visit Xử lý một trang, kèm Map ID booking → số tiền đã trả
+   */
+  private async inDuePages(
+    s: EntityManager,
+    filter: (
+      qb: SelectQueryBuilder<BookingEntity>,
+    ) => SelectQueryBuilder<BookingEntity>,
+    orderField: 'gallery_published_at' | 'accepted_at',
+    visit: (
+      page: BookingEntity[],
+      paid: Record<string, number>,
+    ) => Promise<void>,
+  ) {
+    let cursor: { at: string; id: string } | null = null;
+    for (let pageNo = 0; pageNo < JOB_MAX_PAGES; pageNo++) {
+      const qb = filter(s.createQueryBuilder(EntitySchemas.bookings, 'b'));
+      if (cursor) qb.andWhere(`(b.${orderField}, b.id) > (:at, :id)`, cursor);
+      const page = await qb
+        .orderBy(`b.${orderField}`, 'ASC')
+        .addOrderBy('b.id', 'ASC')
+        .limit(JOB_BATCH_SIZE)
+        .setLock('pessimistic_write')
+        .setOnLocked('skip_locked')
+        .getMany();
+      if (!page.length) return;
+      await visit(
+        page,
+        await this.payments.paidAmounts(
+          s,
+          page.map((b) => b.id),
+        ),
+      );
+      if (page.length < JOB_BATCH_SIZE) return;
+      const last = page[page.length - 1];
+      cursor = { at: last[orderField]!, id: last.id };
+    }
   }
 
   /**
@@ -1131,6 +1165,65 @@ export class BookingUseCases implements PendingBookingsPort {
       status,
     });
     return row;
+  }
+
+  /**
+   * Booking của thợ (mọi trạng thái) chồng lên khung giờ, xếp theo giờ bắt đầu. Module calendar gọi
+   * qua port để dựng lịch trống, lịch của thợ và kiểm chặn lịch, thay vì đọc thẳng bảng `bookings`.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @param window `from` / `to` ISO, đều tuỳ chọn
+   * @returns Các booking chồng lên khung giờ
+   */
+  bookingsOverlapping(
+    s: EntityManager,
+    photographerId: string,
+    window: { from?: string; to?: string },
+  ) {
+    return s.find(EntitySchemas.bookings, {
+      where: overlapWhere(photographerId, window),
+      order: { from: 'ASC' },
+    });
+  }
+
+  /**
+   * Số booking đang dùng một gói chụp (mọi trạng thái). Module photographer gọi qua port để không
+   * cho xoá gói đã có booking.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param planId ID gói chụp
+   * @returns Số booking
+   */
+  bookingCountForPlan(s: EntityManager, planId: string) {
+    return s.countBy(EntitySchemas.bookings, { booking_plan_id: planId });
+  }
+
+  /**
+   * Admin huỷ booking ở mọi trạng thái chưa xong (chờ, đã nhận, đang chụp, đã chụp), bắt buộc lý do.
+   * Dùng khi phải can thiệp, ví dụ thợ bị khoá tài khoản giữa chừng. Việc hoàn tiền nối ở module payment.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (admin)
+   * @param i ID booking và lý do
+   * @returns Booking sau khi huỷ; 409 nếu đã kết thúc (completed, rejected, cancelled, expired)
+   */
+  async adminCancel(
+    s: EntityManager,
+    a: Actor,
+    i: Inputs.BookingAdminCancelCommandInput,
+  ) {
+    role(a, 'admin');
+    const user = await currentUser(s, a),
+      b = await required(s, 'bookings', i.id);
+    return this.apply(
+      s,
+      b,
+      'adminCancel',
+      { role: BookingActorRole.ADMIN, userId: user.id },
+      i.reason,
+      await this.recipients(s, b),
+    );
   }
 
   /**

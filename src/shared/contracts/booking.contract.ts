@@ -31,6 +31,11 @@ export interface BookingCancelCommandInput {
   reason: string;
 }
 
+export interface BookingAdminCancelCommandInput {
+  id: string;
+  reason: string;
+}
+
 export interface BookingCompleteCommandInput {
   id: string;
 }

@@ -34,6 +34,7 @@ import { BookingCreateCommand } from '@modules/booking/bookings.command';
 import { BookingListQuery } from '@modules/booking/bookings.query';
 import { BookingAcceptCommand } from '@modules/booking/bookings.command';
 import { BookingCancelCommand } from '@modules/booking/bookings.command';
+import { BookingAdminCancelCommand } from '@modules/booking/bookings.command';
 import { BookingCompleteCommand } from '@modules/booking/bookings.command';
 import { BookingCompleteShootCommand } from '@modules/booking/bookings.command';
 import { BookingConfirmReceiptCommand } from '@modules/booking/bookings.command';
@@ -900,6 +901,52 @@ export class BookingController {
         req.actor ?? { sub: '', roles: [] },
         { id },
       ),
+    );
+  }
+
+  @Post('admin/bookings/:id/cancel')
+  @ApiOperation({
+    operationId: 'BOOK-019',
+    summary: 'Admin huỷ booking',
+    description:
+      'Admin huỷ booking ở mọi trạng thái chưa xong (chờ, đã nhận, đang chụp, đã chụp), bắt buộc lý do; dùng khi phải can thiệp. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiBody({ type: Dto.BookingCancelCommandBodyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('BOOK-019'),
+  })
+  @HttpCode(200)
+  adminCancel(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: Dto.BookingCancelCommandBodyDto,
+  ) {
+    return this.commands.execute(
+      new BookingAdminCancelCommand(req.actor ?? { sub: '', roles: [] }, {
+        ...body,
+        id,
+      }),
     );
   }
 }

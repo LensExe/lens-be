@@ -823,11 +823,41 @@ test('cancel and accept at the same time: only one of them wins', async () => {
       reason: 'Cleanup',
     });
 });
+test('an admin can cancel a booking with a reason, others use the normal route', async () => {
+  const day = new Date(Date.now() + 9 * 864e5).toISOString().slice(0, 10);
+  const request = await ok('POST', '/bookings', 'customer', {
+    photographer_id: photo,
+    plan_id: plan,
+    location: 'Studio',
+    from: new Date(`${day}T09:00:00+07:00`).toISOString(),
+    to: new Date(`${day}T10:00:00+07:00`).toISOString(),
+  });
+  assert.equal(
+    (
+      await api('POST', `/admin/bookings/${request.id}/cancel`, 'customer', {
+        reason: 'x',
+      })
+    ).status,
+    403,
+  );
+  const cancelled = await ok(
+    'POST',
+    `/admin/bookings/${request.id}/cancel`,
+    'admin',
+    { reason: 'Photographer account suspended' },
+  );
+  assert.equal(cancelled.status, 'cancelled');
+  const [, last] = (
+    await ok('GET', `/bookings/${request.id}/timeline`, 'customer')
+  ).items;
+  assert.equal(last.actor_role, 'admin');
+  assert.equal(last.reason, 'Photographer account suspended');
+});
 test('booking lists are filtered and paged in the database', async () => {
   const all = await ok('GET', '/bookings', 'customer');
-  assert.equal(all.total, 5);
+  assert.equal(all.total, 6);
   const page1 = await ok('GET', '/bookings?limit=1&offset=1', 'customer');
-  assert.equal(page1.total, 5);
+  assert.equal(page1.total, 6);
   assert.deepEqual(
     page1.items.map((b: { id: string }) => b.id),
     [all.items[1].id],
@@ -849,7 +879,7 @@ test('booking lists are filtered and paged in the database', async () => {
     '/admin/bookings?status=cancelled&limit=5',
     'admin',
   );
-  assert.equal(admin.total, 2);
+  assert.equal(admin.total, 3);
   assert.equal(admin.limit, 5);
 });
 test('main photographer invites a collaborator who answers once', async () => {

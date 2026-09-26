@@ -65,6 +65,7 @@ Port là hợp đồng cho một khả năng mà **module tiêu thụ** cần. �
 | Module tiêu thụ        | Port                       | Bên cung cấp                  |
 | ---------------------- | -------------------------- | ----------------------------- |
 | Booking                | `RatingUpdaterPort`        | `ReviewUseCases` (feedback)   |
+| Booking                | `PaidAmountsPort`          | `PaymentUseCases` (payment)   |
 | Calendar               | `PendingBookingsPort`      | `BookingUseCases` (booking)   |
 | Calendar               | `CollaborationTimesPort`   | `BookingUseCases` (booking)   |
 | Photographer           | `WorkingHoursPort`         | `CalendarUseCases` (calendar) |
@@ -72,6 +73,17 @@ Port là hợp đồng cho một khả năng mà **module tiêu thụ** cần. �
 | Subscription           | `SubscriptionPaymentsPort` | `PaymentUseCases`             |
 
 Wiring nằm tại [`api-runtime.module.ts`](../src/features/api/api-runtime.module.ts). Use case tiêu thụ inject port, không inject trực tiếp use case của module khác. Đây là lời gọi đồng bộ khi cần kết quả ngay hoặc phải dùng cùng `EntityManager`/transaction. Tác vụ realtime được ghi vào outbox trong transaction rồi worker phát sau commit. Worker hiện đánh dấu `processed_at` trước khi gọi publisher; nếu publisher thất bại sau bước đó, sự kiện không tự được retry. Không coi outbox hiện tại là cơ chế bảo đảm phát đúng một lần.
+
+**Phụ thuộc giữa các module phải một chiều** (không có vòng). Trước khi thêm port, kiểm đồ thị "use case nào inject use case nào"; nếu port mới làm A cần B trong khi B đã cần A thì chọn lại thiết kế (bỏ chiều ngược, đưa thông tin lên module phía trên, hoặc dùng sự kiện), không dùng `forwardRef` hay class phụ chỉ để né vòng. NestJS docs: "Avoid circular dependencies where possible".
+
+**Ngoại lệ có chủ đích (đọc thẳng bảng của module khác):**
+
+| Module đọc   | Bảng                                        | Ở đâu                                     | Vì sao chưa qua port                                                                                                                                                                                                                                                                                                |
+| ------------ | ------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Booking      | `working_hours`, `offline_slots` (calendar) | tạo / nhận booking, thợ liên kết nhận lời | Calendar đã phụ thuộc booking qua port (`PendingBookingsPort`, `CollaborationTimesPort`); booking gọi ngược calendar qua port sẽ thành vòng. Hai context dính chặt (lịch cần booking để trừ giờ bận, booking cần lịch để biết giờ trống). Gỡ triệt để: gộp calendar vào context booking, hoặc đồng bộ bằng sự kiện. |
+| Photographer | `ratings` (feedback)                        | tìm thợ (`search`)                        | Sắp xếp theo rating phải JOIN trong SQL để phân trang đúng; port không trả được điều kiện JOIN. Các chỗ khác đọc rating qua port.                                                                                                                                                                                   |
+
+Dữ liệu danh tính dùng chung (`users`, `customers`, `photographers`) được đọc qua helper trong `shared/common/access.ts`, không tính là đọc chéo.
 
 Port của tích hợp bên ngoài có phạm vi toàn ứng dụng, như `PaymentGateway` và `RealtimePublisher`, nằm trong `src/shared/integrations/`. Mã domain chung chỉ đặt ở `src/shared/domain/` nếu thật sự không thuộc riêng context nào, ví dụ giá trị khoảng thời gian/tiền dùng bởi booking, calendar và payment.
 

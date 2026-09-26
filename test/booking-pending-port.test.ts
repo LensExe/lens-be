@@ -4,6 +4,13 @@ import type { EntityManager } from 'typeorm';
 import { EntitySchemas } from '../src/shared/database';
 import { BookingUseCases } from '../src/modules/booking/booking.use-case';
 import type { RatingUpdaterPort } from '../src/modules/booking/ports/rating-updater.port';
+import type { PaidAmountsPort } from '../src/modules/booking/ports/paid-amounts.port';
+
+/** Bên payment giả: chưa ai trả đồng nào. */
+const noPayments = {
+  paidAmounts: async (_s: unknown, ids: string[]) =>
+    Object.fromEntries(ids.map((id) => [id, 0])),
+} as unknown as PaidAmountsPort;
 
 /** 2030-01-01 là thứ Ba; giờ theo Việt Nam. */
 const at = (hour: string) =>
@@ -29,7 +36,7 @@ test('pending requests that no longer fit the new weekly hours are listed', asyn
   const s = {
     find: async () => pending,
   } as unknown as EntityManager;
-  const useCases = new BookingUseCases({} as RatingUpdaterPort);
+  const useCases = new BookingUseCases({} as RatingUpdaterPort, noPayments);
   const outside = await useCases.pendingOutside(s, 'p1', [
     { weekday: 2, start_time: '08:00', end_time: '17:00' },
   ]);
@@ -52,7 +59,7 @@ test('declining skips requests that were answered in the meantime', async () => 
     },
     save: async (_e: unknown, row: object) => row,
   } as unknown as EntityManager;
-  const useCases = new BookingUseCases({} as RatingUpdaterPort);
+  const useCases = new BookingUseCases({} as RatingUpdaterPort, noPayments);
   assert.equal(
     await useCases.decline(
       s,
