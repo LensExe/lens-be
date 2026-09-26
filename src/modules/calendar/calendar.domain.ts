@@ -1,18 +1,18 @@
 import { ensure } from '@shared/domain/domain.error';
-import { interval, overlaps } from '@shared/domain/booking-values';
+import { interval, isOccupied, overlaps } from '@shared/domain/booking-values';
 import {
   WorkSchedule,
   vnDate,
   vnDayInterval,
   type WorkingShift,
 } from '@shared/domain/work-schedule';
-import { OCCUPIED_BOOKING_STATUSES } from '@shared/database/entities/booking.entity';
 
 type Range = { from: string; to: string };
 type CalendarBooking = Range & { status: string };
 
-const isOccupied = (status: string): boolean =>
-  (OCCUPIED_BOOKING_STATUSES as readonly string[]).includes(status);
+/** Khung xem lịch mặc định và tối đa (ngày). */
+const DEFAULT_WINDOW_DAYS = 30;
+const MAX_WINDOW_DAYS = 93;
 
 /**
  * Cắt khỏi một khoảng các phần bị chiếm.
@@ -50,8 +50,56 @@ function clip(range: Range, from: string, to: string): Range | null {
     : null;
 }
 
-/** Calendar rules calculated from persisted facts; no I/O or framework code. */
+/** Quy tắc lịch của thợ (lịch trống, chặn lịch, khung xem), tính từ dữ kiện đã đọc; không I/O. */
 export class Calendar {
+  /**
+   * Khung xem lịch trống cho khách: không bắt đầu trong quá khứ; thiếu `to` thì lấy 30 ngày kể từ `from`.
+   *
+   * @param input `from` / `to` khách gửi, đều tuỳ chọn
+   * @param now Thời điểm hiện tại (ms)
+   * @returns `{ from, to }` ISO UTC (giới hạn 93 ngày được kiểm ở `availability`)
+   */
+  static availabilityWindow(
+    input: { from?: string; to?: string },
+    now: number,
+  ) {
+    const from = Math.max(input.from ? Date.parse(input.from) : now, now);
+    return Calendar.window(from, input.to);
+  }
+
+  /**
+   * Khung xem lịch của chính thợ: được xem lại quá khứ; mặc định từ bây giờ 30 ngày; tối đa 93 ngày.
+   *
+   * @param input `from` / `to` thợ gửi, đều tuỳ chọn
+   * @param now Thời điểm hiện tại (ms)
+   * @returns `{ from, to }` ISO UTC; 400 nếu dài quá 93 ngày
+   */
+  static personalWindow(input: { from?: string; to?: string }, now: number) {
+    const range = Calendar.window(
+      input.from ? Date.parse(input.from) : now,
+      input.to,
+    );
+    ensure(
+      Date.parse(range.to) - Date.parse(range.from) <= MAX_WINDOW_DAYS * 864e5,
+      `Maximum window is ${MAX_WINDOW_DAYS} days`,
+    );
+    return range;
+  }
+
+  /**
+   * Khoảng từ `from`, thiếu `to` thì lấy `DEFAULT_WINDOW_DAYS` ngày sau `from`.
+   *
+   * @param from Mốc đầu (ms)
+   * @param to Mốc cuối ISO, tuỳ chọn
+   * @returns `{ from, to }` ISO UTC; 400 nếu `to` không sau `from`
+   */
+  private static window(from: number, to: string | undefined) {
+    return interval(
+      new Date(from).toISOString(),
+      to ?? new Date(from + DEFAULT_WINDOW_DAYS * 864e5).toISOString(),
+    );
+  }
+
   /**
    * Lịch trống của thợ trong một khoảng: các ca làm theo giờ Việt Nam, trừ khoảng chặn và booking đang giữ lịch.
    *
@@ -71,8 +119,8 @@ export class Calendar {
   ) {
     const range = interval(from, to);
     ensure(
-      Date.parse(range.to) - Date.parse(range.from) <= 93 * 864e5,
-      'Maximum availability window is 93 days',
+      Date.parse(range.to) - Date.parse(range.from) <= MAX_WINDOW_DAYS * 864e5,
+      `Maximum window is ${MAX_WINDOW_DAYS} days`,
     );
     const blocks: Range[] = [
       ...blockedTimes,
