@@ -13,7 +13,8 @@ import {
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { RatingUpdaterPort } from './ports/rating-updater.port';
-import { Booking } from './booking.domain';
+import { Booking, type BookingActorRole } from './booking.domain';
+import type { BookingEntity } from '@shared/database/entities/booking.entity';
 
 @Injectable()
 export class BookingUseCases {
@@ -112,6 +113,15 @@ export class BookingUseCases {
     );
   }
 
+  /**
+   * Chuyển trạng thái theo yêu cầu của người dùng: kiểm quyền trên booking rồi áp dụng.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor gửi request
+   * @param input ID booking và lý do (reject / cancel)
+   * @param action Tên hành động trong máy trạng thái
+   * @returns Booking sau khi đổi trạng thái
+   */
   private async transition(
     s: EntityManager,
     a: Actor,
@@ -129,6 +139,44 @@ export class BookingUseCases {
       photographer,
       recipients,
     } = await bookingAccess(s, a, input.id, side);
+    return this.apply(
+      s,
+      b,
+      action,
+      {
+        role: Booking.actorRole(
+          user.id,
+          customer.user_id,
+          photographer.user_id,
+          a.roles,
+        ),
+        userId: user.id,
+      },
+      input.reason ?? null,
+      recipients,
+    );
+  }
+
+  /**
+   * Áp dụng một hành động lên booking đã được kiểm quyền: kiểm luật, lưu trạng thái,
+   * ghi lịch sử, chạy hệ quả khi completed, bắn realtime. Dùng chung cho request và job nền.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param b Booking cần đổi
+   * @param action Tên hành động trong máy trạng thái
+   * @param actor Bên thực hiện; `userId` là `null` khi job nền (`role = 'system'`)
+   * @param reason Lý do (reject / cancel), không có thì `null`
+   * @param recipients User nhận realtime (khách và thợ)
+   * @returns Booking sau khi đổi trạng thái
+   */
+  private async apply(
+    s: EntityManager,
+    b: BookingEntity,
+    action: string,
+    actor: { role: BookingActorRole; userId: string | null },
+    reason: string | null,
+    recipients: string[],
+  ) {
     const paid = (
       await s.findBy(EntitySchemas.transactions, {
         reference_id: b.id,
@@ -150,22 +198,28 @@ export class BookingUseCases {
       booking_id: b.id,
       from_status: b.status,
       to_status: status,
-      actor_role: Booking.actorRole(
-        user.id,
-        customer.user_id,
-        photographer.user_id,
-        a.roles,
-      ),
-      actor_user_id: user.id,
-      reason: input.reason ?? null,
+      actor_role: actor.role,
+      actor_user_id: actor.userId,
+      reason,
     });
-    if (status === 'completed')
-      await this.reviews.recalculate(s, b.photographer_id);
+    if (status === 'completed') await this.afterCompleted(s, b);
     await emit(s, `booking.${status}`, recipients, {
       booking_id: b.id,
       status,
     });
     return row;
+  }
+
+  /**
+   * Các việc phải chạy cùng transaction khi booking vừa completed (admin chốt,
+   * khách xác nhận, job tự hoàn tất đều đi qua đây). Việc không cần cùng transaction
+   * thì nghe event outbox `booking.completed` thay vì thêm vào đây.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param b Booking vừa completed
+   */
+  private async afterCompleted(s: EntityManager, b: BookingEntity) {
+    await this.reviews.recalculate(s, b.photographer_id);
   }
 
   accept(s: EntityManager, a: Actor, i: Inputs.BookingAcceptCommandInput) {
