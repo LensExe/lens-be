@@ -233,16 +233,47 @@ export class BookingUseCases implements PendingBookingsPort {
   /**
    * Áp dụng một hành động lên booking đã được kiểm quyền: kiểm luật, lưu trạng thái,
    * ghi lịch sử, chạy hệ quả khi completed, bắn realtime. Dùng chung cho request và job nền.
+   * Ném 409 nếu booking đã bị người khác đổi trạng thái kể từ lúc đọc.
    *
    * @param s EntityManager của transaction hiện tại
-   * @param b Booking cần đổi
-   * @param action Tên hành động trong máy trạng thái
+   * @param b Booking cần đổi (bản đã đọc)
+   * @param action Hành động trong máy trạng thái
    * @param actor Bên thực hiện; `userId` là `null` khi job nền (`role = 'system'`)
-   * @param reason Lý do (reject / cancel), không có thì `null`
+   * @param reason Lý do (reject / cancel / system), không có thì `null`
    * @param recipients User nhận realtime (khách và thợ)
    * @returns Booking sau khi đổi trạng thái
    */
   private async apply(
+    s: EntityManager,
+    b: BookingEntity,
+    action: BookingAction,
+    actor: HistoryActor,
+    reason: string | null,
+    recipients: string[],
+  ) {
+    const row = await this.tryApply(s, b, action, actor, reason, recipients);
+    ensure(
+      row,
+      'Booking was changed by someone else, reload and try again',
+      'conflict',
+    );
+    return row;
+  }
+
+  /**
+   * Như `apply` nhưng trả `null` thay vì ném lỗi khi booking đã bị đổi trạng thái kể từ lúc đọc.
+   * Dùng cho việc hàng loạt (job, từ chối các pending chồng giờ) để bỏ qua dòng vừa đổi.
+   * Câu UPDATE kèm điều kiện trạng thái cũ nên hai thao tác đồng thời không ghi đè nhau.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param b Booking cần đổi (bản đã đọc)
+   * @param action Hành động trong máy trạng thái
+   * @param actor Bên thực hiện
+   * @param reason Lý do, không có thì `null`
+   * @param recipients User nhận realtime
+   * @returns Booking sau khi đổi, hoặc `null` nếu trạng thái đã khác lúc đọc
+   */
+  private async tryApply(
     s: EntityManager,
     b: BookingEntity,
     action: BookingAction,
@@ -259,14 +290,20 @@ export class BookingUseCases implements PendingBookingsPort {
           : Number(b.total_amount)),
       !!b.gallery_published_at,
     );
-    const row = await updateEntity(s, EntitySchemas.bookings, b.id, { status });
+    const updatedAt = new Date().toISOString();
+    const { affected } = await s.update(
+      EntitySchemas.bookings,
+      { id: b.id, status: b.status },
+      { status, updated_at: updatedAt },
+    );
+    if (affected !== 1) return null;
     await this.recordHistory(s, b.id, b.status, status, actor, reason);
-    if (status === 'completed') await this.afterCompleted(s, b);
+    if (status === BookingStatus.COMPLETED) await this.afterCompleted(s, b);
     await emit(s, `booking.${status}`, recipients, {
       booking_id: b.id,
       status,
     });
-    return row;
+    return { ...b, status, updated_at: updatedAt };
   }
 
   /**
@@ -442,16 +479,20 @@ export class BookingUseCases implements PendingBookingsPort {
       ...this.overlapping(photographerId, range),
       status: BookingStatus.PENDING,
     });
+    let turnedDown = 0;
     for (const b of pending)
-      await this.apply(
-        s,
-        b,
-        'reject',
-        { role: BookingActorRole.SYSTEM, userId: null },
-        reason,
-        await this.recipients(s, b),
-      );
-    return pending.length;
+      if (
+        await this.tryApply(
+          s,
+          b,
+          'reject',
+          { role: BookingActorRole.SYSTEM, userId: null },
+          reason,
+          await this.recipients(s, b),
+        )
+      )
+        turnedDown++;
+    return turnedDown;
   }
 
   /**
@@ -554,20 +595,22 @@ export class BookingUseCases implements PendingBookingsPort {
         ),
       },
       order: { gallery_published_at: 'ASC' },
-      lock: { mode: 'pessimistic_write' },
+      lock: { mode: 'pessimistic_write', onLocked: 'skip_locked' },
     });
     let completed = 0;
     for (const b of due) {
       if ((await this.paidAmount(s, b.id)) < Number(b.total_amount)) continue;
-      await this.apply(
-        s,
-        b,
-        'complete',
-        { role: BookingActorRole.SYSTEM, userId: null },
-        null,
-        await this.recipients(s, b),
-      );
-      completed++;
+      if (
+        await this.tryApply(
+          s,
+          b,
+          'complete',
+          { role: BookingActorRole.SYSTEM, userId: null },
+          null,
+          await this.recipients(s, b),
+        )
+      )
+        completed++;
     }
     return { checked: due.length, completed };
   }
@@ -608,18 +651,22 @@ export class BookingUseCases implements PendingBookingsPort {
           from: LessThanOrEqual(new Date(now).toISOString()),
         },
       ],
-      lock: { mode: 'pessimistic_write' },
+      lock: { mode: 'pessimistic_write', onLocked: 'skip_locked' },
     });
+    let expired = 0;
     for (const b of due)
-      await this.apply(
-        s,
-        b,
-        'expire',
-        { role: BookingActorRole.SYSTEM, userId: null },
-        EXPIRED_REASON,
-        await this.recipients(s, b),
-      );
-    return { expired: due.length };
+      if (
+        await this.tryApply(
+          s,
+          b,
+          'expire',
+          { role: BookingActorRole.SYSTEM, userId: null },
+          EXPIRED_REASON,
+          await this.recipients(s, b),
+        )
+      )
+        expired++;
+    return { expired };
   }
 
   /**
@@ -832,7 +879,8 @@ export class BookingUseCases implements PendingBookingsPort {
   }
 
   /**
-   * Lời mời (đã khoá dòng), booking của nó và hồ sơ thợ đang đăng nhập.
+   * Lời mời, booking của nó và hồ sơ thợ đang đăng nhập; khoá booking rồi mới khoá lời mời
+   * (cùng thứ tự với lúc mời) để trả lời lời mời không đua với huỷ booking hay lời mời khác.
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor (thợ)
@@ -842,12 +890,17 @@ export class BookingUseCases implements PendingBookingsPort {
   private async invitation(s: EntityManager, a: Actor, id: string) {
     role(a, 'photographer');
     const me = await ownPhotographer(s, a);
+    const { booking_id } = await required(s, 'booking_collaborators', id);
+    const booking = await s.findOne(EntitySchemas.bookings, {
+      where: { id: booking_id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    ensure(booking, 'bookings not found', 'missing');
     const invitation = await s.findOne(EntitySchemas.booking_collaborators, {
       where: { id },
       lock: { mode: 'pessimistic_write' },
     });
     ensure(invitation, 'booking_collaborators not found', 'missing');
-    const booking = await required(s, 'bookings', invitation.booking_id);
     return { invitation, booking, me };
   }
 
