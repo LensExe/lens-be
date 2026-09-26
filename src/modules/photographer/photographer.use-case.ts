@@ -7,7 +7,6 @@ import {
   currentUser,
   required,
   photographer,
-  page,
   role,
   emit,
   publicPhotographer,
@@ -147,7 +146,7 @@ export class PhotographerUseCases {
    *   `false`: góc nhìn public (chỉ thợ `verified` và còn active, không thì 404)
    * @returns Hồ sơ thợ kèm rating, hạng (`rank`: mã + tên) và huy hiệu đã đạt (`badges`: mã, tên, ngày đạt); góc nhìn private có thêm `commission_percent`
    */
-  async details(s: EntityManager, id: string, privateView = false) {
+  private async details(s: EntityManager, id: string, privateView = false) {
     const { photographer: p, user: u } = privateView
       ? await this.owner(s, id)
       : await publicPhotographer(s, id);
@@ -406,14 +405,16 @@ export class PhotographerUseCases {
   ) {
     role(a, 'admin');
     await currentUser(s, a);
-    return page(
-      await s.find(EntitySchemas.photographers, {
-        where: input.verification_status
-          ? { verification_status: input.verification_status }
-          : {},
-        order: { created_at: 'ASC' },
-      }),
-      input,
-    );
+    const offset = input.offset ?? 0,
+      limit = input.limit ?? 20;
+    const [items, total] = await s.findAndCount(EntitySchemas.photographers, {
+      where: input.verification_status
+        ? { verification_status: input.verification_status }
+        : {},
+      order: { created_at: 'ASC', id: 'ASC' },
+      skip: offset,
+      take: limit,
+    });
+    return { items, total, offset, limit };
   }
 }
