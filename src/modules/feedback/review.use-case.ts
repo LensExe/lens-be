@@ -1,4 +1,5 @@
-import type { EntityManager } from 'typeorm';
+import { In, type EntityManager } from 'typeorm';
+import type { RatingEntity } from '@shared/database/entities/rating.entity';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import { Review } from './review.domain';
 import type * as Inputs from '@shared/contracts/contracts';
@@ -110,5 +111,44 @@ export class ReviewUseCases implements RatingUpdaterPort {
     await updateEntity(s, EntitySchemas.feedbacks, r.id, { is_visible: false });
     await this.recalculate(s, b.photographer_id);
     return { deleted: true };
+  }
+
+  /**
+   * Rating tổng hợp của nhiều thợ trong một query. Module photographer gọi qua port để hiện điểm
+   * trên hồ sơ và xét huy hiệu, thay vì đọc thẳng bảng `ratings`.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerIds ID hồ sơ các thợ
+   * @returns Map ID thợ → bản ghi rating, `null` nếu thợ chưa có rating
+   */
+  async ratingsOf(s: EntityManager, photographerIds: readonly string[]) {
+    const ratings: Record<string, RatingEntity | null> = Object.fromEntries(
+      photographerIds.map((id) => [id, null]),
+    );
+    if (!photographerIds.length) return ratings;
+    for (const r of await s.findBy(EntitySchemas.ratings, {
+      photographer_id: In([...photographerIds]),
+    }))
+      ratings[r.photographer_id] = r;
+    return ratings;
+  }
+
+  /**
+   * Điểm đúng giờ trung bình của thợ, chỉ tính review đang hiện. Module photographer gọi qua port
+   * để xét huy hiệu đúng giờ.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @returns Điểm trung bình, 0 nếu chưa có review
+   */
+  async averagePunctuality(s: EntityManager, photographerId: string) {
+    const row = await s
+      .createQueryBuilder(EntitySchemas.feedbacks, 'f')
+      .innerJoin(EntitySchemas.bookings, 'b', 'b.id = f.booking_id')
+      .select('AVG(f.punctuality_rating)', 'punctuality')
+      .where('b.photographer_id = :photographerId', { photographerId })
+      .andWhere('f.is_visible = true')
+      .getRawOne<{ punctuality: string | null }>();
+    return Number(row?.punctuality ?? 0);
   }
 }
