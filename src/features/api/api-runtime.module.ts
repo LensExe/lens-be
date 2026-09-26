@@ -26,6 +26,7 @@ import { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.port';
 import { PaidAmountsPort } from '@modules/booking/ports/paid-amounts.port';
 import { PendingBookingsPort } from '@modules/calendar/ports/pending-bookings.port';
 import { CollaborationTimesPort } from '@modules/calendar/ports/collaboration-times.port';
+import { PhotographerBookingsPort } from '@modules/calendar/ports/photographer-bookings.port';
 import { MediaOwnershipPort } from '@modules/photographer/ports/media-ownership.port';
 import { SubscriptionPaymentsPort } from '@modules/subscription/ports/subscription-payments.port';
 import { PhotographerRolePort } from '@modules/photographer/ports/photographer-role.port';
@@ -72,6 +73,7 @@ const applicationServices = [
     { provide: PaidAmountsPort, useExisting: PaymentUseCases },
     { provide: PendingBookingsPort, useExisting: BookingUseCases },
     { provide: CollaborationTimesPort, useExisting: BookingUseCases },
+    { provide: PhotographerBookingsPort, useExisting: BookingUseCases },
     { provide: WorkingHoursPort, useExisting: CalendarUseCases },
     { provide: MediaOwnershipPort, useExisting: MediaUseCases },
     { provide: SubscriptionPaymentsPort, useExisting: PaymentUseCases },

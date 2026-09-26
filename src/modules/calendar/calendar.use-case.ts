@@ -11,6 +11,7 @@ import {
 import { Calendar } from './calendar.domain';
 import { PendingBookingsPort } from './ports/pending-bookings.port';
 import { CollaborationTimesPort } from './ports/collaboration-times.port';
+import { PhotographerBookingsPort } from './ports/photographer-bookings.port';
 import {
   DEFAULT_WORKING_HOURS,
   WorkSchedule,
@@ -29,6 +30,7 @@ export class CalendarUseCases {
   constructor(
     private readonly pendingBookings: PendingBookingsPort,
     private readonly collaborations: CollaborationTimesPort,
+    private readonly bookings: PhotographerBookingsPort,
   ) {}
 
   /**
@@ -59,10 +61,7 @@ export class CalendarUseCases {
           order: { from: 'ASC' as const },
         }),
         [
-          ...(await s.find(EntitySchemas.bookings, {
-            where: overlapWhere(p.id, window),
-            order: { from: 'ASC' as const },
-          })),
+          ...(await this.bookings.bookingsOverlapping(s, p.id, window)),
           ...(await this.collaborations.collaborationTimes(s, p.id, window)),
         ],
       ),
@@ -184,7 +183,7 @@ export class CalendarUseCases {
     };
     return {
       blocked: await s.find(EntitySchemas.offline_slots, query),
-      bookings: await s.find(EntitySchemas.bookings, query),
+      bookings: await this.bookings.bookingsOverlapping(s, p.id, window),
     };
   }
 
@@ -211,10 +210,7 @@ export class CalendarUseCases {
     Calendar.assertCanBlock(
       range,
       [
-        ...(await s.find(EntitySchemas.bookings, {
-          where: overlapWhere(p.id, range),
-          order: { from: 'ASC' as const },
-        })),
+        ...(await this.bookings.bookingsOverlapping(s, p.id, range)),
         ...(await this.collaborations.collaborationTimes(s, p.id, range)),
       ],
       await s.find(EntitySchemas.offline_slots, {
