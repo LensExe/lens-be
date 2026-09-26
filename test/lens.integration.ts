@@ -1279,6 +1279,54 @@ test('remaining payment, completion and review uniqueness', async () => {
     (await ok('GET', `/photographers/${photo}/rating-summary`)).average_rating,
     5,
   );
+  // the photographer is told about the new review
+  assert.ok(
+    await db.manager.existsBy(EntitySchemas.outbox_events, {
+      topic: 'review.created',
+    }),
+  );
+  // only the photographer of the booking replies; replying again edits it
+  assert.equal(
+    (
+      await api('PUT', `/reviews/${review.id}/reply`, 'customer', {
+        reply: 'x',
+      })
+    ).status,
+    403,
+  );
+  await ok('PUT', `/reviews/${review.id}/reply`, 'photographer', {
+    reply: 'Thank you',
+  });
+  const replied = await ok(
+    'PUT',
+    `/reviews/${review.id}/reply`,
+    'photographer',
+    {
+      reply: 'Thank you so much',
+    },
+  );
+  assert.equal(replied.photographer_reply, 'Thank you so much');
+  assert.ok(replied.replied_at);
+  // list and summary come from the photographer's visible reviews, paged
+  const listed = await ok('GET', `/photographers/${photo}/reviews?limit=1`);
+  assert.equal(listed.total, 1);
+  assert.equal(listed.items[0].id, review.id);
+  // an admin can hide and show a review again, the score follows
+  await ok('DELETE', `/reviews/${review.id}`, 'admin');
+  assert.equal(
+    (await ok('GET', `/photographers/${photo}/rating-summary`)).total_feedbacks,
+    0,
+  );
+  assert.equal(
+    (await api('POST', `/admin/reviews/${review.id}/restore`, 'customer'))
+      .status,
+    403,
+  );
+  await ok('POST', `/admin/reviews/${review.id}/restore`, 'admin');
+  assert.equal(
+    (await ok('GET', `/photographers/${photo}/rating-summary`)).average_rating,
+    5,
+  );
 });
 test('outbox marks core realtime events as processed', async () => {
   await app.get(OutboxWorker).tick();
@@ -1539,6 +1587,7 @@ test('photographer badges come from visible reviews and returning customers', as
       await s.save(EntitySchemas.feedbacks, {
         booking_id: b.id,
         customer_id: c.id,
+        photographer_id: photo,
         rating: 5,
         punctuality_rating: 5,
         attitude_rating: 5,

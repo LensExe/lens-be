@@ -16,6 +16,10 @@ export class FeedbackEntity extends BaseEntity {
   @Column('uuid')
   customer_id!: string;
 
+  /** ID hồ sơ thợ được đánh giá (khóa ngoại `photographers.id`), để lọc review theo thợ */
+  @Column('uuid')
+  photographer_id!: string;
+
   /** Điểm đánh giá chất lượng tổng thể (từ 1 đến 5 sao) */
   @Column()
   rating!: number;

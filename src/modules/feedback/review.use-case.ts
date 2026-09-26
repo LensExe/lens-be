@@ -8,8 +8,12 @@ import type { Actor } from '@shared/platform/auth/actor';
 import {
   bookingAccess,
   currentUser,
+  emit,
+  paged,
+  pageWindow,
+  publicPhotographer,
   required,
-  page,
+  role,
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import type { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.port';
@@ -51,39 +55,103 @@ export class ReviewUseCases implements RatingUpdaterPort {
       ...values,
       booking_id: b.id,
       customer_id: b.customer_id,
+      photographer_id: b.photographer_id,
     });
-    await this.recalculate(s, b.photographer_id);
+    await this.refreshReviewStats(s, b.photographer_id);
+    const p = await required(s, 'photographers', b.photographer_id);
+    await emit(s, 'review.created', [p.user_id], {
+      review_id: r.id,
+      booking_id: b.id,
+      rating: r.rating,
+    });
     return r;
   }
 
-  async visible(s: EntityManager, pid: string) {
-    const p = await required(s, 'photographers', pid),
-      u = await required(s, 'users', p.user_id);
-    ensure(u.status === 'active', 'Photographer not found', 'missing');
-    const ids = new Set(
-      (await s.findBy(EntitySchemas.bookings, { photographer_id: pid })).map(
-        (x) => x.id,
-      ),
-    );
-    return (
-      await s.find(EntitySchemas.feedbacks, {
-        where: { is_visible: true },
-        order: { created_at: 'DESC', id: 'ASC' },
-      })
-    ).filter((r) => ids.has(r.booking_id));
-  }
-
+  /**
+   * Review đang hiện của một thợ, mới trước, phân trang bằng SQL. Thợ chưa duyệt / bị khoá thì 404.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param _a Người đang gọi API (không dùng; API public)
+   * @param i ID hồ sơ thợ, `limit`, `offset`
+   * @returns `{ items, total, offset, limit }`
+   */
   async list(s: EntityManager, _a: Actor, i: Inputs.ReviewListQueryInput) {
-    return page(await this.visible(s, i.id), i);
+    const { photographer: p } = await publicPhotographer(s, i.id);
+    const { offset, limit } = pageWindow(i);
+    const [items, total] = await s.findAndCount(EntitySchemas.feedbacks, {
+      where: { photographer_id: p.id, is_visible: true },
+      order: { created_at: 'DESC', id: 'ASC' },
+      skip: offset,
+      take: limit,
+    });
+    return paged(items, total, i);
   }
 
+  /**
+   * Tổng điểm public của thợ: trung bình điểm tổng và phân bố 1–5 của review đang hiện, gom bằng SQL.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param _a Người đang gọi API (không dùng; API public)
+   * @param i ID hồ sơ thợ
+   * @returns `{ average_rating, total_feedbacks, distribution }`; 404 nếu thợ không public
+   */
   async summary(
     s: EntityManager,
     _a: Actor,
     i: Inputs.ReviewSummaryQueryInput,
   ) {
-    const reviews = await this.visible(s, i.id);
-    return Review.summary(reviews.map((r) => r.rating));
+    const { photographer: p } = await publicPhotographer(s, i.id);
+    return Review.summaryFromCounts(await this.ratingCounts(s, p.id));
+  }
+
+  /**
+   * Số review đang hiện của thợ theo từng mức điểm.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @returns Mỗi mức điểm có review và số lượng
+   */
+  private async ratingCounts(s: EntityManager, photographerId: string) {
+    const rows = await s
+      .createQueryBuilder(EntitySchemas.feedbacks, 'f')
+      .select('f.rating', 'rating')
+      .addSelect('COUNT(*)', 'count')
+      .where('f.photographer_id = :photographerId', { photographerId })
+      .andWhere('f.is_visible = true')
+      .groupBy('f.rating')
+      .getRawMany<{ rating: number; count: string }>();
+    return rows.map((row) => ({
+      rating: Number(row.rating),
+      count: Number(row.count),
+    }));
+  }
+
+  /**
+   * Tính lại phần điểm review trong rating của thợ (trung bình, số review đang hiện). Khoá dòng
+   * rating trước khi đếm để hai thay đổi review cùng lúc không ghi đè nhau.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @returns Không trả gì
+   */
+  private async refreshReviewStats(s: EntityManager, photographerId: string) {
+    await this.openRating(s, photographerId);
+    await s.findOne(EntitySchemas.ratings, {
+      where: { photographer_id: photographerId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    const summary = Review.summaryFromCounts(
+      await this.ratingCounts(s, photographerId),
+    );
+    await s.update(
+      EntitySchemas.ratings,
+      { photographer_id: photographerId },
+      {
+        average_rating: summary.average_rating,
+        total_feedbacks: summary.total_feedbacks,
+        updated_at: new Date().toISOString(),
+      },
+    );
   }
 
   async update(s: EntityManager, a: Actor, i: Inputs.ReviewUpdateCommandInput) {
@@ -95,7 +163,7 @@ export class ReviewUseCases implements RatingUpdaterPort {
       ...fields,
       is_edited: true,
     });
-    await this.recalculate(s, b.photographer_id);
+    await this.refreshReviewStats(s, b.photographer_id);
     return result;
   }
 
@@ -109,8 +177,56 @@ export class ReviewUseCases implements RatingUpdaterPort {
         a.roles.includes('admin') ? undefined : 'customer',
       );
     await updateEntity(s, EntitySchemas.feedbacks, r.id, { is_visible: false });
-    await this.recalculate(s, b.photographer_id);
+    await this.refreshReviewStats(s, b.photographer_id);
     return { deleted: true };
+  }
+
+  /**
+   * Thợ của booking trả lời review đang hiện; trả lời lại thì ghi đè và cập nhật `replied_at`.
+   * Báo realtime cho khách.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (thợ của booking)
+   * @param i ID review và nội dung trả lời
+   * @returns Review sau khi trả lời; 403 nếu không phải thợ của booking, 409 nếu review đang ẩn
+   */
+  async reply(s: EntityManager, a: Actor, i: Inputs.ReviewReplyCommandInput) {
+    const r = await required(s, 'feedbacks', i.id),
+      { customer } = await bookingAccess(s, a, r.booking_id, 'photographer');
+    Review.requireVisible(r.is_visible);
+    const row = await updateEntity(s, EntitySchemas.feedbacks, r.id, {
+      photographer_reply: i.reply,
+      replied_at: new Date().toISOString(),
+    });
+    await emit(s, 'review.replied', [customer.user_id], {
+      review_id: r.id,
+      booking_id: r.booking_id,
+    });
+    return row;
+  }
+
+  /**
+   * Admin hiện lại review đã ẩn và tính lại điểm của thợ.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (admin)
+   * @param i ID review
+   * @returns Review sau khi hiện lại; 409 nếu review đang hiện
+   */
+  async restore(
+    s: EntityManager,
+    a: Actor,
+    i: Inputs.ReviewRestoreCommandInput,
+  ) {
+    role(a, 'admin');
+    await currentUser(s, a);
+    const r = await required(s, 'feedbacks', i.id);
+    ensure(!r.is_visible, 'Review is already visible', 'conflict');
+    const row = await updateEntity(s, EntitySchemas.feedbacks, r.id, {
+      is_visible: true,
+    });
+    await this.refreshReviewStats(s, r.photographer_id);
+    return row;
   }
 
   /**

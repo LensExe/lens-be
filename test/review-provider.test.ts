@@ -2,6 +2,7 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import type { EntityManager } from 'typeorm';
 import { ReviewUseCases } from '../src/modules/feedback/review.use-case';
+import { Review } from '../src/modules/feedback/review.domain';
 
 test('ratings for many photographers in one query, null when none yet', async () => {
   let queries = 0;
@@ -50,4 +51,14 @@ test('opening a rating creates the empty row once and leaves an existing one alo
   await run([]);
   await run([{ photographer_id: 'p1' }]);
   assert.deepEqual(saved, [{ photographer_id: 'p1' }]);
+});
+
+test('summary from grouped counts matches the summary of the raw ratings', async () => {
+  assert.deepEqual(
+    Review.summaryFromCounts([
+      { rating: 5, count: 3 },
+      { rating: 4, count: 1 },
+    ]),
+    Review.summary([5, 5, 5, 4]),
+  );
 });

@@ -235,6 +235,8 @@ const schemas: Record<string, SchemaObject> = {
   }),
   'REV-004': records.feedbacks,
   'REV-005': deleted,
+  'REV-006': records.feedbacks,
+  'REV-007': records.feedbacks,
   'SUB-001': obj({
     items: array(
       obj({

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Patch,
   Delete,
   Param,
@@ -35,6 +36,8 @@ import { ReviewCreateCommand } from '@modules/feedback/reviews.command';
 import { ReviewSummaryQuery } from '@modules/feedback/reviews.query';
 import { ReviewListQuery } from '@modules/feedback/reviews.query';
 import { ReviewUpdateCommand } from '@modules/feedback/reviews.command';
+import { ReviewReplyCommand } from '@modules/feedback/reviews.command';
+import { ReviewRestoreCommand } from '@modules/feedback/reviews.command';
 import { ReviewRemoveCommand } from '@modules/feedback/reviews.command';
 
 @ApiTags('Review')
@@ -251,6 +254,90 @@ export class ReviewController {
   ) {
     return this.commands.execute(
       new ReviewRemoveCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+    );
+  }
+  @Put('reviews/:id/reply')
+  @ApiOperation({
+    operationId: 'REV-006',
+    summary: 'Thợ trả lời đánh giá',
+    description:
+      'Thợ của booking trả lời review đang hiện; gửi lại thì ghi đè câu trả lời cũ. Role: Photographer',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiBody({ type: Dto.ReviewReplyCommandBodyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('REV-006'),
+  })
+  reply(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: Dto.ReviewReplyCommandBodyDto,
+  ) {
+    return this.commands.execute(
+      new ReviewReplyCommand(req.actor ?? { sub: '', roles: [] }, {
+        ...body,
+        id,
+      }),
+    );
+  }
+  @Post('admin/reviews/:id/restore')
+  @ApiOperation({
+    operationId: 'REV-007',
+    summary: 'Admin hiện lại đánh giá',
+    description:
+      'Hiện lại review đã bị ẩn và tính lại điểm của thợ. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('REV-007'),
+  })
+  @HttpCode(200)
+  restore(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.commands.execute(
+      new ReviewRestoreCommand(req.actor ?? { sub: '', roles: [] }, { id }),
     );
   }
 }
