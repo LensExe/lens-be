@@ -158,10 +158,10 @@ export class WorkingShiftDto {
   start_time!: string;
 
   @ApiProperty({
-    description: 'end time HH:MM (Vietnam time)',
+    description: 'end time HH:MM (Vietnam time); 24:00 = midnight',
     example: '12:00',
   })
-  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)
+  @Matches(/^(([01]\d|2[0-3]):[0-5]\d|24:00)$/)
   end_time!: string;
 }
 

@@ -66,6 +66,7 @@ Port là hợp đồng cho một khả năng mà **module tiêu thụ** cần. �
 | ---------------------- | -------------------------- | --------------------------- |
 | Booking                | `RatingUpdaterPort`        | `ReviewUseCases` (feedback) |
 | Calendar               | `PendingBookingsPort`      | `BookingUseCases` (booking) |
+| Calendar               | `CollaborationTimesPort`   | `BookingUseCases` (booking) |
 | Photographer/Portfolio | `MediaOwnershipPort`       | `MediaUseCases`             |
 | Subscription           | `SubscriptionPaymentsPort` | `PaymentUseCases`           |
 

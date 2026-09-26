@@ -743,6 +743,12 @@ test('shortening working hours over pending requests asks first, then declines t
     await ok('GET', `/bookings/${request.id}/timeline`, 'customer')
   ).items;
   assert.match(last.reason, /changed working hours/);
+  // a shift may run until midnight
+  const late = await ok('PUT', '/calendar/me/working-hours', 'photographer', {
+    items: [{ weekday: 1, start_time: '20:00', end_time: '24:00' }],
+    decline_pending: true,
+  });
+  assert.equal(late.items[0].end_time, '24:00');
   // back to the default hours for the tests after this one
   await ok('PUT', '/calendar/me/working-hours', 'photographer', { items: [] });
 });
@@ -934,6 +940,25 @@ test('main photographer invites a collaborator who answers once', async () => {
     to: shoot.to,
   });
   assert.equal(clash.status, 409);
+  // ...so it is not offered as free time, and they cannot block over it
+  assert.deepEqual(
+    (
+      await ok(
+        'GET',
+        `/photographers/${other}/availability?from=${encodeURIComponent(shoot.from)}&to=${encodeURIComponent(shoot.to)}`,
+      )
+    ).items,
+    [],
+  );
+  assert.equal(
+    (
+      await api('POST', '/calendar/blocked-times', 'applicant', {
+        from: shoot.from,
+        to: shoot.to,
+      })
+    ).status,
+    409,
+  );
   // once accepted, the collaborator also follows the booking history
   assert.ok(
     (await ok('GET', `/bookings/${booking}/timeline`, 'applicant')).items

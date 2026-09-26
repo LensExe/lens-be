@@ -78,3 +78,27 @@ test('a weekly schedule rejects bad times and overlapping shifts', () => {
   ])
     assert.throws(() => WorkSchedule.assertValid(bad), invalid);
 });
+
+test('a shift may end at 24:00 (midnight) but cannot start there', () => {
+  WorkSchedule.assertValid([
+    { weekday: 2, start_time: '20:00', end_time: '24:00' },
+  ]);
+  assert.throws(
+    () =>
+      WorkSchedule.assertValid([
+        { weekday: 2, start_time: '24:00', end_time: '24:00' },
+      ]),
+    /HH:MM/,
+  );
+  // 2030-01-01 is a Tuesday: 22:00-24:00 Vietnam time fits the late shift
+  assert.equal(
+    WorkSchedule.fits(
+      {
+        from: '2030-01-01T22:00:00+07:00',
+        to: '2030-01-02T00:00:00+07:00',
+      },
+      [{ weekday: 2, start_time: '20:00', end_time: '24:00' }],
+    ),
+    true,
+  );
+});
