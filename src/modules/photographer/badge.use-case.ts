@@ -25,7 +25,7 @@ export class BadgeUseCases {
 
   /**
    * Admin sửa một huy hiệu: tên, mô tả, ngưỡng, số review tối thiểu, bật/tắt.
-   * Tắt huy hiệu chỉ ngừng cấp mới; huy hiệu đã cấp vẫn giữ (D13).
+   * Tắt huy hiệu chỉ ngừng cấp mới; huy hiệu đã cấp vẫn giữ.
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Người đang gọi API (admin)

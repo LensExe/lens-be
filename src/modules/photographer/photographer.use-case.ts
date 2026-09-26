@@ -25,7 +25,7 @@ export class PhotographerUseCases {
   constructor(private readonly roles: PhotographerRolePort) {}
 
   /**
-   * Customer gửi (hoặc gửi lại sau khi bị từ chối) hồ sơ làm thợ; hồ sơ vào trạng thái `pending` chờ admin duyệt (D9).
+   * Customer gửi (hoặc gửi lại sau khi bị từ chối) hồ sơ làm thợ; hồ sơ vào trạng thái `pending` chờ admin duyệt.
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Người đang gọi API (customer)
@@ -238,7 +238,7 @@ export class PhotographerUseCases {
   }
 
   /**
-   * Số liệu để xét huy hiệu (D11): thống kê rating và điểm đúng giờ trung bình của review đang hiện.
+   * Số liệu để xét huy hiệu: thống kê rating và điểm đúng giờ trung bình của review đang hiện.
    *
    * @param s EntityManager của transaction hiện tại
    * @param photographerId ID hồ sơ thợ
@@ -264,7 +264,7 @@ export class PhotographerUseCases {
   }
 
   /**
-   * Xét và cấp huy hiệu mới cho một thợ (D13). Huy hiệu đã đạt giữ vĩnh viễn, không bao giờ bị gỡ.
+   * Xét và cấp huy hiệu mới cho một thợ. Huy hiệu đã đạt giữ vĩnh viễn, không bao giờ bị gỡ.
    * Mỗi huy hiệu mới: ghi `earned_at` và báo realtime `photographer.badge_earned` cho thợ.
    *
    * @param s EntityManager của transaction hiện tại

@@ -33,7 +33,7 @@ const METRICS: Record<BadgeMetric, (stats: BadgeStats) => number> = {
   return_customers: (stats) => stats.returnCustomers,
 };
 
-/** Quy tắc cấp huy hiệu cho thợ (D11); ngưỡng lấy từ danh mục `badges`. */
+/** Quy tắc cấp huy hiệu cho thợ; ngưỡng lấy từ danh mục `badges`. */
 export class Badge {
   /**
    * Xét các huy hiệu thợ đạt được: huy hiệu đang bật, đủ số review tối thiểu và chỉ số ≥ ngưỡng.

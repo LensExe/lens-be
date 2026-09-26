@@ -5,7 +5,7 @@ import {
   type BadgeRule,
 } from '../src/modules/photographer/badge.domain';
 
-/** Danh mục mặc định giống seed của migration 006 (D11). */
+/** Danh mục mặc định giống seed của migration 006. */
 const definitions: BadgeRule[] = [
   {
     code: 'top-rated',
@@ -44,21 +44,21 @@ test('no badges for a new photographer', () => {
   assert.deepEqual(earned(base), []);
 });
 
-test('top-rated needs average >= 4.8 over at least 10 visible reviews (D11)', () => {
+test('top-rated needs average >= 4.8 over at least 10 visible reviews', () => {
   const rated = { ...base, averageRating: 4.8, visibleReviews: 10 };
   assert.deepEqual(earned(rated), ['top-rated']);
   assert.deepEqual(earned({ ...rated, averageRating: 4.79 }), []);
   assert.deepEqual(earned({ ...rated, visibleReviews: 9 }), []);
 });
 
-test('punctual needs punctuality average >= 4.8 over at least 10 visible reviews (D11)', () => {
+test('punctual needs punctuality average >= 4.8 over at least 10 visible reviews', () => {
   const punctual = { ...base, averagePunctuality: 4.8, visibleReviews: 10 };
   assert.deepEqual(earned(punctual), ['punctual']);
   assert.deepEqual(earned({ ...punctual, averagePunctuality: 4.7 }), []);
   assert.deepEqual(earned({ ...punctual, visibleReviews: 9 }), []);
 });
 
-test('loyal needs at least 5 returning customers (D11)', () => {
+test('loyal needs at least 5 returning customers', () => {
   assert.deepEqual(earned({ ...base, returnCustomers: 5 }), ['loyal']);
   assert.deepEqual(earned({ ...base, returnCustomers: 4 }), []);
 });

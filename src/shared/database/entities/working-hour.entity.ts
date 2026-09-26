@@ -3,7 +3,7 @@ import { BaseEntity } from './base.entity';
 
 /**
  * Entity đại diện cho bảng `working_hours`.
- * Một ca làm trong tuần của thợ (D12); giờ `HH:MM` theo giờ Việt Nam.
+ * Một ca làm trong tuần của thợ; giờ `HH:MM` theo giờ Việt Nam.
  */
 @Entity('working_hours')
 export class WorkingHourEntity extends BaseEntity {

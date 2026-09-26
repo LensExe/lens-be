@@ -53,7 +53,7 @@ function clip(range: Range, from: string, to: string): Range | null {
 /** Calendar rules calculated from persisted facts; no I/O or framework code. */
 export class Calendar {
   /**
-   * Lịch trống của thợ trong một khoảng: các ca làm theo giờ Việt Nam (D12, D14), trừ khoảng chặn và booking đang giữ lịch.
+   * Lịch trống của thợ trong một khoảng: các ca làm theo giờ Việt Nam, trừ khoảng chặn và booking đang giữ lịch.
    *
    * @param from Đầu khoảng cần xem (ISO)
    * @param to Cuối khoảng cần xem (ISO), tối đa 93 ngày sau `from`

@@ -12,7 +12,7 @@ export interface RankRule {
   commission_percent: number;
 }
 
-/** Quy tắc xếp hạng thợ và mức commission tương ứng (D3, D4); con số lấy từ danh mục `ranks`. */
+/** Quy tắc xếp hạng thợ và mức commission tương ứng; con số lấy từ danh mục `ranks`. */
 export class Rank {
   /**
    * Tìm hạng của thợ: hạng có mốc cao nhất mà số buổi hoàn tất đạt tới.

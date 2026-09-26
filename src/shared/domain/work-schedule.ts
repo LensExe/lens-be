@@ -13,7 +13,7 @@ export interface WorkingShift {
   end_time: string;
 }
 
-/** Giờ làm mặc định khi thợ chưa khai (D14): 08:00–20:00 mọi ngày. */
+/** Giờ làm mặc định khi thợ chưa khai: 08:00–20:00 mọi ngày. */
 export const DEFAULT_WORKING_HOURS: readonly WorkingShift[] = [
   1, 2, 3, 4, 5, 6, 7,
 ].map((weekday) => ({ weekday, start_time: '08:00', end_time: '20:00' }));
@@ -64,7 +64,7 @@ function vnTime(date: string, time: string) {
   return new Date(Date.parse(`${date}T${time}:00+07:00`)).toISOString();
 }
 
-/** Quy tắc giờ làm việc của thợ (D12, D14, D15). Dùng chung cho calendar và booking. */
+/** Quy tắc giờ làm việc của thợ. Dùng chung cho calendar và booking. */
 export class WorkSchedule {
   /**
    * Các ca làm của một ngày theo lịch tuần của thợ.
@@ -86,7 +86,7 @@ export class WorkSchedule {
   }
 
   /**
-   * Khoảng thời gian có nằm trọn trong một ca làm của ngày đó không (D15).
+   * Khoảng thời gian có nằm trọn trong một ca làm của ngày đó không.
    *
    * @param range Khoảng `{ from, to }` ISO (ví dụ giờ của booking)
    * @param schedule Lịch tuần thợ đã khai (có thể rỗng)
