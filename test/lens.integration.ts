@@ -634,11 +634,35 @@ test('cancel reason is kept in the booking history', async () => {
   assert.equal(items[1].actor_role, 'customer');
   assert.equal(items[1].reason, 'Changed plans');
 });
+test('blocking time turns down pending requests for that time', async () => {
+  const day = new Date(Date.now() + 6 * 864e5).toISOString().slice(0, 10);
+  const vn = (hour: string) =>
+    new Date(`${day}T${hour}:00+07:00`).toISOString();
+  const request = await ok('POST', '/bookings', 'customer', {
+    photographer_id: photo,
+    plan_id: plan,
+    location: 'Studio',
+    from: vn('09:00'),
+    to: vn('10:00'),
+  });
+  const slot = await ok('POST', '/calendar/blocked-times', 'photographer', {
+    from: vn('08:00'),
+    to: vn('12:00'),
+  });
+  const after = await ok('GET', `/bookings/${request.id}`, 'customer');
+  assert.equal(after.status, 'rejected');
+  const [, last] = (
+    await ok('GET', `/bookings/${request.id}/timeline`, 'customer')
+  ).items;
+  assert.equal(last.actor_role, 'system');
+  assert.match(last.reason, /blocked this time/);
+  await ok('DELETE', `/calendar/blocked-times/${slot.id}`, 'photographer');
+});
 test('booking lists are filtered and paged in the database', async () => {
   const all = await ok('GET', '/bookings', 'customer');
-  assert.equal(all.total, 2);
+  assert.equal(all.total, 3);
   const page1 = await ok('GET', '/bookings?limit=1&offset=1', 'customer');
-  assert.equal(page1.total, 2);
+  assert.equal(page1.total, 3);
   assert.deepEqual(
     page1.items.map((b: { id: string }) => b.id),
     [all.items[1].id],

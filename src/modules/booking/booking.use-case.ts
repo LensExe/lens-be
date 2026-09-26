@@ -21,6 +21,7 @@ import {
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { RatingUpdaterPort } from './ports/rating-updater.port';
+import type { PendingBookingsPort } from '@modules/calendar/ports/pending-bookings.port';
 import {
   Booking,
   BookingActorRole,
@@ -56,7 +57,7 @@ const ACTION_SIDE: Partial<Record<BookingAction, 'customer' | 'photographer'>> =
   };
 
 @Injectable()
-export class BookingUseCases {
+export class BookingUseCases implements PendingBookingsPort {
   constructor(private readonly reviews: RatingUpdaterPort) {}
 
   /**
@@ -417,16 +418,40 @@ export class BookingUseCases {
       null,
       access.recipients,
     );
-    for (const rival of others.filter((o) => o.status === 'pending'))
+    await this.turnDownOverlapping(s, b.photographer_id, b, TURNED_DOWN_REASON);
+    return row;
+  }
+
+  /**
+   * Từ chối mọi booking `pending` của thợ chồng lên khoảng giờ (system làm, kèm lý do).
+   * Dùng khi thợ nhận một booking và khi thợ chặn lịch (qua `PendingBookingsPort` của calendar).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @param range Khoảng giờ vừa bị giữ
+   * @param reason Lý do ghi vào lịch sử
+   * @returns Số yêu cầu đã từ chối
+   */
+  async turnDownOverlapping(
+    s: EntityManager,
+    photographerId: string,
+    range: { from: string; to: string },
+    reason: string,
+  ) {
+    const pending = await s.findBy(EntitySchemas.bookings, {
+      ...this.overlapping(photographerId, range),
+      status: BookingStatus.PENDING,
+    });
+    for (const b of pending)
       await this.apply(
         s,
-        rival,
+        b,
         'reject',
         { role: BookingActorRole.SYSTEM, userId: null },
-        TURNED_DOWN_REASON,
-        await this.recipients(s, rival),
+        reason,
+        await this.recipients(s, b),
       );
-    return row;
+    return pending.length;
   }
 
   /**

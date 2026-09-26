@@ -9,15 +9,21 @@ import {
   required,
 } from '@shared/common/access';
 import { Calendar } from './calendar.domain';
+import { PendingBookingsPort } from './ports/pending-bookings.port';
 import {
   DEFAULT_WORKING_HOURS,
   WorkSchedule,
 } from '@shared/domain/work-schedule';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 
+/** Lý do ghi cho yêu cầu pending bị từ chối vì thợ chặn đúng giờ đó. */
+const BLOCKED_REASON = 'Photographer blocked this time';
+
 /** Application use cases for photographer calendar operations. */
 @Injectable()
 export class CalendarUseCases {
+  constructor(private readonly pendingBookings: PendingBookingsPort) {}
+
   /**
    * Khách xem lịch trống của thợ (public): ca làm theo giờ Việt Nam trừ khoảng chặn và booking.
    * Chỉ thợ đã duyệt, tài khoản active; thợ tắt nhận lịch (`is_available = false`) thì rỗng.
@@ -148,11 +154,18 @@ export class CalendarUseCases {
       await s.find(EntitySchemas.offline_slots, this.overlapping(p.id, range)),
       Date.now(),
     );
-    return s.save(EntitySchemas.offline_slots, {
+    const slot = await s.save(EntitySchemas.offline_slots, {
       photographer_id: p.id,
       ...range,
       reason: input.reason ?? null,
     });
+    await this.pendingBookings.turnDownOverlapping(
+      s,
+      p.id,
+      range,
+      BLOCKED_REASON,
+    );
+    return slot;
   }
 
   async unblock(

@@ -375,6 +375,7 @@ Ví dụ hiện có:
 | Context tiêu thụ       | Port                       | Context cung cấp |
 | ---------------------- | -------------------------- | ---------------- |
 | Booking                | `RatingUpdaterPort`        | Feedback/Review  |
+| Calendar               | `PendingBookingsPort`      | Booking          |
 | Photographer/Portfolio | `MediaOwnershipPort`       | Media            |
 | Subscription           | `SubscriptionPaymentsPort` | Payment          |
 
