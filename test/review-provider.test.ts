@@ -53,13 +53,17 @@ test('opening a rating creates the empty row once and leaves an existing one alo
   assert.deepEqual(saved, [{ photographer_id: 'p1' }]);
 });
 
-test('summary from grouped counts matches the summary of the raw ratings', async () => {
+test('summary from grouped counts gives average, total and distribution', async () => {
   assert.deepEqual(
     Review.summaryFromCounts([
       { rating: 5, count: 3 },
       { rating: 4, count: 1 },
     ]),
-    Review.summary([5, 5, 5, 4]),
+    {
+      average_rating: 4.75,
+      total_feedbacks: 4,
+      distribution: { 1: 0, 2: 0, 3: 0, 4: 1, 5: 3 },
+    },
   );
 });
 

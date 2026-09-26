@@ -18,8 +18,18 @@ import {
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import type { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.port';
 
+/** Nghiệp vụ review: viết, sửa, ẩn / hiện lại, thợ trả lời, điểm tổng của thợ. */
 @Injectable()
 export class ReviewUseCases implements RatingUpdaterPort {
+  /**
+   * Khách của booking viết review sau khi booking hoàn tất (mỗi booking một review); tính lại điểm
+   * review của thợ và báo thợ.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (khách của booking)
+   * @param i ID booking, điểm tổng / đúng giờ / thái độ, bình luận
+   * @returns Review vừa tạo; 409 nếu booking chưa hoàn tất hoặc đã có review
+   */
   async create(s: EntityManager, a: Actor, i: Inputs.ReviewCreateCommandInput) {
     const { id, ...values } = i,
       { booking: b } = await bookingAccess(s, a, id, 'customer');
@@ -127,6 +137,14 @@ export class ReviewUseCases implements RatingUpdaterPort {
     );
   }
 
+  /**
+   * Người viết sửa review trong 7 ngày, đánh dấu đã sửa và tính lại điểm review của thợ.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (khách đã viết)
+   * @param i ID review và các trường cần đổi
+   * @returns Review sau khi sửa; 409 nếu đã quá 7 ngày
+   */
   async update(s: EntityManager, a: Actor, i: Inputs.ReviewUpdateCommandInput) {
     const { id, ...fields } = i,
       r = await required(s, 'feedbacks', id),
@@ -140,6 +158,14 @@ export class ReviewUseCases implements RatingUpdaterPort {
     return result;
   }
 
+  /**
+   * Người viết hoặc admin ẩn review (xoá mềm); review ẩn không tính vào điểm.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (khách đã viết hoặc admin)
+   * @param i ID review
+   * @returns `{ deleted: true }`
+   */
   async remove(s: EntityManager, a: Actor, i: Inputs.ReviewRemoveCommandInput) {
     await currentUser(s, a);
     const r = await required(s, 'feedbacks', i.id),
