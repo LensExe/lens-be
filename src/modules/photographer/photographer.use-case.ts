@@ -13,7 +13,10 @@ import {
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { VerificationStatus } from '@shared/database/entities/photographer.entity';
-import { PhotographerApplication } from './photographer.domain';
+import {
+  PhotographerApplication,
+  PhotographerProfile,
+} from './photographer.domain';
 import { Rank } from './rank.domain';
 import { Badge } from './badge.domain';
 import { PhotographerRolePort } from './ports/photographer-role.port';
@@ -78,7 +81,8 @@ export class PhotographerUseCases {
     input: Inputs.PhotographerApproveCommandInput,
   ) {
     const admin = await this.adminProfile(s, a),
-      p = await required(s, 'photographers', input.id);
+      p = await this.lockedApplication(s, input.id);
+    PhotographerApplication.assertNotOwnApplication(p.user_id, admin.user_id);
     PhotographerApplication.assertReviewable(p.verification_status);
     await updateEntity(s, EntitySchemas.photographers, p.id, {
       verification_status: VerificationStatus.VERIFIED,
@@ -106,8 +110,9 @@ export class PhotographerUseCases {
     a: Actor,
     input: Inputs.PhotographerRejectCommandInput,
   ) {
-    await this.adminProfile(s, a);
-    const p = await required(s, 'photographers', input.id);
+    const admin = await this.adminProfile(s, a),
+      p = await this.lockedApplication(s, input.id);
+    PhotographerApplication.assertNotOwnApplication(p.user_id, admin.user_id);
     PhotographerApplication.assertReviewable(p.verification_status);
     await updateEntity(s, EntitySchemas.photographers, p.id, {
       verification_status: VerificationStatus.REJECTED,
@@ -129,6 +134,22 @@ export class PhotographerUseCases {
    * @param a Người đang gọi API
    * @returns Bản ghi admin; 403 nếu không có role admin hoặc chưa có hồ sơ admin
    */
+  /**
+   * Hồ sơ thợ cần duyệt, khoá dòng để hai admin không cùng duyệt / từ chối một hồ sơ.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param id ID hồ sơ thợ
+   * @returns Hồ sơ thợ; 404 nếu không có
+   */
+  private async lockedApplication(s: EntityManager, id: string) {
+    const p = await s.findOne(EntitySchemas.photographers, {
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    ensure(p, 'photographers not found', 'missing');
+    return p;
+  }
+
   private async adminProfile(s: EntityManager, a: Actor) {
     role(a, 'admin');
     const u = await currentUser(s, a);
@@ -211,6 +232,11 @@ export class PhotographerUseCases {
     input: Inputs.PhotographerUpdateCommandInput,
   ) {
     const p = await photographer(s, a);
+    PhotographerProfile.assertTaxCodeEditable(
+      p.verification_status,
+      p.tax_code,
+      input.tax_code,
+    );
     if (Object.keys(input).length)
       await updateEntity(s, EntitySchemas.photographers, p.id, input);
     return this.details(s, p.id, true);

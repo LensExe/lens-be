@@ -30,11 +30,54 @@ export class PhotographerApplication {
    * @param current Trạng thái hồ sơ hiện tại
    * @returns Không trả gì; ném `conflict` (409) nếu hồ sơ không ở `pending`
    */
+  /**
+   * Admin không tự duyệt / từ chối hồ sơ thợ của chính mình.
+   *
+   * @param applicantUserId User đã gửi hồ sơ
+   * @param reviewerUserId User admin đang duyệt
+   * @returns Không trả gì; 403 nếu là cùng một người
+   */
+  static assertNotOwnApplication(
+    applicantUserId: string,
+    reviewerUserId: string,
+  ) {
+    ensure(
+      applicantUserId !== reviewerUserId,
+      'Cannot review your own application',
+      'forbidden',
+    );
+  }
+
   static assertReviewable(current: VerificationStatus) {
     ensure(
       current === VerificationStatus.PENDING,
       `Cannot review photographer application in ${current}`,
       'conflict',
+    );
+  }
+}
+
+/** Quy tắc sửa hồ sơ thợ sau khi đã gửi. */
+export class PhotographerProfile {
+  /**
+   * Mã số thuế khoá sau khi hồ sơ được duyệt (liên quan thuế và tiền trả cho thợ); đổi phải qua admin.
+   * Mô tả, phong cách, khu vực vẫn sửa tự do.
+   *
+   * @param status Trạng thái duyệt hiện tại
+   * @param current Mã số thuế đang lưu
+   * @param next Mã số thuế gửi lên; `undefined` nếu không đổi
+   * @returns Không trả gì; 400 nếu hồ sơ đã duyệt mà mã số thuế khác
+   */
+  static assertTaxCodeEditable(
+    status: VerificationStatus,
+    current: string | null,
+    next: string | undefined,
+  ) {
+    ensure(
+      status !== VerificationStatus.VERIFIED ||
+        next === undefined ||
+        next === current,
+      'Tax code cannot be changed after approval; contact support',
     );
   }
 }

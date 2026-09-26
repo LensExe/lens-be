@@ -20,9 +20,13 @@ export class PortfolioUseCases {
     private readonly storage: ObjectStorage,
   ) {}
 
-  async own(s: EntityManager, a: Actor, id: string) {
+  private async own(s: EntityManager, a: Actor, id: string) {
     const p = await photographer(s, a),
-      album = await required(s, 'portfolios', id);
+      album = await s.findOne(EntitySchemas.portfolios, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+    ensure(album, 'portfolios not found', 'missing');
     ensure(
       album.photographer_id === p.id,
       'Portfolio access denied',
