@@ -31,6 +31,17 @@ export class BookingPlan {
   }
 
   /**
+   * Gói có nằm vừa ca làm dài nhất của thợ không (không vừa thì không bao giờ đặt được).
+   *
+   * @param durationMinutes Thời lượng gói (phút)
+   * @param longestShiftMinutes Ca làm dài nhất của thợ (phút)
+   * @returns `true` nếu vừa
+   */
+  static fitsShift(durationMinutes: number, longestShiftMinutes: number) {
+    return durationMinutes <= longestShiftMinutes;
+  }
+
+  /**
    * Gói không được dài hơn ca làm dài nhất của thợ: booking phải nằm trọn một ca, nên gói dài hơn
    * mọi ca thì không bao giờ đặt được.
    *
@@ -40,7 +51,7 @@ export class BookingPlan {
    */
   static assertFitsShift(durationMinutes: number, longestShiftMinutes: number) {
     ensure(
-      durationMinutes <= longestShiftMinutes,
+      BookingPlan.fitsShift(durationMinutes, longestShiftMinutes),
       'Plan is longer than your longest working shift; extend your working hours first',
     );
   }

@@ -7,6 +7,8 @@ import {
   PhotographerProfile,
 } from '../src/modules/photographer/photographer.domain';
 import { PortfolioUseCases } from '../src/modules/photographer/portfolio.use-case';
+import { BookingPlanUseCases } from '../src/modules/photographer/booking-plan.use-case';
+import type { WorkingHoursPort } from '../src/modules/photographer/ports/working-hours.port';
 import type { MediaOwnershipPort } from '../src/modules/photographer/ports/media-ownership.port';
 import type { ObjectStorage } from '../src/shared/integrations/s3/storage.port';
 
@@ -60,4 +62,30 @@ test('changing portfolio items locks the portfolio row first', async () => {
     { id: 'album', media_id: 'm1' },
   );
   assert.deepEqual(locks[0], { mode: 'pessimistic_write' });
+});
+
+test("the photographer's own plan list flags plans that no longer fit the working hours", async () => {
+  const s = {
+    findBy: async () => [
+      { id: 'p1', user_id: 'u1', keycloak_id: 'kc', status: 'active' },
+    ],
+    find: async () => [
+      { id: 'short', duration_minutes: 60 },
+      { id: 'wedding', duration_minutes: 13 * 60 },
+    ],
+  } as unknown as EntityManager;
+  const useCases = new BookingPlanUseCases({
+    longestShiftMinutes: async () => 12 * 60,
+  } as WorkingHoursPort);
+  const { items } = await useCases.me(s, {
+    sub: 'kc',
+    roles: ['photographer'],
+  });
+  assert.deepEqual(
+    items.map((plan) => [plan.id, plan.fits_working_hours]),
+    [
+      ['short', true],
+      ['wedding', false],
+    ],
+  );
 });
