@@ -716,6 +716,11 @@ test('main photographer invites a collaborator who answers once', async () => {
       [first.id, 'revoked'],
     ],
   );
+  // an invitation alone does not open the booking details
+  assert.equal(
+    (await api('GET', `/bookings/${booking}`, 'applicant')).status,
+    403,
+  );
   // only the invited photographer answers
   assert.equal(
     (
@@ -736,6 +741,11 @@ test('main photographer invites a collaborator who answers once', async () => {
       )
     ).status,
     'accepted',
+  );
+  // once accepted, the collaborator sees where and when to shoot
+  assert.equal(
+    (await ok('GET', `/bookings/${booking}`, 'applicant')).id,
+    booking,
   );
   for (const [path, who] of [
     ['decline', 'applicant'],

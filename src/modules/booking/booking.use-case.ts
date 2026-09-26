@@ -27,7 +27,11 @@ import {
   type BookingAction,
   type BookingStatus,
 } from './booking.domain';
-import { Collaboration, type CollaborationAction } from './collaborator.domain';
+import {
+  BookingCollaboratorStatus,
+  Collaboration,
+  type CollaborationAction,
+} from './collaborator.domain';
 import type {
   BookingCollaboratorEntity,
   BookingEntity,
@@ -132,7 +136,7 @@ export class BookingUseCases {
   }
 
   /**
-   * Chi tiết một booking; chỉ khách, thợ chính, admin hoặc system xem được.
+   * Chi tiết một booking; khách, thợ chính, thợ liên kết đã nhận lời, admin hoặc system xem được.
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor
@@ -140,6 +144,18 @@ export class BookingUseCases {
    * @returns Booking; 403 nếu không liên quan, 404 nếu không có
    */
   async get(s: EntityManager, a: Actor, input: Inputs.BookingGetQueryInput) {
+    const user = await currentUser(s, a),
+      [mine] = await s.findBy(EntitySchemas.photographers, {
+        user_id: user.id,
+      });
+    const collaborator =
+      !!mine &&
+      (await s.existsBy(EntitySchemas.booking_collaborators, {
+        booking_id: input.id,
+        photographer_id: mine.id,
+        status: BookingCollaboratorStatus.ACCEPTED,
+      }));
+    if (collaborator) return required(s, 'bookings', input.id);
     return (await bookingAccess(s, a, input.id)).booking;
   }
 
