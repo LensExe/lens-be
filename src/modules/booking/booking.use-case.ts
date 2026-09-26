@@ -484,7 +484,7 @@ export class BookingUseCases implements PendingBookingsPort {
 
   /**
    * Từ chối mọi booking `pending` của thợ chồng lên khoảng giờ (system làm, kèm lý do).
-   * Dùng khi thợ nhận một booking và khi thợ chặn lịch (qua `PendingBookingsPort` của calendar).
+   * Dùng khi thợ nhận một booking.
    *
    * @param s EntityManager của transaction hiện tại
    * @param photographerId ID hồ sơ thợ
@@ -492,7 +492,7 @@ export class BookingUseCases implements PendingBookingsPort {
    * @param reason Lý do ghi vào lịch sử
    * @returns Số yêu cầu đã từ chối
    */
-  async turnDownOverlapping(
+  private async turnDownOverlapping(
     s: EntityManager,
     photographerId: string,
     range: { from: string; to: string },
@@ -1007,14 +1007,15 @@ export class BookingUseCases implements PendingBookingsPort {
 
   /**
    * Các buổi thợ đi chụp liên kết (lời mời đã nhận, booking còn giữ lịch) chồng lên khoảng giờ.
-   * Những buổi này chiếm lịch của thợ liên kết như booking của chính họ.
+   * Những buổi này chiếm lịch của thợ liên kết như booking của chính họ. Calendar gọi qua
+   * `CollaborationTimesPort` để trừ khỏi lịch trống và chặn lịch.
    *
    * @param s EntityManager của transaction hiện tại
    * @param photographerId ID hồ sơ thợ
    * @param range Khoảng giờ cần xét
    * @returns Các khoảng `{ from, to, status }` của booking mà thợ tham gia
    */
-  private async collaborationTimes(
+  async collaborationTimes(
     s: EntityManager,
     photographerId: string,
     range: { from: string; to: string },
