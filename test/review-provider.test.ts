@@ -33,3 +33,21 @@ test('average punctuality counts only visible reviews of the photographer', asyn
   assert.equal(await new ReviewUseCases().averagePunctuality(s, 'p1'), 4.5);
   assert.ok(where.some((w) => w.includes('is_visible')));
 });
+
+test('opening a rating creates the empty row once and leaves an existing one alone', async () => {
+  const saved: object[] = [];
+  const run = (existing: object[]) =>
+    new ReviewUseCases().openRating(
+      {
+        findBy: async () => existing,
+        save: async (_e: unknown, row: object) => {
+          saved.push(row);
+          return row;
+        },
+      } as unknown as EntityManager,
+      'p1',
+    );
+  await run([]);
+  await run([{ photographer_id: 'p1' }]);
+  assert.deepEqual(saved, [{ photographer_id: 'p1' }]);
+});
