@@ -4,7 +4,7 @@ import { timestampTransformer } from './utils/column-transformers';
 
 /**
  * Entity đại diện cho bảng `photographer_badges`.
- * Huy hiệu thợ đã đạt; giữ vĩnh viễn, mỗi thợ mỗi mã huy hiệu một dòng (D13).
+ * Huy hiệu thợ đã đạt; giữ vĩnh viễn, mỗi thợ mỗi mã huy hiệu một dòng.
  */
 @Entity('photographer_badges')
 export class PhotographerBadgeEntity extends BaseEntity {

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { Rank } from '../src/modules/photographer/rank.domain';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';
 
-/** Danh mục mặc định giống seed của migration 006 (D3, D4). */
+/** Danh mục mặc định giống seed của migration 006. */
 const tiers = [
   {
     code: 'newbie',
@@ -25,7 +25,7 @@ const tiers = [
 const invalid = (error: unknown) =>
   error instanceof DomainError && error.code === 'invalid';
 
-test('rank and commission follow completed booking thresholds (D3, D4)', () => {
+test('rank and commission follow completed booking thresholds', () => {
   const cases: [number, string, number][] = [
     [0, 'newbie', 10],
     [9, 'newbie', 10],

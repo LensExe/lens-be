@@ -26,7 +26,7 @@ test('weekday is ISO style in Vietnam time: Monday = 1 ... Sunday = 7', () => {
   assert.equal(vnWeekday('2026-10-04'), 7); // Sunday
 });
 
-test('without declared hours every day is 08:00-20:00 (D14)', () => {
+test('without declared hours every day is 08:00-20:00', () => {
   assert.deepEqual(WorkSchedule.shifts('2026-10-04', []), [
     { from: '2026-10-04T01:00:00.000Z', to: '2026-10-04T13:00:00.000Z' },
   ]);
@@ -45,7 +45,7 @@ test('declared hours replace the default; undeclared weekdays are days off', () 
   assert.deepEqual(WorkSchedule.shifts('2026-09-29', schedule), []);
 });
 
-test('a booking must fit inside one shift (D15)', () => {
+test('a booking must fit inside one shift', () => {
   const schedule = [{ weekday: 1, start_time: '08:00', end_time: '12:00' }];
   const at = (from: string, to: string) => ({
     from: `2026-09-28T${from}:00+07:00`,

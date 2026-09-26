@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 import { PhotographerAwardBadgesCommand } from '@modules/photographer/photographers.command';
 import { runExclusive, SYSTEM_ACTOR } from './scheduled-job';
 
-/** Job xét huy hiệu thợ mỗi ngày lúc 00:00 giờ Việt Nam (D13). */
+/** Job xét huy hiệu thợ mỗi ngày lúc 00:00 giờ Việt Nam. */
 @Injectable()
 export class PhotographerBadgeJob {
   constructor(

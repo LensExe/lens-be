@@ -1,10 +1,12 @@
 import { ensure } from '@shared/domain/domain.error';
 import { interval, money, overlaps } from '@shared/domain/booking-values';
+import { WorkSchedule, type WorkingShift } from '@shared/domain/work-schedule';
 import {
   BookingStatus,
   OCCUPIED_BOOKING_STATUSES,
 } from '@shared/database/entities/booking.entity';
-export { BookingStatus, OCCUPIED_BOOKING_STATUSES };
+import { BookingActorRole } from '@shared/database/entities/booking-status-history.entity';
+export { BookingStatus, OCCUPIED_BOOKING_STATUSES, BookingActorRole };
 
 export interface BookingDraftInput {
   customerId: string;
@@ -12,23 +14,50 @@ export interface BookingDraftInput {
   photographerId: string;
   photographerUserId: string;
   photographerStatus: string;
+  /** Thợ đã được admin duyệt (`verification_status = 'verified'`) */
+  photographerVerified: boolean;
   photographerAvailable: boolean;
   planId: string;
   planPhotographerId: string;
   planActive: boolean;
   planPrice: number;
+  /** Thời lượng gói; khoảng `from`–`to` phải dài đúng bằng số phút này */
+  planDurationMinutes: number;
   location: string;
   from: string;
   to: string;
+  /** Lịch tuần thợ đã khai (rỗng ⇒ giờ mặc định 08:00–20:00) */
+  schedule: readonly WorkingShift[];
   blockedTimes: readonly { from: string; to: string }[];
   bookings: readonly { from: string; to: string; status: string }[];
   now: number;
 }
 
+/** Số ngày sau khi publish gallery thì system tự hoàn tất booking nếu khách chưa xác nhận. */
+export const AUTO_COMPLETE_AFTER_DAYS = 7;
+
+/** Hành động trên máy trạng thái booking. */
+export type BookingAction =
+  | 'accept'
+  | 'reject'
+  | 'cancel'
+  | 'start'
+  | 'completeShoot'
+  | 'complete'
+  | 'confirmReceipt';
+
 export class Booking {
+  /** @param status Trạng thái hiện tại của booking */
   constructor(public status: BookingStatus) {}
 
+  /**
+   * Kiểm luật tạo booking và tính tiền: cọc = làm tròn lên 30% tổng giá gói.
+   *
+   * @param input Dữ kiện khách, thợ, gói, lịch và các booking/khoảng chặn chồng giờ
+   * @returns Dữ liệu booking `pending` để lưu; ném 400/404/409 khi sai luật
+   */
   static prepare(input: BookingDraftInput) {
+    ensure(input.photographerVerified, 'Photographer not found', 'missing');
     ensure(
       input.photographerStatus === 'active' &&
         input.photographerAvailable &&
@@ -43,6 +72,16 @@ export class Booking {
     );
     const range = interval(input.from, input.to);
     ensure(Date.parse(range.from) > input.now, 'Booking must start in future');
+    ensure(
+      Date.parse(range.to) - Date.parse(range.from) ===
+        input.planDurationMinutes * 60_000,
+      'Booking length must match plan duration',
+    );
+    ensure(
+      WorkSchedule.fits(range, input.schedule),
+      'Booking must be within working hours',
+      'conflict',
+    );
     ensure(
       !input.blockedTimes.some((blocked) => overlaps(range, blocked)),
       'Photographer is unavailable at this time',
@@ -71,24 +110,72 @@ export class Booking {
     };
   }
 
-  transition(action: string, paid: boolean, delivered: boolean): BookingStatus {
-    const transitions: Record<string, [BookingStatus[], BookingStatus]> = {
-      accept: [['pending'], 'accepted'],
-      reject: [['pending'], 'rejected'],
-      cancel: [['pending', 'accepted'], 'cancelled'],
-      start: [['accepted'], 'in_progress'],
-      completeShoot: [['in_progress'], 'shot'],
-      complete: [['shot'], 'completed'],
-    };
+  /**
+   * Bên đang thao tác trên booking, để ghi vào lịch sử trạng thái.
+   * Ưu tiên vai trò trong booking (khách / thợ của booking), sau đó mới tới role hệ thống.
+   *
+   * @param userId User đang thao tác
+   * @param customerUserId User của khách trong booking
+   * @param photographerUserId User của thợ trong booking
+   * @param roles Role của actor (từ token)
+   * @returns 'customer' | 'photographer' | 'admin' | 'system'
+   */
+  static actorRole(
+    userId: string,
+    customerUserId: string,
+    photographerUserId: string,
+    roles: readonly string[],
+  ): BookingActorRole {
+    if (userId === customerUserId) return BookingActorRole.CUSTOMER;
+    if (userId === photographerUserId) return BookingActorRole.PHOTOGRAPHER;
+    return roles.includes('admin')
+      ? BookingActorRole.ADMIN
+      : BookingActorRole.SYSTEM;
+  }
+
+  /**
+   * Mốc tự hoàn tất: booking publish gallery từ mốc này trở về trước là tới hạn.
+   * Trạng thái `shot` và điều kiện trả đủ vẫn do `transition('complete')` kiểm.
+   *
+   * @param now Thời điểm hiện tại (ms)
+   * @returns Thời điểm ISO UTC = `now` trừ `AUTO_COMPLETE_AFTER_DAYS` ngày
+   */
+  static autoCompleteCutoff(now: number) {
+    return new Date(now - AUTO_COMPLETE_AFTER_DAYS * 864e5).toISOString();
+  }
+
+  /**
+   * Chuyển trạng thái theo hành động; kiểm đã trả cọc (start) và đã trả đủ + đã giao ảnh (hoàn tất).
+   *
+   * @param action Hành động
+   * @param paid Đã trả đủ số tiền hành động này cần
+   * @param delivered Gallery đã publish
+   * @returns Trạng thái mới; 409 nếu hành động không hợp lệ ở trạng thái hiện tại
+   */
+  transition(
+    action: BookingAction,
+    paid: boolean,
+    delivered: boolean,
+  ): BookingStatus {
+    const transitions: Record<BookingAction, [BookingStatus[], BookingStatus]> =
+      {
+        accept: [['pending'], 'accepted'],
+        reject: [['pending'], 'rejected'],
+        cancel: [['pending', 'accepted'], 'cancelled'],
+        start: [['accepted'], 'in_progress'],
+        completeShoot: [['in_progress'], 'shot'],
+        complete: [['shot'], 'completed'],
+        confirmReceipt: [['shot'], 'completed'],
+      };
     const rule = transitions[action];
     ensure(
-      rule && rule[0].includes(this.status),
+      rule[0].includes(this.status),
       `Cannot ${action} booking in ${this.status}`,
       'conflict',
     );
     if (action === 'start')
       ensure(paid, 'Deposit must be paid before starting', 'conflict');
-    if (action === 'complete')
+    if (action === 'complete' || action === 'confirmReceipt')
       ensure(
         paid && delivered,
         'Full payment and published gallery required',

@@ -22,6 +22,7 @@ import { KeycloakService } from '../src/shared/integrations/keycloak/keycloak.se
 import { setupApi } from '../src/features/api/setup';
 import { OutboxWorker } from '../src/features/workers/outbox.worker';
 import { PhotographerBadgeJob } from '../src/features/workers/photographer-badge.job';
+import { BookingAutoCompleteJob } from '../src/features/workers/booking-auto-complete.job';
 import { Booking } from '../src/modules/booking/booking.domain';
 import { CommandBus } from '@nestjs/cqrs';
 import { IdentityCustomerRegisterCommand } from '../src/modules/identity/identity.command';
@@ -540,9 +541,18 @@ test('calendar blocking and concurrent booking conflict', async () => {
     photographer_id: photo,
     plan_id: plan,
     location: 'Studio',
-    from: new Date(Date.now() + 36e5).toISOString(),
-    to: new Date(Date.now() + 2 * 36e5).toISOString(),
+    from: at(33),
+    to: at(34),
   };
+  // the plan lasts 60 minutes and the default shift ends at 20:00 Vietnam time
+  for (const [body, status] of [
+    [{ ...input, to: at(35) }, 400],
+    [{ ...input, from: at(44), to: at(45) }, 409],
+  ] as const)
+    assert.equal(
+      (await api('POST', '/bookings', 'customer', body)).status,
+      status,
+    );
   const attempts = await Promise.all([
     api('POST', '/bookings', 'customer', input),
     api('POST', '/bookings', 'stranger', input),
@@ -571,6 +581,175 @@ test('booking ownership and lifecycle checks', async () => {
   assert.equal(
     (await api('POST', `/bookings/${booking}/start`, 'photographer')).status,
     409,
+  );
+  // every transition leaves one history row with who did it
+  const timeline = await ok('GET', `/bookings/${booking}/timeline`, 'customer');
+  assert.deepEqual(
+    timeline.items.map(
+      (x: {
+        from_status: string | null;
+        to_status: string;
+        actor_role: string;
+      }) => [x.from_status, x.to_status, x.actor_role],
+    ),
+    [
+      [null, 'pending', 'customer'],
+      ['pending', 'accepted', 'photographer'],
+    ],
+  );
+});
+test('cancel reason is kept in the booking history', async () => {
+  const day = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
+  const draft = await ok('POST', '/bookings', 'customer', {
+    photographer_id: photo,
+    plan_id: plan,
+    location: 'Studio',
+    from: new Date(`${day}T09:00:00+07:00`).toISOString(),
+    to: new Date(`${day}T10:00:00+07:00`).toISOString(),
+  });
+  await ok('POST', `/bookings/${draft.id}/cancel`, 'customer', {
+    reason: 'Changed plans',
+  });
+  const { items } = await ok(
+    'GET',
+    `/bookings/${draft.id}/timeline`,
+    'photographer',
+  );
+  assert.equal(items.length, 2);
+  assert.equal(items[1].to_status, 'cancelled');
+  assert.equal(items[1].actor_role, 'customer');
+  assert.equal(items[1].reason, 'Changed plans');
+});
+test('booking lists are filtered and paged in the database', async () => {
+  const all = await ok('GET', '/bookings', 'customer');
+  assert.equal(all.total, 2);
+  const page1 = await ok('GET', '/bookings?limit=1&offset=1', 'customer');
+  assert.equal(page1.total, 2);
+  assert.deepEqual(
+    page1.items.map((b: { id: string }) => b.id),
+    [all.items[1].id],
+  );
+  const accepted = await ok('GET', '/bookings?status=accepted', 'photographer');
+  assert.deepEqual(
+    accepted.items.map((b: { id: string }) => b.id),
+    [booking],
+  );
+  const later = new Date(Date.now() + 30 * 864e5).toISOString();
+  assert.equal(
+    (await ok('GET', `/bookings?from=${encodeURIComponent(later)}`, 'customer'))
+      .total,
+    0,
+  );
+  assert.equal((await ok('GET', '/bookings', 'stranger')).total, 0);
+  const admin = await ok(
+    'GET',
+    '/admin/bookings?status=cancelled&limit=5',
+    'admin',
+  );
+  assert.equal(admin.total, 1);
+  assert.equal(admin.limit, 5);
+});
+test('main photographer invites a collaborator who answers once', async () => {
+  // approval gives the applicant the photographer role on the next token
+  actors.applicant.roles = ['customer', 'photographer'];
+  const other = (await ok('GET', '/photographers/me', 'applicant')).id;
+  const invite = (body: object, who = 'photographer') =>
+    api('POST', `/bookings/${booking}/collaborators`, who, body);
+  assert.equal(
+    (await invite({ photographer_id: photo, share_percent: 10 })).status,
+    400,
+  );
+  assert.equal(
+    (await invite({ photographer_id: other, share_percent: 10 }, 'customer'))
+      .status,
+    403,
+  );
+  // only a verified, active photographer can be invited
+  assert.equal(
+    (
+      await invite({
+        photographer_id: '11111111-1111-4111-8111-111111111111',
+        share_percent: 10,
+      })
+    ).status,
+    404,
+  );
+  const first = (await invite({ photographer_id: other, share_percent: 60 }))
+    .body;
+  assert.equal(first.status, 'invited');
+  assert.equal(
+    (await invite({ photographer_id: other, share_percent: 5 })).status,
+    409,
+  );
+  // a pending invitation can be revoked and sent again with another share
+  assert.equal(
+    (
+      await ok(
+        'POST',
+        `/booking-collaborators/${first.id}/revoke`,
+        'photographer',
+      )
+    ).status,
+    'revoked',
+  );
+  const second = (await invite({ photographer_id: other, share_percent: 50 }))
+    .body;
+  assert.equal(second.share_percent, 50);
+  const mine = await ok('GET', '/booking-collaborators/me', 'applicant');
+  assert.deepEqual(
+    mine.items.map((c: { id: string; status: string }) => [c.id, c.status]),
+    [
+      [second.id, 'invited'],
+      [first.id, 'revoked'],
+    ],
+  );
+  // only the invited photographer answers
+  assert.equal(
+    (
+      await api(
+        'POST',
+        `/booking-collaborators/${second.id}/accept`,
+        'photographer',
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await ok(
+        'POST',
+        `/booking-collaborators/${second.id}/accept`,
+        'applicant',
+      )
+    ).status,
+    'accepted',
+  );
+  for (const [path, who] of [
+    ['decline', 'applicant'],
+    ['revoke', 'photographer'],
+  ])
+    assert.equal(
+      (await api('POST', `/booking-collaborators/${second.id}/${path}`, who))
+        .status,
+      409,
+    );
+  // customer, main and invited photographer see the list; others do not
+  for (const who of ['customer', 'photographer', 'applicant'])
+    assert.deepEqual(
+      (await ok('GET', `/bookings/${booking}/collaborators`, who)).items.map(
+        (c: { status: string; share_percent: number }) => [
+          c.status,
+          c.share_percent,
+        ],
+      ),
+      [
+        ['revoked', 60],
+        ['accepted', 50],
+      ],
+    );
+  assert.equal(
+    (await api('GET', `/bookings/${booking}/collaborators`, 'stranger')).status,
+    403,
   );
 });
 test('booking plan with bookings can only be deactivated', async () => {
@@ -741,9 +920,22 @@ test('remaining payment, completion and review uniqueness', async () => {
       reference: 'provider-2',
     },
   });
+  // only the customer of the booking confirms receiving the photos
+  for (const who of ['photographer', 'stranger'])
+    assert.equal(
+      (await api('POST', `/bookings/${booking}/confirm-receipt`, who)).status,
+      403,
+    );
   assert.equal(
-    (await ok('POST', `/bookings/${booking}/complete`, 'admin')).status,
+    (await ok('POST', `/bookings/${booking}/confirm-receipt`, 'customer'))
+      .status,
     'completed',
+  );
+  const history = await ok('GET', `/bookings/${booking}/timeline`, 'customer');
+  assert.equal(history.items.at(-1).actor_role, 'customer');
+  assert.equal(
+    (await api('POST', `/bookings/${booking}/complete`, 'admin')).status,
+    409,
   );
   const body = {
     rating: 5,
@@ -1058,7 +1250,7 @@ test('photographer badges come from visible reviews and returning customers', as
     topic: 'photographer.badge_earned',
   });
   assert.equal(events.length, 3);
-  // D13: once earned, badges stay even when the stats drop
+  // once earned, badges stay even when the stats drop
   await db.transaction(async (s) => {
     const [rating] = await s.findBy(EntitySchemas.ratings, {
       photographer_id: photo,
@@ -1137,6 +1329,72 @@ test(
     }
   },
 );
+test('job completes shot bookings 7 days after the gallery is published, once', async () => {
+  const base = await db.manager.findOneByOrFail(EntitySchemas.bookings, {
+    id: booking,
+  });
+  const days = (n: number) => new Date(Date.now() - n * 864e5).toISOString();
+  // [published days ago, fully paid] -> only the first one is due
+  const cases = [
+    [8, true],
+    [8, false],
+    [6, true],
+  ] as const;
+  const ids: string[] = [];
+  for (const [i, [age, paid]] of cases.entries()) {
+    const row = await db.manager.save(EntitySchemas.bookings, {
+      customer_id: base.customer_id,
+      photographer_id: base.photographer_id,
+      booking_plan_id: base.booking_plan_id,
+      location: 'Studio',
+      from: days(30 + i),
+      to: new Date(Date.parse(days(30 + i)) + 36e5).toISOString(),
+      deposit_amount: 300000,
+      total_amount: 1000000,
+      status: 'shot',
+      gallery_published_at: days(age),
+    });
+    ids.push(row.id);
+    const customer = await db.manager.findOneByOrFail(EntitySchemas.customers, {
+      id: base.customer_id,
+    });
+    for (const [type, amount] of [
+      ['deposit', 300000],
+      ['remaining', 700000],
+    ] as const)
+      if (paid || type === 'deposit')
+        await db.manager.save(EntitySchemas.transactions, {
+          user_id: customer.user_id,
+          transaction_code: `AUTO-${row.id}-${type}`,
+          type,
+          reference_id: row.id,
+          amount,
+          status: 'paid',
+          idempotency_key: `auto-${row.id}-${type}`,
+        });
+  }
+  const job = app.get(BookingAutoCompleteJob);
+  for (let run = 0; run < 2; run++) {
+    assert.equal(await job.run(), true);
+    const rows = await Promise.all(
+      ids.map((id) =>
+        db.manager.findOneByOrFail(EntitySchemas.bookings, { id }),
+      ),
+    );
+    assert.deepEqual(
+      rows.map((b) => b.status),
+      ['completed', 'shot', 'shot'],
+    );
+    const history = await db.manager.findBy(
+      EntitySchemas.booking_status_history,
+      { booking_id: ids[0] },
+    );
+    // the second run changes nothing
+    assert.equal(history.length, 1);
+    assert.equal(history[0].actor_role, 'system');
+    assert.equal(history[0].actor_user_id, null);
+  }
+});
 test('domain rejects unsupported booking transitions', () => {
   assert.throws(
     () => new Booking('pending').transition('complete', true, true),

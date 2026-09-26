@@ -168,3 +168,24 @@ export class BookingRejectCommandBodyDto {
   @MaxLength(10000)
   reason!: string;
 }
+
+export class BookingCollaboratorInviteCommandBodyDto {
+  @ApiProperty({
+    description: 'ID hồ sơ thợ được mời',
+    format: 'uuid',
+    example: '11111111-1111-4111-8111-111111111111',
+  })
+  @IsUUID()
+  photographer_id!: string;
+
+  @ApiProperty({
+    description: '% phần thợ nhận chia cho thợ này (số nguyên 1–100)',
+    minimum: 1,
+    maximum: 100,
+    example: 30,
+  })
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  share_percent!: number;
+}
