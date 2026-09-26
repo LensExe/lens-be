@@ -98,3 +98,22 @@ export class ReviewRestoreCommandHandler implements ICommandHandler<ReviewRestor
     );
   }
 }
+
+export class ReviewHideCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.ReviewHideCommandInput,
+  ) {}
+}
+@CommandHandler(ReviewHideCommand)
+export class ReviewHideCommandHandler implements ICommandHandler<ReviewHideCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: ReviewUseCases,
+  ) {}
+  execute(message: ReviewHideCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.hide(s, message.actor, message.input),
+    );
+  }
+}

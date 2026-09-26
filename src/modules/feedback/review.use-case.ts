@@ -1,5 +1,6 @@
 import { In, type EntityManager } from 'typeorm';
 import type { RatingEntity } from '@shared/database/entities/rating.entity';
+import { ReviewStatus } from '@shared/database/entities/feedback.entity';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import { Review } from './review.domain';
 import type * as Inputs from '@shared/contracts/contracts';
@@ -32,7 +33,12 @@ export class ReviewUseCases implements RatingUpdaterPort {
    */
   async create(s: EntityManager, a: Actor, i: Inputs.ReviewCreateCommandInput) {
     const { id, ...values } = i,
-      { booking: b } = await bookingAccess(s, a, id, 'customer');
+      { booking: b, photographer: p } = await bookingAccess(
+        s,
+        a,
+        id,
+        'customer',
+      );
     Review.requireCompletedBooking(b.status);
     const r = await s.save(EntitySchemas.feedbacks, {
       ...values,
@@ -41,7 +47,6 @@ export class ReviewUseCases implements RatingUpdaterPort {
       photographer_id: b.photographer_id,
     });
     await this.refreshReviewStats(s, b.photographer_id);
-    const p = await required(s, 'photographers', b.photographer_id);
     await emit(s, 'review.created', [p.user_id], {
       review_id: r.id,
       booking_id: b.id,
@@ -62,7 +67,7 @@ export class ReviewUseCases implements RatingUpdaterPort {
     const { photographer: p } = await publicPhotographer(s, i.id);
     const { offset, limit } = pageWindow(i);
     const [items, total] = await s.findAndCount(EntitySchemas.feedbacks, {
-      where: { photographer_id: p.id, is_visible: true },
+      where: { photographer_id: p.id, status: ReviewStatus.VISIBLE },
       order: { created_at: 'DESC', id: 'ASC' },
       skip: offset,
       take: limit,
@@ -100,7 +105,7 @@ export class ReviewUseCases implements RatingUpdaterPort {
       .select('f.rating', 'rating')
       .addSelect('COUNT(*)', 'count')
       .where('f.photographer_id = :photographerId', { photographerId })
-      .andWhere('f.is_visible = true')
+      .andWhere('f.status = :visible', { visible: ReviewStatus.VISIBLE })
       .groupBy('f.rating')
       .getRawMany<{ rating: number; count: string }>();
     return rows.map((row) => ({
@@ -138,45 +143,44 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Người viết sửa review trong 7 ngày, đánh dấu đã sửa và tính lại điểm review của thợ.
+   * Người viết sửa review đang hiện trong 7 ngày, đánh dấu đã sửa và tính lại điểm review của thợ.
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor (khách đã viết)
    * @param i ID review và các trường cần đổi
-   * @returns Review sau khi sửa; 409 nếu đã quá 7 ngày
+   * @returns Review sau khi sửa; 400 nếu không có trường nào, 409 nếu review không còn hiện hoặc đã
+   * quá 7 ngày
    */
   async update(s: EntityManager, a: Actor, i: Inputs.ReviewUpdateCommandInput) {
     const { id, ...fields } = i,
-      r = await required(s, 'feedbacks', id),
-      { booking: b } = await bookingAccess(s, a, r.booking_id, 'customer');
+      r = await this.lockedReview(s, id);
+    await bookingAccess(s, a, r.booking_id, 'customer');
+    Review.requireVisible(r.status);
     Review.requireEditWindow(r.created_at);
+    Review.requireChanges(fields);
     const result = await updateEntity(s, EntitySchemas.feedbacks, id, {
       ...fields,
       is_edited: true,
     });
-    await this.refreshReviewStats(s, b.photographer_id);
+    await this.refreshReviewStats(s, r.photographer_id);
     return result;
   }
 
   /**
-   * Người viết hoặc admin ẩn review (xoá mềm); review ẩn không tính vào điểm.
+   * Người viết tự xoá review (xoá mềm); review đã xoá không tính vào điểm và không hiện lại được.
    *
    * @param s EntityManager của transaction hiện tại
-   * @param a Actor (khách đã viết hoặc admin)
+   * @param a Actor (khách đã viết)
    * @param i ID review
-   * @returns `{ deleted: true }`
+   * @returns `{ deleted: true }`; 409 nếu review đã xoá
    */
   async remove(s: EntityManager, a: Actor, i: Inputs.ReviewRemoveCommandInput) {
-    await currentUser(s, a);
-    const r = await required(s, 'feedbacks', i.id),
-      { booking: b } = await bookingAccess(
-        s,
-        a,
-        r.booking_id,
-        a.roles.includes('admin') ? undefined : 'customer',
-      );
-    await updateEntity(s, EntitySchemas.feedbacks, r.id, { is_visible: false });
-    await this.refreshReviewStats(s, b.photographer_id);
+    const r = await this.lockedReview(s, i.id);
+    await bookingAccess(s, a, r.booking_id, 'customer');
+    await updateEntity(s, EntitySchemas.feedbacks, r.id, {
+      status: Review.nextStatus('delete', r.status),
+    });
+    await this.refreshReviewStats(s, r.photographer_id);
     return { deleted: true };
   }
 
@@ -187,12 +191,12 @@ export class ReviewUseCases implements RatingUpdaterPort {
    * @param s EntityManager của transaction hiện tại
    * @param a Actor (thợ của booking)
    * @param i ID review và nội dung trả lời
-   * @returns Review sau khi trả lời; 403 nếu không phải thợ của booking, 409 nếu review đang ẩn
+   * @returns Review sau khi trả lời; 403 nếu không phải thợ của booking, 409 nếu review không còn hiện
    */
   async reply(s: EntityManager, a: Actor, i: Inputs.ReviewReplyCommandInput) {
-    const r = await required(s, 'feedbacks', i.id),
+    const r = await this.lockedReview(s, i.id),
       { customer } = await bookingAccess(s, a, r.booking_id, 'photographer');
-    Review.requireVisible(r.is_visible);
+    Review.requireVisible(r.status);
     const row = await updateEntity(s, EntitySchemas.feedbacks, r.id, {
       photographer_reply: i.reply,
       replied_at: new Date().toISOString(),
@@ -205,12 +209,39 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Admin hiện lại review đã ẩn và tính lại điểm của thợ.
+   * Admin ẩn review đang hiện kèm lý do, tính lại điểm của thợ và báo khách đã viết.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (admin)
+   * @param i ID review và lý do ẩn
+   * @returns Review sau khi ẩn; 409 nếu review không đang hiện
+   */
+  async hide(s: EntityManager, a: Actor, i: Inputs.ReviewHideCommandInput) {
+    role(a, 'admin');
+    await currentUser(s, a);
+    const r = await this.lockedReview(s, i.id);
+    const row = await updateEntity(s, EntitySchemas.feedbacks, r.id, {
+      status: Review.nextStatus('hide', r.status),
+      hidden_reason: i.reason,
+    });
+    await this.refreshReviewStats(s, r.photographer_id);
+    const c = await required(s, 'customers', r.customer_id);
+    await emit(s, 'review.hidden', [c.user_id], {
+      review_id: r.id,
+      booking_id: r.booking_id,
+      reason: i.reason,
+    });
+    return row;
+  }
+
+  /**
+   * Admin hiện lại review do admin ẩn (xoá lý do ẩn) và tính lại điểm của thợ. Review khách tự xoá
+   * không hiện lại được.
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor (admin)
    * @param i ID review
-   * @returns Review sau khi hiện lại; 409 nếu review đang hiện
+   * @returns Review sau khi hiện lại; 409 nếu review không do admin ẩn
    */
   async restore(
     s: EntityManager,
@@ -219,13 +250,30 @@ export class ReviewUseCases implements RatingUpdaterPort {
   ) {
     role(a, 'admin');
     await currentUser(s, a);
-    const r = await required(s, 'feedbacks', i.id);
-    ensure(!r.is_visible, 'Review is already visible', 'conflict');
+    const r = await this.lockedReview(s, i.id);
     const row = await updateEntity(s, EntitySchemas.feedbacks, r.id, {
-      is_visible: true,
+      status: Review.nextStatus('restore', r.status),
+      hidden_reason: null,
     });
     await this.refreshReviewStats(s, r.photographer_id);
     return row;
+  }
+
+  /**
+   * Đọc review và khoá dòng đến hết transaction, để hai lệnh đổi cùng một review (sửa và xoá, trả lời
+   * và ẩn...) chạy lần lượt và lệnh sau thấy trạng thái lệnh trước đã ghi.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param id ID review
+   * @returns Review đã khoá; 404 nếu không có
+   */
+  private async lockedReview(s: EntityManager, id: string) {
+    const r = await s.findOne(EntitySchemas.feedbacks, {
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    ensure(r, 'feedbacks not found', 'missing');
+    return r;
   }
 
   /**
@@ -261,7 +309,7 @@ export class ReviewUseCases implements RatingUpdaterPort {
       .createQueryBuilder(EntitySchemas.feedbacks, 'f')
       .select('AVG(f.punctuality_rating)', 'punctuality')
       .where('f.photographer_id = :photographerId', { photographerId })
-      .andWhere('f.is_visible = true')
+      .andWhere('f.status = :visible', { visible: ReviewStatus.VISIBLE })
       .getRawOne<{ punctuality: string | null }>();
     return Number(row?.punctuality ?? 0);
   }

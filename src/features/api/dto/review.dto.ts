@@ -127,3 +127,11 @@ export class ReviewReplyCommandBodyDto {
   @MaxLength(10000)
   reply!: string;
 }
+
+export class ReviewHideCommandBodyDto {
+  @ApiProperty({ description: 'reason the admin hides the review' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  reason!: string;
+}

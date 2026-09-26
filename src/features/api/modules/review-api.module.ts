@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ReviewController } from '../http/feedback.controller';
 import {
   ReviewCreateCommandHandler,
+  ReviewHideCommandHandler,
   ReviewRemoveCommandHandler,
   ReviewReplyCommandHandler,
   ReviewRestoreCommandHandler,
@@ -16,6 +17,7 @@ import {
   controllers: [ReviewController],
   providers: [
     ReviewCreateCommandHandler,
+    ReviewHideCommandHandler,
     ReviewRemoveCommandHandler,
     ReviewReplyCommandHandler,
     ReviewRestoreCommandHandler,

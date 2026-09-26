@@ -3,7 +3,7 @@ import { BaseEntity } from './base.entity';
 import { bigintColumn } from './utils/column-transformers';
 
 /**
- * Entity đại diện cho bảng `ratings`.
+ * Entity đại diện cho bảng `photographer_ratings`.
  * Tổng hợp các chỉ số đánh giá, uy tín và năng suất làm việc của Nhiếp ảnh gia.
  */
 @Entity('photographer_ratings')

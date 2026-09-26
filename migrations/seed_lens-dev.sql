@@ -306,9 +306,9 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================================
 -- 18. BẢNG FEEDBACKS (Đánh giá thực tế từ Khách hàng & Phản hồi của Thợ ảnh)
 -- ============================================================================
-INSERT INTO feedbacks (id, booking_id, customer_id, photographer_id, rating, punctuality_rating, attitude_rating, comment, is_edited, is_visible, photographer_reply, replied_at, created_at, updated_at)
+INSERT INTO feedbacks (id, booking_id, customer_id, photographer_id, rating, punctuality_rating, attitude_rating, comment, is_edited, status, photographer_reply, replied_at, created_at, updated_at)
 VALUES
-  ('15000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 5, 5, 5, 'Anh Huy chụp siêu có tâm, nhiệt tình chỉ cách tạo dáng cho hai đứa từ đầu đến cuối. Nước màu ảnh rất trong trẻo, giao ảnh đúng hẹn!', false, true, 'Cảm ơn Mai Anh và bạn đã tin tưởng dịch vụ của Huy nhé. Chúc hai bạn luôn ngập tràn niềm vui!', '2026-07-18 08:30:00+07', '2026-07-17 20:00:00+07', '2026-07-18 08:30:00+07')
+  ('15000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 5, 5, 5, 'Anh Huy chụp siêu có tâm, nhiệt tình chỉ cách tạo dáng cho hai đứa từ đầu đến cuối. Nước màu ảnh rất trong trẻo, giao ảnh đúng hẹn!', false, 'visible', 'Cảm ơn Mai Anh và bạn đã tin tưởng dịch vụ của Huy nhé. Chúc hai bạn luôn ngập tràn niềm vui!', '2026-07-18 08:30:00+07', '2026-07-17 20:00:00+07', '2026-07-18 08:30:00+07')
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================

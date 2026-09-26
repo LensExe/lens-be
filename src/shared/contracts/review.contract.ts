@@ -36,3 +36,8 @@ export interface ReviewReplyCommandInput {
 export interface ReviewRestoreCommandInput {
   id: string;
 }
+
+export interface ReviewHideCommandInput {
+  id: string;
+  reason: string;
+}

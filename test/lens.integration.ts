@@ -1322,21 +1322,85 @@ test('remaining payment, completion and review uniqueness', async () => {
   const listed = await ok('GET', `/photographers/${photo}/reviews?limit=1`);
   assert.equal(listed.total, 1);
   assert.equal(listed.items[0].id, review.id);
-  // an admin can hide and show a review again, the score follows
-  await ok('DELETE', `/reviews/${review.id}`, 'admin');
+  // an empty edit is rejected instead of marking the review as edited
+  assert.equal(
+    (await api('PATCH', `/reviews/${review.id}`, 'customer', {})).status,
+    400,
+  );
+  // only an admin hides a review, with a reason; the score follows
+  assert.equal(
+    (
+      await api('POST', `/admin/reviews/${review.id}/hide`, 'customer', {
+        reason: 'x',
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (await api('POST', `/admin/reviews/${review.id}/hide`, 'admin', {})).status,
+    400,
+  );
+  const hidden = await ok('POST', `/admin/reviews/${review.id}/hide`, 'admin', {
+    reason: 'Spam',
+  });
+  assert.equal(hidden.status, 'hidden_by_admin');
+  assert.equal(hidden.hidden_reason, 'Spam');
   assert.equal(
     (await ok('GET', `/photographers/${photo}/rating-summary`)).total_feedbacks,
     0,
   );
+  assert.ok(
+    await db.manager.existsBy(EntitySchemas.outbox_events, {
+      topic: 'review.hidden',
+    }),
+  );
+  // a hidden review cannot be edited, replied to or hidden again
+  for (const [method, path, who, payload] of [
+    ['PATCH', `/reviews/${review.id}`, 'customer', { rating: 1 }],
+    ['PUT', `/reviews/${review.id}/reply`, 'photographer', { reply: 'x' }],
+    ['POST', `/admin/reviews/${review.id}/hide`, 'admin', { reason: 'x' }],
+  ] as const)
+    assert.equal((await api(method, path, who, payload)).status, 409);
   assert.equal(
     (await api('POST', `/admin/reviews/${review.id}/restore`, 'customer'))
       .status,
     403,
   );
-  await ok('POST', `/admin/reviews/${review.id}/restore`, 'admin');
+  const restored = await ok(
+    'POST',
+    `/admin/reviews/${review.id}/restore`,
+    'admin',
+  );
+  assert.equal(restored.hidden_reason, null);
   assert.equal(
     (await ok('GET', `/photographers/${photo}/rating-summary`)).average_rating,
     5,
+  );
+  assert.equal(
+    (await api('POST', `/admin/reviews/${review.id}/restore`, 'admin')).status,
+    409,
+  );
+  // an edit racing the author's delete never brings the review back
+  await Promise.all([
+    api('PATCH', `/reviews/${review.id}`, 'customer', { comment: 'Edited' }),
+    api('DELETE', `/reviews/${review.id}`, 'customer'),
+  ]);
+  const [gone] = await db.manager.findBy(EntitySchemas.feedbacks, {
+    id: review.id,
+  });
+  assert.equal(gone.status, 'deleted_by_author');
+  // the admin cannot delete it and cannot bring back what the author deleted
+  assert.equal(
+    (await api('DELETE', `/reviews/${review.id}`, 'admin')).status,
+    403,
+  );
+  assert.equal(
+    (await api('POST', `/admin/reviews/${review.id}/restore`, 'admin')).status,
+    409,
+  );
+  assert.equal(
+    (await ok('GET', `/photographers/${photo}/rating-summary`)).total_feedbacks,
+    0,
   );
 });
 test('outbox marks core realtime events as processed', async () => {

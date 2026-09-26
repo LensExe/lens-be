@@ -1,6 +1,13 @@
 import { ensure } from '@shared/domain/domain.error';
+import { ReviewStatus } from '@shared/database/entities/feedback.entity';
 
-/** Quy tắc review: chỉ review booking đã hoàn tất, sửa trong 7 ngày, tổng điểm theo mức 1–5. */
+/** Việc đổi trạng thái hiển thị của review: khách tự xoá, admin ẩn, admin hiện lại. */
+export type ReviewVisibilityAction = 'delete' | 'hide' | 'restore';
+
+/**
+ * Quy tắc review: chỉ review booking đã hoàn tất, sửa trong 7 ngày, ai được ẩn / hiện lại,
+ * tổng điểm theo mức 1–5.
+ */
 export class Review {
   /**
    * Chỉ review được booking đã hoàn tất.
@@ -15,14 +22,66 @@ export class Review {
       'conflict',
     );
   }
+
   /**
-   * Chỉ trả lời được review đang hiện.
+   * Chỉ sửa / trả lời được review đang hiện.
    *
-   * @param isVisible Review đang hiện hay đã bị ẩn
-   * @returns Không trả gì; 409 nếu review đang ẩn
+   * @param status Trạng thái hiển thị của review
+   * @returns Không trả gì; 409 nếu review đã bị xoá hoặc ẩn
    */
-  static requireVisible(isVisible: boolean) {
-    ensure(isVisible, 'Review is hidden', 'conflict');
+  static requireVisible(status: ReviewStatus) {
+    ensure(status === ReviewStatus.VISIBLE, 'Review is hidden', 'conflict');
+  }
+
+  /**
+   * Trạng thái mới của review sau một việc ẩn / hiện. Khách xoá được review chưa xoá (kể cả đang bị
+   * admin ẩn); admin chỉ ẩn review đang hiện và chỉ hiện lại review do admin ẩn, nên review khách đã
+   * xoá không bao giờ hiện lại.
+   *
+   * @param action `delete` (khách tự xoá), `hide` (admin ẩn), `restore` (admin hiện lại)
+   * @param status Trạng thái hiện tại của review
+   * @returns Trạng thái mới; 409 nếu việc đó không làm được từ trạng thái hiện tại
+   */
+  static nextStatus(
+    action: ReviewVisibilityAction,
+    status: ReviewStatus,
+  ): ReviewStatus {
+    switch (action) {
+      case 'delete':
+        ensure(
+          status !== ReviewStatus.DELETED_BY_AUTHOR,
+          'Review is already deleted',
+          'conflict',
+        );
+        return ReviewStatus.DELETED_BY_AUTHOR;
+      case 'hide':
+        ensure(
+          status === ReviewStatus.VISIBLE,
+          'Only visible reviews can be hidden',
+          'conflict',
+        );
+        return ReviewStatus.HIDDEN_BY_ADMIN;
+      case 'restore':
+        ensure(
+          status === ReviewStatus.HIDDEN_BY_ADMIN,
+          'Only reviews hidden by an admin can be restored',
+          'conflict',
+        );
+        return ReviewStatus.VISIBLE;
+    }
+  }
+
+  /**
+   * Lần sửa phải đổi ít nhất một trường; body rỗng không được đánh dấu là đã sửa.
+   *
+   * @param fields Các trường khách gửi lên để sửa
+   * @returns Không trả gì; 400 nếu không có trường nào
+   */
+  static requireChanges(fields: Record<string, unknown>) {
+    ensure(
+      Object.values(fields).some((value) => value !== undefined),
+      'Nothing to update',
+    );
   }
 
   /**

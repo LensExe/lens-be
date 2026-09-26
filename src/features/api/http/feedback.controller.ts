@@ -39,6 +39,7 @@ import { ReviewUpdateCommand } from '@modules/feedback/reviews.command';
 import { ReviewReplyCommand } from '@modules/feedback/reviews.command';
 import { ReviewRestoreCommand } from '@modules/feedback/reviews.command';
 import { ReviewRemoveCommand } from '@modules/feedback/reviews.command';
+import { ReviewHideCommand } from '@modules/feedback/reviews.command';
 
 @ApiTags('Review')
 @Controller()
@@ -222,9 +223,10 @@ export class ReviewController {
   @ApiOperation({
     operationId: 'REV-005',
     summary: 'Xóa đánh giá',
-    description: 'Xóa/ẩn review theo quyền. Role: Customer/Admin',
+    description:
+      'Khách tự xoá review của mình (xoá mềm, không hiện lại được). Role: Customer',
   })
-  @Access(['customer', 'admin'])
+  @Access(['customer'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
@@ -305,7 +307,7 @@ export class ReviewController {
     operationId: 'REV-007',
     summary: 'Admin hiện lại đánh giá',
     description:
-      'Hiện lại review đã bị ẩn và tính lại điểm của thợ. Role: Admin',
+      'Hiện lại review do admin ẩn và tính lại điểm của thợ; review khách tự xoá không hiện lại được. Role: Admin',
   })
   @Access(['admin'])
   @ApiBearerAuth()
@@ -338,6 +340,52 @@ export class ReviewController {
   ) {
     return this.commands.execute(
       new ReviewRestoreCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+    );
+  }
+
+  @Post('admin/reviews/:id/hide')
+  @ApiOperation({
+    operationId: 'REV-009',
+    summary: 'Admin ẩn đánh giá',
+    description:
+      'Ẩn review đang hiện kèm lý do, tính lại điểm của thợ và báo khách. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiBody({ type: Dto.ReviewHideCommandBodyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('REV-009'),
+  })
+  @HttpCode(200)
+  hide(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: Dto.ReviewHideCommandBodyDto,
+  ) {
+    return this.commands.execute(
+      new ReviewHideCommand(req.actor ?? { sub: '', roles: [] }, {
+        ...body,
+        id,
+      }),
     );
   }
 }
