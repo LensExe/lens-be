@@ -207,7 +207,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'updated_at',
     ],
   },
-  ratings: {
+  photographer_ratings: {
     type: 'object',
     properties: {
       id: {

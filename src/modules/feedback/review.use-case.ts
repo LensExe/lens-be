@@ -1,5 +1,5 @@
 import { In, type EntityManager } from 'typeorm';
-import type { RatingEntity } from '@shared/database/entities/rating.entity';
+import type { PhotographerRatingEntity } from '@shared/database/entities/photographer-rating.entity';
 import {
   ReviewStatus,
   type FeedbackEntity,
@@ -12,6 +12,7 @@ import type { Actor } from '@shared/platform/auth/actor';
 import {
   bookingAccess,
   currentUser,
+  photographer,
   emit,
   paged,
   pageWindow,
@@ -193,23 +194,14 @@ export class ReviewUseCases implements RatingUpdaterPort {
    * @returns Không trả gì
    */
   private async refreshReviewStats(s: EntityManager, photographerId: string) {
-    await this.openRating(s, photographerId);
-    await s.findOne(EntitySchemas.ratings, {
-      where: { photographer_id: photographerId },
-      lock: { mode: 'pessimistic_write' },
-    });
+    await this.lockRating(s, photographerId);
     const summary = Review.summaryFromCounts(
       await this.ratingCounts(s, photographerId),
     );
-    await s.update(
-      EntitySchemas.ratings,
-      { photographer_id: photographerId },
-      {
-        average_rating: summary.average_rating,
-        total_feedbacks: summary.total_feedbacks,
-        updated_at: new Date().toISOString(),
-      },
-    );
+    await this.writeRating(s, photographerId, {
+      average_rating: summary.average_rating,
+      total_feedbacks: summary.total_feedbacks,
+    });
   }
 
   /**
@@ -224,8 +216,8 @@ export class ReviewUseCases implements RatingUpdaterPort {
    */
   async update(s: EntityManager, a: Actor, i: Inputs.ReviewUpdateCommandInput) {
     const { id, ...fields } = i,
-      r = await this.lockedReview(s, id),
-      { photographer: p } = await bookingAccess(s, a, r.booking_id, 'customer');
+      r = await this.lockedReview(s, id);
+    await this.requireAuthor(s, a, r);
     Review.requireVisible(r.status);
     Review.requireEditWindow(r.created_at);
     Review.requireChanges(fields);
@@ -234,6 +226,7 @@ export class ReviewUseCases implements RatingUpdaterPort {
       is_edited: true,
     });
     await this.refreshReviewStats(s, r.photographer_id);
+    const p = await required(s, 'photographers', r.photographer_id);
     await emit(s, 'review.updated', [p.user_id], {
       review_id: r.id,
       booking_id: r.booking_id,
@@ -252,7 +245,7 @@ export class ReviewUseCases implements RatingUpdaterPort {
    */
   async remove(s: EntityManager, a: Actor, i: Inputs.ReviewRemoveCommandInput) {
     const r = await this.lockedReview(s, i.id);
-    await bookingAccess(s, a, r.booking_id, 'customer');
+    await this.requireAuthor(s, a, r);
     await updateEntity(s, EntitySchemas.feedbacks, r.id, {
       status: Review.nextStatus('delete', r.status),
     });
@@ -270,14 +263,19 @@ export class ReviewUseCases implements RatingUpdaterPort {
    * @returns Review sau khi trả lời; 403 nếu không phải thợ của booking, 409 nếu review không còn hiện
    */
   async reply(s: EntityManager, a: Actor, i: Inputs.ReviewReplyCommandInput) {
-    const r = await this.lockedReview(s, i.id),
-      { customer } = await bookingAccess(s, a, r.booking_id, 'photographer');
+    const r = await this.lockedReview(s, i.id);
+    ensure(
+      (await photographer(s, a)).id === r.photographer_id,
+      'Review access denied',
+      'forbidden',
+    );
     Review.requireVisible(r.status);
     const row = await updateEntity(s, EntitySchemas.feedbacks, r.id, {
       photographer_reply: i.reply,
       replied_at: new Date().toISOString(),
     });
-    await emit(s, 'review.replied', [customer.user_id], {
+    const c = await required(s, 'customers', r.customer_id);
+    await emit(s, 'review.replied', [c.user_id], {
       review_id: r.id,
       booking_id: r.booking_id,
     });
@@ -353,19 +351,33 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
+   * Chỉ khách đã viết review được sửa / xoá nó. So bằng `customer_id` lưu trên review, không phải
+   * đọc booking.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor đang gọi
+   * @param r Review cần đổi
+   * @returns Không trả gì; 403 nếu người gọi không phải khách đã viết
+   */
+  private async requireAuthor(s: EntityManager, a: Actor, r: FeedbackEntity) {
+    const user = await currentUser(s, a);
+    const [c] = await s.findBy(EntitySchemas.customers, { user_id: user.id });
+    ensure(c?.id === r.customer_id, 'Review access denied', 'forbidden');
+  }
+
+  /**
    * Rating tổng hợp của nhiều thợ trong một query. Module photographer gọi qua port để hiện điểm
-   * trên hồ sơ và xét huy hiệu, thay vì đọc thẳng bảng `ratings`.
+   * trên hồ sơ và xét huy hiệu, thay vì đọc thẳng bảng `photographer_ratings`.
    *
    * @param s EntityManager của transaction hiện tại
    * @param photographerIds ID hồ sơ các thợ
    * @returns Map ID thợ → bản ghi rating, `null` nếu thợ chưa có rating
    */
   async ratingsOf(s: EntityManager, photographerIds: readonly string[]) {
-    const ratings: Record<string, RatingEntity | null> = Object.fromEntries(
-      photographerIds.map((id) => [id, null]),
-    );
+    const ratings: Record<string, PhotographerRatingEntity | null> =
+      Object.fromEntries(photographerIds.map((id) => [id, null]));
     if (!photographerIds.length) return ratings;
-    for (const r of await s.findBy(EntitySchemas.ratings, {
+    for (const r of await s.findBy(EntitySchemas.photographer_ratings, {
       photographer_id: In([...photographerIds]),
     }))
       ratings[r.photographer_id] = r;
@@ -392,18 +404,20 @@ export class ReviewUseCases implements RatingUpdaterPort {
 
   /**
    * Tạo dòng rating rỗng (điểm 0) cho thợ mới, để hồ sơ luôn có đối tượng rating. Gọi lại khi đã có
-   * thì không làm gì. Module photographer gọi qua port lúc tạo hồ sơ, thay vì ghi thẳng bảng `ratings`.
+   * thì không làm gì. Module photographer gọi qua port lúc tạo hồ sơ, thay vì ghi thẳng bảng `photographer_ratings`.
    *
    * @param s EntityManager của transaction hiện tại
    * @param photographerId ID hồ sơ thợ
    * @returns Không trả gì
    */
   async openRating(s: EntityManager, photographerId: string) {
-    const [existing] = await s.findBy(EntitySchemas.ratings, {
+    const [existing] = await s.findBy(EntitySchemas.photographer_ratings, {
       photographer_id: photographerId,
     });
     if (!existing)
-      await s.save(EntitySchemas.ratings, { photographer_id: photographerId });
+      await s.save(EntitySchemas.photographer_ratings, {
+        photographer_id: photographerId,
+      });
   }
 
   /**
@@ -421,19 +435,54 @@ export class ReviewUseCases implements RatingUpdaterPort {
     photographerId: string,
     stats: { completedBookings: number; returnCustomers: number },
   ) {
+    await this.lockRating(s, photographerId);
+    await this.writeRating(s, photographerId, {
+      total_bookings: stats.completedBookings,
+      return_customers: stats.returnCustomers,
+    });
+  }
+
+  /**
+   * Tạo dòng rating nếu chưa có rồi khoá nó đến hết transaction, để hai lần ghi rating của cùng một
+   * thợ (review đổi, booking hoàn tất) chạy lần lượt.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @returns Không trả gì
+   */
+  private async lockRating(s: EntityManager, photographerId: string) {
     await this.openRating(s, photographerId);
-    await s.findOne(EntitySchemas.ratings, {
+    await s.findOne(EntitySchemas.photographer_ratings, {
       where: { photographer_id: photographerId },
       lock: { mode: 'pessimistic_write' },
     });
+  }
+
+  /**
+   * Ghi các cột rating đã tính của thợ và cập nhật `updated_at`. Gọi sau `lockRating`.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @param values Các cột cần ghi
+   * @returns Không trả gì
+   */
+  private async writeRating(
+    s: EntityManager,
+    photographerId: string,
+    values: Partial<
+      Pick<
+        PhotographerRatingEntity,
+        | 'average_rating'
+        | 'total_feedbacks'
+        | 'total_bookings'
+        | 'return_customers'
+      >
+    >,
+  ) {
     await s.update(
-      EntitySchemas.ratings,
+      EntitySchemas.photographer_ratings,
       { photographer_id: photographerId },
-      {
-        total_bookings: stats.completedBookings,
-        return_customers: stats.returnCustomers,
-        updated_at: new Date().toISOString(),
-      },
+      { ...values, updated_at: new Date().toISOString() },
     );
   }
 }

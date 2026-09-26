@@ -311,6 +311,19 @@ VALUES
   ('15000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 5, 5, 5, 'Anh Huy chụp siêu có tâm, nhiệt tình chỉ cách tạo dáng cho hai đứa từ đầu đến cuối. Nước màu ảnh rất trong trẻo, giao ảnh đúng hẹn!', false, 'visible', 'Cảm ơn Mai Anh và bạn đã tin tưởng dịch vụ của Huy nhé. Chúc hai bạn luôn ngập tràn niềm vui!', '2026-07-18 08:30:00+07', '2026-07-17 20:00:00+07', '2026-07-18 08:30:00+07')
 ON CONFLICT (id) DO NOTHING;
 
+-- Thống kê rating của thợ tính lại từ booking và review thật ở trên (cùng cách app tính), để rank và
+-- huy hiệu không lệch khi có booking hoàn tất / review mới.
+UPDATE photographer_ratings r
+SET average_rating = COALESCE((SELECT AVG(f.rating) FROM feedbacks f
+                               WHERE f.photographer_id = r.photographer_id AND f.status = 'visible'), 0),
+    total_feedbacks = (SELECT COUNT(*) FROM feedbacks f
+                       WHERE f.photographer_id = r.photographer_id AND f.status = 'visible'),
+    total_bookings = (SELECT COUNT(*) FROM bookings b
+                      WHERE b.photographer_id = r.photographer_id AND b.status = 'completed'),
+    return_customers = (SELECT COUNT(*) FROM (SELECT b.customer_id FROM bookings b
+                                              WHERE b.photographer_id = r.photographer_id AND b.status = 'completed'
+                                              GROUP BY b.customer_id HAVING COUNT(*) > 1) returning_customers);
+
 -- ============================================================================
 -- 19. BẢNG REPORTS (Báo cáo khiếu nại & Xử lý tranh chấp của Quản trị viên)
 -- ============================================================================

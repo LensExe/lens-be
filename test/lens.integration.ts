@@ -1242,7 +1242,7 @@ test('remaining payment, completion and review uniqueness', async () => {
   ]);
   assert.deepEqual(clicks.map((c) => c.status).sort(), [200, 409]);
   // booking tells feedback how many bookings the photographer has completed
-  const [stats] = await db.manager.findBy(EntitySchemas.ratings, {
+  const [stats] = await db.manager.findBy(EntitySchemas.photographer_ratings, {
     photographer_id: photo,
   });
   assert.equal(
@@ -1699,10 +1699,10 @@ test('photographer badges come from visible reviews and returning customers', as
         attitude_rating: 5,
       });
     }
-    const [rating] = await s.findBy(EntitySchemas.ratings, {
+    const [rating] = await s.findBy(EntitySchemas.photographer_ratings, {
       photographer_id: photo,
     });
-    await s.update(EntitySchemas.ratings, rating.id, {
+    await s.update(EntitySchemas.photographer_ratings, rating.id, {
       average_rating: 4.9,
       total_feedbacks: 10,
       return_customers: 5,
@@ -1723,10 +1723,10 @@ test('photographer badges come from visible reviews and returning customers', as
   assert.equal(events.length, 3);
   // once earned, badges stay even when the stats drop
   await db.transaction(async (s) => {
-    const [rating] = await s.findBy(EntitySchemas.ratings, {
+    const [rating] = await s.findBy(EntitySchemas.photographer_ratings, {
       photographer_id: photo,
     });
-    await s.update(EntitySchemas.ratings, rating.id, {
+    await s.update(EntitySchemas.photographer_ratings, rating.id, {
       average_rating: 3,
       return_customers: 0,
     });

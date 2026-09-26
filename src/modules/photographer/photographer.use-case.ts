@@ -440,7 +440,11 @@ export class PhotographerUseCases {
     const query = s
       .createQueryBuilder(EntitySchemas.photographers, 'p')
       .innerJoin(EntitySchemas.users, 'u', 'u.id = p.user_id')
-      .leftJoin(EntitySchemas.ratings, 'r', 'r.photographer_id = p.id')
+      .leftJoin(
+        EntitySchemas.photographer_ratings,
+        'r',
+        'r.photographer_id = p.id',
+      )
       .where('u.status = :active', { active: 'active' })
       .andWhere('p.verification_status = :verified', {
         verified: VerificationStatus.VERIFIED,

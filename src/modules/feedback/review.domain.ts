@@ -1,5 +1,9 @@
 import { ensure } from '@shared/domain/domain.error';
 import { ReviewStatus } from '@shared/database/entities/feedback.entity';
+import { BookingStatus } from '@shared/database/entities/booking.entity';
+
+/** Số ngày khách được sửa review kể từ lúc viết. */
+export const REVIEW_EDIT_WINDOW_DAYS = 7;
 
 /** Việc đổi trạng thái hiển thị của review: khách tự xoá, admin ẩn, admin hiện lại. */
 export type ReviewVisibilityAction = 'delete' | 'hide' | 'restore';
@@ -15,9 +19,9 @@ export class Review {
    * @param status Trạng thái booking
    * @returns Không trả gì; 409 nếu booking chưa completed
    */
-  static requireCompletedBooking(status: string) {
+  static requireCompletedBooking(status: BookingStatus) {
     ensure(
-      status === 'completed',
+      status === BookingStatus.COMPLETED,
       'Review requires completed booking',
       'conflict',
     );
@@ -93,7 +97,8 @@ export class Review {
    */
   static requireEditWindow(createdAt: string, now = Date.now()) {
     ensure(
-      now - Date.parse(createdAt) <= 7 * 864e5,
+      now - Date.parse(createdAt) <=
+        REVIEW_EDIT_WINDOW_DAYS * 24 * 60 * 60 * 1000,
       'Review editing window expired',
       'conflict',
     );

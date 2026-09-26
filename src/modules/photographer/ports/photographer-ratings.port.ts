@@ -1,5 +1,5 @@
 import type { EntityManager } from 'typeorm';
-import type { RatingEntity } from '@shared/database/entities/rating.entity';
+import type { PhotographerRatingEntity } from '@shared/database/entities/photographer-rating.entity';
 
 /** Rating và điểm review của thợ (module feedback), để dựng hồ sơ và xét huy hiệu. */
 export abstract class PhotographerRatingsPort {
@@ -13,7 +13,7 @@ export abstract class PhotographerRatingsPort {
   abstract ratingsOf(
     manager: EntityManager,
     photographerIds: readonly string[],
-  ): Promise<Record<string, RatingEntity | null>>;
+  ): Promise<Record<string, PhotographerRatingEntity | null>>;
 
   /**
    * Điểm đúng giờ trung bình của thợ, chỉ tính review đang hiện.

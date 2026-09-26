@@ -19,7 +19,7 @@ export * from './photographer-badge.entity';
 export * from './rank.entity';
 export * from './badge.entity';
 export * from './portfolio.entity';
-export * from './rating.entity';
+export * from './photographer-rating.entity';
 export * from './refund-request.entity';
 export * from './report.entity';
 export * from './subscription.entity';

@@ -7,7 +7,7 @@ import { bigintColumn } from './utils/column-transformers';
  * Tổng hợp các chỉ số đánh giá, uy tín và năng suất làm việc của Nhiếp ảnh gia.
  */
 @Entity('photographer_ratings')
-export class RatingEntity extends BaseEntity {
+export class PhotographerRatingEntity extends BaseEntity {
   /** ID của nhiếp ảnh gia (khóa ngoại duy nhất liên kết `photographers.id`) */
   @Column('uuid', { unique: true })
   photographer_id!: string;

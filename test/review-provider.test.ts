@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import type { EntityManager } from 'typeorm';
 import { ReviewUseCases } from '../src/modules/feedback/review.use-case';
 import { Review } from '../src/modules/feedback/review.domain';
+import { EntitySchemas } from '../src/shared/database';
 
 test('ratings for many photographers in one query, null when none yet', async () => {
   let queries = 0;
@@ -159,13 +160,7 @@ test('changing a review locks its row before reading its state', async () => {
         created_at: new Date().toISOString(),
       };
     },
-    findBy: async () => [{ id: 'u1', status: 'active' }],
-    findOneBy: async (_e: unknown, where: { id: string }) => ({
-      id: where.id,
-      user_id: 'u1',
-      customer_id: 'c1',
-      photographer_id: 'p1',
-    }),
+    findBy: async () => [{ id: 'c1', user_id: 'u1', status: 'active' }],
   } as unknown as EntityManager;
   await assert.rejects(
     new ReviewUseCases().update(
@@ -179,4 +174,32 @@ test('changing a review locks its row before reading its state', async () => {
     /Review is hidden/,
   );
   assert.deepEqual(locks, [{ mode: 'pessimistic_write' }]);
+});
+
+test('only the author edits a review; the booking table is not read', async () => {
+  const s = {
+    findOne: async () => ({
+      id: 'r1',
+      status: 'visible',
+      booking_id: 'b1',
+      customer_id: 'c1',
+      photographer_id: 'p1',
+      created_at: new Date().toISOString(),
+    }),
+    findBy: async (entity: unknown) =>
+      entity === EntitySchemas.customers
+        ? [{ id: 'c-other', user_id: 'u2' }]
+        : [{ id: 'u2', status: 'active' }],
+    findOneBy: async (entity: unknown) => {
+      if (entity === EntitySchemas.bookings)
+        throw new Error('feedback must not read the bookings table');
+      return null;
+    },
+  } as unknown as EntityManager;
+  const actor = { sub: 'kc', roles: ['customer'] };
+  for (const run of [
+    () => new ReviewUseCases().update(s, actor, { id: 'r1', comment: 'x' }),
+    () => new ReviewUseCases().remove(s, actor, { id: 'r1' }),
+  ])
+    await assert.rejects(run(), /Review access denied/);
 });

@@ -32,15 +32,19 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { Access, Public } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
-import { ReviewCreateCommand } from '@modules/feedback/reviews.command';
-import { ReviewSummaryQuery } from '@modules/feedback/reviews.query';
-import { ReviewListQuery } from '@modules/feedback/reviews.query';
-import { ReviewAdminListQuery } from '@modules/feedback/reviews.query';
-import { ReviewUpdateCommand } from '@modules/feedback/reviews.command';
-import { ReviewReplyCommand } from '@modules/feedback/reviews.command';
-import { ReviewRestoreCommand } from '@modules/feedback/reviews.command';
-import { ReviewRemoveCommand } from '@modules/feedback/reviews.command';
-import { ReviewHideCommand } from '@modules/feedback/reviews.command';
+import {
+  ReviewCreateCommand,
+  ReviewHideCommand,
+  ReviewRemoveCommand,
+  ReviewReplyCommand,
+  ReviewRestoreCommand,
+  ReviewUpdateCommand,
+} from '@modules/feedback/reviews.command';
+import {
+  ReviewAdminListQuery,
+  ReviewListQuery,
+  ReviewSummaryQuery,
+} from '@modules/feedback/reviews.query';
 
 @ApiTags('Review')
 @Controller()
@@ -260,6 +264,7 @@ export class ReviewController {
       new ReviewRemoveCommand(req.actor ?? { sub: '', roles: [] }, { id }),
     );
   }
+
   @Put('reviews/:id/reply')
   @ApiOperation({
     operationId: 'REV-006',
@@ -304,6 +309,7 @@ export class ReviewController {
       }),
     );
   }
+
   @Post('admin/reviews/:id/restore')
   @ApiOperation({
     operationId: 'REV-007',
