@@ -60,3 +60,41 @@ export class ReviewRemoveCommandHandler implements ICommandHandler<ReviewRemoveC
     );
   }
 }
+
+export class ReviewReplyCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.ReviewReplyCommandInput,
+  ) {}
+}
+@CommandHandler(ReviewReplyCommand)
+export class ReviewReplyCommandHandler implements ICommandHandler<ReviewReplyCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: ReviewUseCases,
+  ) {}
+  execute(message: ReviewReplyCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.reply(s, message.actor, message.input),
+    );
+  }
+}
+
+export class ReviewRestoreCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.ReviewRestoreCommandInput,
+  ) {}
+}
+@CommandHandler(ReviewRestoreCommand)
+export class ReviewRestoreCommandHandler implements ICommandHandler<ReviewRestoreCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: ReviewUseCases,
+  ) {}
+  execute(message: ReviewRestoreCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.restore(s, message.actor, message.input),
+    );
+  }
+}

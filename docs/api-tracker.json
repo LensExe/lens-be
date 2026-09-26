@@ -1044,6 +1044,30 @@
     "kind": "Command"
   },
   {
+    "id": "REV-006",
+    "module": "Review",
+    "service": "Core Backend",
+    "method": "PUT",
+    "path": "/reviews/:id/reply",
+    "summary": "Thợ trả lời đánh giá",
+    "description": "Thợ của booking trả lời review đang hiện; gửi lại thì ghi đè câu trả lời cũ.",
+    "role": "Photographer",
+    "priority": "Should",
+    "kind": "Command"
+  },
+  {
+    "id": "REV-007",
+    "module": "Review",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/admin/reviews/:id/restore",
+    "summary": "Admin hiện lại đánh giá",
+    "description": "Hiện lại review đã bị ẩn và tính lại điểm của thợ.",
+    "role": "Admin",
+    "priority": "Should",
+    "kind": "Command"
+  },
+  {
     "id": "SUB-001",
     "module": "Subscription & VIP",
     "service": "Core Backend",

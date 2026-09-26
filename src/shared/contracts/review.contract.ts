@@ -27,3 +27,12 @@ export interface ReviewUpdateCommandInput {
 export interface ReviewRemoveCommandInput {
   id: string;
 }
+
+export interface ReviewReplyCommandInput {
+  id: string;
+  reply: string;
+}
+
+export interface ReviewRestoreCommandInput {
+  id: string;
+}

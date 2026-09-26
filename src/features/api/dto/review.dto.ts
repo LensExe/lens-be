@@ -119,3 +119,11 @@ export class ReviewUpdateCommandBodyDto {
   @MaxLength(10000)
   comment?: string;
 }
+
+export class ReviewReplyCommandBodyDto {
+  @ApiProperty({ description: 'photographer reply to the review' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(10000)
+  reply!: string;
+}

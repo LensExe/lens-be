@@ -3,6 +3,8 @@ import { ReviewController } from '../http/feedback.controller';
 import {
   ReviewCreateCommandHandler,
   ReviewRemoveCommandHandler,
+  ReviewReplyCommandHandler,
+  ReviewRestoreCommandHandler,
   ReviewUpdateCommandHandler,
 } from '@modules/feedback/reviews.command';
 import {
@@ -15,6 +17,8 @@ import {
   providers: [
     ReviewCreateCommandHandler,
     ReviewRemoveCommandHandler,
+    ReviewReplyCommandHandler,
+    ReviewRestoreCommandHandler,
     ReviewUpdateCommandHandler,
     ReviewListQueryHandler,
     ReviewSummaryQueryHandler,

@@ -1093,6 +1093,11 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'id',
         format: 'uuid',
       },
+      photographer_id: {
+        type: 'string',
+        description: 'reviewed photographer id',
+        format: 'uuid',
+      },
       booking_id: {
         type: 'string',
         description: 'booking id',
