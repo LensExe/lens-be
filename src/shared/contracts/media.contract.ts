@@ -1,6 +1,8 @@
 export interface MediaUploadCommandInput {
   content_type: 'image/jpeg' | 'image/png' | 'image/webp';
   file_size: number;
+  /** Private mặc định nếu client không truyền. */
+  visibility?: 'public' | 'private';
 }
 
 export interface MediaCompleteCommandInput {
@@ -8,30 +10,30 @@ export interface MediaCompleteCommandInput {
 }
 
 export interface MediaGetQueryInput {
-  id: string;
+  media_id: string;
 }
 
 export interface MediaDownloadQueryInput {
-  id: string;
+  booking_id: string;
 }
 
 export interface MediaRemoveCommandInput {
-  id: string;
+  media_id: string;
 }
 
 export interface MediaCreateGalleryCommandInput {
-  id: string;
+  booking_id: string;
 }
 
 export interface MediaGalleryQueryInput {
-  id: string;
+  booking_id: string;
 }
 
 export interface MediaAddGalleryCommandInput {
-  id: string;
+  booking_id: string;
   media_id: string;
 }
 
 export interface MediaPublishCommandInput {
-  id: string;
+  booking_id: string;
 }

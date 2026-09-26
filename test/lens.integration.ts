@@ -24,6 +24,7 @@ import { OutboxWorker } from '../src/features/workers/outbox.worker';
 import { Booking } from '../src/modules/booking/booking.domain';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';
 import { S3ObjectStorage } from '../src/shared/integrations/s3/s3-storage.service';
+import { MediaImageProcessingService } from '../src/modules/media/media-image-processing.service';
 import {
   S3Client,
   CreateBucketCommand,
@@ -126,6 +127,8 @@ before(
         downloadUrl: async () => 'https://storage.example.test/download',
         delete: async () => {},
       })
+      .overrideProvider(MediaImageProcessingService)
+      .useValue({ createVariants: async () => [] })
       .overrideProvider(PaymentGateway)
       .useValue({
         create: async (code: number) => {

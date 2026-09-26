@@ -14,54 +14,43 @@ const positiveInteger = (
   return parsed > 0 ? parsed : fallback;
 };
 
+/**
+ * Đọc và ánh xạ cấu hình S3 từ biến môi trường (process.env) theo từng Provider.
+ *
+ * - Tự động fallback: ưu tiên biến môi trường riêng của provider, nếu thiếu thì lấy biến chung.
+ * - Thiết lập giá trị mặc định cho region, TTL presigned URL, và forcePathStyle (MinIO: true, Cloud: false).
+ * - Các trường accessKeyId, secretAccessKey, bucket... trả về ở dạng optional (có thể undefined nếu chưa cấu hình).
+ *
+ * @param provider - Nhà cung cấp S3 (MinIO hoặc cloud S3-compatible)
+ * @returns Object S3ProviderConfig chứa các thông số kết nối
+ */
 export function getS3ProviderConfig(provider: S3Provider): S3ProviderConfig {
   switch (provider) {
-    case S3Provider.DigitalOcean:
+    case S3Provider.Cloud:
       return {
-        endpoint:
-          process.env.S3_CLOUD_ENDPOINT ??
-          process.env.S3_DIGITAL_OCEAN_ENDPOINT,
-        publicEndpoint:
-          process.env.S3_CLOUD_PUBLIC_ENDPOINT ??
-          process.env.S3_DIGITAL_OCEAN_PUBLIC_ENDPOINT,
-        region:
-          process.env.S3_CLOUD_REGION ??
-          process.env.S3_DIGITAL_OCEAN_REGION ??
-          DEFAULT_S3_REGION,
-        accessKeyId:
-          process.env.S3_CLOUD_ACCESS_KEY_ID ??
-          process.env.S3_DIGITAL_OCEAN_ACCESS_KEY_ID,
-        secretAccessKey:
-          process.env.S3_CLOUD_SECRET_ACCESS_KEY ??
-          process.env.S3_DIGITAL_OCEAN_SECRET_ACCESS_KEY,
-        bucket:
-          process.env.S3_CLOUD_BUCKET ?? process.env.S3_DIGITAL_OCEAN_BUCKET,
+        endpoint: process.env.S3_CLOUD_ENDPOINT,
+        publicEndpoint: process.env.S3_CLOUD_PUBLIC_ENDPOINT,
+        region: process.env.S3_CLOUD_REGION ?? DEFAULT_S3_REGION,
+        accessKeyId: process.env.S3_CLOUD_ACCESS_KEY_ID,
+        secretAccessKey: process.env.S3_CLOUD_SECRET_ACCESS_KEY,
+        bucket: process.env.S3_CLOUD_BUCKET,
         forcePathStyle: false,
         presignedUrlTtlSeconds: positiveInteger(
-          process.env.S3_CLOUD_PRESIGNED_URL_TTL_SECONDS ??
-            process.env.S3_DIGITAL_OCEAN_PRESIGNED_URL_TTL_SECONDS,
+          process.env.S3_CLOUD_PRESIGNED_URL_TTL_SECONDS,
           DEFAULT_PRESIGNED_URL_TTL_SECONDS,
         ),
       };
     case S3Provider.Minio:
       return {
-        endpoint: process.env.S3_MINIO_ENDPOINT ?? process.env.S3_ENDPOINT,
-        publicEndpoint:
-          process.env.S3_MINIO_PUBLIC_ENDPOINT ?? process.env.S3_ENDPOINT,
-        region:
-          process.env.S3_MINIO_REGION ??
-          process.env.S3_REGION ??
-          DEFAULT_S3_REGION,
-        accessKeyId:
-          process.env.S3_MINIO_ACCESS_KEY_ID ?? process.env.S3_ACCESS_KEY_ID,
-        secretAccessKey:
-          process.env.S3_MINIO_SECRET_ACCESS_KEY ??
-          process.env.S3_SECRET_ACCESS_KEY,
-        bucket: process.env.S3_MINIO_BUCKET ?? process.env.S3_BUCKET_NAME,
+        endpoint: process.env.S3_MINIO_ENDPOINT,
+        publicEndpoint: process.env.S3_MINIO_PUBLIC_ENDPOINT,
+        region: process.env.S3_MINIO_REGION ?? DEFAULT_S3_REGION,
+        accessKeyId: process.env.S3_MINIO_ACCESS_KEY_ID,
+        secretAccessKey: process.env.S3_MINIO_SECRET_ACCESS_KEY,
+        bucket: process.env.S3_MINIO_BUCKET,
         forcePathStyle: true,
         presignedUrlTtlSeconds: positiveInteger(
-          process.env.S3_MINIO_PRESIGNED_URL_TTL_SECONDS ??
-            process.env.S3_PRESIGNED_URL_TTL_SECONDS,
+          process.env.S3_MINIO_PRESIGNED_URL_TTL_SECONDS,
           DEFAULT_PRESIGNED_URL_TTL_SECONDS,
         ),
       };
@@ -73,6 +62,18 @@ export function getS3ProviderConfig(provider: S3Provider): S3ProviderConfig {
   }
 }
 
+/**
+ * Lấy cấu hình và bắt buộc (validate) các trường quan trọng phải tồn tại để kết nối.
+ *
+ * - Ném lỗi DomainError('unavailable') nếu thiếu accessKeyId, secretAccessKey hoặc bucket.
+ * - Riêng với MinIO: bắt buộc phải có endpoint (vì là dịch vụ tự host).
+ * - Ép kiểu trả về (Type Narrowing): biến các trường bắt buộc từ `string | undefined` thành
+ *   `string` chắc chắn tồn tại (Required), giúp code phía sau an toàn về mặt type mà không cần check lại.
+ *
+ * @param provider - Nhà cung cấp S3 (MinIO hoặc cloud S3-compatible)
+ * @throws DomainError nếu cấu hình bị thiếu hoặc không hợp lệ
+ * @returns Cấu hình S3 hoàn chỉnh với các trường xác thực đã được đảm bảo tồn tại
+ */
 export function requireS3ProviderConfig(
   provider: S3Provider,
 ): Required<Omit<S3ProviderConfig, 'endpoint' | 'publicEndpoint'>> &

@@ -1,7 +1,12 @@
-export const DIGITAL_OCEAN_S3 = 'DIGITAL_OCEAN_S3';
-export const DIGITAL_OCEAN_S3_PRESIGN = 'DIGITAL_OCEAN_S3_PRESIGN';
-export const MINIO_S3 = 'MINIO_S3';
-export const MINIO_S3_PRESIGN = 'MINIO_S3_PRESIGN';
+import { S3Provider } from '../enums/s3';
+
+/** Provider active; ưu tiên S3_PROVIDER, fallback theo môi trường. */
+export const getActiveS3Provider = (): S3Provider =>
+  (process.env.S3_PROVIDER as S3Provider | undefined) ??
+  (process.env.NODE_ENV === 'production' ? S3Provider.Cloud : S3Provider.Minio);
+
+export const ACTIVE_S3 = 'ACTIVE_S3';
+export const ACTIVE_S3_PRESIGN = 'ACTIVE_S3_PRESIGN';
 
 export const DEFAULT_S3_REGION = 'us-east-1';
 export const DEFAULT_PRESIGNED_URL_TTL_SECONDS = 900;

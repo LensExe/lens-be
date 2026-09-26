@@ -7,6 +7,7 @@ export * from './customer.entity';
 export * from './entity.registry';
 export * from './feedback.entity';
 export * from './media.entity';
+export * from './media-variant.entity';
 export * from './offline-slot.entity';
 export * from './outbox-event.entity';
 export * from './payment-webhook.entity';

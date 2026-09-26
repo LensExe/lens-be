@@ -194,9 +194,24 @@ CREATE TABLE media (
     file_key text NOT NULL UNIQUE, 
     file_size bigint NOT NULL CHECK(file_size BETWEEN 1 AND 104857600), 
     content_type text NOT NULL, 
-    status text NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','ready','deleted')), 
+    visibility text NOT NULL DEFAULT 'private' CHECK(visibility IN ('public','private')),
+    status text NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','uploaded','processing','ready','failed','deleted')),
     created_at timestamptz NOT NULL DEFAULT now(), 
     updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE media_variants (
+    id uuid PRIMARY KEY,
+    media_id uuid NOT NULL REFERENCES media(id) ON DELETE CASCADE,
+    variant text NOT NULL CHECK(variant IN ('thumbnail','preview')),
+    file_key text NOT NULL UNIQUE,
+    file_size bigint NOT NULL CHECK(file_size > 0),
+    content_type text NOT NULL,
+    width integer,
+    height integer,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE(media_id, variant)
 );
 
 CREATE TABLE portfolios (

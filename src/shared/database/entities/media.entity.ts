@@ -38,11 +38,22 @@ export type AllowedMediaContentType =
 export const MediaStatus = {
   PENDING: 'pending',
   UPLOADED: 'uploaded',
+  PROCESSING: 'processing',
   READY: 'ready',
+  FAILED: 'failed',
   DELETED: 'deleted',
 } as const;
 
 export type MediaStatus = (typeof MediaStatus)[keyof typeof MediaStatus];
+
+/** Phạm vi truy cập của object media trên object storage. */
+export const MediaVisibility = {
+  PUBLIC: 'public',
+  PRIVATE: 'private',
+} as const;
+
+export type MediaVisibility =
+  (typeof MediaVisibility)[keyof typeof MediaVisibility];
 
 /**
  * Entity đại diện cho bảng `media`.
@@ -66,7 +77,11 @@ export class MediaEntity extends BaseEntity {
   @Column()
   content_type!: MediaContentType;
 
-  /** Trạng thái xử lý của tệp tin ('pending' | 'uploaded' | 'ready' | 'deleted') */
+  /** Private mặc định; public object phải được bucket policy cho phép đọc. */
+  @Column({ default: MediaVisibility.PRIVATE })
+  visibility!: MediaVisibility;
+
+  /** Trạng thái xử lý của tệp tin. */
   @Column({ default: MediaStatus.PENDING })
   status!: MediaStatus;
 }

@@ -1,5 +1,6 @@
 import type { EntityManager } from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
+import { MediaVariantType } from '@shared/database/entities/media-variant.entity';
 import { Injectable } from '@nestjs/common';
 import { photographer, required } from '@shared/common/access';
 import { ObjectStorage } from '@shared/integrations/s3/storage.port';
@@ -62,20 +63,36 @@ export class PortfolioUseCases {
     }[];
     for (const [position, mediaId] of album.items.entries()) {
       const m = await required(s, 'media', mediaId);
+      const thumbnail = await s.findOneBy(EntitySchemas.media_variants, {
+        media_id: m.id,
+        variant: MediaVariantType.THUMBNAIL,
+      });
       items.push({
         id: mediaId,
         portfolio_id: album.id,
         media_id: mediaId,
         position,
-        download_url: await this.storage.downloadUrl(m.file_key),
+        download_url: await this.storage.downloadUrl(
+          thumbnail?.file_key ?? m.file_key,
+        ),
       });
     }
     const cover = album.cover_media_id
       ? await required(s, 'media', album.cover_media_id)
       : null;
+    const coverThumbnail = cover
+      ? await s.findOneBy(EntitySchemas.media_variants, {
+          media_id: cover.id,
+          variant: MediaVariantType.THUMBNAIL,
+        })
+      : null;
     return {
       ...album,
-      cover_url: cover ? await this.storage.downloadUrl(cover.file_key) : null,
+      cover_url: cover
+        ? await this.storage.downloadUrl(
+            coverThumbnail?.file_key ?? cover.file_key,
+          )
+        : null,
       items,
       expires_in: 900,
     };

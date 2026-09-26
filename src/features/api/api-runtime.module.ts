@@ -1,7 +1,9 @@
 import { Global, Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
+import { ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
-import { DatabaseModule } from '@shared/database';
+import { DatabaseModule, getRedisConfig } from '@shared/database';
 import { KeycloakModule } from '@shared/integrations/keycloak/keycloak.module';
 import { PaymentGateway } from '@shared/integrations/payment/payment.port';
 import { RealtimePublisher } from '@shared/integrations/realtime/realtime-publisher.port';
@@ -11,6 +13,7 @@ import { BookingUseCases } from '@modules/booking/booking.use-case';
 import { CalendarUseCases } from '@modules/calendar/calendar.use-case';
 import { ReviewUseCases } from '@modules/feedback/review.use-case';
 import { MediaUseCases } from '@modules/media/media.use-case';
+import { MediaImageProcessingService } from '@modules/media/media-image-processing.service';
 import { ModerationUseCases } from '@modules/moderation/moderation.use-case';
 import { PaymentUseCases } from '@modules/payment/payment.use-case';
 import { PhotographerUseCases } from '@modules/photographer/photographer.use-case';
@@ -32,6 +35,7 @@ const applicationServices = [
   CalendarUseCases,
   ReviewUseCases,
   MediaUseCases,
+  MediaImageProcessingService,
   ModerationUseCases,
   PaymentUseCases,
   PhotographerUseCases,
@@ -45,6 +49,20 @@ const applicationServices = [
   imports: [
     EnvModule,
     CqrsModule.forRoot(),
+    BullModule.forRootAsync({
+      imports: [EnvModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const redis = getRedisConfig(configService);
+        return {
+          connection: {
+            host: redis.host,
+            port: redis.port,
+            password: redis.password,
+          },
+        };
+      },
+    }),
     DatabaseModule,
     KeycloakModule,
     S3Module,

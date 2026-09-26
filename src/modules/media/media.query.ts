@@ -10,6 +10,7 @@ export class MediaDownloadQuery {
     public readonly input: Inputs.MediaDownloadQueryInput,
   ) {}
 }
+
 @QueryHandler(MediaDownloadQuery)
 export class MediaDownloadQueryHandler implements IQueryHandler<MediaDownloadQuery> {
   constructor(
@@ -18,7 +19,7 @@ export class MediaDownloadQueryHandler implements IQueryHandler<MediaDownloadQue
   ) {}
   execute(message: MediaDownloadQuery) {
     return this.dataSource.transaction((s) =>
-      this.useCases.download(s, message.actor, message.input),
+      this.useCases.downloadGallery(s, message.actor, message.input),
     );
   }
 }
