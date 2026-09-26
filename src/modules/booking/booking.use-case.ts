@@ -41,6 +41,13 @@ import type {
   BookingEntity,
 } from '@shared/database/entities';
 
+/** Số booking tối đa mỗi lần chạy job; phần còn lại để lần chạy sau (job chạy định kỳ). */
+const JOB_BATCH_SIZE = 100;
+
+/** Tổng tiền khách đã trả cho booking `b` (cọc + phần còn lại, giao dịch `paid`), dùng trong SQL của job. */
+const PAID_SQL = `SELECT COALESCE(SUM(t.amount), 0) FROM transactions t
+  WHERE t.reference_id = b.id AND t.status = 'paid' AND t.type IN ('deposit', 'remaining')`;
+
 /** Lý do ghi khi booking bị huỷ vì khách không trả cọc kịp. */
 const UNPAID_REASON = 'Deposit not paid in time';
 
@@ -669,7 +676,7 @@ export class BookingUseCases implements PendingBookingsPort {
 
   /**
    * Job nền (role `system`): tự hoàn tất booking `shot` đã publish gallery đủ 7 ngày mà khách
-   * chưa xác nhận. Booking chưa trả đủ thì bỏ qua, lần chạy sau xét lại.
+   * chưa xác nhận. Booking chưa trả đủ bị lọc ngay trong SQL; mỗi lần tối đa `JOB_BATCH_SIZE` dòng.
    * Idempotent: booking đã completed không còn ở `shot` nên chạy lại không đổi gì.
    *
    * @param s EntityManager của transaction hiện tại
@@ -678,19 +685,21 @@ export class BookingUseCases implements PendingBookingsPort {
    */
   async autoComplete(s: EntityManager, a: Actor) {
     role(a, 'system');
-    const due = await s.find(EntitySchemas.bookings, {
-      where: {
-        status: 'shot',
-        gallery_published_at: LessThanOrEqual(
-          Booking.autoCompleteCutoff(Date.now()),
-        ),
-      },
-      order: { gallery_published_at: 'ASC' },
-      lock: { mode: 'pessimistic_write', onLocked: 'skip_locked' },
-    });
+    const due = await s
+      .createQueryBuilder(EntitySchemas.bookings, 'b')
+      .where('b.status = :status', { status: BookingStatus.SHOT })
+      .andWhere('b.gallery_published_at <= :cutoff', {
+        cutoff: Booking.autoCompleteCutoff(Date.now()),
+      })
+      .andWhere(`(${PAID_SQL}) >= b.total_amount`)
+      .orderBy('b.gallery_published_at', 'ASC')
+      .addOrderBy('b.id', 'ASC')
+      .limit(JOB_BATCH_SIZE)
+      .setLock('pessimistic_write')
+      .setOnLocked('skip_locked')
+      .getMany();
     let completed = 0;
-    for (const b of due) {
-      if ((await this.paidAmount(s, b.id)) < Number(b.total_amount)) continue;
+    for (const b of due)
       if (
         await this.tryApply(
           s,
@@ -702,7 +711,6 @@ export class BookingUseCases implements PendingBookingsPort {
         )
       )
         completed++;
-    }
     return { checked: due.length, completed };
   }
 
@@ -742,6 +750,8 @@ export class BookingUseCases implements PendingBookingsPort {
           from: LessThanOrEqual(new Date(now).toISOString()),
         },
       ],
+      order: { created_at: 'ASC', id: 'ASC' },
+      take: JOB_BATCH_SIZE,
       lock: { mode: 'pessimistic_write', onLocked: 'skip_locked' },
     });
     let expired = 0;
@@ -772,23 +782,22 @@ export class BookingUseCases implements PendingBookingsPort {
   async cancelUnpaid(s: EntityManager, a: Actor) {
     role(a, 'system');
     const now = Date.now();
-    const due = await s.find(EntitySchemas.bookings, {
-      where: [
-        {
-          status: BookingStatus.ACCEPTED,
-          accepted_at: LessThanOrEqual(Booking.paymentDueCutoff(now)),
-        },
-        {
-          status: BookingStatus.ACCEPTED,
-          from: LessThanOrEqual(new Date(now).toISOString()),
-        },
-      ],
-      lock: { mode: 'pessimistic_write', onLocked: 'skip_locked' },
-    });
+    const due = await s
+      .createQueryBuilder(EntitySchemas.bookings, 'b')
+      .where('b.status = :status', { status: BookingStatus.ACCEPTED })
+      .andWhere('(b.accepted_at <= :cutoff OR b."from" <= :now)', {
+        cutoff: Booking.paymentDueCutoff(now),
+        now: new Date(now).toISOString(),
+      })
+      .andWhere(`(${PAID_SQL}) < b.deposit_amount`)
+      .orderBy('b.accepted_at', 'ASC')
+      .addOrderBy('b.id', 'ASC')
+      .limit(JOB_BATCH_SIZE)
+      .setLock('pessimistic_write')
+      .setOnLocked('skip_locked')
+      .getMany();
     let cancelled = 0;
-    for (const b of due) {
-      if ((await this.paidAmount(s, b.id)) >= Number(b.deposit_amount))
-        continue;
+    for (const b of due)
       if (
         await this.tryApply(
           s,
@@ -800,7 +809,6 @@ export class BookingUseCases implements PendingBookingsPort {
         )
       )
         cancelled++;
-    }
     return { cancelled };
   }
 
