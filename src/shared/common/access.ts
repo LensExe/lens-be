@@ -171,12 +171,33 @@ export async function emit(
  * @returns Đối tượng kết quả chuẩn gồm: items (danh sách trang hiện tại), total, offset, limit
  */
 export function page<T>(rows: T[], query: { limit?: number; offset?: number }) {
-  const offset = query.offset ?? 0,
-    limit = query.limit ?? 20;
-  return {
-    items: rows.slice(offset, offset + limit),
-    total: rows.length,
-    offset,
-    limit,
-  };
+  const { offset, limit } = pageWindow(query);
+  return paged(rows.slice(offset, offset + limit), rows.length, query);
+}
+
+/**
+ * Offset / limit của một trang, mặc định trang đầu 20 dòng. Dùng cho `skip` / `take` khi phân trang
+ * bằng SQL, để mọi module cùng một mặc định.
+ *
+ * @param query `limit`, `offset` từ query string
+ * @returns `{ offset, limit }`
+ */
+export function pageWindow(query: { limit?: number; offset?: number }) {
+  return { offset: query.offset ?? 0, limit: query.limit ?? 20 };
+}
+
+/**
+ * Dạng response phân trang chuẩn của repo: `{ items, total, offset, limit }`.
+ *
+ * @param items Các dòng của trang
+ * @param total Tổng số dòng khớp điều kiện
+ * @param query `limit`, `offset` từ query string
+ * @returns `{ items, total, offset, limit }`
+ */
+export function paged<T>(
+  items: T[],
+  total: number,
+  query: { limit?: number; offset?: number },
+) {
+  return { items, total, ...pageWindow(query) };
 }

@@ -1,4 +1,5 @@
 import { ensure } from '@shared/domain/domain.error';
+import { OCCUPIED_BOOKING_STATUSES } from '@shared/database/entities/booking.entity';
 
 /** Half-open UTC interval: [from, to). */
 export function interval(from: string, to: string) {
@@ -24,9 +25,15 @@ export function overlaps(
   );
 }
 
-export function utcDayInterval(date: string) {
-  const from = `${date}T00:00:00.000Z`;
-  return interval(from, new Date(Date.parse(from) + 864e5).toISOString());
+/**
+ * Booking ở trạng thái này có đang giữ lịch của thợ không (đã nhận trở đi; yêu cầu `pending` không giữ).
+ * Dùng chung cho booking và calendar để luật "chiếm lịch" chỉ nằm một chỗ.
+ *
+ * @param status Trạng thái booking
+ * @returns `true` nếu đang giữ lịch
+ */
+export function isOccupied(status: string) {
+  return (OCCUPIED_BOOKING_STATUSES as readonly string[]).includes(status);
 }
 
 export function money(value: number) {
