@@ -191,3 +191,12 @@ test('a window starting at 00:00 Vietnam time still sees that day', () => {
     [{ from: '2026-10-01T01:00:00.000Z', to: '2026-10-01T13:00:00.000Z' }],
   );
 });
+
+test('blocking a date that does not exist is a 400, not a crash or a shifted day', () => {
+  for (const date of ['2026-13-45', '2026-02-30', '2026-00-10'])
+    assert.throws(() => Calendar.blockRange({ date }), /real calendar date/);
+  assert.equal(
+    Calendar.blockRange({ date: '2028-02-29' }).from,
+    '2028-02-28T17:00:00.000Z',
+  );
+});

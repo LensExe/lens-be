@@ -5,6 +5,7 @@ import {
   IsArray,
   IsInt,
   IsString,
+  IsBoolean,
   IsISO8601,
   Max,
   MaxLength,
@@ -23,6 +24,7 @@ export class CalendarBlockCommandBodyDto {
   })
   @ValidateIf((_object, value) => value !== undefined)
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsISO8601({ strict: true })
   date?: string;
 
   @ApiPropertyOptional({
@@ -50,6 +52,45 @@ export class CalendarBlockCommandBodyDto {
   @IsString()
   @MaxLength(10000)
   reason?: string;
+  @ApiPropertyOptional({
+    description:
+      'true = decline the pending requests overlapping this time (check GET calendar/blocked-times/affected first). Without it the call fails with 409 if any exist',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  decline_pending?: boolean;
+}
+
+export class CalendarBlockPreviewQueryQueryDto {
+  @ApiPropertyOptional({
+    description: 'Whole day in Vietnam time. Send either date, or from and to',
+    format: 'date',
+    example: '2026-12-01',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsISO8601({ strict: true })
+  date?: string;
+
+  @ApiPropertyOptional({
+    description: 'Start of the time to block',
+    format: 'date-time',
+    example: '2026-12-01T14:00:00+07:00',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsISO8601({ strict: true })
+  @Matches(/T.*(Z|[+-]\d{2}:\d{2})$/)
+  from?: string;
+
+  @ApiPropertyOptional({
+    description: 'End of the time to block (exclusive)',
+    format: 'date-time',
+    example: '2026-12-01T16:00:00+07:00',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsISO8601({ strict: true })
+  @Matches(/T.*(Z|[+-]\d{2}:\d{2})$/)
+  to?: string;
 }
 
 export class CalendarMeQueryQueryDto {
@@ -127,6 +168,25 @@ export class WorkingShiftDto {
 export class CalendarSetWorkingHoursCommandBodyDto {
   @ApiProperty({
     description: 'weekly shifts; empty list resets to the default 08:00-20:00',
+    type: [WorkingShiftDto],
+  })
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => WorkingShiftDto)
+  items!: WorkingShiftDto[];
+  @ApiPropertyOptional({
+    description:
+      'true = decline the pending requests outside the new hours (check POST calendar/me/working-hours/affected first). Without it the call fails with 409 if any exist',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  decline_pending?: boolean;
+}
+
+export class CalendarWorkingHoursPreviewQueryBodyDto {
+  @ApiProperty({
+    description: 'weekly shifts the photographer plans to save',
     type: [WorkingShiftDto],
   })
   @IsArray()

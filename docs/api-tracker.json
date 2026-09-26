@@ -486,7 +486,7 @@
     "method": "POST",
     "path": "/calendar/blocked-times",
     "summary": "Chặn lịch",
-    "description": "Đánh dấu khoảng bận không nhận booking: nguyên ngày (date, giờ VN) hoặc from–to.",
+    "description": "Đánh dấu khoảng bận không nhận booking: nguyên ngày (date, giờ VN) hoặc from–to. Có yêu cầu đang chờ chồng giờ thì phải gửi decline_pending: true, không thì 409.",
     "role": "Photographer",
     "priority": "Should",
     "kind": "Command"
@@ -522,10 +522,34 @@
     "method": "PUT",
     "path": "/calendar/me/working-hours",
     "summary": "Khai giờ làm việc",
-    "description": "Thợ thay toàn bộ lịch làm việc theo tuần (giờ Việt Nam); danh sách rỗng thì quay về giờ mặc định.",
+    "description": "Thợ thay toàn bộ lịch làm việc theo tuần (giờ Việt Nam); danh sách rỗng thì quay về giờ mặc định. Có yêu cầu đang chờ ngoài giờ làm mới thì phải gửi decline_pending: true, không thì 409.",
     "role": "Photographer",
     "priority": "Must",
     "kind": "Command"
+  },
+  {
+    "id": "CAL-010",
+    "module": "Calendar",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/calendar/blocked-times/affected",
+    "summary": "Xem trước yêu cầu bị ảnh hưởng khi chặn lịch",
+    "description": "Các yêu cầu booking đang chờ chồng lên khoảng định chặn; có thì khi chặn phải gửi decline_pending: true.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Query"
+  },
+  {
+    "id": "CAL-011",
+    "module": "Calendar",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/calendar/me/working-hours/affected",
+    "summary": "Xem trước yêu cầu bị ảnh hưởng khi đổi giờ làm",
+    "description": "Các yêu cầu booking đang chờ nằm ngoài lịch tuần định lưu; có thì khi lưu phải gửi decline_pending: true. Không lưu gì.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Query"
   },
   {
     "id": "BOOK-001",

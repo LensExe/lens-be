@@ -60,3 +60,41 @@ export class CalendarWorkingHoursQueryHandler implements IQueryHandler<CalendarW
     );
   }
 }
+
+export class CalendarBlockPreviewQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.CalendarBlockPreviewQueryInput,
+  ) {}
+}
+@QueryHandler(CalendarBlockPreviewQuery)
+export class CalendarBlockPreviewQueryHandler implements IQueryHandler<CalendarBlockPreviewQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: CalendarUseCases,
+  ) {}
+  execute(message: CalendarBlockPreviewQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.blockPreview(s, message.actor, message.input),
+    );
+  }
+}
+
+export class CalendarWorkingHoursPreviewQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.CalendarWorkingHoursPreviewQueryInput,
+  ) {}
+}
+@QueryHandler(CalendarWorkingHoursPreviewQuery)
+export class CalendarWorkingHoursPreviewQueryHandler implements IQueryHandler<CalendarWorkingHoursPreviewQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: CalendarUseCases,
+  ) {}
+  execute(message: CalendarWorkingHoursPreviewQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.workingHoursPreview(s, message.actor, message.input),
+    );
+  }
+}

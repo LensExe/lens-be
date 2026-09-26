@@ -37,6 +37,8 @@ import { CalendarUnblockCommand } from '@modules/calendar/calendar.command';
 import { CalendarAvailabilityQuery } from '@modules/calendar/calendar.query';
 import { CalendarWorkingHoursQuery } from '@modules/calendar/calendar.query';
 import { CalendarSetWorkingHoursCommand } from '@modules/calendar/calendar.command';
+import { CalendarBlockPreviewQuery } from '@modules/calendar/calendar.query';
+import { CalendarWorkingHoursPreviewQuery } from '@modules/calendar/calendar.query';
 
 @ApiTags('Calendar')
 @Controller()
@@ -50,7 +52,7 @@ export class CalendarController {
     operationId: 'CAL-006',
     summary: 'Chặn lịch',
     description:
-      'Đánh dấu khoảng bận không nhận booking: nguyên ngày (date, giờ VN) hoặc from–to. Role: Photographer',
+      'Đánh dấu khoảng bận không nhận booking: nguyên ngày (date, giờ VN) hoặc from–to. Có yêu cầu đang chờ chồng giờ thì phải gửi decline_pending: true, không thì 409. Role: Photographer',
   })
   @Access(['photographer'])
   @ApiBearerAuth()
@@ -129,7 +131,7 @@ export class CalendarController {
     operationId: 'CAL-009',
     summary: 'Khai giờ làm việc',
     description:
-      'Thợ thay toàn bộ lịch làm việc theo tuần (giờ Việt Nam); danh sách rỗng thì quay về giờ mặc định. Role: Photographer',
+      'Thợ thay toàn bộ lịch làm việc theo tuần (giờ Việt Nam); danh sách rỗng thì quay về giờ mặc định. Có yêu cầu đang chờ ngoài giờ làm mới thì phải gửi decline_pending: true, không thì 409. Role: Photographer',
   })
   @Access(['photographer'])
   @ApiBearerAuth()
@@ -285,6 +287,91 @@ export class CalendarController {
         ...query,
         id,
       }),
+    );
+  }
+
+  @Get('calendar/blocked-times/affected')
+  @ApiOperation({
+    operationId: 'CAL-010',
+    summary: 'Xem trước yêu cầu bị ảnh hưởng khi chặn lịch',
+    description:
+      'Các yêu cầu booking đang chờ chồng lên khoảng định chặn; có thì khi chặn phải gửi decline_pending: true. Role: Photographer',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('CAL-010'),
+  })
+  blockPreview(
+    @Req() req: { actor?: Actor },
+    @Query() query: Dto.CalendarBlockPreviewQueryQueryDto,
+  ) {
+    return this.queries.execute(
+      new CalendarBlockPreviewQuery(req.actor ?? { sub: '', roles: [] }, {
+        ...query,
+      }),
+    );
+  }
+
+  @Post('calendar/me/working-hours/affected')
+  @ApiOperation({
+    operationId: 'CAL-011',
+    summary: 'Xem trước yêu cầu bị ảnh hưởng khi đổi giờ làm',
+    description:
+      'Các yêu cầu booking đang chờ nằm ngoài lịch tuần định lưu; có thì khi lưu phải gửi decline_pending: true. Không lưu gì. Role: Photographer',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiBody({ type: Dto.CalendarWorkingHoursPreviewQueryBodyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('CAL-011'),
+  })
+  @HttpCode(200)
+  workingHoursPreview(
+    @Req() req: { actor?: Actor },
+    @Body() body: Dto.CalendarWorkingHoursPreviewQueryBodyDto,
+  ) {
+    return this.queries.execute(
+      new CalendarWorkingHoursPreviewQuery(
+        req.actor ?? { sub: '', roles: [] },
+        { ...body },
+      ),
     );
   }
 }

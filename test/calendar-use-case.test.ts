@@ -22,7 +22,8 @@ test('blocking time reads only bookings and blocks that overlap the new range', 
     save: async (_entity: unknown, row: object) => ({ id: 'slot', ...row }),
   } as unknown as EntityManager;
   await new CalendarUseCases({
-    turnDownOverlapping: async () => 0,
+    pendingOverlapping: async () => [],
+    decline: async () => 0,
   } as unknown as PendingBookingsPort).block(
     s,
     { sub: 'kc-u1', roles: ['photographer'] },
@@ -42,4 +43,39 @@ test('blocking time reads only bookings and blocks that overlap the new range', 
     assert.equal(where.from.type, 'lessThan');
     assert.equal(where.from.value, new Date(to).toISOString());
   }
+});
+
+test('blocking over pending requests needs the photographer consent', async () => {
+  const s = {
+    findBy: async (entity: unknown) =>
+      entity === EntitySchemas.users
+        ? [{ id: 'u1', keycloak_id: 'kc-u1', status: 'active' }]
+        : [{ id: 'p1', user_id: 'u1' }],
+    findOne: async () => ({ id: 'p1' }),
+    find: async () => [],
+    save: async () => {
+      throw new Error('must not save without consent');
+    },
+  } as unknown as EntityManager;
+  const declined: string[][] = [];
+  const port = {
+    pendingOverlapping: async () => [{ id: 'b1' }],
+    decline: async (_s: unknown, ids: string[]) => {
+      declined.push(ids);
+      return ids.length;
+    },
+  } as unknown as PendingBookingsPort;
+  const range = {
+    from: '2030-01-01T09:00:00+07:00',
+    to: '2030-01-01T12:00:00+07:00',
+  };
+  await assert.rejects(
+    new CalendarUseCases(port).block(
+      s,
+      { sub: 'kc-u1', roles: ['photographer'] },
+      range,
+    ),
+    /send decline_pending: true/,
+  );
+  assert.equal(declined.length, 0);
 });

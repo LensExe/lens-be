@@ -7,6 +7,8 @@ import {
 } from '@modules/calendar/calendar.command';
 import {
   CalendarAvailabilityQueryHandler,
+  CalendarBlockPreviewQueryHandler,
+  CalendarWorkingHoursPreviewQueryHandler,
   CalendarMeQueryHandler,
   CalendarWorkingHoursQueryHandler,
 } from '@modules/calendar/calendar.query';
@@ -20,6 +22,8 @@ import {
     CalendarMeQueryHandler,
     CalendarSetWorkingHoursCommandHandler,
     CalendarWorkingHoursQueryHandler,
+    CalendarBlockPreviewQueryHandler,
+    CalendarWorkingHoursPreviewQueryHandler,
   ],
 })
 export class CalendarApiModule {}
