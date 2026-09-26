@@ -15,20 +15,6 @@ export type TransactionType =
   (typeof TransactionType)[keyof typeof TransactionType];
 
 /**
- * Các loại thực thể tham chiếu gắn liền với giao dịch
- */
-export const TransactionReferenceType = {
-  BOOKING: 'booking',
-  SUBSCRIPTION: 'subscription',
-  WALLET_TOPUP: 'wallet_topup',
-  WALLET_WITHDRAWAL: 'wallet_withdrawal',
-  REFUND: 'refund',
-} as const;
-
-export type TransactionReferenceType =
-  (typeof TransactionReferenceType)[keyof typeof TransactionReferenceType];
-
-/**
  * Entity đại diện cho bảng `transactions`.
  * Quản lý toàn bộ lịch sử biến động số dư và các giao dịch nạp, rút,
  * thanh toán qua cổng trực tuyến (PayOS) hoặc nội bộ.
@@ -46,10 +32,6 @@ export class TransactionEntity extends BaseEntity {
   /** Loại giao dịch ('deposit', 'remaining', 'subscription') */
   @Column()
   type!: TransactionType;
-
-  /** Loại tham chiếu ('booking' | 'subscription' | 'wallet_topup' | 'wallet_withdrawal' | 'refund') */
-  @Column('varchar', { nullable: true })
-  referrence_type!: TransactionReferenceType | null;
 
   /** ID của thực thể liên quan (ví dụ: booking_id, subscription_id...) */
   @Column('uuid', { nullable: true })
