@@ -10,6 +10,7 @@ import {
 } from '@shared/common/access';
 import { Calendar } from './calendar.domain';
 import { PendingBookingsPort } from './ports/pending-bookings.port';
+import { CollaborationTimesPort } from './ports/collaboration-times.port';
 import {
   DEFAULT_WORKING_HOURS,
   WorkSchedule,
@@ -25,10 +26,14 @@ const HOURS_CHANGED_REASON = 'Photographer changed working hours';
 /** Application use cases for photographer calendar operations. */
 @Injectable()
 export class CalendarUseCases {
-  constructor(private readonly pendingBookings: PendingBookingsPort) {}
+  constructor(
+    private readonly pendingBookings: PendingBookingsPort,
+    private readonly collaborations: CollaborationTimesPort,
+  ) {}
 
   /**
-   * Khách xem lịch trống của thợ (public): ca làm theo giờ Việt Nam trừ khoảng chặn và booking.
+   * Khách xem lịch trống của thợ (public): ca làm theo giờ Việt Nam trừ khoảng chặn, booking và
+   * các buổi thợ đi chụp liên kết.
    * Chỉ thợ đã duyệt, tài khoản active; thợ tắt nhận lịch (`is_available = false`) thì rỗng.
    *
    * @param s EntityManager của transaction hiện tại
@@ -55,9 +60,31 @@ export class CalendarUseCases {
           EntitySchemas.offline_slots,
           this.overlapping(p.id, window),
         ),
-        await s.find(EntitySchemas.bookings, this.overlapping(p.id, window)),
+        [
+          ...(await s.find(
+            EntitySchemas.bookings,
+            this.overlapping(p.id, window),
+          )),
+          ...(await this.collaborations.collaborationTimes(s, p.id, window)),
+        ],
       ),
     };
+  }
+
+  /**
+   * Ca làm dài nhất của thợ, tính bằng phút. Module photographer gọi qua port để không cho tạo gói
+   * chụp dài hơn mọi ca (gói như vậy không bao giờ đặt được).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @returns Số phút của ca dài nhất (chưa khai ⇒ 720, tức 08:00–20:00)
+   */
+  async longestShiftMinutes(s: EntityManager, photographerId: string) {
+    return WorkSchedule.longestShiftMinutes(
+      await s.findBy(EntitySchemas.working_hours, {
+        photographer_id: photographerId,
+      }),
+    );
   }
 
   /**
@@ -186,7 +213,13 @@ export class CalendarUseCases {
     const range = Calendar.blockRange(input);
     Calendar.assertCanBlock(
       range,
-      await s.find(EntitySchemas.bookings, this.overlapping(p.id, range)),
+      [
+        ...(await s.find(
+          EntitySchemas.bookings,
+          this.overlapping(p.id, range),
+        )),
+        ...(await this.collaborations.collaborationTimes(s, p.id, range)),
+      ],
       await s.find(EntitySchemas.offline_slots, this.overlapping(p.id, range)),
       Date.now(),
     );

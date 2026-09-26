@@ -376,6 +376,7 @@ Ví dụ hiện có:
 | ---------------------- | -------------------------- | ---------------- |
 | Booking                | `RatingUpdaterPort`        | Feedback/Review  |
 | Calendar               | `PendingBookingsPort`      | Booking          |
+| Calendar               | `CollaborationTimesPort`   | Booking          |
 | Photographer/Portfolio | `MediaOwnershipPort`       | Media            |
 | Subscription           | `SubscriptionPaymentsPort` | Payment          |
 

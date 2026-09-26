@@ -5,6 +5,8 @@ import { interval } from './booking-values';
 const VN_OFFSET_MS = 7 * 3600 * 1000;
 const DAY_MS = 864e5;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** Giờ kết thúc ca: như `TIME`, thêm `24:00` (nửa đêm, hết ngày). */
+const END_TIME = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 
 /** Một ca làm trong tuần: `weekday` 1 (thứ Hai) … 7 (Chủ nhật), giờ `HH:MM` theo giờ Việt Nam. */
 export interface WorkingShift {
@@ -104,6 +106,23 @@ export class WorkSchedule {
   }
 
   /**
+   * Ca dài nhất trong lịch tuần, tính bằng phút (chưa khai ⇒ giờ mặc định 08:00–20:00).
+   * Dùng để chặn gói chụp dài hơn mọi ca, vì booking phải nằm trọn một ca.
+   *
+   * @param schedule Lịch tuần thợ đã khai (có thể rỗng)
+   * @returns Số phút của ca dài nhất
+   */
+  static longestShiftMinutes(schedule: readonly WorkingShift[]) {
+    const minutes = (time: string) =>
+      Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+    return Math.max(
+      ...(schedule.length ? schedule : DEFAULT_WORKING_HOURS).map(
+        (shift) => minutes(shift.end_time) - minutes(shift.start_time),
+      ),
+    );
+  }
+
+  /**
    * Kiểm tra lịch tuần hợp lệ: thứ 1–7, giờ `HH:MM`, bắt đầu trước kết thúc, các ca cùng thứ không chồng nhau.
    *
    * @param schedule Lịch tuần cần lưu
@@ -118,8 +137,8 @@ export class WorkSchedule {
         'weekday must be 1 (Monday) to 7 (Sunday)',
       );
       ensure(
-        TIME.test(shift.start_time) && TIME.test(shift.end_time),
-        'Times must use HH:MM',
+        TIME.test(shift.start_time) && END_TIME.test(shift.end_time),
+        'Times must use HH:MM (end may be 24:00)',
       );
       ensure(
         shift.start_time < shift.end_time,
