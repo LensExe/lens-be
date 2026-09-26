@@ -19,6 +19,9 @@ import { ensure } from '@shared/platform/exceptions/domain.error';
 /** Lý do ghi cho yêu cầu pending bị từ chối vì thợ chặn đúng giờ đó. */
 const BLOCKED_REASON = 'Photographer blocked this time';
 
+/** Lý do ghi cho yêu cầu pending bị từ chối vì nằm ngoài giờ làm mới của thợ. */
+const HOURS_CHANGED_REASON = 'Photographer changed working hours';
+
 /** Application use cases for photographer calendar operations. */
 @Injectable()
 export class CalendarUseCases {
@@ -84,6 +87,8 @@ export class CalendarUseCases {
 
   /**
    * Thợ thay toàn bộ lịch làm việc theo tuần. Danh sách rỗng ⇒ quay về giờ mặc định 08:00–20:00.
+   * Yêu cầu đang chờ nằm ngoài giờ làm mới thì thợ phải gửi `decline_pending: true` (xem trước bằng
+   * `workingHoursPreview`); khi đó các yêu cầu này bị từ chối kèm lý do. Booking đã nhận giữ nguyên.
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Người đang gọi API (thợ)
@@ -95,15 +100,46 @@ export class CalendarUseCases {
     a: Actor,
     input: Inputs.CalendarSetWorkingHoursCommandInput,
   ) {
-    const p = await photographer(s, a);
+    const p = await this.lockedPhotographer(s, a);
     WorkSchedule.assertValid(input.items);
+    const affected = await this.pendingBookings.pendingOutside(
+      s,
+      p.id,
+      input.items,
+    );
+    this.assertConsent(affected.length, input.decline_pending);
     await s.delete(EntitySchemas.working_hours, { photographer_id: p.id });
     for (const shift of input.items)
       await s.save(EntitySchemas.working_hours, {
         ...shift,
         photographer_id: p.id,
       });
+    await this.pendingBookings.decline(
+      s,
+      affected.map((b) => b.id),
+      HOURS_CHANGED_REASON,
+    );
     return this.workingHours(s, a);
+  }
+
+  /**
+   * Xem trước: các yêu cầu đang chờ sẽ bị từ chối nếu thợ lưu lịch tuần này.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người đang gọi API (thợ)
+   * @param input Lịch tuần định lưu
+   * @returns `{ items }` các yêu cầu bị ảnh hưởng; 400 nếu lịch sai
+   */
+  async workingHoursPreview(
+    s: EntityManager,
+    a: Actor,
+    input: Inputs.CalendarWorkingHoursPreviewQueryInput,
+  ) {
+    const p = await photographer(s, a);
+    WorkSchedule.assertValid(input.items);
+    return {
+      items: await this.pendingBookings.pendingOutside(s, p.id, input.items),
+    };
   }
 
   /**
@@ -134,19 +170,19 @@ export class CalendarUseCases {
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Người đang gọi API (thợ)
-   * @param input `date`, hoặc `from` + `to`; kèm `reason` tuỳ chọn
-   * @returns Khoảng chặn vừa lưu; 400 nếu sai kiểu hoặc đã qua, 409 nếu đè booking hoặc chồng khoảng chặn khác
+   * Có yêu cầu đang chờ chồng giờ thì thợ phải gửi `decline_pending: true` (xem trước bằng `blockPreview`);
+   * khi đó các yêu cầu này bị từ chối kèm lý do.
+   *
+   * @param input `date`, hoặc `from` + `to`; kèm `reason`, `decline_pending` tuỳ chọn
+   * @returns Khoảng chặn vừa lưu; 400 nếu sai kiểu hoặc đã qua, 409 nếu đè booking, chồng khoảng chặn khác,
+   *   hoặc có yêu cầu đang chờ mà chưa đồng ý từ chối
    */
   async block(
     s: EntityManager,
     a: Actor,
     input: Inputs.CalendarBlockCommandInput,
   ) {
-    const p = await photographer(s, a);
-    await s.findOne(EntitySchemas.photographers, {
-      where: { id: p.id },
-      lock: { mode: 'pessimistic_write' },
-    });
+    const p = await this.lockedPhotographer(s, a);
     const range = Calendar.blockRange(input);
     Calendar.assertCanBlock(
       range,
@@ -154,18 +190,78 @@ export class CalendarUseCases {
       await s.find(EntitySchemas.offline_slots, this.overlapping(p.id, range)),
       Date.now(),
     );
+    const affected = await this.pendingBookings.pendingOverlapping(
+      s,
+      p.id,
+      range,
+    );
+    this.assertConsent(affected.length, input.decline_pending);
     const slot = await s.save(EntitySchemas.offline_slots, {
       photographer_id: p.id,
       ...range,
       reason: input.reason ?? null,
     });
-    await this.pendingBookings.turnDownOverlapping(
+    await this.pendingBookings.decline(
       s,
-      p.id,
-      range,
+      affected.map((b) => b.id),
       BLOCKED_REASON,
     );
     return slot;
+  }
+
+  /**
+   * Xem trước: các yêu cầu đang chờ sẽ bị từ chối nếu thợ chặn khoảng này.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người đang gọi API (thợ)
+   * @param input `date`, hoặc `from` + `to` (giống khi chặn)
+   * @returns `{ items }` các yêu cầu bị ảnh hưởng; 400 nếu khoảng sai
+   */
+  async blockPreview(
+    s: EntityManager,
+    a: Actor,
+    input: Inputs.CalendarBlockPreviewQueryInput,
+  ) {
+    const p = await photographer(s, a);
+    return {
+      items: await this.pendingBookings.pendingOverlapping(
+        s,
+        p.id,
+        Calendar.blockRange(input),
+      ),
+    };
+  }
+
+  /**
+   * Hồ sơ thợ đang đăng nhập, khoá dòng để không chạy song song với tạo/nhận booking
+   * (bên booking cũng khoá dòng này).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người đang gọi API (thợ)
+   * @returns Hồ sơ thợ
+   */
+  private async lockedPhotographer(s: EntityManager, a: Actor) {
+    const p = await photographer(s, a);
+    await s.findOne(EntitySchemas.photographers, {
+      where: { id: p.id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    return p;
+  }
+
+  /**
+   * Thợ phải đồng ý trước khi thay đổi lịch làm từ chối yêu cầu đang chờ của khách.
+   *
+   * @param affected Số yêu cầu đang chờ bị ảnh hưởng
+   * @param declinePending Thợ đã gửi `decline_pending: true` chưa
+   * @returns Không trả gì; 409 nếu có yêu cầu bị ảnh hưởng mà thợ chưa đồng ý
+   */
+  private assertConsent(affected: number, declinePending: boolean | undefined) {
+    ensure(
+      affected === 0 || declinePending === true,
+      `${affected} pending request(s) would be declined; send decline_pending: true to go ahead`,
+      'conflict',
+    );
   }
 
   async unblock(

@@ -175,6 +175,8 @@ const schemas: Record<string, SchemaObject> = {
   'CAL-007': deleted,
   'CAL-008': workingHours,
   'CAL-009': workingHours,
+  'CAL-010': items(records.bookings),
+  'CAL-011': items(records.bookings),
   'BOOK-001': records.bookings,
   'BOOK-002': records.bookings,
   'BOOK-003': paged(records.bookings),

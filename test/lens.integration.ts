@@ -651,7 +651,7 @@ test('cancel reason is kept in the booking history', async () => {
   assert.equal(items[1].actor_role, 'customer');
   assert.equal(items[1].reason, 'Changed plans');
 });
-test('blocking time turns down pending requests for that time', async () => {
+test('blocking time over pending requests asks first, then declines them', async () => {
   const day = new Date(Date.now() + 6 * 864e5).toISOString().slice(0, 10);
   const vn = (hour: string) =>
     new Date(`${day}T${hour}:00+07:00`).toISOString();
@@ -662,18 +662,89 @@ test('blocking time turns down pending requests for that time', async () => {
     from: vn('09:00'),
     to: vn('10:00'),
   });
+  const block = { from: vn('08:00'), to: vn('12:00') };
+  // preview lists the requests that would be declined
+  const preview = await ok(
+    'GET',
+    `/calendar/blocked-times/affected?from=${encodeURIComponent(block.from)}&to=${encodeURIComponent(block.to)}`,
+    'photographer',
+  );
+  assert.deepEqual(
+    preview.items.map((b: { id: string }) => b.id),
+    [request.id],
+  );
+  // without the photographer's consent nothing is saved
+  assert.equal(
+    (await api('POST', '/calendar/blocked-times', 'photographer', block))
+      .status,
+    409,
+  );
+  assert.equal(
+    (await ok('GET', `/bookings/${request.id}`, 'customer')).status,
+    'pending',
+  );
   const slot = await ok('POST', '/calendar/blocked-times', 'photographer', {
-    from: vn('08:00'),
-    to: vn('12:00'),
+    ...block,
+    decline_pending: true,
   });
-  const after = await ok('GET', `/bookings/${request.id}`, 'customer');
-  assert.equal(after.status, 'rejected');
+  assert.equal(
+    (await ok('GET', `/bookings/${request.id}`, 'customer')).status,
+    'rejected',
+  );
   const [, last] = (
     await ok('GET', `/bookings/${request.id}/timeline`, 'customer')
   ).items;
   assert.equal(last.actor_role, 'system');
   assert.match(last.reason, /blocked this time/);
   await ok('DELETE', `/calendar/blocked-times/${slot.id}`, 'photographer');
+});
+test('shortening working hours over pending requests asks first, then declines them', async () => {
+  const day = new Date(Date.now() + 8 * 864e5).toISOString().slice(0, 10);
+  const request = await ok('POST', '/bookings', 'customer', {
+    photographer_id: photo,
+    plan_id: plan,
+    location: 'Studio',
+    from: new Date(`${day}T19:00:00+07:00`).toISOString(),
+    to: new Date(`${day}T20:00:00+07:00`).toISOString(),
+  });
+  const shorter = {
+    items: [1, 2, 3, 4, 5, 6, 7].map((weekday) => ({
+      weekday,
+      start_time: '08:00',
+      end_time: '17:00',
+    })),
+  };
+  const preview = await ok(
+    'POST',
+    '/calendar/me/working-hours/affected',
+    'photographer',
+    shorter,
+  );
+  assert.deepEqual(
+    preview.items.map((b: { id: string }) => b.id),
+    [request.id],
+  );
+  assert.equal(
+    (await api('PUT', '/calendar/me/working-hours', 'photographer', shorter))
+      .status,
+    409,
+  );
+  assert.equal(
+    (await ok('GET', '/calendar/me/working-hours', 'photographer')).is_default,
+    true,
+  );
+  await ok('PUT', '/calendar/me/working-hours', 'photographer', {
+    ...shorter,
+    decline_pending: true,
+  });
+  const after = await ok('GET', `/bookings/${request.id}`, 'customer');
+  assert.equal(after.status, 'rejected');
+  const [, last] = (
+    await ok('GET', `/bookings/${request.id}/timeline`, 'customer')
+  ).items;
+  assert.match(last.reason, /changed working hours/);
+  // back to the default hours for the tests after this one
+  await ok('PUT', '/calendar/me/working-hours', 'photographer', { items: [] });
 });
 test('cancel and accept at the same time: only one of them wins', async () => {
   const day = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
@@ -720,9 +791,9 @@ test('cancel and accept at the same time: only one of them wins', async () => {
 });
 test('booking lists are filtered and paged in the database', async () => {
   const all = await ok('GET', '/bookings', 'customer');
-  assert.equal(all.total, 4);
+  assert.equal(all.total, 5);
   const page1 = await ok('GET', '/bookings?limit=1&offset=1', 'customer');
-  assert.equal(page1.total, 4);
+  assert.equal(page1.total, 5);
   assert.deepEqual(
     page1.items.map((b: { id: string }) => b.id),
     [all.items[1].id],
