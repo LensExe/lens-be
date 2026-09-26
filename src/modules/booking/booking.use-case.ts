@@ -33,13 +33,15 @@ import type {
   BookingEntity,
 } from '@shared/database/entities';
 
+/** Lý do ghi cho các yêu cầu pending bị từ chối tự động khi thợ nhận một booking chồng giờ. */
+const TURNED_DOWN_REASON = 'Photographer accepted another booking at this time';
+
 /** Bên thực hiện ghi vào lịch sử; `userId` là `null` khi job nền (`role = 'system'`). */
 type HistoryActor = { role: BookingActorRole; userId: string | null };
 
 /** Bên của booking được làm hành động (không có trong bảng ⇒ khách, thợ hoặc admin/system). */
 const ACTION_SIDE: Partial<Record<BookingAction, 'customer' | 'photographer'>> =
   {
-    accept: 'photographer',
     reject: 'photographer',
     start: 'photographer',
     completeShoot: 'photographer',
@@ -351,15 +353,61 @@ export class BookingUseCases {
   }
 
   /**
-   * Thợ chính nhận booking: `pending → accepted`.
+   * Thợ chính nhận booking: `pending → accepted`. Kiểm lại giờ đó chưa có booking đã nhận
+   * hay khoảng chặn, rồi tự từ chối các yêu cầu `pending` khác chồng giờ (ghi lý do, bắn realtime).
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor (thợ chính)
    * @param i ID booking
-   * @returns Booking sau khi đổi; 409 nếu sai trạng thái
+   * @returns Booking sau khi đổi; 409 nếu sai trạng thái hoặc giờ đó đã bị giữ
    */
-  accept(s: EntityManager, a: Actor, i: Inputs.BookingAcceptCommandInput) {
-    return this.transition(s, a, i, 'accept');
+  async accept(
+    s: EntityManager,
+    a: Actor,
+    i: Inputs.BookingAcceptCommandInput,
+  ) {
+    const access = await bookingAccess(s, a, i.id, 'photographer');
+    // khoá thợ để hai lần nhận chồng giờ không cùng lọt; đọc lại booking sau khi khoá
+    await s.findOne(EntitySchemas.photographers, {
+      where: { id: access.photographer.id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    const b = await required(s, 'bookings', i.id);
+    const overlap = this.overlapping(b.photographer_id, b);
+    const others = (await s.findBy(EntitySchemas.bookings, overlap)).filter(
+      (o) => o.id !== b.id,
+    );
+    Booking.assertCanAccept(
+      b,
+      await s.findBy(EntitySchemas.offline_slots, overlap),
+      others,
+    );
+    const row = await this.apply(
+      s,
+      b,
+      'accept',
+      {
+        role: Booking.actorRole(
+          access.user.id,
+          access.customer.user_id,
+          access.photographer.user_id,
+          a.roles,
+        ),
+        userId: access.user.id,
+      },
+      null,
+      access.recipients,
+    );
+    for (const rival of others.filter((o) => o.status === 'pending'))
+      await this.apply(
+        s,
+        rival,
+        'reject',
+        { role: BookingActorRole.SYSTEM, userId: null },
+        TURNED_DOWN_REASON,
+        await this.recipients(s, rival),
+      );
+    return row;
   }
 
   /**

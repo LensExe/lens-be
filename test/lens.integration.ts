@@ -42,6 +42,7 @@ let customer: string,
   photo: string,
   plan: string,
   booking: string,
+  rival: string,
   deposit: string,
   remaining: string,
   media: string;
@@ -557,11 +558,13 @@ test('calendar blocking and concurrent booking conflict', async () => {
     api('POST', '/bookings', 'customer', input),
     api('POST', '/bookings', 'stranger', input),
   ]);
-  assert.deepEqual(attempts.map((x) => x.status).sort(), [200, 409]);
-  booking = attempts.find((x) => x.status === 200)!.body.id;
-  // Ensure subsequent tests use the winner's identity.
-  if (attempts[1].status === 200)
-    [actors.customer, actors.stranger] = [actors.stranger, actors.customer];
+  // a pending request does not hold the time: both customers may ask for it
+  assert.deepEqual(
+    attempts.map((x) => x.status),
+    [200, 200],
+  );
+  booking = attempts[0].body.id;
+  rival = attempts[1].body.id;
   const available = await ok('GET', `/photographers/${photo}/availability`);
   assert.ok(available.items.length > 0);
 });
@@ -582,6 +585,14 @@ test('booking ownership and lifecycle checks', async () => {
     (await api('POST', `/bookings/${booking}/start`, 'photographer')).status,
     409,
   );
+  // accepting one request turns down the other requests for the same time
+  const turnedDown = await ok('GET', `/bookings/${rival}`, 'stranger');
+  assert.equal(turnedDown.status, 'rejected');
+  const [, last] = (await ok('GET', `/bookings/${rival}/timeline`, 'stranger'))
+    .items;
+  assert.equal(last.actor_role, 'system');
+  assert.equal(last.actor_user_id, null);
+  assert.match(last.reason, /accepted another booking/);
   // every transition leaves one history row with who did it
   const timeline = await ok('GET', `/bookings/${booking}/timeline`, 'customer');
   assert.deepEqual(
@@ -640,7 +651,7 @@ test('booking lists are filtered and paged in the database', async () => {
       .total,
     0,
   );
-  assert.equal((await ok('GET', '/bookings', 'stranger')).total, 0);
+  assert.equal((await ok('GET', '/bookings', 'stranger')).total, 1);
   const admin = await ok(
     'GET',
     '/admin/bookings?status=cancelled&limit=5',

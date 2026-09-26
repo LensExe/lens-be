@@ -82,21 +82,7 @@ export class Booking {
       'Booking must be within working hours',
       'conflict',
     );
-    ensure(
-      !input.blockedTimes.some((blocked) => overlaps(range, blocked)),
-      'Photographer is unavailable at this time',
-      'conflict',
-    );
-    ensure(
-      !input.bookings.some(
-        (booking) =>
-          (OCCUPIED_BOOKING_STATUSES as readonly string[]).includes(
-            booking.status,
-          ) && overlaps(booking, range),
-      ),
-      'Photographer already booked or blocked',
-      'conflict',
-    );
+    Booking.assertCanAccept(range, input.blockedTimes, input.bookings);
     const total = money(input.planPrice);
     return {
       customer_id: input.customerId,
@@ -108,6 +94,37 @@ export class Booking {
       deposit_amount: Math.ceil(total * 0.3),
       status: BookingStatus.PENDING,
     };
+  }
+
+  /**
+   * Khoảng giờ còn trống để giữ lịch: không chồng khoảng chặn và không chồng booking đang
+   * chiếm lịch (đã nhận trở đi; yêu cầu `pending` không tính). Dùng khi tạo và khi thợ nhận.
+   *
+   * @param range Khoảng giờ của booking
+   * @param blockedTimes Các khoảng thợ đã chặn
+   * @param bookings Các booking khác của thợ
+   * @returns Không trả gì; 409 nếu trùng
+   */
+  static assertCanAccept(
+    range: { from: string; to: string },
+    blockedTimes: readonly { from: string; to: string }[],
+    bookings: readonly { from: string; to: string; status: string }[],
+  ) {
+    ensure(
+      !blockedTimes.some((blocked) => overlaps(range, blocked)),
+      'Photographer is unavailable at this time',
+      'conflict',
+    );
+    ensure(
+      !bookings.some(
+        (booking) =>
+          (OCCUPIED_BOOKING_STATUSES as readonly string[]).includes(
+            booking.status,
+          ) && overlaps(booking, range),
+      ),
+      'Photographer already booked or blocked',
+      'conflict',
+    );
   }
 
   /**

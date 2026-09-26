@@ -23,9 +23,10 @@ export type BookingStatus = (typeof BookingStatus)[keyof typeof BookingStatus];
 /**
  * Các trạng thái booking chiếm dụng lịch chụp của photographer
  * (không thể đặt trùng hoặc tự khóa lịch trong khoảng thời gian này).
+ * `pending` không chiếm lịch: nhiều khách cùng xin một khung được, thợ nhận ai thì
+ * các yêu cầu chồng giờ còn lại bị từ chối.
  */
 export const OCCUPIED_BOOKING_STATUSES = [
-  BookingStatus.PENDING,
   BookingStatus.ACCEPTED,
   BookingStatus.IN_PROGRESS,
   BookingStatus.SHOT,
