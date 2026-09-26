@@ -11,6 +11,7 @@ import { PayOsGateway } from '@shared/integrations/payment/payos-gateway.service
 import { S3Module } from '@shared/integrations/s3/s3.module';
 import { BookingUseCases } from '@modules/booking/booking.use-case';
 import { CalendarUseCases } from '@modules/calendar/calendar.use-case';
+import { WorkingHoursReader } from '@modules/calendar/working-hours.reader';
 import { ReviewUseCases } from '@modules/feedback/review.use-case';
 import { MediaUseCases } from '@modules/media/media.use-case';
 import { ModerationUseCases } from '@modules/moderation/moderation.use-case';
@@ -25,6 +26,7 @@ import { IdentityUseCases } from '@modules/identity/identity.use-case';
 import { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.port';
 import { PendingBookingsPort } from '@modules/calendar/ports/pending-bookings.port';
 import { CollaborationTimesPort } from '@modules/calendar/ports/collaboration-times.port';
+import { PlanDurationsPort } from '@modules/calendar/ports/plan-durations.port';
 import { MediaOwnershipPort } from '@modules/photographer/ports/media-ownership.port';
 import { SubscriptionPaymentsPort } from '@modules/subscription/ports/subscription-payments.port';
 import { PhotographerRolePort } from '@modules/photographer/ports/photographer-role.port';
@@ -39,6 +41,7 @@ import { EnvModule } from '@shared/platform/env';
 const applicationServices = [
   BookingUseCases,
   CalendarUseCases,
+  WorkingHoursReader,
   ReviewUseCases,
   MediaUseCases,
   ModerationUseCases,
@@ -70,7 +73,8 @@ const applicationServices = [
     { provide: RatingUpdaterPort, useExisting: ReviewUseCases },
     { provide: PendingBookingsPort, useExisting: BookingUseCases },
     { provide: CollaborationTimesPort, useExisting: BookingUseCases },
-    { provide: WorkingHoursPort, useExisting: CalendarUseCases },
+    { provide: WorkingHoursPort, useExisting: WorkingHoursReader },
+    { provide: PlanDurationsPort, useExisting: BookingPlanUseCases },
     { provide: MediaOwnershipPort, useExisting: MediaUseCases },
     { provide: SubscriptionPaymentsPort, useExisting: PaymentUseCases },
     // TODO(identity): thay bằng provider thật của identity (docs/IDENTITY_TODO.md, việc 7).

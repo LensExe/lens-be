@@ -117,6 +117,24 @@ export class Calendar {
   }
 
   /**
+   * Lịch tuần mới phải còn ít nhất một ca đủ dài cho gói đang bán dài nhất; nếu không, gói đó
+   * không bao giờ đặt được (booking phải nằm trọn một ca).
+   *
+   * @param schedule Lịch tuần định lưu (rỗng ⇒ giờ mặc định)
+   * @param longestPlanMinutes Gói đang bán dài nhất (phút); 0 nếu không có gói
+   * @returns Không trả gì; 400 nếu ca dài nhất ngắn hơn gói
+   */
+  static assertCoversPlans(
+    schedule: readonly WorkingShift[],
+    longestPlanMinutes: number,
+  ) {
+    ensure(
+      WorkSchedule.longestShiftMinutes(schedule) >= longestPlanMinutes,
+      `Working hours are shorter than your longest plan on sale (${longestPlanMinutes} minutes); shorten or turn off that plan first`,
+    );
+  }
+
+  /**
    * Kiểm khoảng chặn hợp lệ: chưa kết thúc, không đè booking đang giữ lịch, không chồng khoảng chặn khác.
    *
    * @param range Khoảng muốn chặn (từ `blockRange`)
