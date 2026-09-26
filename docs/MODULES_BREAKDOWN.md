@@ -378,6 +378,7 @@ Ví dụ hiện có:
 | Booking                | `PaidAmountsPort`          | Payment          |
 | Calendar               | `PendingBookingsPort`      | Booking          |
 | Calendar               | `CollaborationTimesPort`   | Booking          |
+| Calendar               | `PhotographerBookingsPort` | Booking          |
 | Photographer           | `WorkingHoursPort`         | Calendar         |
 | Photographer/Portfolio | `MediaOwnershipPort`       | Media            |
 | Subscription           | `SubscriptionPaymentsPort` | Payment          |
