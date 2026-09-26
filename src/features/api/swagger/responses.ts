@@ -152,7 +152,9 @@ const schemas: Record<string, SchemaObject> = {
   'PHO-007': privatePhotographer,
   'PHO-008': privatePhotographer,
   'PHO-009': records.booking_plans,
-  'PHO-010': items(records.booking_plans),
+  'PHO-010': items(
+    obj({ ...records.booking_plans.properties, fits_working_hours: bool }),
+  ),
   'PHO-011': records.booking_plans,
   'PHO-012': deleted,
   'PHO-013': items(records.booking_plans),

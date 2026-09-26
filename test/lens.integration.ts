@@ -433,6 +433,12 @@ test('only verified photographers are public; unavailable ones rank last', async
     ).status,
     400,
   );
+  // the photographer sees whether each plan still fits the working hours
+  assert.ok(
+    (
+      await ok('GET', '/photographers/me/booking-plans', 'photographer')
+    ).items.every((p: { fits_working_hours: boolean }) => p.fits_working_hours),
+  );
   // once approved, the tax code only changes through an admin
   assert.equal(
     (

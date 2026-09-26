@@ -119,15 +119,24 @@ export class BookingPlanUseCases {
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Người đang gọi API (phải có hồ sơ thợ)
-   * @returns `{ items }`: danh sách gói, cũ nhất trước
+   * @returns `{ items }`: danh sách gói, cũ nhất trước; mỗi gói có `fits_working_hours` = gói còn nằm vừa
+   *   ca làm dài nhất (thợ thu ngắn giờ làm thì gói dài hơn sẽ `false`, tức khách không đặt được)
    */
   async me(s: EntityManager, a: Actor) {
     const p = await photographer(s, a);
+    const longestShift = await this.workingHours.longestShiftMinutes(s, p.id);
+    const plans = await s.find(EntitySchemas.booking_plans, {
+      where: { photographer_id: p.id },
+      order: { created_at: 'ASC' },
+    });
     return {
-      items: await s.find(EntitySchemas.booking_plans, {
-        where: { photographer_id: p.id },
-        order: { created_at: 'ASC' },
-      }),
+      items: plans.map((plan) => ({
+        ...plan,
+        fits_working_hours: BookingPlan.fitsShift(
+          plan.duration_minutes,
+          longestShift,
+        ),
+      })),
     };
   }
 
@@ -147,21 +156,5 @@ export class BookingPlanUseCases {
         order: { price: 'ASC' },
       }),
     };
-  }
-
-  /**
-   * Thời lượng gói đang bán dài nhất của thợ, tính bằng phút. Module calendar gọi qua port để
-   * không cho thu ngắn giờ làm tới mức gói đang bán không còn đặt được.
-   *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @returns Số phút; 0 nếu thợ không có gói nào đang bán
-   */
-  async longestActivePlanMinutes(s: EntityManager, photographerId: string) {
-    const plans = await s.findBy(EntitySchemas.booking_plans, {
-      photographer_id: photographerId,
-      is_active: true,
-    });
-    return Math.max(0, ...plans.map((plan) => plan.duration_minutes));
   }
 }
