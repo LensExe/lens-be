@@ -217,7 +217,7 @@ export class PhotographerUseCases {
     });
     return pairs.map(({ photographer: p, user: u }) => {
       const rating = ratings[p.id];
-      const rank = Rank.of(rating?.total_bookings ?? 0, ranks);
+      const rank = Rank.of(rating.total_bookings, ranks);
       return {
         commissionPercent: rank.commission_percent,
         profile: {
@@ -340,13 +340,13 @@ export class PhotographerUseCases {
       photographerId
     ];
     return {
-      averageRating: rating?.average_rating ?? 0,
+      averageRating: rating.average_rating,
       averagePunctuality: await this.ratings.averagePunctuality(
         s,
         photographerId,
       ),
-      visibleReviews: rating?.total_feedbacks ?? 0,
-      returnCustomers: rating?.return_customers ?? 0,
+      visibleReviews: rating.total_feedbacks,
+      returnCustomers: rating.return_customers,
     };
   }
 

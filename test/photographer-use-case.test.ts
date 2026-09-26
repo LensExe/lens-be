@@ -108,7 +108,17 @@ test('searching photographers costs the same number of queries for 1 or 3 result
     const ratings = {
       ratingsOf: async (_s: unknown, pids: string[]) => {
         reads++;
-        return Object.fromEntries(pids.map((pid) => [pid, null]));
+        return Object.fromEntries(
+          pids.map((pid) => [
+            pid,
+            {
+              average_rating: 0,
+              total_feedbacks: 0,
+              total_bookings: 0,
+              return_customers: 0,
+            },
+          ]),
+        );
       },
     } as unknown as PhotographerRatingsPort;
     const result = await new PhotographerUseCases(

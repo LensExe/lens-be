@@ -5,18 +5,37 @@ import { ReviewUseCases } from '../src/modules/feedback/review.use-case';
 import { Review } from '../src/modules/feedback/review.domain';
 import { EntitySchemas } from '../src/shared/database';
 
-test('ratings for many photographers in one query, null when none yet', async () => {
+test('ratings for many photographers in one query, zeros when none yet', async () => {
   let queries = 0;
   const s = {
     findBy: async () => {
       queries++;
-      return [{ photographer_id: 'p1', average_rating: 4.9 }];
+      return [
+        {
+          id: 'row-1',
+          photographer_id: 'p1',
+          average_rating: 4.9,
+          total_feedbacks: 7,
+          total_bookings: 9,
+          return_customers: 2,
+        },
+      ];
     },
   } as unknown as EntityManager;
   const ratings = await new ReviewUseCases().ratingsOf(s, ['p1', 'p2']);
   assert.deepEqual(ratings, {
-    p1: { photographer_id: 'p1', average_rating: 4.9 },
-    p2: null,
+    p1: {
+      average_rating: 4.9,
+      total_feedbacks: 7,
+      total_bookings: 9,
+      return_customers: 2,
+    },
+    p2: {
+      average_rating: 0,
+      total_feedbacks: 0,
+      total_bookings: 0,
+      return_customers: 0,
+    },
   });
   assert.equal(queries, 1);
 });

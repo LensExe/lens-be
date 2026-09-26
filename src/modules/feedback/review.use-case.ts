@@ -22,6 +22,7 @@ import {
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import type { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.port';
+import type { PhotographerRatingStats } from '@modules/photographer/ports/photographer-ratings.port';
 
 /** Nghiệp vụ review: viết, sửa, ẩn / hiện lại, thợ trả lời, điểm tổng của thợ. */
 @Injectable()
@@ -366,22 +367,36 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Rating tổng hợp của nhiều thợ trong một query. Module photographer gọi qua port để hiện điểm
-   * trên hồ sơ và xét huy hiệu, thay vì đọc thẳng bảng `photographer_ratings`.
+   * Thống kê rating của nhiều thợ trong một query. Module photographer gọi qua port để hiện điểm
+   * trên hồ sơ và xét rank, huy hiệu, thay vì đọc thẳng bảng `photographer_ratings`.
    *
    * @param s EntityManager của transaction hiện tại
    * @param photographerIds ID hồ sơ các thợ
-   * @returns Map ID thợ → bản ghi rating, `null` nếu thợ chưa có rating
+   * @returns Map ID thợ → thống kê; thợ chưa có dòng rating thì mọi số là 0
    */
-  async ratingsOf(s: EntityManager, photographerIds: readonly string[]) {
-    const ratings: Record<string, PhotographerRatingEntity | null> =
-      Object.fromEntries(photographerIds.map((id) => [id, null]));
-    if (!photographerIds.length) return ratings;
-    for (const r of await s.findBy(EntitySchemas.photographer_ratings, {
-      photographer_id: In([...photographerIds]),
-    }))
-      ratings[r.photographer_id] = r;
-    return ratings;
+  async ratingsOf(
+    s: EntityManager,
+    photographerIds: readonly string[],
+  ): Promise<Record<string, PhotographerRatingStats>> {
+    const rows = photographerIds.length
+      ? await s.findBy(EntitySchemas.photographer_ratings, {
+          photographer_id: In([...photographerIds]),
+        })
+      : [];
+    return Object.fromEntries(
+      photographerIds.map((id) => {
+        const r = rows.find((row) => row.photographer_id === id);
+        return [
+          id,
+          {
+            average_rating: r?.average_rating ?? 0,
+            total_feedbacks: r?.total_feedbacks ?? 0,
+            total_bookings: r?.total_bookings ?? 0,
+            return_customers: r?.return_customers ?? 0,
+          },
+        ];
+      }),
+    );
   }
 
   /**
