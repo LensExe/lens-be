@@ -220,8 +220,8 @@ test('completing a booking counts completed bookings and returning customers, th
         : entity === EntitySchemas.customers
           ? { id: 'c1', user_id: 'u1' }
           : { id: 'p1', user_id: 'u2' },
-    findOne: async () => {
-      order.push('lock photographer');
+    findOne: async (_e: unknown, options: { lock?: { mode: string } }) => {
+      order.push(`lock photographer ${options.lock?.mode}`);
       return { id: 'p1' };
     },
     countBy: async () => {
@@ -246,7 +246,12 @@ test('completing a booking counts completed bookings and returning customers, th
     { sub: 'kc-a', roles: ['admin'] },
     { id: 'b1' },
   );
-  assert.deepEqual(order.slice(0, 2), ['lock photographer', 'count completed']);
+  // FOR NO KEY UPDATE: completions of one photographer run one by one, but other transactions can
+  // still insert rows pointing at the photographer (a new review, a new booking)
+  assert.deepEqual(order.slice(0, 2), [
+    'lock photographer for_no_key_update',
+    'count completed',
+  ]);
   assert.deepEqual(sent, [
     ['p1', { completedBookings: 5, returnCustomers: 2 }],
   ]);
