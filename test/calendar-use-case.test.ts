@@ -5,14 +5,10 @@ import { EntitySchemas } from '../src/shared/database';
 import { CalendarUseCases } from '../src/modules/calendar/calendar.use-case';
 import type { PendingBookingsPort } from '../src/modules/calendar/ports/pending-bookings.port';
 import type { CollaborationTimesPort } from '../src/modules/calendar/ports/collaboration-times.port';
-import type { PlanDurationsPort } from '../src/modules/calendar/ports/plan-durations.port';
 
 const noCollaborations = {
   collaborationTimes: async () => [],
 } as unknown as CollaborationTimesPort;
-const noPlans = {
-  longestActivePlanMinutes: async () => 0,
-} as unknown as PlanDurationsPort;
 
 test('blocking time reads only bookings and blocks that overlap the new range', async () => {
   const from = '2030-01-01T09:00:00+07:00',
@@ -36,7 +32,6 @@ test('blocking time reads only bookings and blocks that overlap the new range', 
       decline: async () => 0,
     } as unknown as PendingBookingsPort,
     noCollaborations,
-    noPlans,
   ).block(s, { sub: 'kc-u1', roles: ['photographer'] }, { from, to });
   for (const table of [EntitySchemas.bookings, EntitySchemas.offline_slots]) {
     const read = reads.find((r) => r.entity === table);
@@ -79,7 +74,7 @@ test('blocking over pending requests needs the photographer consent', async () =
     to: '2030-01-01T12:00:00+07:00',
   };
   await assert.rejects(
-    new CalendarUseCases(port, noCollaborations, noPlans).block(
+    new CalendarUseCases(port, noCollaborations).block(
       s,
       { sub: 'kc-u1', roles: ['photographer'] },
       range,
@@ -87,4 +82,20 @@ test('blocking over pending requests needs the photographer consent', async () =
     /send decline_pending: true/,
   );
   assert.equal(declined.length, 0);
+});
+
+test('longest shift of a photographer, default hours when none declared', async () => {
+  const useCases = new CalendarUseCases(
+    {} as PendingBookingsPort,
+    noCollaborations,
+  );
+  const withShifts = {
+    findBy: async () => [
+      { weekday: 1, start_time: '08:00', end_time: '12:00' },
+      { weekday: 6, start_time: '07:00', end_time: '24:00' },
+    ],
+  } as unknown as EntityManager;
+  assert.equal(await useCases.longestShiftMinutes(withShifts, 'p1'), 17 * 60);
+  const none = { findBy: async () => [] } as unknown as EntityManager;
+  assert.equal(await useCases.longestShiftMinutes(none, 'p1'), 12 * 60);
 });

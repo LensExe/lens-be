@@ -765,16 +765,6 @@ test('shortening working hours over pending requests asks first, then declines t
     await ok('GET', `/bookings/${request.id}/timeline`, 'customer')
   ).items;
   assert.match(last.reason, /changed working hours/);
-  // hours shorter than a plan on sale would make that plan impossible to book
-  assert.equal(
-    (
-      await api('PUT', '/calendar/me/working-hours', 'photographer', {
-        items: [{ weekday: 1, start_time: '08:00', end_time: '08:30' }],
-        decline_pending: true,
-      })
-    ).status,
-    400,
-  );
   // a shift may run until midnight
   const late = await ok('PUT', '/calendar/me/working-hours', 'photographer', {
     items: [{ weekday: 1, start_time: '20:00', end_time: '24:00' }],

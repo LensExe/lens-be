@@ -11,7 +11,6 @@ import {
 import { Calendar } from './calendar.domain';
 import { PendingBookingsPort } from './ports/pending-bookings.port';
 import { CollaborationTimesPort } from './ports/collaboration-times.port';
-import { PlanDurationsPort } from './ports/plan-durations.port';
 import {
   DEFAULT_WORKING_HOURS,
   WorkSchedule,
@@ -30,7 +29,6 @@ export class CalendarUseCases {
   constructor(
     private readonly pendingBookings: PendingBookingsPort,
     private readonly collaborations: CollaborationTimesPort,
-    private readonly plans: PlanDurationsPort,
   ) {}
 
   /**
@@ -74,6 +72,22 @@ export class CalendarUseCases {
   }
 
   /**
+   * Ca làm dài nhất của thợ, tính bằng phút. Module photographer gọi qua port để không cho tạo gói
+   * chụp dài hơn mọi ca (gói như vậy không bao giờ đặt được).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @returns Số phút của ca dài nhất (chưa khai ⇒ 720, tức 08:00–20:00)
+   */
+  async longestShiftMinutes(s: EntityManager, photographerId: string) {
+    return WorkSchedule.longestShiftMinutes(
+      await s.findBy(EntitySchemas.working_hours, {
+        photographer_id: photographerId,
+      }),
+    );
+  }
+
+  /**
    * Thợ xem lịch làm việc theo tuần của mình.
    *
    * @param s EntityManager của transaction hiện tại
@@ -106,8 +120,7 @@ export class CalendarUseCases {
    * @param s EntityManager của transaction hiện tại
    * @param a Người đang gọi API (thợ)
    * @param input Các ca làm mới (thứ 1–7, giờ `HH:MM` theo giờ Việt Nam)
-   * @returns Lịch làm việc sau khi lưu; 400 nếu giờ sai, các ca cùng thứ chồng nhau, hoặc ca dài nhất
-   *   ngắn hơn gói đang bán
+   * @returns Lịch làm việc sau khi lưu; 400 nếu giờ sai hoặc các ca cùng thứ chồng nhau
    */
   async setWorkingHours(
     s: EntityManager,
@@ -116,10 +129,6 @@ export class CalendarUseCases {
   ) {
     const p = await this.lockedPhotographer(s, a);
     WorkSchedule.assertValid(input.items);
-    Calendar.assertCoversPlans(
-      input.items,
-      await this.plans.longestActivePlanMinutes(s, p.id),
-    );
     const affected = await this.pendingBookings.pendingOutside(
       s,
       p.id,
@@ -155,10 +164,6 @@ export class CalendarUseCases {
   ) {
     const p = await photographer(s, a);
     WorkSchedule.assertValid(input.items);
-    Calendar.assertCoversPlans(
-      input.items,
-      await this.plans.longestActivePlanMinutes(s, p.id),
-    );
     return {
       items: await this.pendingBookings.pendingOutside(s, p.id, input.items),
     };
