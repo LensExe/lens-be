@@ -283,4 +283,35 @@ export class ReviewUseCases implements RatingUpdaterPort {
     if (!existing)
       await s.save(EntitySchemas.ratings, { photographer_id: photographerId });
   }
+
+  /**
+   * Ghi phần số liệu booking trong rating của thợ (số booking hoàn tất, số khách quay lại).
+   * Module booking tự đếm trên bảng của mình rồi gọi qua port khi có booking hoàn tất, nên feedback
+   * không phải đọc bảng `bookings`. Chỉ đổi hai cột này, khoá dòng rating trước khi ghi.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @param stats `completedBookings`, `returnCustomers`
+   * @returns Không trả gì
+   */
+  async recordBookingStats(
+    s: EntityManager,
+    photographerId: string,
+    stats: { completedBookings: number; returnCustomers: number },
+  ) {
+    await this.openRating(s, photographerId);
+    await s.findOne(EntitySchemas.ratings, {
+      where: { photographer_id: photographerId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    await s.update(
+      EntitySchemas.ratings,
+      { photographer_id: photographerId },
+      {
+        total_bookings: stats.completedBookings,
+        return_customers: stats.returnCustomers,
+        updated_at: new Date().toISOString(),
+      },
+    );
+  }
 }

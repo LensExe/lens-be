@@ -62,3 +62,28 @@ test('summary from grouped counts matches the summary of the raw ratings', async
     Review.summary([5, 5, 5, 4]),
   );
 });
+
+test('booking stats update only the booking part of the rating, under a row lock', async () => {
+  const calls: { op: string; args: unknown[] }[] = [];
+  const s = {
+    findBy: async () => [{ photographer_id: 'p1' }],
+    findOne: async (_e: unknown, options: unknown) => {
+      calls.push({ op: 'lock', args: [options] });
+      return { photographer_id: 'p1' };
+    },
+    update: async (_e: unknown, where: unknown, values: unknown) => {
+      calls.push({ op: 'update', args: [where, values] });
+      return { affected: 1 };
+    },
+  } as unknown as EntityManager;
+  await new ReviewUseCases().recordBookingStats(s, 'p1', {
+    completedBookings: 12,
+    returnCustomers: 3,
+  });
+  assert.equal(calls[0].op, 'lock');
+  const [where, values] = calls[1].args as [object, Record<string, unknown>];
+  assert.deepEqual(where, { photographer_id: 'p1' });
+  assert.equal(values.total_bookings, 12);
+  assert.equal(values.return_customers, 3);
+  assert.equal('average_rating' in values, false);
+});
