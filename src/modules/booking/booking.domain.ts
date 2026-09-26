@@ -60,7 +60,8 @@ export type BookingAction =
   | 'completeShoot'
   | 'complete'
   | 'confirmReceipt'
-  | 'expire';
+  | 'expire'
+  | 'adminCancel';
 
 /** Số giờ thợ có để trả lời một yêu cầu; quá hạn (hoặc tới giờ chụp) thì yêu cầu hết hạn. */
 export const PENDING_EXPIRES_AFTER_HOURS = 24;
@@ -282,6 +283,10 @@ export class Booking {
         complete: [['shot'], 'completed'],
         confirmReceipt: [['shot'], 'completed'],
         expire: [['pending'], 'expired'],
+        adminCancel: [
+          ['pending', 'accepted', 'in_progress', 'shot'],
+          'cancelled',
+        ],
       };
     const rule = transitions[action];
     ensure(

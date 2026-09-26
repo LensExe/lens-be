@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BookingController } from '../http/booking.controller';
 import {
   BookingAcceptCommandHandler,
+  BookingAdminCancelCommandHandler,
   BookingAutoCompleteCommandHandler,
   BookingCancelCommandHandler,
   BookingCancelUnpaidCommandHandler,
@@ -34,6 +35,7 @@ import { BookingCancelUnpaidJob } from '../../workers/booking-cancel-unpaid.job'
   controllers: [BookingController],
   providers: [
     BookingAcceptCommandHandler,
+    BookingAdminCancelCommandHandler,
     BookingAutoCompleteCommandHandler,
     BookingCancelCommandHandler,
     BookingCancelUnpaidCommandHandler,

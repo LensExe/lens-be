@@ -4,8 +4,15 @@ import type { EntityManager, FindOperator } from 'typeorm';
 import { EntitySchemas } from '../src/shared/database';
 import { BookingUseCases } from '../src/modules/booking/booking.use-case';
 import type { RatingUpdaterPort } from '../src/modules/booking/ports/rating-updater.port';
+import type { PaidAmountsPort } from '../src/modules/booking/ports/paid-amounts.port';
 
-const useCases = new BookingUseCases({} as RatingUpdaterPort);
+/** Bên payment giả: chưa ai trả đồng nào. */
+const noPayments = {
+  paidAmounts: async (_s: unknown, ids: string[]) =>
+    Object.fromEntries(ids.map((id) => [id, 0])),
+} as unknown as PaidAmountsPort;
+
+const useCases = new BookingUseCases({} as RatingUpdaterPort, noPayments);
 const user = { id: 'u1', keycloak_id: 'kc-u1', status: 'active' };
 
 /** EntityManager giả: trả hàng theo bảng, ghi lại tham số của findAndCount / findBy. */

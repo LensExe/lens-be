@@ -768,6 +768,18 @@
     "kind": "Command"
   },
   {
+    "id": "BOOK-019",
+    "module": "Booking",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/admin/bookings/:id/cancel",
+    "summary": "Admin huỷ booking",
+    "description": "Admin huỷ booking ở mọi trạng thái chưa xong, bắt buộc lý do; dùng khi phải can thiệp (vd thợ bị khoá). Hoàn tiền nối ở payment.",
+    "role": "Admin",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
     "id": "PAY-001",
     "module": "Payment",
     "service": "Core Backend",

@@ -4,6 +4,13 @@ import type { EntityManager } from 'typeorm';
 import { EntitySchemas } from '../src/shared/database';
 import { BookingUseCases } from '../src/modules/booking/booking.use-case';
 import type { RatingUpdaterPort } from '../src/modules/booking/ports/rating-updater.port';
+import type { PaidAmountsPort } from '../src/modules/booking/ports/paid-amounts.port';
+
+/** Bên payment giả: chưa ai trả đồng nào. */
+const noPayments = {
+  paidAmounts: async (_s: unknown, ids: string[]) =>
+    Object.fromEntries(ids.map((id) => [id, 0])),
+} as unknown as PaidAmountsPort;
 
 const booking = {
   id: 'b1',
@@ -42,7 +49,7 @@ function manager(affected: number) {
 }
 
 test('a status change only applies if the booking is still in the status it was read in', async () => {
-  const useCases = new BookingUseCases({} as RatingUpdaterPort);
+  const useCases = new BookingUseCases({} as RatingUpdaterPort, noPayments);
   const actor = { sub: 'kc-u1', roles: ['customer'] };
   const ok = manager(1);
   await useCases.cancel(ok, actor, { id: 'b1', reason: 'Changed plans' });
@@ -56,7 +63,7 @@ test('a status change only applies if the booking is still in the status it was 
 });
 
 test('only the customer or photographer of the booking may cancel it, not an admin', async () => {
-  const useCases = new BookingUseCases({} as RatingUpdaterPort);
+  const useCases = new BookingUseCases({} as RatingUpdaterPort, noPayments);
   // u9 is neither the customer (u1) nor the photographer (u2) of the booking
   const s = manager(1);
   Object.assign(s, {
@@ -77,7 +84,7 @@ test('only the customer or photographer of the booking may cancel it, not an adm
 });
 
 test('a photographer who declined or was revoked no longer sees the collaborator list', async () => {
-  const useCases = new BookingUseCases({} as RatingUpdaterPort);
+  const useCases = new BookingUseCases({} as RatingUpdaterPort, noPayments);
   const lookups: object[] = [];
   const s = {
     findBy: async (entity: unknown) =>
@@ -108,7 +115,7 @@ test('a photographer who declined or was revoked no longer sees the collaborator
 });
 
 test('accepting a request declines the other pending requests for the same time', async () => {
-  const useCases = new BookingUseCases({} as RatingUpdaterPort);
+  const useCases = new BookingUseCases({} as RatingUpdaterPort, noPayments);
   const fresh = {
     ...booking,
     created_at: new Date(Date.now() - 36e5).toISOString(),
@@ -154,4 +161,39 @@ test('accepting a request declines the other pending requests for the same time'
       ['rival', 'rejected'],
     ],
   );
+});
+
+test('starting a shoot asks payment how much was paid instead of reading its table', async () => {
+  const accepted = { ...booking, status: 'accepted' };
+  const run = (paidDeposit: number) => {
+    const s = {
+      findBy: async (entity: unknown) => {
+        if (entity === EntitySchemas.transactions)
+          throw new Error('booking must not read the transactions table');
+        return entity === EntitySchemas.users
+          ? [{ id: 'u2', keycloak_id: 'kc-p', status: 'active' }]
+          : [];
+      },
+      findOneBy: async (entity: unknown) =>
+        entity === EntitySchemas.bookings
+          ? accepted
+          : entity === EntitySchemas.customers
+            ? { id: 'c1', user_id: 'u1' }
+            : { id: 'p1', user_id: 'u2' },
+      update: async () => ({ affected: 1 }),
+      save: async (_e: unknown, row: object) => row,
+    } as unknown as EntityManager;
+    const payments = {
+      paidAmounts: async (_s: unknown, ids: string[]) => ({
+        [ids[0]]: paidDeposit,
+      }),
+    } as unknown as PaidAmountsPort;
+    return new BookingUseCases({} as RatingUpdaterPort, payments).start(
+      s,
+      { sub: 'kc-p', roles: ['photographer'] },
+      { id: 'b1' },
+    );
+  };
+  await assert.rejects(run(0), /Deposit must be paid before starting/);
+  assert.equal((await run(300000)).status, 'in_progress');
 });

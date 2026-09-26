@@ -23,6 +23,7 @@ import { BadgeUseCases } from '@modules/photographer/badge.use-case';
 import { SubscriptionUseCases } from '@modules/subscription/subscription.use-case';
 import { IdentityUseCases } from '@modules/identity/identity.use-case';
 import { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.port';
+import { PaidAmountsPort } from '@modules/booking/ports/paid-amounts.port';
 import { PendingBookingsPort } from '@modules/calendar/ports/pending-bookings.port';
 import { CollaborationTimesPort } from '@modules/calendar/ports/collaboration-times.port';
 import { MediaOwnershipPort } from '@modules/photographer/ports/media-ownership.port';
@@ -68,6 +69,7 @@ const applicationServices = [
   providers: [
     ...applicationServices,
     { provide: RatingUpdaterPort, useExisting: ReviewUseCases },
+    { provide: PaidAmountsPort, useExisting: PaymentUseCases },
     { provide: PendingBookingsPort, useExisting: BookingUseCases },
     { provide: CollaborationTimesPort, useExisting: BookingUseCases },
     { provide: WorkingHoursPort, useExisting: CalendarUseCases },

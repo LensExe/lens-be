@@ -41,6 +41,25 @@ export class BookingAcceptCommandHandler implements ICommandHandler<BookingAccep
   }
 }
 
+export class BookingAdminCancelCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.BookingAdminCancelCommandInput,
+  ) {}
+}
+@CommandHandler(BookingAdminCancelCommand)
+export class BookingAdminCancelCommandHandler implements ICommandHandler<BookingAdminCancelCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: BookingUseCases,
+  ) {}
+  execute(message: BookingAdminCancelCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.adminCancel(s, message.actor, message.input),
+    );
+  }
+}
+
 export class BookingCancelCommand {
   constructor(
     public readonly actor: Actor,
