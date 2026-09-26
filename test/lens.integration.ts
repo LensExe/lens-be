@@ -800,6 +800,23 @@ test('main photographer invites a collaborator who answers once', async () => {
     (await api('GET', `/bookings/${booking}`, 'applicant')).status,
     403,
   );
+  // the invited photographer cannot accept while blocked at that time
+  const shoot = await ok('GET', `/bookings/${booking}`, 'customer');
+  const busy = await ok('POST', '/calendar/blocked-times', 'applicant', {
+    from: shoot.from,
+    to: shoot.to,
+  });
+  assert.equal(
+    (
+      await api(
+        'POST',
+        `/booking-collaborators/${second.id}/accept`,
+        'applicant',
+      )
+    ).status,
+    409,
+  );
+  await ok('DELETE', `/calendar/blocked-times/${busy.id}`, 'applicant');
   // only the invited photographer answers
   assert.equal(
     (
@@ -821,6 +838,25 @@ test('main photographer invites a collaborator who answers once', async () => {
     ).status,
     'accepted',
   );
+  // once accepted, that time is taken on the collaborator's own calendar too
+  const otherPlan = (
+    await ok('POST', '/photographers/me/booking-plans', 'applicant', {
+      name: 'Portrait',
+      price: 1000000,
+      duration_minutes: 60,
+      photo_count: 20,
+      retouched_photo_count: 5,
+      features: ['All original photos'],
+    })
+  ).id;
+  const clash = await api('POST', '/bookings', 'stranger', {
+    photographer_id: other,
+    plan_id: otherPlan,
+    location: 'Studio',
+    from: shoot.from,
+    to: shoot.to,
+  });
+  assert.equal(clash.status, 409);
   // once accepted, the collaborator also follows the booking history
   assert.ok(
     (await ok('GET', `/bookings/${booking}/timeline`, 'applicant')).items

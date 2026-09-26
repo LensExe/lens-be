@@ -27,6 +27,7 @@ import {
   Booking,
   BookingActorRole,
   BookingStatus,
+  OCCUPIED_BOOKING_STATUSES,
   type BookingAction,
 } from './booking.domain';
 import {
@@ -100,10 +101,13 @@ export class BookingUseCases implements PendingBookingsPort {
       this.overlapping(p.id, input),
     );
 
-    const bookings = await s.findBy(
-      EntitySchemas.bookings,
-      this.overlapping(p.id, input),
-    );
+    const bookings = [
+      ...(await s.findBy(
+        EntitySchemas.bookings,
+        this.overlapping(p.id, input),
+      )),
+      ...(await this.collaborationTimes(s, p.id, input)),
+    ];
 
     const draft = Booking.prepare({
       customerId: c.id,
@@ -455,7 +459,7 @@ export class BookingUseCases implements PendingBookingsPort {
     Booking.assertCanAccept(
       b,
       await s.findBy(EntitySchemas.offline_slots, overlap),
-      others,
+      [...others, ...(await this.collaborationTimes(s, b.photographer_id, b))],
     );
     const row = await this.apply(
       s,
@@ -889,6 +893,7 @@ export class BookingUseCases implements PendingBookingsPort {
       'Invitation access denied',
       'forbidden',
     );
+    if (action === 'accept') await this.assertCanJoin(s, me.id, booking);
     const owner = await required(s, 'photographers', booking.photographer_id);
     return this.changeCollaboration(
       s,
@@ -897,6 +902,63 @@ export class BookingUseCases implements PendingBookingsPort {
       action,
       owner.user_id,
     );
+  }
+
+  /**
+   * Thợ liên kết chỉ nhận lời khi giờ chụp còn trống trên lịch của chính họ: không có khoảng
+   * chặn, booking đang giữ lịch, hay buổi liên kết khác đã nhận chồng giờ. Khoá dòng thợ để
+   * không đua với việc thợ đó nhận booking hoặc chặn lịch cùng lúc.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ được mời
+   * @param booking Booking được mời tham gia
+   * @returns Không trả gì; 409 nếu trùng lịch
+   */
+  private async assertCanJoin(
+    s: EntityManager,
+    photographerId: string,
+    booking: BookingEntity,
+  ) {
+    await s.findOne(EntitySchemas.photographers, {
+      where: { id: photographerId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    const overlap = this.overlapping(photographerId, booking);
+    Booking.assertCanAccept(
+      booking,
+      await s.findBy(EntitySchemas.offline_slots, overlap),
+      [
+        ...(await s.findBy(EntitySchemas.bookings, overlap)),
+        ...(await this.collaborationTimes(s, photographerId, booking)),
+      ],
+    );
+  }
+
+  /**
+   * Các buổi thợ đi chụp liên kết (lời mời đã nhận, booking còn giữ lịch) chồng lên khoảng giờ.
+   * Những buổi này chiếm lịch của thợ liên kết như booking của chính họ.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @param range Khoảng giờ cần xét
+   * @returns Các khoảng `{ from, to, status }` của booking mà thợ tham gia
+   */
+  private async collaborationTimes(
+    s: EntityManager,
+    photographerId: string,
+    range: { from: string; to: string },
+  ) {
+    const joined = await s.findBy(EntitySchemas.booking_collaborators, {
+      photographer_id: photographerId,
+      status: BookingCollaboratorStatus.ACCEPTED,
+    });
+    if (!joined.length) return [];
+    return s.findBy(EntitySchemas.bookings, {
+      id: In(joined.map((c) => c.booking_id)),
+      status: In([...OCCUPIED_BOOKING_STATUSES]),
+      to: MoreThan(new Date(range.from).toISOString()),
+      from: LessThan(new Date(range.to).toISOString()),
+    });
   }
 
   /**
