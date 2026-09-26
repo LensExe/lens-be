@@ -53,7 +53,12 @@ const photographer = obj({
   location: str,
   is_available: bool,
   description: str,
-  rating: records.photographer_ratings,
+  rating: obj({
+    average_rating: num,
+    total_feedbacks: num,
+    total_bookings: num,
+    return_customers: num,
+  }),
   rank: obj({ code: str, name: str }),
   badges: array(obj({ code: str, name: str, earned_at: str })),
 });

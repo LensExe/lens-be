@@ -1710,7 +1710,15 @@ test('photographer badges come from visible reviews and returning customers', as
   });
   const job = app.get(PhotographerBadgeJob);
   assert.equal(await job.run(), true);
-  const badges = (await ok('GET', `/photographers/${photo}`)).badges;
+  const profile = await ok('GET', `/photographers/${photo}`);
+  // the profile shows the rating numbers only, not the internal rating row
+  assert.deepEqual(Object.keys(profile.rating).sort(), [
+    'average_rating',
+    'return_customers',
+    'total_bookings',
+    'total_feedbacks',
+  ]);
+  const badges = profile.badges;
   assert.deepEqual(
     badges.map((b: any) => b.code),
     ['top-rated', 'punctual', 'loyal'],
