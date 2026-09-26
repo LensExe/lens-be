@@ -96,11 +96,7 @@ export class BookingUseCases implements PendingBookingsPort {
       [c] = await s.findBy(EntitySchemas.customers, { user_id: u.id });
     ensure(c, 'Customer profile required', 'forbidden');
 
-    const p = await s.findOne(EntitySchemas.photographers, {
-      where: { id: input.photographer_id },
-      lock: { mode: 'pessimistic_write' },
-    });
-    ensure(p, 'photographers not found', 'missing');
+    const p = await this.lockPhotographer(s, input.photographer_id);
 
     const pu = await required(s, 'users', p.user_id),
       plan = await required(s, 'booking_plans', input.plan_id);
@@ -364,6 +360,24 @@ export class BookingUseCases implements PendingBookingsPort {
   }
 
   /**
+   * Khoá dòng thợ đến hết transaction để các lệnh đổi lịch / số liệu của cùng một thợ chạy lần lượt.
+   * Dùng `FOR NO KEY UPDATE`: vẫn chặn nhau như `FOR UPDATE`, nhưng không chặn việc chèn dòng mới
+   * trỏ tới thợ (booking, review) của transaction khác, vì các lệnh này không đổi khoá của thợ.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @returns Hồ sơ thợ đã khoá; 404 nếu không có
+   */
+  private async lockPhotographer(s: EntityManager, photographerId: string) {
+    const p = await s.findOne(EntitySchemas.photographers, {
+      where: { id: photographerId },
+      lock: { mode: 'for_no_key_update' },
+    });
+    ensure(p, 'photographers not found', 'missing');
+    return p;
+  }
+
+  /**
    * Các việc phải chạy cùng transaction khi booking vừa completed (admin chốt,
    * khách xác nhận, job tự hoàn tất đều đi qua đây). Việc không cần cùng transaction
    * thì nghe event outbox `booking.completed` thay vì thêm vào đây.
@@ -373,10 +387,7 @@ export class BookingUseCases implements PendingBookingsPort {
    */
   private async afterCompleted(s: EntityManager, b: BookingEntity) {
     // khoá dòng thợ để hai booking của cùng thợ hoàn tất cùng lúc không đếm thiếu nhau
-    await s.findOne(EntitySchemas.photographers, {
-      where: { id: b.photographer_id },
-      lock: { mode: 'pessimistic_write' },
-    });
+    await this.lockPhotographer(s, b.photographer_id);
     await this.reviews.recordBookingStats(
       s,
       b.photographer_id,
@@ -432,10 +443,7 @@ export class BookingUseCases implements PendingBookingsPort {
   ) {
     const access = await bookingAccess(s, a, i.id, 'photographer');
     // khoá thợ để hai lần nhận chồng giờ không cùng lọt; đọc lại booking sau khi khoá
-    await s.findOne(EntitySchemas.photographers, {
-      where: { id: access.photographer.id },
-      lock: { mode: 'pessimistic_write' },
-    });
+    await this.lockPhotographer(s, access.photographer.id);
     const b = await required(s, 'bookings', i.id);
     if (b.status === BookingStatus.PENDING)
       Booking.assertStillPending(b, Date.now());
@@ -1036,10 +1044,7 @@ export class BookingUseCases implements PendingBookingsPort {
     photographerId: string,
     booking: BookingEntity,
   ) {
-    await s.findOne(EntitySchemas.photographers, {
-      where: { id: photographerId },
-      lock: { mode: 'pessimistic_write' },
-    });
+    await this.lockPhotographer(s, photographerId);
     const overlap = overlapWhere(photographerId, booking);
     Booking.assertCanAccept(
       booking,
