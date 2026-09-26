@@ -1241,6 +1241,17 @@ test('remaining payment, completion and review uniqueness', async () => {
     api('POST', `/bookings/${booking}/confirm-receipt`, 'customer'),
   ]);
   assert.deepEqual(clicks.map((c) => c.status).sort(), [200, 409]);
+  // booking tells feedback how many bookings the photographer has completed
+  const [stats] = await db.manager.findBy(EntitySchemas.ratings, {
+    photographer_id: photo,
+  });
+  assert.equal(
+    stats.total_bookings,
+    await db.manager.countBy(EntitySchemas.bookings, {
+      photographer_id: photo,
+      status: 'completed',
+    }),
+  );
   const history = await ok('GET', `/bookings/${booking}/timeline`, 'customer');
   assert.equal(
     history.items.filter(
