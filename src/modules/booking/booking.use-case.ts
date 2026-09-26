@@ -33,51 +33,6 @@ import type {
   BookingEntity,
 } from '@shared/database/entities';
 
-/**
- * Điều kiện "khoảng chặn / booking của thợ chồng lên khoảng mới" (khoảng nửa mở `[from, to)`),
- * để khi tạo booking chỉ đọc các dòng có thể trùng thay vì toàn bộ lịch sử của thợ.
- *
- * @param photographerId ID hồ sơ thợ
- * @param range Khoảng giờ của booking mới
- * @returns Điều kiện `where` cho `findBy`
- */
-function overlapping(
-  photographerId: string,
-  range: { from: string; to: string },
-) {
-  return {
-    photographer_id: photographerId,
-    to: MoreThan(new Date(range.from).toISOString()),
-    from: LessThan(new Date(range.to).toISOString()),
-  };
-}
-
-/**
- * Offset / limit của một trang, cùng mặc định với `page()`.
- *
- * @param query `limit`, `offset` từ query string
- * @returns `{ offset, limit }`
- */
-function pageWindow(query: { limit?: number; offset?: number }) {
-  return { offset: query.offset ?? 0, limit: query.limit ?? 20 };
-}
-
-/**
- * Dạng response phân trang chuẩn của repo.
- *
- * @param items Các dòng của trang
- * @param total Tổng số dòng khớp điều kiện
- * @param query `limit`, `offset` từ query string
- * @returns `{ items, total, offset, limit }`
- */
-function paged<T>(
-  items: T[],
-  total: number,
-  query: { limit?: number; offset?: number },
-) {
-  return { items, total, ...pageWindow(query) };
-}
-
 /** Bên thực hiện ghi vào lịch sử; `userId` là `null` khi job nền (`role = 'system'`). */
 type HistoryActor = { role: BookingActorRole; userId: string | null };
 
@@ -128,12 +83,12 @@ export class BookingUseCases {
 
     const blockedTimes = await s.findBy(
       EntitySchemas.offline_slots,
-      overlapping(p.id, input),
+      this.overlapping(p.id, input),
     );
 
     const bookings = await s.findBy(
       EntitySchemas.bookings,
-      overlapping(p.id, input),
+      this.overlapping(p.id, input),
     );
 
     const draft = Booking.prepare({
@@ -207,7 +162,7 @@ export class BookingUseCases {
       ...(c ? [{ customer_id: c.id, ...filters }] : []),
       ...(p ? [{ photographer_id: p.id, ...filters }] : []),
     ];
-    if (!where.length) return paged([], 0, input);
+    if (!where.length) return this.paged([], 0, input);
     return this.pageOfBookings(s, where, input);
   }
 
@@ -290,6 +245,51 @@ export class BookingUseCases {
       status,
     });
     return row;
+  }
+
+  /**
+   * Điều kiện "khoảng chặn / booking của thợ chồng lên khoảng mới" (khoảng nửa mở `[from, to)`),
+   * để khi tạo booking chỉ đọc các dòng có thể trùng thay vì toàn bộ lịch sử của thợ.
+   *
+   * @param photographerId ID hồ sơ thợ
+   * @param range Khoảng giờ của booking mới
+   * @returns Điều kiện `where` cho `findBy`
+   */
+  private overlapping(
+    photographerId: string,
+    range: { from: string; to: string },
+  ) {
+    return {
+      photographer_id: photographerId,
+      to: MoreThan(new Date(range.from).toISOString()),
+      from: LessThan(new Date(range.to).toISOString()),
+    };
+  }
+
+  /**
+   * Offset / limit của một trang, cùng mặc định với `page()`.
+   *
+   * @param query `limit`, `offset` từ query string
+   * @returns `{ offset, limit }`
+   */
+  private pageWindow(query: { limit?: number; offset?: number }) {
+    return { offset: query.offset ?? 0, limit: query.limit ?? 20 };
+  }
+
+  /**
+   * Dạng response phân trang chuẩn của repo.
+   *
+   * @param items Các dòng của trang
+   * @param total Tổng số dòng khớp điều kiện
+   * @param query `limit`, `offset` từ query string
+   * @returns `{ items, total, offset, limit }`
+   */
+  private paged<T>(
+    items: T[],
+    total: number,
+    query: { limit?: number; offset?: number },
+  ) {
+    return { items, total, ...this.pageWindow(query) };
   }
 
   /**
@@ -839,13 +839,13 @@ export class BookingUseCases {
     where: FindOptionsWhere<BookingEntity> | FindOptionsWhere<BookingEntity>[],
     query: { limit?: number; offset?: number },
   ) {
-    const { offset, limit } = pageWindow(query);
+    const { offset, limit } = this.pageWindow(query);
     const [items, total] = await s.findAndCount(EntitySchemas.bookings, {
       where,
       order: { created_at: 'DESC', id: 'ASC' },
       skip: offset,
       take: limit,
     });
-    return paged(items, total, query);
+    return this.paged(items, total, query);
   }
 }
