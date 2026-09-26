@@ -20,33 +20,6 @@ import type { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.po
 
 @Injectable()
 export class ReviewUseCases implements RatingUpdaterPort {
-  async recalculate(s: EntityManager, pid: string) {
-    const bookings = await s.findBy(EntitySchemas.bookings, {
-        photographer_id: pid,
-      }),
-      ids = new Set(bookings.map((x) => x.id));
-    const reviews = (
-      await s.findBy(EntitySchemas.feedbacks, { is_visible: true })
-    ).filter((r) => ids.has(r.booking_id));
-    const completed = bookings.filter((b) => b.status === 'completed'),
-      counts = new Map<string, number>();
-    for (const b of completed)
-      counts.set(b.customer_id, (counts.get(b.customer_id) ?? 0) + 1);
-    const summary = Review.summary(reviews.map((r) => r.rating));
-    const values = {
-      average_rating: summary.average_rating,
-      total_feedbacks: summary.total_feedbacks,
-      total_bookings: completed.length,
-      return_customers: [...counts.values()].filter((n) => n > 1).length,
-    };
-    const [rating] = await s.findBy(EntitySchemas.ratings, {
-      photographer_id: pid,
-    });
-    if (rating) await updateEntity(s, EntitySchemas.ratings, rating.id, values);
-    else
-      await s.save(EntitySchemas.ratings, { photographer_id: pid, ...values });
-  }
-
   async create(s: EntityManager, a: Actor, i: Inputs.ReviewCreateCommandInput) {
     const { id, ...values } = i,
       { booking: b } = await bookingAccess(s, a, id, 'customer');
@@ -260,9 +233,8 @@ export class ReviewUseCases implements RatingUpdaterPort {
   async averagePunctuality(s: EntityManager, photographerId: string) {
     const row = await s
       .createQueryBuilder(EntitySchemas.feedbacks, 'f')
-      .innerJoin(EntitySchemas.bookings, 'b', 'b.id = f.booking_id')
       .select('AVG(f.punctuality_rating)', 'punctuality')
-      .where('b.photographer_id = :photographerId', { photographerId })
+      .where('f.photographer_id = :photographerId', { photographerId })
       .andWhere('f.is_visible = true')
       .getRawOne<{ punctuality: string | null }>();
     return Number(row?.punctuality ?? 0);
