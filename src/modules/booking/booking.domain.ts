@@ -1,5 +1,6 @@
 import { ensure } from '@shared/domain/domain.error';
 import { interval, money, overlaps } from '@shared/domain/booking-values';
+import { WorkSchedule, type WorkingShift } from '@shared/domain/work-schedule';
 import {
   BookingStatus,
   OCCUPIED_BOOKING_STATUSES,
@@ -12,14 +13,20 @@ export interface BookingDraftInput {
   photographerId: string;
   photographerUserId: string;
   photographerStatus: string;
+  /** Thợ đã được admin duyệt (`verification_status = 'verified'`) */
+  photographerVerified: boolean;
   photographerAvailable: boolean;
   planId: string;
   planPhotographerId: string;
   planActive: boolean;
   planPrice: number;
+  /** Thời lượng gói; khoảng `from`–`to` phải dài đúng bằng số phút này */
+  planDurationMinutes: number;
   location: string;
   from: string;
   to: string;
+  /** Lịch tuần thợ đã khai (rỗng ⇒ giờ mặc định, D14) */
+  schedule: readonly WorkingShift[];
   blockedTimes: readonly { from: string; to: string }[];
   bookings: readonly { from: string; to: string; status: string }[];
   now: number;
@@ -29,6 +36,7 @@ export class Booking {
   constructor(public status: BookingStatus) {}
 
   static prepare(input: BookingDraftInput) {
+    ensure(input.photographerVerified, 'Photographer not found', 'missing');
     ensure(
       input.photographerStatus === 'active' &&
         input.photographerAvailable &&
@@ -43,6 +51,16 @@ export class Booking {
     );
     const range = interval(input.from, input.to);
     ensure(Date.parse(range.from) > input.now, 'Booking must start in future');
+    ensure(
+      Date.parse(range.to) - Date.parse(range.from) ===
+        input.planDurationMinutes * 60_000,
+      'Booking length must match plan duration',
+    );
+    ensure(
+      WorkSchedule.fits(range, input.schedule),
+      'Booking must be within working hours',
+      'conflict',
+    );
     ensure(
       !input.blockedTimes.some((blocked) => overlaps(range, blocked)),
       'Photographer is unavailable at this time',

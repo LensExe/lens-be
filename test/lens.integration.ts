@@ -540,9 +540,18 @@ test('calendar blocking and concurrent booking conflict', async () => {
     photographer_id: photo,
     plan_id: plan,
     location: 'Studio',
-    from: new Date(Date.now() + 36e5).toISOString(),
-    to: new Date(Date.now() + 2 * 36e5).toISOString(),
+    from: at(33),
+    to: at(34),
   };
+  // the plan lasts 60 minutes and the default shift ends at 20:00 Vietnam time
+  for (const [body, status] of [
+    [{ ...input, to: at(35) }, 400],
+    [{ ...input, from: at(44), to: at(45) }, 409],
+  ] as const)
+    assert.equal(
+      (await api('POST', '/bookings', 'customer', body)).status,
+      status,
+    );
   const attempts = await Promise.all([
     api('POST', '/bookings', 'customer', input),
     api('POST', '/bookings', 'stranger', input),

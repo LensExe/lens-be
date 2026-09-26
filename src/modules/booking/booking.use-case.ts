@@ -38,6 +38,10 @@ export class BookingUseCases {
     const pu = await required(s, 'users', p.user_id),
       plan = await required(s, 'booking_plans', input.plan_id);
 
+    const schedule = await s.findBy(EntitySchemas.working_hours, {
+      photographer_id: p.id,
+    });
+
     const blockedTimes = await s.findBy(EntitySchemas.offline_slots, {
       photographer_id: p.id,
     });
@@ -52,14 +56,17 @@ export class BookingUseCases {
       photographerId: p.id,
       photographerUserId: p.user_id,
       photographerStatus: pu.status,
+      photographerVerified: p.verification_status === 'verified',
       photographerAvailable: p.is_available,
       planId: plan.id,
       planPhotographerId: plan.photographer_id,
       planActive: plan.is_active,
       planPrice: Number(plan.price),
+      planDurationMinutes: plan.duration_minutes,
       location: input.location,
       from: input.from,
       to: input.to,
+      schedule,
       blockedTimes,
       bookings,
       now: Date.now(),
