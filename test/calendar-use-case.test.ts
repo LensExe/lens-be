@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import type { EntityManager, FindOperator } from 'typeorm';
 import { EntitySchemas } from '../src/shared/database';
 import { CalendarUseCases } from '../src/modules/calendar/calendar.use-case';
+import type { PendingBookingsPort } from '../src/modules/calendar/ports/pending-bookings.port';
 
 test('blocking time reads only bookings and blocks that overlap the new range', async () => {
   const from = '2030-01-01T09:00:00+07:00',
@@ -20,7 +21,9 @@ test('blocking time reads only bookings and blocks that overlap the new range', 
     },
     save: async (_entity: unknown, row: object) => ({ id: 'slot', ...row }),
   } as unknown as EntityManager;
-  await new CalendarUseCases().block(
+  await new CalendarUseCases({
+    turnDownOverlapping: async () => 0,
+  } as unknown as PendingBookingsPort).block(
     s,
     { sub: 'kc-u1', roles: ['photographer'] },
     { from, to },

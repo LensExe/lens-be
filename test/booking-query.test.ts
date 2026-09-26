@@ -116,6 +116,7 @@ test('creating a booking reads only blocks and bookings that overlap it', async 
             duration_minutes: 60,
           },
     save: async (_entity: unknown, row: object) => ({ id: 'new', ...row }),
+    countBy: async () => 0,
     insert: async () => ({}),
   });
   await useCases.create(

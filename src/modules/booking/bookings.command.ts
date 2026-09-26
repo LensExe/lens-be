@@ -79,6 +79,44 @@ export class BookingCompleteCommandHandler implements ICommandHandler<BookingCom
   }
 }
 
+export class BookingCancelUnpaidCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.BookingCancelUnpaidCommandInput,
+  ) {}
+}
+@CommandHandler(BookingCancelUnpaidCommand)
+export class BookingCancelUnpaidCommandHandler implements ICommandHandler<BookingCancelUnpaidCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: BookingUseCases,
+  ) {}
+  execute(message: BookingCancelUnpaidCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.cancelUnpaid(s, message.actor),
+    );
+  }
+}
+
+export class BookingExpirePendingCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.BookingExpirePendingCommandInput,
+  ) {}
+}
+@CommandHandler(BookingExpirePendingCommand)
+export class BookingExpirePendingCommandHandler implements ICommandHandler<BookingExpirePendingCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: BookingUseCases,
+  ) {}
+  execute(message: BookingExpirePendingCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.expirePending(s, message.actor),
+    );
+  }
+}
+
 export class BookingAutoCompleteCommand {
   constructor(
     public readonly actor: Actor,

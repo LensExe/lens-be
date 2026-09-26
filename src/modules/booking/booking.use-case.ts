@@ -1,4 +1,5 @@
 import {
+  In,
   LessThan,
   LessThanOrEqual,
   MoreThan,
@@ -21,17 +22,32 @@ import {
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { RatingUpdaterPort } from './ports/rating-updater.port';
+import type { PendingBookingsPort } from '@modules/calendar/ports/pending-bookings.port';
 import {
   Booking,
   BookingActorRole,
+  BookingStatus,
+  OCCUPIED_BOOKING_STATUSES,
   type BookingAction,
-  type BookingStatus,
 } from './booking.domain';
-import { Collaboration, type CollaborationAction } from './collaborator.domain';
+import {
+  BookingCollaboratorStatus,
+  Collaboration,
+  type CollaborationAction,
+} from './collaborator.domain';
 import type {
   BookingCollaboratorEntity,
   BookingEntity,
 } from '@shared/database/entities';
+
+/** Lý do ghi khi booking bị huỷ vì khách không trả cọc kịp. */
+const UNPAID_REASON = 'Deposit not paid in time';
+
+/** Lý do ghi khi yêu cầu pending hết hạn vì thợ không trả lời kịp. */
+const EXPIRED_REASON = 'Photographer did not respond in time';
+
+/** Lý do ghi cho các yêu cầu pending bị từ chối tự động khi thợ nhận một booking chồng giờ. */
+const TURNED_DOWN_REASON = 'Photographer accepted another booking at this time';
 
 /** Bên thực hiện ghi vào lịch sử; `userId` là `null` khi job nền (`role = 'system'`). */
 type HistoryActor = { role: BookingActorRole; userId: string | null };
@@ -39,7 +55,6 @@ type HistoryActor = { role: BookingActorRole; userId: string | null };
 /** Bên của booking được làm hành động (không có trong bảng ⇒ khách, thợ hoặc admin/system). */
 const ACTION_SIDE: Partial<Record<BookingAction, 'customer' | 'photographer'>> =
   {
-    accept: 'photographer',
     reject: 'photographer',
     start: 'photographer',
     completeShoot: 'photographer',
@@ -47,7 +62,7 @@ const ACTION_SIDE: Partial<Record<BookingAction, 'customer' | 'photographer'>> =
   };
 
 @Injectable()
-export class BookingUseCases {
+export class BookingUseCases implements PendingBookingsPort {
   constructor(private readonly reviews: RatingUpdaterPort) {}
 
   /**
@@ -86,10 +101,13 @@ export class BookingUseCases {
       this.overlapping(p.id, input),
     );
 
-    const bookings = await s.findBy(
-      EntitySchemas.bookings,
-      this.overlapping(p.id, input),
-    );
+    const bookings = [
+      ...(await s.findBy(
+        EntitySchemas.bookings,
+        this.overlapping(p.id, input),
+      )),
+      ...(await this.collaborationTimes(s, p.id, input)),
+    ];
 
     const draft = Booking.prepare({
       customerId: c.id,
@@ -110,6 +128,15 @@ export class BookingUseCases {
       schedule,
       blockedTimes,
       bookings,
+      openRequestsWithPhotographer: await s.countBy(EntitySchemas.bookings, {
+        customer_id: c.id,
+        photographer_id: p.id,
+        status: BookingStatus.PENDING,
+      }),
+      openRequests: await s.countBy(EntitySchemas.bookings, {
+        customer_id: c.id,
+        status: BookingStatus.PENDING,
+      }),
       now: Date.now(),
     });
 
@@ -130,7 +157,7 @@ export class BookingUseCases {
   }
 
   /**
-   * Chi tiết một booking; chỉ khách, thợ chính, admin hoặc system xem được.
+   * Chi tiết một booking; khách, thợ chính, thợ liên kết đã nhận lời và admin xem được.
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor
@@ -138,7 +165,7 @@ export class BookingUseCases {
    * @returns Booking; 403 nếu không liên quan, 404 nếu không có
    */
   async get(s: EntityManager, a: Actor, input: Inputs.BookingGetQueryInput) {
-    return (await bookingAccess(s, a, input.id)).booking;
+    return this.viewable(s, a, input.id, [BookingCollaboratorStatus.ACCEPTED]);
   }
 
   /**
@@ -190,19 +217,25 @@ export class BookingUseCases {
       photographer,
       recipients,
     } = await bookingAccess(s, a, input.id, side);
+    const actorRole = Booking.actorRole(
+      user.id,
+      customer.user_id,
+      photographer.user_id,
+      a.roles,
+    );
+    // huỷ thường chỉ dành cho khách hoặc thợ của booking; admin huỷ qua route admin riêng
+    if (action === 'cancel')
+      ensure(
+        actorRole === BookingActorRole.CUSTOMER ||
+          actorRole === BookingActorRole.PHOTOGRAPHER,
+        'Booking access denied',
+        'forbidden',
+      );
     return this.apply(
       s,
       b,
       action,
-      {
-        role: Booking.actorRole(
-          user.id,
-          customer.user_id,
-          photographer.user_id,
-          a.roles,
-        ),
-        userId: user.id,
-      },
+      { role: actorRole, userId: user.id },
       input.reason ?? null,
       recipients,
     );
@@ -211,16 +244,47 @@ export class BookingUseCases {
   /**
    * Áp dụng một hành động lên booking đã được kiểm quyền: kiểm luật, lưu trạng thái,
    * ghi lịch sử, chạy hệ quả khi completed, bắn realtime. Dùng chung cho request và job nền.
+   * Ném 409 nếu booking đã bị người khác đổi trạng thái kể từ lúc đọc.
    *
    * @param s EntityManager của transaction hiện tại
-   * @param b Booking cần đổi
-   * @param action Tên hành động trong máy trạng thái
+   * @param b Booking cần đổi (bản đã đọc)
+   * @param action Hành động trong máy trạng thái
    * @param actor Bên thực hiện; `userId` là `null` khi job nền (`role = 'system'`)
-   * @param reason Lý do (reject / cancel), không có thì `null`
+   * @param reason Lý do (reject / cancel / system), không có thì `null`
    * @param recipients User nhận realtime (khách và thợ)
    * @returns Booking sau khi đổi trạng thái
    */
   private async apply(
+    s: EntityManager,
+    b: BookingEntity,
+    action: BookingAction,
+    actor: HistoryActor,
+    reason: string | null,
+    recipients: string[],
+  ) {
+    const row = await this.tryApply(s, b, action, actor, reason, recipients);
+    ensure(
+      row,
+      'Booking was changed by someone else, reload and try again',
+      'conflict',
+    );
+    return row;
+  }
+
+  /**
+   * Như `apply` nhưng trả `null` thay vì ném lỗi khi booking đã bị đổi trạng thái kể từ lúc đọc.
+   * Dùng cho việc hàng loạt (job, từ chối các pending chồng giờ) để bỏ qua dòng vừa đổi.
+   * Câu UPDATE kèm điều kiện trạng thái cũ nên hai thao tác đồng thời không ghi đè nhau.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param b Booking cần đổi (bản đã đọc)
+   * @param action Hành động trong máy trạng thái
+   * @param actor Bên thực hiện
+   * @param reason Lý do, không có thì `null`
+   * @param recipients User nhận realtime
+   * @returns Booking sau khi đổi, hoặc `null` nếu trạng thái đã khác lúc đọc
+   */
+  private async tryApply(
     s: EntityManager,
     b: BookingEntity,
     action: BookingAction,
@@ -237,14 +301,29 @@ export class BookingUseCases {
           : Number(b.total_amount)),
       !!b.gallery_published_at,
     );
-    const row = await updateEntity(s, EntitySchemas.bookings, b.id, { status });
+    const updatedAt = new Date().toISOString();
+    const { affected } = await s.update(
+      EntitySchemas.bookings,
+      { id: b.id, status: b.status },
+      {
+        status,
+        updated_at: updatedAt,
+        ...(status === BookingStatus.ACCEPTED && { accepted_at: updatedAt }),
+      },
+    );
+    if (affected !== 1) return null;
     await this.recordHistory(s, b.id, b.status, status, actor, reason);
-    if (status === 'completed') await this.afterCompleted(s, b);
+    if (status === BookingStatus.COMPLETED) await this.afterCompleted(s, b);
     await emit(s, `booking.${status}`, recipients, {
       booking_id: b.id,
       status,
     });
-    return row;
+    return {
+      ...b,
+      status,
+      updated_at: updatedAt,
+      ...(status === BookingStatus.ACCEPTED && { accepted_at: updatedAt }),
+    };
   }
 
   /**
@@ -351,15 +430,91 @@ export class BookingUseCases {
   }
 
   /**
-   * Thợ chính nhận booking: `pending → accepted`.
+   * Thợ chính nhận booking: `pending → accepted`. Kiểm lại giờ đó chưa có booking đã nhận
+   * hay khoảng chặn, rồi tự từ chối các yêu cầu `pending` khác chồng giờ (ghi lý do, bắn realtime).
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor (thợ chính)
    * @param i ID booking
-   * @returns Booking sau khi đổi; 409 nếu sai trạng thái
+   * @returns Booking sau khi đổi; 409 nếu sai trạng thái hoặc giờ đó đã bị giữ
    */
-  accept(s: EntityManager, a: Actor, i: Inputs.BookingAcceptCommandInput) {
-    return this.transition(s, a, i, 'accept');
+  async accept(
+    s: EntityManager,
+    a: Actor,
+    i: Inputs.BookingAcceptCommandInput,
+  ) {
+    const access = await bookingAccess(s, a, i.id, 'photographer');
+    // khoá thợ để hai lần nhận chồng giờ không cùng lọt; đọc lại booking sau khi khoá
+    await s.findOne(EntitySchemas.photographers, {
+      where: { id: access.photographer.id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    const b = await required(s, 'bookings', i.id);
+    if (b.status === BookingStatus.PENDING)
+      Booking.assertStillPending(b, Date.now());
+    const overlap = this.overlapping(b.photographer_id, b);
+    const others = (await s.findBy(EntitySchemas.bookings, overlap)).filter(
+      (o) => o.id !== b.id,
+    );
+    Booking.assertCanAccept(
+      b,
+      await s.findBy(EntitySchemas.offline_slots, overlap),
+      [...others, ...(await this.collaborationTimes(s, b.photographer_id, b))],
+    );
+    const row = await this.apply(
+      s,
+      b,
+      'accept',
+      {
+        role: Booking.actorRole(
+          access.user.id,
+          access.customer.user_id,
+          access.photographer.user_id,
+          a.roles,
+        ),
+        userId: access.user.id,
+      },
+      null,
+      access.recipients,
+    );
+    await this.turnDownOverlapping(s, b.photographer_id, b, TURNED_DOWN_REASON);
+    return row;
+  }
+
+  /**
+   * Từ chối mọi booking `pending` của thợ chồng lên khoảng giờ (system làm, kèm lý do).
+   * Dùng khi thợ nhận một booking và khi thợ chặn lịch (qua `PendingBookingsPort` của calendar).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @param range Khoảng giờ vừa bị giữ
+   * @param reason Lý do ghi vào lịch sử
+   * @returns Số yêu cầu đã từ chối
+   */
+  async turnDownOverlapping(
+    s: EntityManager,
+    photographerId: string,
+    range: { from: string; to: string },
+    reason: string,
+  ) {
+    const pending = await s.findBy(EntitySchemas.bookings, {
+      ...this.overlapping(photographerId, range),
+      status: BookingStatus.PENDING,
+    });
+    let turnedDown = 0;
+    for (const b of pending)
+      if (
+        await this.tryApply(
+          s,
+          b,
+          'reject',
+          { role: BookingActorRole.SYSTEM, userId: null },
+          reason,
+          await this.recipients(s, b),
+        )
+      )
+        turnedDown++;
+    return turnedDown;
   }
 
   /**
@@ -462,20 +617,22 @@ export class BookingUseCases {
         ),
       },
       order: { gallery_published_at: 'ASC' },
-      lock: { mode: 'pessimistic_write' },
+      lock: { mode: 'pessimistic_write', onLocked: 'skip_locked' },
     });
     let completed = 0;
     for (const b of due) {
       if ((await this.paidAmount(s, b.id)) < Number(b.total_amount)) continue;
-      await this.apply(
-        s,
-        b,
-        'complete',
-        { role: BookingActorRole.SYSTEM, userId: null },
-        null,
-        await this.recipients(s, b),
-      );
-      completed++;
+      if (
+        await this.tryApply(
+          s,
+          b,
+          'complete',
+          { role: BookingActorRole.SYSTEM, userId: null },
+          null,
+          await this.recipients(s, b),
+        )
+      )
+        completed++;
     }
     return { checked: due.length, completed };
   }
@@ -491,6 +648,91 @@ export class BookingUseCases {
     const customer = await required(s, 'customers', b.customer_id),
       photographer = await required(s, 'photographers', b.photographer_id);
     return [customer.user_id, photographer.user_id];
+  }
+
+  /**
+   * Job nền (role `system`): cho hết hạn các yêu cầu pending thợ chưa trả lời, ở mốc tới trước
+   * trong hai mốc: 24 giờ sau khi gửi, hoặc lúc bắt đầu buổi chụp. Idempotent: booking đã
+   * hết hạn không còn `pending` nên chạy lại không đổi gì.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người gọi (phải có role `system`)
+   * @returns `{ expired }`: số yêu cầu vừa hết hạn
+   */
+  async expirePending(s: EntityManager, a: Actor) {
+    role(a, 'system');
+    const now = Date.now();
+    const due = await s.find(EntitySchemas.bookings, {
+      where: [
+        {
+          status: BookingStatus.PENDING,
+          created_at: LessThanOrEqual(Booking.pendingExpiryCutoff(now)),
+        },
+        {
+          status: BookingStatus.PENDING,
+          from: LessThanOrEqual(new Date(now).toISOString()),
+        },
+      ],
+      lock: { mode: 'pessimistic_write', onLocked: 'skip_locked' },
+    });
+    let expired = 0;
+    for (const b of due)
+      if (
+        await this.tryApply(
+          s,
+          b,
+          'expire',
+          { role: BookingActorRole.SYSTEM, userId: null },
+          EXPIRED_REASON,
+          await this.recipients(s, b),
+        )
+      )
+        expired++;
+    return { expired };
+  }
+
+  /**
+   * Job nền (role `system`): huỷ booking đã được nhận mà khách chưa trả đủ cọc, ở mốc tới trước
+   * trong hai mốc: 24 giờ sau khi thợ nhận, hoặc lúc bắt đầu buổi chụp. Nhả lịch cho thợ.
+   * Idempotent: booking đã huỷ không còn `accepted` nên chạy lại không đổi gì.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người gọi (phải có role `system`)
+   * @returns `{ cancelled }`: số booking vừa huỷ
+   */
+  async cancelUnpaid(s: EntityManager, a: Actor) {
+    role(a, 'system');
+    const now = Date.now();
+    const due = await s.find(EntitySchemas.bookings, {
+      where: [
+        {
+          status: BookingStatus.ACCEPTED,
+          accepted_at: LessThanOrEqual(Booking.paymentDueCutoff(now)),
+        },
+        {
+          status: BookingStatus.ACCEPTED,
+          from: LessThanOrEqual(new Date(now).toISOString()),
+        },
+      ],
+      lock: { mode: 'pessimistic_write', onLocked: 'skip_locked' },
+    });
+    let cancelled = 0;
+    for (const b of due) {
+      if ((await this.paidAmount(s, b.id)) >= Number(b.deposit_amount))
+        continue;
+      if (
+        await this.tryApply(
+          s,
+          b,
+          'cancel',
+          { role: BookingActorRole.SYSTEM, userId: null },
+          UNPAID_REASON,
+          await this.recipients(s, b),
+        )
+      )
+        cancelled++;
+    }
+    return { cancelled };
   }
 
   /**
@@ -512,12 +754,11 @@ export class BookingUseCases {
       where: { id: input.id },
       lock: { mode: 'pessimistic_write' },
     });
-    const { booking: b, photographer: owner } = await bookingAccess(
-      s,
-      a,
-      input.id,
-      'photographer',
-    );
+    const {
+      booking: b,
+      customer,
+      photographer: owner,
+    } = await bookingAccess(s, a, input.id, 'photographer');
     // chỉ mời thợ đã duyệt, tài khoản active; không thì 404
     const { photographer: invitee } = await publicPhotographer(
       s,
@@ -529,6 +770,7 @@ export class BookingUseCases {
       ownerPhotographerId: owner.id,
       inviteePhotographerId: invitee.id,
       sharePercent: input.share_percent,
+      inviteeIsCustomer: invitee.user_id === customer.user_id,
       existing: await s.findBy(EntitySchemas.booking_collaborators, {
         booking_id: b.id,
       }),
@@ -560,32 +802,56 @@ export class BookingUseCases {
     a: Actor,
     input: Inputs.BookingCollaboratorListQueryInput,
   ) {
-    const user = await currentUser(s, a),
-      b = await required(s, 'bookings', input.id),
-      c = await required(s, 'customers', b.customer_id),
-      [mine] = await s.findBy(EntitySchemas.photographers, {
-        user_id: user.id,
-      });
-    const invited =
-      !!mine &&
-      (await s.existsBy(EntitySchemas.booking_collaborators, {
-        booking_id: b.id,
-        photographer_id: mine.id,
-      }));
-    ensure(
-      c.user_id === user.id ||
-        mine?.id === b.photographer_id ||
-        invited ||
-        a.roles.includes('admin'),
-      'Booking access denied',
-      'forbidden',
-    );
+    const b = await this.viewable(s, a, input.id, [
+      BookingCollaboratorStatus.INVITED,
+      BookingCollaboratorStatus.ACCEPTED,
+    ]);
     return {
       items: await s.find(EntitySchemas.booking_collaborators, {
         where: { booking_id: b.id },
         order: { created_at: 'ASC' },
       }),
     };
+  }
+
+  /**
+   * Booking mà actor được xem: khách, thợ chính, admin/system, hoặc thợ liên kết có lời mời
+   * ở một trong các trạng thái cho phép. Một chỗ duy nhất quyết định ai xem được booking.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor
+   * @param id ID booking
+   * @param collaboratorStatuses Trạng thái lời mời liên kết được tính là được xem
+   * @returns Booking; 403 nếu không liên quan, 404 nếu không có
+   */
+  private async viewable(
+    s: EntityManager,
+    a: Actor,
+    id: string,
+    collaboratorStatuses: BookingCollaboratorStatus[],
+  ) {
+    const user = await currentUser(s, a),
+      b = await required(s, 'bookings', id),
+      c = await required(s, 'customers', b.customer_id),
+      [mine] = await s.findBy(EntitySchemas.photographers, {
+        user_id: user.id,
+      });
+    const collaborator =
+      !!mine &&
+      (await s.existsBy(EntitySchemas.booking_collaborators, {
+        booking_id: b.id,
+        photographer_id: mine.id,
+        status: In(collaboratorStatuses),
+      }));
+    ensure(
+      c.user_id === user.id ||
+        mine?.id === b.photographer_id ||
+        collaborator ||
+        a.roles.some((r) => ['admin', 'system'].includes(r)),
+      'Booking access denied',
+      'forbidden',
+    );
+    return b;
   }
 
   /**
@@ -627,6 +893,7 @@ export class BookingUseCases {
       'Invitation access denied',
       'forbidden',
     );
+    if (action === 'accept') await this.assertCanJoin(s, me.id, booking);
     const owner = await required(s, 'photographers', booking.photographer_id);
     return this.changeCollaboration(
       s,
@@ -635,6 +902,63 @@ export class BookingUseCases {
       action,
       owner.user_id,
     );
+  }
+
+  /**
+   * Thợ liên kết chỉ nhận lời khi giờ chụp còn trống trên lịch của chính họ: không có khoảng
+   * chặn, booking đang giữ lịch, hay buổi liên kết khác đã nhận chồng giờ. Khoá dòng thợ để
+   * không đua với việc thợ đó nhận booking hoặc chặn lịch cùng lúc.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ được mời
+   * @param booking Booking được mời tham gia
+   * @returns Không trả gì; 409 nếu trùng lịch
+   */
+  private async assertCanJoin(
+    s: EntityManager,
+    photographerId: string,
+    booking: BookingEntity,
+  ) {
+    await s.findOne(EntitySchemas.photographers, {
+      where: { id: photographerId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    const overlap = this.overlapping(photographerId, booking);
+    Booking.assertCanAccept(
+      booking,
+      await s.findBy(EntitySchemas.offline_slots, overlap),
+      [
+        ...(await s.findBy(EntitySchemas.bookings, overlap)),
+        ...(await this.collaborationTimes(s, photographerId, booking)),
+      ],
+    );
+  }
+
+  /**
+   * Các buổi thợ đi chụp liên kết (lời mời đã nhận, booking còn giữ lịch) chồng lên khoảng giờ.
+   * Những buổi này chiếm lịch của thợ liên kết như booking của chính họ.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @param range Khoảng giờ cần xét
+   * @returns Các khoảng `{ from, to, status }` của booking mà thợ tham gia
+   */
+  private async collaborationTimes(
+    s: EntityManager,
+    photographerId: string,
+    range: { from: string; to: string },
+  ) {
+    const joined = await s.findBy(EntitySchemas.booking_collaborators, {
+      photographer_id: photographerId,
+      status: BookingCollaboratorStatus.ACCEPTED,
+    });
+    if (!joined.length) return [];
+    return s.findBy(EntitySchemas.bookings, {
+      id: In(joined.map((c) => c.booking_id)),
+      status: In([...OCCUPIED_BOOKING_STATUSES]),
+      to: MoreThan(new Date(range.from).toISOString()),
+      from: LessThan(new Date(range.to).toISOString()),
+    });
   }
 
   /**
@@ -703,7 +1027,8 @@ export class BookingUseCases {
   }
 
   /**
-   * Lời mời (đã khoá dòng), booking của nó và hồ sơ thợ đang đăng nhập.
+   * Lời mời, booking của nó và hồ sơ thợ đang đăng nhập; khoá booking rồi mới khoá lời mời
+   * (cùng thứ tự với lúc mời) để trả lời lời mời không đua với huỷ booking hay lời mời khác.
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor (thợ)
@@ -713,12 +1038,17 @@ export class BookingUseCases {
   private async invitation(s: EntityManager, a: Actor, id: string) {
     role(a, 'photographer');
     const me = await ownPhotographer(s, a);
+    const { booking_id } = await required(s, 'booking_collaborators', id);
+    const booking = await s.findOne(EntitySchemas.bookings, {
+      where: { id: booking_id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    ensure(booking, 'bookings not found', 'missing');
     const invitation = await s.findOne(EntitySchemas.booking_collaborators, {
       where: { id },
       lock: { mode: 'pessimistic_write' },
     });
     ensure(invitation, 'booking_collaborators not found', 'missing');
-    const booking = await required(s, 'bookings', invitation.booking_id);
     return { invitation, booking, me };
   }
 
@@ -764,7 +1094,7 @@ export class BookingUseCases {
    * Lịch sử trạng thái của booking theo thời gian.
    *
    * @param s EntityManager của transaction hiện tại
-   * @param a Actor (khách, thợ chính, admin hoặc system)
+   * @param a Actor (khách, thợ chính, thợ liên kết đã nhận lời hoặc admin)
    * @param i ID booking
    * @returns `{ items }` các dòng lịch sử, cũ trước
    */
@@ -773,7 +1103,9 @@ export class BookingUseCases {
     a: Actor,
     i: Inputs.BookingTimelineQueryInput,
   ) {
-    const { booking } = await bookingAccess(s, a, i.id);
+    const booking = await this.viewable(s, a, i.id, [
+      BookingCollaboratorStatus.ACCEPTED,
+    ]);
     return {
       items: await s.find(EntitySchemas.booking_status_history, {
         where: { booking_id: booking.id },

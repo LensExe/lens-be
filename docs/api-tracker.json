@@ -547,7 +547,7 @@
     "path": "/bookings/:id",
     "summary": "Chi tiết booking",
     "description": "Lấy toàn bộ thông tin booking theo quyền truy cập.",
-    "role": "Customer/Photographer",
+    "role": "Customer/Photographer/Admin",
     "priority": "Must",
     "kind": "Query"
   },
@@ -655,7 +655,7 @@
     "path": "/bookings/:id/timeline",
     "summary": "Lịch sử trạng thái booking",
     "description": "Các lần tạo / đổi trạng thái theo thời gian: từ, sang, bên thực hiện, lý do (reject/cancel).",
-    "role": "Customer/Photographer",
+    "role": "Customer/Photographer/Admin",
     "priority": "Should",
     "kind": "Query"
   },

@@ -29,7 +29,17 @@ export interface BookingDraftInput {
   /** Lịch tuần thợ đã khai (rỗng ⇒ giờ mặc định 08:00–20:00) */
   schedule: readonly WorkingShift[];
   blockedTimes: readonly { from: string; to: string }[];
-  bookings: readonly { from: string; to: string; status: string }[];
+  /** Booking khác của thợ chồng giờ (`customer_id` để nhận ra yêu cầu trùng của chính khách này) */
+  bookings: readonly {
+    from: string;
+    to: string;
+    status: string;
+    customer_id?: string;
+  }[];
+  /** Số yêu cầu pending khách này đang có với thợ này */
+  openRequestsWithPhotographer: number;
+  /** Tổng số yêu cầu pending khách này đang có */
+  openRequests: number;
   now: number;
 }
 
@@ -44,7 +54,18 @@ export type BookingAction =
   | 'start'
   | 'completeShoot'
   | 'complete'
-  | 'confirmReceipt';
+  | 'confirmReceipt'
+  | 'expire';
+
+/** Số giờ thợ có để trả lời một yêu cầu; quá hạn (hoặc tới giờ chụp) thì yêu cầu hết hạn. */
+export const PENDING_EXPIRES_AFTER_HOURS = 24;
+
+/** Số giờ khách có để trả cọc sau khi thợ nhận; quá hạn (hoặc tới giờ chụp) thì booking bị huỷ. */
+export const PAYMENT_DUE_AFTER_HOURS = 24;
+
+/** Số yêu cầu pending tối đa một khách được mở cùng lúc với một thợ, và tổng cộng. */
+export const MAX_OPEN_REQUESTS_PER_PHOTOGRAPHER = 3;
+export const MAX_OPEN_REQUESTS = 10;
 
 export class Booking {
   /** @param status Trạng thái hiện tại của booking */
@@ -70,6 +91,12 @@ export class Booking {
       input.photographerUserId !== input.customerUserId,
       'Cannot book yourself',
     );
+    ensure(
+      input.openRequestsWithPhotographer < MAX_OPEN_REQUESTS_PER_PHOTOGRAPHER &&
+        input.openRequests < MAX_OPEN_REQUESTS,
+      'Too many open requests, wait for answers or cancel some',
+      'conflict',
+    );
     const range = interval(input.from, input.to);
     ensure(Date.parse(range.from) > input.now, 'Booking must start in future');
     ensure(
@@ -82,19 +109,15 @@ export class Booking {
       'Booking must be within working hours',
       'conflict',
     );
-    ensure(
-      !input.blockedTimes.some((blocked) => overlaps(range, blocked)),
-      'Photographer is unavailable at this time',
-      'conflict',
-    );
+    Booking.assertCanAccept(range, input.blockedTimes, input.bookings);
     ensure(
       !input.bookings.some(
         (booking) =>
-          (OCCUPIED_BOOKING_STATUSES as readonly string[]).includes(
-            booking.status,
-          ) && overlaps(booking, range),
+          booking.customer_id === input.customerId &&
+          booking.status === BookingStatus.PENDING &&
+          overlaps(booking, range),
       ),
-      'Photographer already booked or blocked',
+      'You already requested this time',
       'conflict',
     );
     const total = money(input.planPrice);
@@ -108,6 +131,37 @@ export class Booking {
       deposit_amount: Math.ceil(total * 0.3),
       status: BookingStatus.PENDING,
     };
+  }
+
+  /**
+   * Khoảng giờ còn trống để giữ lịch: không chồng khoảng chặn và không chồng booking đang
+   * chiếm lịch (đã nhận trở đi; yêu cầu `pending` không tính). Dùng khi tạo và khi thợ nhận.
+   *
+   * @param range Khoảng giờ của booking
+   * @param blockedTimes Các khoảng thợ đã chặn
+   * @param bookings Các booking khác của thợ
+   * @returns Không trả gì; 409 nếu trùng
+   */
+  static assertCanAccept(
+    range: { from: string; to: string },
+    blockedTimes: readonly { from: string; to: string }[],
+    bookings: readonly { from: string; to: string; status: string }[],
+  ) {
+    ensure(
+      !blockedTimes.some((blocked) => overlaps(range, blocked)),
+      'Photographer is unavailable at this time',
+      'conflict',
+    );
+    ensure(
+      !bookings.some(
+        (booking) =>
+          (OCCUPIED_BOOKING_STATUSES as readonly string[]).includes(
+            booking.status,
+          ) && overlaps(booking, range),
+      ),
+      'Photographer already booked or blocked',
+      'conflict',
+    );
   }
 
   /**
@@ -131,6 +185,49 @@ export class Booking {
     return roles.includes('admin')
       ? BookingActorRole.ADMIN
       : BookingActorRole.SYSTEM;
+  }
+
+  /**
+   * Mốc hết hạn của yêu cầu pending: gửi từ mốc này trở về trước là quá 24 giờ chưa được trả lời.
+   * Yêu cầu cũng hết hạn khi tới giờ chụp (`from <= now`), điều kiện đó do use case lọc.
+   *
+   * @param now Thời điểm hiện tại (ms)
+   * @returns Thời điểm ISO UTC = `now` trừ `PENDING_EXPIRES_AFTER_HOURS` giờ
+   */
+  static pendingExpiryCutoff(now: number) {
+    return new Date(now - PENDING_EXPIRES_AFTER_HOURS * 36e5).toISOString();
+  }
+
+  /**
+   * Yêu cầu còn hạn để thợ nhận: gửi chưa quá 24 giờ và buổi chụp chưa bắt đầu.
+   * Cùng luật với job hết hạn, nên thợ không nhận được yêu cầu đã quá hạn trong lúc job chưa chạy.
+   *
+   * @param booking `created_at` (lúc gửi) và `from` (lúc bắt đầu chụp)
+   * @param now Thời điểm hiện tại (ms)
+   * @returns Không trả gì; 409 nếu đã quá hạn
+   */
+  static assertStillPending(
+    booking: { created_at: string; from: string },
+    now: number,
+  ) {
+    ensure(
+      Date.parse(booking.created_at) >
+        Date.parse(Booking.pendingExpiryCutoff(now)) &&
+        Date.parse(booking.from) > now,
+      'Booking request has expired',
+      'conflict',
+    );
+  }
+
+  /**
+   * Mốc hạn thanh toán: booking được nhận từ mốc này trở về trước mà chưa trả đủ cọc là quá hạn.
+   * Cũng quá hạn khi tới giờ chụp (`from <= now`), điều kiện đó do use case lọc.
+   *
+   * @param now Thời điểm hiện tại (ms)
+   * @returns Thời điểm ISO UTC = `now` trừ `PAYMENT_DUE_AFTER_HOURS` giờ
+   */
+  static paymentDueCutoff(now: number) {
+    return new Date(now - PAYMENT_DUE_AFTER_HOURS * 36e5).toISOString();
   }
 
   /**
@@ -166,6 +263,7 @@ export class Booking {
         completeShoot: [['in_progress'], 'shot'],
         complete: [['shot'], 'completed'],
         confirmReceipt: [['shot'], 'completed'],
+        expire: [['pending'], 'expired'],
       };
     const rule = transitions[action];
     ensure(

@@ -540,6 +540,13 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'string',
         description: 'status',
       },
+      accepted_at: {
+        type: 'string',
+        description:
+          'when the photographer accepted; the deposit is due 24 hours later or at the shoot start',
+        format: 'date-time',
+        nullable: true,
+      },
       gallery_published_at: {
         type: 'string',
         description: 'gallery published at',
@@ -594,6 +601,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
           'accepted',
           'rejected',
           'cancelled',
+          'expired',
           'in_progress',
           'shot',
           'completed',
@@ -607,6 +615,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
           'accepted',
           'rejected',
           'cancelled',
+          'expired',
           'in_progress',
           'shot',
           'completed',

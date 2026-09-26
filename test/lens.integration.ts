@@ -23,6 +23,8 @@ import { setupApi } from '../src/features/api/setup';
 import { OutboxWorker } from '../src/features/workers/outbox.worker';
 import { PhotographerBadgeJob } from '../src/features/workers/photographer-badge.job';
 import { BookingAutoCompleteJob } from '../src/features/workers/booking-auto-complete.job';
+import { BookingExpirePendingJob } from '../src/features/workers/booking-expire-pending.job';
+import { BookingCancelUnpaidJob } from '../src/features/workers/booking-cancel-unpaid.job';
 import { Booking } from '../src/modules/booking/booking.domain';
 import { CommandBus } from '@nestjs/cqrs';
 import { IdentityCustomerRegisterCommand } from '../src/modules/identity/identity.command';
@@ -42,6 +44,7 @@ let customer: string,
   photo: string,
   plan: string,
   booking: string,
+  rival: string,
   deposit: string,
   remaining: string,
   media: string;
@@ -557,11 +560,15 @@ test('calendar blocking and concurrent booking conflict', async () => {
     api('POST', '/bookings', 'customer', input),
     api('POST', '/bookings', 'stranger', input),
   ]);
-  assert.deepEqual(attempts.map((x) => x.status).sort(), [200, 409]);
-  booking = attempts.find((x) => x.status === 200)!.body.id;
-  // Ensure subsequent tests use the winner's identity.
-  if (attempts[1].status === 200)
-    [actors.customer, actors.stranger] = [actors.stranger, actors.customer];
+  // a pending request does not hold the time: both customers may ask for it
+  assert.deepEqual(
+    attempts.map((x) => x.status),
+    [200, 200],
+  );
+  booking = attempts[0].body.id;
+  rival = attempts[1].body.id;
+  // the same customer cannot send the same request twice
+  assert.equal((await api('POST', '/bookings', 'customer', input)).status, 409);
   const available = await ok('GET', `/photographers/${photo}/availability`);
   assert.ok(available.items.length > 0);
 });
@@ -581,6 +588,24 @@ test('booking ownership and lifecycle checks', async () => {
   assert.equal(
     (await api('POST', `/bookings/${booking}/start`, 'photographer')).status,
     409,
+  );
+  // accepting records when, so the deposit deadline can be counted from it
+  assert.ok(
+    (await db.manager.findOneByOrFail(EntitySchemas.bookings, { id: booking }))
+      .accepted_at,
+  );
+  // accepting one request turns down the other requests for the same time
+  const turnedDown = await ok('GET', `/bookings/${rival}`, 'stranger');
+  assert.equal(turnedDown.status, 'rejected');
+  const [, last] = (await ok('GET', `/bookings/${rival}/timeline`, 'stranger'))
+    .items;
+  assert.equal(last.actor_role, 'system');
+  assert.equal(last.actor_user_id, null);
+  assert.match(last.reason, /accepted another booking/);
+  // an admin can look into any booking to handle disputes
+  assert.equal((await ok('GET', `/bookings/${booking}`, 'admin')).id, booking);
+  assert.ok(
+    (await ok('GET', `/bookings/${booking}/timeline`, 'admin')).items.length,
   );
   // every transition leaves one history row with who did it
   const timeline = await ok('GET', `/bookings/${booking}/timeline`, 'customer');
@@ -620,11 +645,78 @@ test('cancel reason is kept in the booking history', async () => {
   assert.equal(items[1].actor_role, 'customer');
   assert.equal(items[1].reason, 'Changed plans');
 });
+test('blocking time turns down pending requests for that time', async () => {
+  const day = new Date(Date.now() + 6 * 864e5).toISOString().slice(0, 10);
+  const vn = (hour: string) =>
+    new Date(`${day}T${hour}:00+07:00`).toISOString();
+  const request = await ok('POST', '/bookings', 'customer', {
+    photographer_id: photo,
+    plan_id: plan,
+    location: 'Studio',
+    from: vn('09:00'),
+    to: vn('10:00'),
+  });
+  const slot = await ok('POST', '/calendar/blocked-times', 'photographer', {
+    from: vn('08:00'),
+    to: vn('12:00'),
+  });
+  const after = await ok('GET', `/bookings/${request.id}`, 'customer');
+  assert.equal(after.status, 'rejected');
+  const [, last] = (
+    await ok('GET', `/bookings/${request.id}/timeline`, 'customer')
+  ).items;
+  assert.equal(last.actor_role, 'system');
+  assert.match(last.reason, /blocked this time/);
+  await ok('DELETE', `/calendar/blocked-times/${slot.id}`, 'photographer');
+});
+test('cancel and accept at the same time: only one of them wins', async () => {
+  const day = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  const request = await ok('POST', '/bookings', 'customer', {
+    photographer_id: photo,
+    plan_id: plan,
+    location: 'Studio',
+    from: new Date(`${day}T09:00:00+07:00`).toISOString(),
+    to: new Date(`${day}T10:00:00+07:00`).toISOString(),
+  });
+  // a request older than 24 hours cannot be accepted even before the job runs
+  await db.query(
+    "UPDATE bookings SET created_at = now() - interval '25 hours' WHERE id = $1",
+    [request.id],
+  );
+  assert.equal(
+    (await api('POST', `/bookings/${request.id}/accept`, 'photographer'))
+      .status,
+    409,
+  );
+  await db.query('UPDATE bookings SET created_at = now() WHERE id = $1', [
+    request.id,
+  ]);
+  const results = await Promise.all([
+    api('POST', `/bookings/${request.id}/cancel`, 'customer', {
+      reason: 'Changed plans',
+    }),
+    api('POST', `/bookings/${request.id}/accept`, 'photographer'),
+  ]);
+  assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+  const { items } = await ok(
+    'GET',
+    `/bookings/${request.id}/timeline`,
+    'customer',
+  );
+  // creation + exactly one change
+  assert.equal(items.length, 2);
+  // leave the time free for later tests
+  const final = await ok('GET', `/bookings/${request.id}`, 'customer');
+  if (final.status === 'accepted')
+    await ok('POST', `/bookings/${request.id}/cancel`, 'customer', {
+      reason: 'Cleanup',
+    });
+});
 test('booking lists are filtered and paged in the database', async () => {
   const all = await ok('GET', '/bookings', 'customer');
-  assert.equal(all.total, 2);
+  assert.equal(all.total, 4);
   const page1 = await ok('GET', '/bookings?limit=1&offset=1', 'customer');
-  assert.equal(page1.total, 2);
+  assert.equal(page1.total, 4);
   assert.deepEqual(
     page1.items.map((b: { id: string }) => b.id),
     [all.items[1].id],
@@ -640,13 +732,13 @@ test('booking lists are filtered and paged in the database', async () => {
       .total,
     0,
   );
-  assert.equal((await ok('GET', '/bookings', 'stranger')).total, 0);
+  assert.equal((await ok('GET', '/bookings', 'stranger')).total, 1);
   const admin = await ok(
     'GET',
     '/admin/bookings?status=cancelled&limit=5',
     'admin',
   );
-  assert.equal(admin.total, 1);
+  assert.equal(admin.total, 2);
   assert.equal(admin.limit, 5);
 });
 test('main photographer invites a collaborator who answers once', async () => {
@@ -703,6 +795,28 @@ test('main photographer invites a collaborator who answers once', async () => {
       [first.id, 'revoked'],
     ],
   );
+  // an invitation alone does not open the booking details
+  assert.equal(
+    (await api('GET', `/bookings/${booking}`, 'applicant')).status,
+    403,
+  );
+  // the invited photographer cannot accept while blocked at that time
+  const shoot = await ok('GET', `/bookings/${booking}`, 'customer');
+  const busy = await ok('POST', '/calendar/blocked-times', 'applicant', {
+    from: shoot.from,
+    to: shoot.to,
+  });
+  assert.equal(
+    (
+      await api(
+        'POST',
+        `/booking-collaborators/${second.id}/accept`,
+        'applicant',
+      )
+    ).status,
+    409,
+  );
+  await ok('DELETE', `/calendar/blocked-times/${busy.id}`, 'applicant');
   // only the invited photographer answers
   assert.equal(
     (
@@ -723,6 +837,35 @@ test('main photographer invites a collaborator who answers once', async () => {
       )
     ).status,
     'accepted',
+  );
+  // once accepted, that time is taken on the collaborator's own calendar too
+  const otherPlan = (
+    await ok('POST', '/photographers/me/booking-plans', 'applicant', {
+      name: 'Portrait',
+      price: 1000000,
+      duration_minutes: 60,
+      photo_count: 20,
+      retouched_photo_count: 5,
+      features: ['All original photos'],
+    })
+  ).id;
+  const clash = await api('POST', '/bookings', 'stranger', {
+    photographer_id: other,
+    plan_id: otherPlan,
+    location: 'Studio',
+    from: shoot.from,
+    to: shoot.to,
+  });
+  assert.equal(clash.status, 409);
+  // once accepted, the collaborator also follows the booking history
+  assert.ok(
+    (await ok('GET', `/bookings/${booking}/timeline`, 'applicant')).items
+      .length,
+  );
+  // once accepted, the collaborator sees where and when to shoot
+  assert.equal(
+    (await ok('GET', `/bookings/${booking}`, 'applicant')).id,
+    booking,
   );
   for (const [path, who] of [
     ['decline', 'applicant'],
@@ -926,12 +1069,19 @@ test('remaining payment, completion and review uniqueness', async () => {
       (await api('POST', `/bookings/${booking}/confirm-receipt`, who)).status,
       403,
     );
-  assert.equal(
-    (await ok('POST', `/bookings/${booking}/confirm-receipt`, 'customer'))
-      .status,
-    'completed',
-  );
+  // a double click completes the booking once, the second click gets 409
+  const clicks = await Promise.all([
+    api('POST', `/bookings/${booking}/confirm-receipt`, 'customer'),
+    api('POST', `/bookings/${booking}/confirm-receipt`, 'customer'),
+  ]);
+  assert.deepEqual(clicks.map((c) => c.status).sort(), [200, 409]);
   const history = await ok('GET', `/bookings/${booking}/timeline`, 'customer');
+  assert.equal(
+    history.items.filter(
+      (h: { to_status: string }) => h.to_status === 'completed',
+    ).length,
+    1,
+  );
   assert.equal(history.items.at(-1).actor_role, 'customer');
   assert.equal(
     (await api('POST', `/bookings/${booking}/complete`, 'admin')).status,
@@ -1394,6 +1544,161 @@ test('job completes shot bookings 7 days after the gallery is published, once', 
     assert.equal(history[0].actor_role, 'system');
     assert.equal(history[0].actor_user_id, null);
   }
+});
+test('job expires pending requests at whichever comes first: 24 hours or the shoot start', async () => {
+  const base = await db.manager.findOneByOrFail(EntitySchemas.bookings, {
+    id: booking,
+  });
+  const at = (hours: number) =>
+    new Date(Date.now() + hours * 36e5).toISOString();
+  // [sent, shoot starts, status] -> expected status after the job
+  const cases = [
+    [at(-25), at(48), 'pending', 'expired'], // no answer for 24 hours
+    [at(-1), at(-0.1), 'pending', 'expired'], // shoot time already started
+    [at(-1), at(48), 'pending', 'pending'], // still waiting
+    [at(-25), at(48), 'accepted', 'accepted'], // already answered
+  ] as const;
+  const ids: string[] = [];
+  for (const [sent, start, status] of cases) {
+    const row = await db.manager.save(EntitySchemas.bookings, {
+      customer_id: base.customer_id,
+      photographer_id: base.photographer_id,
+      booking_plan_id: base.booking_plan_id,
+      location: 'Studio',
+      from: start,
+      to: new Date(Date.parse(start) + 36e5).toISOString(),
+      deposit_amount: 300000,
+      total_amount: 1000000,
+      status,
+    });
+    // created_at is set by the database on insert, so move it back explicitly
+    await db.query('UPDATE bookings SET created_at = $1 WHERE id = $2', [
+      sent,
+      row.id,
+    ]);
+    ids.push(row.id);
+  }
+  const job = app.get(BookingExpirePendingJob);
+  for (let run = 0; run < 2; run++) {
+    assert.equal(await job.run(), true);
+    const rows = await Promise.all(
+      ids.map((id) =>
+        db.manager.findOneByOrFail(EntitySchemas.bookings, { id }),
+      ),
+    );
+    assert.deepEqual(
+      rows.map((b) => b.status),
+      cases.map((c) => c[3]),
+    );
+    const history = await db.manager.findBy(
+      EntitySchemas.booking_status_history,
+      { booking_id: ids[0] },
+    );
+    // the second run changes nothing
+    assert.equal(history.length, 1);
+    assert.equal(history[0].to_status, 'expired');
+    assert.equal(history[0].actor_role, 'system');
+    assert.match(history[0].reason ?? '', /did not respond/);
+  }
+});
+test('job cancels accepted bookings whose deposit is not paid in time', async () => {
+  const base = await db.manager.findOneByOrFail(EntitySchemas.bookings, {
+    id: booking,
+  });
+  const customer = await db.manager.findOneByOrFail(EntitySchemas.customers, {
+    id: base.customer_id,
+  });
+  const at = (hours: number) =>
+    new Date(Date.now() + hours * 36e5).toISOString();
+  // [accepted at, shoot starts, deposit paid] -> expected status
+  const cases = [
+    [at(-25), at(48), false, 'cancelled'], // 24 hours without paying
+    [at(-1), at(-0.1), false, 'cancelled'], // shoot started, still unpaid
+    [at(-25), at(48), true, 'accepted'], // paid in time
+    [at(-1), at(48), false, 'accepted'], // still has time
+  ] as const;
+  const ids: string[] = [];
+  for (const [accepted, start, paid] of cases) {
+    const row = await db.manager.save(EntitySchemas.bookings, {
+      customer_id: base.customer_id,
+      photographer_id: base.photographer_id,
+      booking_plan_id: base.booking_plan_id,
+      location: 'Studio',
+      from: start,
+      to: new Date(Date.parse(start) + 36e5).toISOString(),
+      deposit_amount: 300000,
+      total_amount: 1000000,
+      status: 'accepted',
+      accepted_at: accepted,
+    });
+    ids.push(row.id);
+    if (paid)
+      await db.manager.save(EntitySchemas.transactions, {
+        user_id: customer.user_id,
+        transaction_code: `DEP-${row.id}`,
+        type: 'deposit',
+        reference_id: row.id,
+        amount: 300000,
+        status: 'paid',
+        idempotency_key: `dep-${row.id}`,
+      });
+  }
+  const job = app.get(BookingCancelUnpaidJob);
+  for (let run = 0; run < 2; run++) {
+    assert.equal(await job.run(), true);
+    const rows = await Promise.all(
+      ids.map((id) =>
+        db.manager.findOneByOrFail(EntitySchemas.bookings, { id }),
+      ),
+    );
+    assert.deepEqual(
+      rows.map((b) => b.status),
+      cases.map((c) => c[3]),
+    );
+    const history = await db.manager.findBy(
+      EntitySchemas.booking_status_history,
+      { booking_id: ids[0] },
+    );
+    assert.equal(history.length, 1);
+    assert.equal(history[0].actor_role, 'system');
+    assert.match(history[0].reason ?? '', /Deposit not paid in time/);
+  }
+});
+test('a customer cannot keep more than 3 open requests with one photographer', async () => {
+  const created: string[] = [];
+  let refused = 0;
+  for (let d = 10; d < 15; d++) {
+    const day = new Date(Date.now() + d * 864e5).toISOString().slice(0, 10);
+    const res = await api('POST', '/bookings', 'customer', {
+      photographer_id: photo,
+      plan_id: plan,
+      location: 'Studio',
+      from: new Date(`${day}T09:00:00+07:00`).toISOString(),
+      to: new Date(`${day}T10:00:00+07:00`).toISOString(),
+    });
+    if (res.status === 200) created.push(res.body.id);
+    else {
+      assert.equal(res.status, 409);
+      assert.match(res.body.message, /Too many open requests/);
+      refused++;
+    }
+  }
+  const open = await ok(
+    'GET',
+    '/bookings?status=pending&limit=100',
+    'customer',
+  );
+  assert.equal(
+    open.items.filter(
+      (b: { photographer_id: string }) => b.photographer_id === photo,
+    ).length,
+    3,
+  );
+  assert.ok(refused > 0);
+  for (const id of created)
+    await ok('POST', `/bookings/${id}/cancel`, 'customer', {
+      reason: 'Cleanup',
+    });
 });
 test('domain rejects unsupported booking transitions', () => {
   assert.throws(

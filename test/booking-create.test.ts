@@ -16,6 +16,8 @@ const facts = {
   planActive: true,
   planPrice: 1_000_000,
   planDurationMinutes: 60,
+  openRequestsWithPhotographer: 0,
+  openRequests: 0,
   location: 'Studio',
   from: '2030-01-01T09:00:00+07:00',
   to: '2030-01-01T10:00:00+07:00',

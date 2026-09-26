@@ -21,6 +21,8 @@ export interface CollaborationInviteInput {
   ownerPhotographerId: string;
   inviteePhotographerId: string;
   sharePercent: number;
+  /** Thợ được mời chính là khách của booking (tài khoản vừa là khách vừa là thợ) */
+  inviteeIsCustomer: boolean;
   /** Các lời mời đã có của booking (mọi trạng thái) */
   existing: readonly {
     photographer_id: string;
@@ -31,6 +33,9 @@ export interface CollaborationInviteInput {
 
 /** Hành động trên một lời mời đang chờ. */
 export type CollaborationAction = 'accept' | 'decline' | 'revoke';
+
+/** Số lần tối đa một thợ được mời vào cùng một booking (tính cả lời mời đã bị rút). */
+export const MAX_INVITES_PER_PHOTOGRAPHER = 3;
 
 /** Quy tắc thợ liên kết của booking: mời, nhận/từ chối, rút; chia % phần thợ nhận. */
 export class Collaboration {
@@ -64,6 +69,10 @@ export class Collaboration {
       'Cannot invite yourself',
     );
     ensure(
+      !input.inviteeIsCustomer,
+      'Cannot invite the customer of this booking',
+    );
+    ensure(
       Number.isInteger(input.sharePercent) &&
         input.sharePercent >= 1 &&
         input.sharePercent <= 100,
@@ -76,6 +85,13 @@ export class Collaboration {
           BLOCKS_REINVITE.includes(c.status),
       ),
       'Photographer already invited',
+      'conflict',
+    );
+    ensure(
+      input.existing.filter(
+        (c) => c.photographer_id === input.inviteePhotographerId,
+      ).length < MAX_INVITES_PER_PHOTOGRAPHER,
+      'Photographer invited too many times for this booking',
       'conflict',
     );
     const held = input.existing
