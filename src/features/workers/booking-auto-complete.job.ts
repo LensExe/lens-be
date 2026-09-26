@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 import { BookingAutoCompleteCommand } from '@modules/booking/bookings.command';
 import { runExclusive, SYSTEM_ACTOR } from './scheduled-job';
 
-/** Job tự hoàn tất booking 7 ngày sau khi publish gallery (D2), chạy đầu mỗi giờ. */
+/** Job tự hoàn tất booking 7 ngày sau khi publish gallery nếu khách chưa xác nhận, chạy đầu mỗi giờ. */
 @Injectable()
 export class BookingAutoCompleteJob {
   constructor(

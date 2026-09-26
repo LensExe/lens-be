@@ -6,6 +6,7 @@ import type { Actor } from '@shared/platform/auth/actor';
 import {
   currentUser,
   photographer as ownPhotographer,
+  publicPhotographer,
   required,
   bookingAccess,
   emit,
@@ -15,12 +16,29 @@ import {
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { RatingUpdaterPort } from './ports/rating-updater.port';
 import {
-  AUTO_COMPLETE_AFTER_DAYS,
   Booking,
-  type BookingActorRole,
+  BookingActorRole,
+  type BookingAction,
+  type BookingStatus,
 } from './booking.domain';
 import { Collaboration, type CollaborationAction } from './collaborator.domain';
-import type { BookingEntity } from '@shared/database/entities/booking.entity';
+import type {
+  BookingCollaboratorEntity,
+  BookingEntity,
+} from '@shared/database/entities';
+
+/** Bên thực hiện ghi vào lịch sử; `userId` là `null` khi job nền (`role = 'system'`). */
+type HistoryActor = { role: BookingActorRole; userId: string | null };
+
+/** Bên của booking được làm hành động (không có trong bảng ⇒ khách, thợ hoặc admin/system). */
+const ACTION_SIDE: Partial<Record<BookingAction, 'customer' | 'photographer'>> =
+  {
+    accept: 'photographer',
+    reject: 'photographer',
+    start: 'photographer',
+    completeShoot: 'photographer',
+    confirmReceipt: 'customer',
+  };
 
 @Injectable()
 export class BookingUseCases {
@@ -80,14 +98,14 @@ export class BookingUseCases {
     });
 
     const booking = await s.save(EntitySchemas.bookings, draft);
-    await s.save(EntitySchemas.booking_status_history, {
-      booking_id: booking.id,
-      from_status: null,
-      to_status: booking.status,
-      actor_role: 'customer',
-      actor_user_id: u.id,
-      reason: null,
-    });
+    await this.recordHistory(
+      s,
+      booking.id,
+      null,
+      booking.status,
+      { role: BookingActorRole.CUSTOMER, userId: u.id },
+      null,
+    );
     await emit(s, 'booking.created', [u.id, p.user_id], {
       booking_id: booking.id,
       status: 'pending',
@@ -132,13 +150,9 @@ export class BookingUseCases {
     s: EntityManager,
     a: Actor,
     input: { id: string; reason?: string },
-    action: string,
+    action: BookingAction,
   ) {
-    const side = ['accept', 'reject', 'start', 'completeShoot'].includes(action)
-      ? 'photographer'
-      : action === 'confirmReceipt'
-        ? 'customer'
-        : undefined;
+    const side = ACTION_SIDE[action];
     if (action === 'complete') role(a, 'admin', 'system');
     const {
       booking: b,
@@ -180,8 +194,8 @@ export class BookingUseCases {
   private async apply(
     s: EntityManager,
     b: BookingEntity,
-    action: string,
-    actor: { role: BookingActorRole; userId: string | null },
+    action: BookingAction,
+    actor: HistoryActor,
     reason: string | null,
     recipients: string[],
   ) {
@@ -195,20 +209,41 @@ export class BookingUseCases {
       !!b.gallery_published_at,
     );
     const row = await updateEntity(s, EntitySchemas.bookings, b.id, { status });
-    await s.save(EntitySchemas.booking_status_history, {
-      booking_id: b.id,
-      from_status: b.status,
-      to_status: status,
-      actor_role: actor.role,
-      actor_user_id: actor.userId,
-      reason,
-    });
+    await this.recordHistory(s, b.id, b.status, status, actor, reason);
     if (status === 'completed') await this.afterCompleted(s, b);
     await emit(s, `booking.${status}`, recipients, {
       booking_id: b.id,
       status,
     });
     return row;
+  }
+
+  /**
+   * Ghi 1 dòng lịch sử trạng thái booking.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param bookingId ID booking
+   * @param from Trạng thái trước; `null` ở dòng tạo booking
+   * @param to Trạng thái sau
+   * @param actor Bên thực hiện; `userId` là `null` khi job nền
+   * @param reason Lý do (reject / cancel), không có thì `null`
+   */
+  private async recordHistory(
+    s: EntityManager,
+    bookingId: string,
+    from: BookingStatus | null,
+    to: BookingStatus,
+    actor: HistoryActor,
+    reason: string | null,
+  ) {
+    await s.save(EntitySchemas.booking_status_history, {
+      booking_id: bookingId,
+      from_status: from,
+      to_status: to,
+      actor_role: actor.role,
+      actor_user_id: actor.userId,
+      reason,
+    });
   }
 
   /**
@@ -269,7 +304,15 @@ export class BookingUseCases {
     return this.transition(s, a, i, 'complete');
   }
 
-  /** Khách của booking xác nhận đã nhận ảnh (D2): `shot → completed`, cùng điều kiện với `complete`. */
+  /**
+   * Khách của booking xác nhận đã nhận ảnh: `shot → completed`, cùng điều kiện với `complete`
+   * (đã trả đủ và gallery đã publish).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (khách của booking; người khác 403)
+   * @param i ID booking
+   * @returns Booking sau khi completed; 409 nếu sai trạng thái hoặc chưa đủ điều kiện
+   */
   confirmReceipt(
     s: EntityManager,
     a: Actor,
@@ -280,7 +323,7 @@ export class BookingUseCases {
 
   /**
    * Job nền (role `system`): tự hoàn tất booking `shot` đã publish gallery đủ 7 ngày mà khách
-   * chưa xác nhận (D2). Booking chưa trả đủ thì bỏ qua, lần chạy sau xét lại.
+   * chưa xác nhận. Booking chưa trả đủ thì bỏ qua, lần chạy sau xét lại.
    * Idempotent: booking đã completed không còn ở `shot` nên chạy lại không đổi gì.
    *
    * @param s EntityManager của transaction hiện tại
@@ -289,31 +332,26 @@ export class BookingUseCases {
    */
   async autoComplete(s: EntityManager, a: Actor) {
     role(a, 'system');
-    const now = Date.now();
-    const due = (
-      await s.find(EntitySchemas.bookings, {
-        where: {
-          status: 'shot',
-          gallery_published_at: LessThanOrEqual(
-            new Date(now - AUTO_COMPLETE_AFTER_DAYS * 864e5).toISOString(),
-          ),
-        },
-        order: { gallery_published_at: 'ASC' },
-        lock: { mode: 'pessimistic_write' },
-      })
-    ).filter((b) => Booking.autoCompleteDue(b.gallery_published_at, now));
+    const due = await s.find(EntitySchemas.bookings, {
+      where: {
+        status: 'shot',
+        gallery_published_at: LessThanOrEqual(
+          Booking.autoCompleteCutoff(Date.now()),
+        ),
+      },
+      order: { gallery_published_at: 'ASC' },
+      lock: { mode: 'pessimistic_write' },
+    });
     let completed = 0;
     for (const b of due) {
       if ((await this.paidAmount(s, b.id)) < Number(b.total_amount)) continue;
-      const customer = await required(s, 'customers', b.customer_id),
-        photographer = await required(s, 'photographers', b.photographer_id);
       await this.apply(
         s,
         b,
         'complete',
-        { role: 'system', userId: null },
+        { role: BookingActorRole.SYSTEM, userId: null },
         null,
-        [customer.user_id, photographer.user_id],
+        await this.recipients(s, b),
       );
       completed++;
     }
@@ -321,7 +359,20 @@ export class BookingUseCases {
   }
 
   /**
-   * Thợ chính mời thợ khác làm thợ liên kết (D5, D17–D21). Khoá booking để hai lời mời
+   * User của khách và thợ chính của booking (người nhận realtime).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param b Booking
+   * @returns `[customerUserId, photographerUserId]`
+   */
+  private async recipients(s: EntityManager, b: BookingEntity) {
+    const customer = await required(s, 'customers', b.customer_id),
+      photographer = await required(s, 'photographers', b.photographer_id);
+    return [customer.user_id, photographer.user_id];
+  }
+
+  /**
+   * Thợ chính mời thợ khác làm thợ liên kết. Khoá booking trước để hai lời mời
    * cùng lúc không vượt tổng 100%.
    *
    * @param s EntityManager của transaction hiện tại
@@ -335,30 +386,26 @@ export class BookingUseCases {
     input: Inputs.BookingCollaboratorInviteCommandInput,
   ) {
     role(a, 'photographer');
-    const { photographer: owner } = await bookingAccess(
+    await s.findOne(EntitySchemas.bookings, {
+      where: { id: input.id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    const { booking: b, photographer: owner } = await bookingAccess(
       s,
       a,
       input.id,
       'photographer',
     );
-    const b = await s.findOne(EntitySchemas.bookings, {
-      where: { id: input.id },
-      lock: { mode: 'pessimistic_write' },
-    });
-    ensure(b, 'bookings not found', 'missing');
-    const [invitee] = await s.findBy(EntitySchemas.photographers, {
-      id: input.photographer_id,
-    });
-    const inviteeUser = invitee
-      ? await required(s, 'users', invitee.user_id)
-      : undefined;
+    // chỉ mời thợ đã duyệt, tài khoản active; không thì 404
+    const { photographer: invitee } = await publicPhotographer(
+      s,
+      input.photographer_id,
+    );
     const draft = Collaboration.invite({
       bookingStatus: b.status,
       galleryPublished: !!b.gallery_published_at,
       ownerPhotographerId: owner.id,
-      inviteePhotographerId: input.photographer_id,
-      inviteeVerified: invitee?.verification_status === 'verified',
-      inviteeActive: inviteeUser?.status === 'active',
+      inviteePhotographerId: invitee.id,
       sharePercent: input.share_percent,
       existing: await s.findBy(EntitySchemas.booking_collaborators, {
         booking_id: b.id,
@@ -379,7 +426,7 @@ export class BookingUseCases {
 
   /**
    * Danh sách thợ liên kết của booking (mọi trạng thái, theo thời gian mời).
-   * Xem được: khách, thợ chính, thợ từng được mời vào booking này, admin.
+   * Xem được: khách, thợ chính, admin, và thợ có lời mời trong booking này.
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor
@@ -392,27 +439,31 @@ export class BookingUseCases {
     input: Inputs.BookingCollaboratorListQueryInput,
   ) {
     const user = await currentUser(s, a),
-      b = await required(s, 'bookings', input.id);
-    const items = await s.find(EntitySchemas.booking_collaborators, {
-      where: { booking_id: b.id },
-      order: { created_at: 'ASC' },
-    });
-    const c = await required(s, 'customers', b.customer_id);
-    const photographerIds = [
-      b.photographer_id,
-      ...items.map((i) => i.photographer_id),
-    ];
-    const [mine] = await s.findBy(EntitySchemas.photographers, {
-      user_id: user.id,
-    });
+      b = await required(s, 'bookings', input.id),
+      c = await required(s, 'customers', b.customer_id),
+      [mine] = await s.findBy(EntitySchemas.photographers, {
+        user_id: user.id,
+      });
+    const invited =
+      !!mine &&
+      (await s.existsBy(EntitySchemas.booking_collaborators, {
+        booking_id: b.id,
+        photographer_id: mine.id,
+      }));
     ensure(
       c.user_id === user.id ||
-        (!!mine && photographerIds.includes(mine.id)) ||
+        mine?.id === b.photographer_id ||
+        invited ||
         a.roles.includes('admin'),
       'Booking access denied',
       'forbidden',
     );
-    return { items };
+    return {
+      items: await s.find(EntitySchemas.booking_collaborators, {
+        where: { booking_id: b.id },
+        order: { created_at: 'ASC' },
+      }),
+    };
   }
 
   /**
@@ -434,20 +485,110 @@ export class BookingUseCases {
   }
 
   /**
-   * Nhận / từ chối (thợ được mời) hoặc rút (thợ chính) một lời mời còn chờ.
+   * Thợ được mời nhận hoặc từ chối lời mời còn chờ; báo cho thợ chính.
    *
    * @param s EntityManager của transaction hiện tại
-   * @param a Actor
+   * @param a Actor (thợ được mời)
    * @param id ID lời mời
-   * @param action 'accept' | 'decline' | 'revoke'
+   * @param action 'accept' | 'decline'
    * @returns Lời mời sau khi đổi
    */
-  private async answerCollaboration(
+  private async respondCollaboration(
     s: EntityManager,
     a: Actor,
     id: string,
-    action: CollaborationAction,
+    action: 'accept' | 'decline',
   ) {
+    const { invitation, booking, me } = await this.invitation(s, a, id);
+    ensure(
+      invitation.photographer_id === me.id,
+      'Invitation access denied',
+      'forbidden',
+    );
+    const owner = await required(s, 'photographers', booking.photographer_id);
+    return this.changeCollaboration(
+      s,
+      invitation,
+      booking,
+      action,
+      owner.user_id,
+    );
+  }
+
+  /**
+   * Thợ chính rút lời mời còn chờ (thợ được mời chưa trả lời); báo cho thợ được mời.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (thợ chính)
+   * @param i ID lời mời
+   * @returns Lời mời sau khi đổi
+   */
+  async revokeCollaboration(
+    s: EntityManager,
+    a: Actor,
+    i: Inputs.BookingCollaboratorRevokeCommandInput,
+  ) {
+    const { invitation, booking, me } = await this.invitation(s, a, i.id);
+    ensure(
+      booking.photographer_id === me.id,
+      'Invitation access denied',
+      'forbidden',
+    );
+    const invitee = await required(
+      s,
+      'photographers',
+      invitation.photographer_id,
+    );
+    return this.changeCollaboration(
+      s,
+      invitation,
+      booking,
+      'revoke',
+      invitee.user_id,
+    );
+  }
+
+  /**
+   * Thợ được mời nhận lời mời còn chờ.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (thợ được mời; người khác 403)
+   * @param i ID lời mời
+   * @returns Lời mời với `status = 'accepted'`; 409 nếu lời mời hết chờ hoặc booking đã đóng
+   */
+  acceptCollaboration(
+    s: EntityManager,
+    a: Actor,
+    i: Inputs.BookingCollaboratorAcceptCommandInput,
+  ) {
+    return this.respondCollaboration(s, a, i.id, 'accept');
+  }
+
+  /**
+   * Thợ được mời từ chối lời mời còn chờ; sau đó thợ chính không mời lại thợ này được.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (thợ được mời; người khác 403)
+   * @param i ID lời mời
+   * @returns Lời mời với `status = 'declined'`; 409 nếu lời mời hết chờ hoặc booking đã đóng
+   */
+  declineCollaboration(
+    s: EntityManager,
+    a: Actor,
+    i: Inputs.BookingCollaboratorDeclineCommandInput,
+  ) {
+    return this.respondCollaboration(s, a, i.id, 'decline');
+  }
+
+  /**
+   * Lời mời (đã khoá dòng), booking của nó và hồ sơ thợ đang đăng nhập.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (thợ)
+   * @param id ID lời mời
+   * @returns `{ invitation, booking, me }`
+   */
+  private async invitation(s: EntityManager, a: Actor, id: string) {
     role(a, 'photographer');
     const me = await ownPhotographer(s, a);
     const invitation = await s.findOne(EntitySchemas.booking_collaborators, {
@@ -455,17 +596,30 @@ export class BookingUseCases {
       lock: { mode: 'pessimistic_write' },
     });
     ensure(invitation, 'booking_collaborators not found', 'missing');
-    const b = await required(s, 'bookings', invitation.booking_id);
-    ensure(
-      action === 'revoke'
-        ? b.photographer_id === me.id
-        : invitation.photographer_id === me.id,
-      'Invitation access denied',
-      'forbidden',
-    );
+    const booking = await required(s, 'bookings', invitation.booking_id);
+    return { invitation, booking, me };
+  }
+
+  /**
+   * Đổi trạng thái lời mời theo luật domain, lưu và bắn realtime.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param invitation Lời mời
+   * @param booking Booking của lời mời
+   * @param action 'accept' | 'decline' | 'revoke'
+   * @param notifyUserId User nhận realtime
+   * @returns Lời mời sau khi đổi
+   */
+  private async changeCollaboration(
+    s: EntityManager,
+    invitation: BookingCollaboratorEntity,
+    booking: BookingEntity,
+    action: CollaborationAction,
+    notifyUserId: string,
+  ) {
     const status = Collaboration.respond(invitation.status, action, {
-      bookingStatus: b.status,
-      galleryPublished: !!b.gallery_published_at,
+      bookingStatus: booking.status,
+      galleryPublished: !!booking.gallery_published_at,
     });
     const row = await updateEntity(
       s,
@@ -476,41 +630,12 @@ export class BookingUseCases {
         responded_at: action === 'revoke' ? null : new Date().toISOString(),
       },
     );
-    const notify =
-      action === 'revoke'
-        ? (await required(s, 'photographers', invitation.photographer_id))
-            .user_id
-        : (await required(s, 'photographers', b.photographer_id)).user_id;
-    await emit(s, `booking.collaborator_${status}`, [notify], {
-      booking_id: b.id,
+    await emit(s, `booking.collaborator_${status}`, [notifyUserId], {
+      booking_id: booking.id,
       collaborator_id: invitation.id,
       status,
     });
     return row;
-  }
-
-  acceptCollaboration(
-    s: EntityManager,
-    a: Actor,
-    i: Inputs.BookingCollaboratorAcceptCommandInput,
-  ) {
-    return this.answerCollaboration(s, a, i.id, 'accept');
-  }
-
-  declineCollaboration(
-    s: EntityManager,
-    a: Actor,
-    i: Inputs.BookingCollaboratorDeclineCommandInput,
-  ) {
-    return this.answerCollaboration(s, a, i.id, 'decline');
-  }
-
-  revokeCollaboration(
-    s: EntityManager,
-    a: Actor,
-    i: Inputs.BookingCollaboratorRevokeCommandInput,
-  ) {
-    return this.answerCollaboration(s, a, i.id, 'revoke');
   }
 
   async timeline(

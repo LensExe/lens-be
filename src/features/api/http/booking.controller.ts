@@ -42,16 +42,12 @@ import { BookingRejectCommand } from '@modules/booking/bookings.command';
 import { BookingStartCommand } from '@modules/booking/bookings.command';
 import { BookingTimelineQuery } from '@modules/booking/bookings.query';
 import { BookingGetQuery } from '@modules/booking/bookings.query';
-import {
-  BookingCollaboratorAcceptCommand,
-  BookingCollaboratorDeclineCommand,
-  BookingCollaboratorInviteCommand,
-  BookingCollaboratorRevokeCommand,
-} from '@modules/booking/bookings.command';
-import {
-  BookingCollaboratorListQuery,
-  BookingCollaboratorMeQuery,
-} from '@modules/booking/bookings.query';
+import { BookingCollaboratorAcceptCommand } from '@modules/booking/bookings.command';
+import { BookingCollaboratorDeclineCommand } from '@modules/booking/bookings.command';
+import { BookingCollaboratorInviteCommand } from '@modules/booking/bookings.command';
+import { BookingCollaboratorRevokeCommand } from '@modules/booking/bookings.command';
+import { BookingCollaboratorListQuery } from '@modules/booking/bookings.query';
+import { BookingCollaboratorMeQuery } from '@modules/booking/bookings.query';
 
 @ApiTags('Booking')
 @Controller()

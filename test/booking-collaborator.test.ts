@@ -7,8 +7,6 @@ const invite = {
   galleryPublished: false,
   ownerPhotographerId: 'owner',
   inviteePhotographerId: 'b',
-  inviteeVerified: true,
-  inviteeActive: true,
   sharePercent: 30,
   existing: [] as {
     photographer_id: string;
@@ -34,16 +32,11 @@ test('invite only while the booking is accepted or in progress and not yet deliv
   );
 });
 
-test('invitee must be another verified, active photographer', () => {
+test('main photographer cannot invite themselves', () => {
   assert.throws(
     () => Collaboration.invite({ ...invite, inviteePhotographerId: 'owner' }),
     /Cannot invite yourself/,
   );
-  for (const bad of [{ inviteeVerified: false }, { inviteeActive: false }])
-    assert.throws(
-      () => Collaboration.invite({ ...invite, ...bad }),
-      /Photographer not found/,
-    );
 });
 
 test('share is a whole percent from 1 to 100', () => {

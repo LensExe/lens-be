@@ -17,7 +17,7 @@ export type BookingCollaboratorStatus =
 
 /**
  * Entity đại diện cho bảng `booking_collaborators`.
- * Thợ chính mời thợ khác chụp cùng booking và chia % phần thợ nhận (D5, D17).
+ * Thợ chính mời thợ khác chụp cùng booking và chia % phần thợ nhận (sau khi trừ commission).
  */
 @Entity('booking_collaborators')
 export class BookingCollaboratorEntity extends BaseEntity {

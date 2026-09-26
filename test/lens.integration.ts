@@ -635,6 +635,16 @@ test('main photographer invites a collaborator who answers once', async () => {
       .status,
     403,
   );
+  // only a verified, active photographer can be invited
+  assert.equal(
+    (
+      await invite({
+        photographer_id: '11111111-1111-4111-8111-111111111111',
+        share_percent: 10,
+      })
+    ).status,
+    404,
+  );
   const first = (await invite({ photographer_id: other, share_percent: 60 }))
     .body;
   assert.equal(first.status, 'invited');
@@ -881,7 +891,7 @@ test('remaining payment, completion and review uniqueness', async () => {
       reference: 'provider-2',
     },
   });
-  // only the customer of the booking confirms receiving the photos (D2)
+  // only the customer of the booking confirms receiving the photos
   for (const who of ['photographer', 'stranger'])
     assert.equal(
       (await api('POST', `/bookings/${booking}/confirm-receipt`, who)).status,
@@ -1211,7 +1221,7 @@ test('photographer badges come from visible reviews and returning customers', as
     topic: 'photographer.badge_earned',
   });
   assert.equal(events.length, 3);
-  // D13: once earned, badges stay even when the stats drop
+  // once earned, badges stay even when the stats drop
   await db.transaction(async (s) => {
     const [rating] = await s.findBy(EntitySchemas.ratings, {
       photographer_id: photo,

@@ -2,28 +2,24 @@ import { ensure } from '@shared/domain/domain.error';
 import { BookingCollaboratorStatus } from '@shared/database/entities/booking-collaborator.entity';
 export { BookingCollaboratorStatus };
 
-/** Trạng thái lời mời còn chiếm % (tính vào tổng ≤ 100, D19). */
+/** Trạng thái lời mời còn chiếm % (tính vào tổng ≤ 100). */
 const HOLDING_SHARE: readonly string[] = [
   BookingCollaboratorStatus.INVITED,
   BookingCollaboratorStatus.ACCEPTED,
 ];
 
-/** Trạng thái chặn mời lại cùng thợ (D21): còn hiệu lực hoặc thợ đã từ chối. */
+/** Trạng thái chặn mời lại cùng thợ: còn hiệu lực hoặc thợ đã từ chối. */
 const BLOCKS_REINVITE: readonly string[] = [
   ...HOLDING_SHARE,
   BookingCollaboratorStatus.DECLINED,
 ];
 
-/** Dữ kiện để tạo lời mời thợ liên kết. */
+/** Dữ kiện để tạo lời mời thợ liên kết. Thợ được mời đã được kiểm là thợ đã duyệt, active. */
 export interface CollaborationInviteInput {
   bookingStatus: string;
   galleryPublished: boolean;
   ownerPhotographerId: string;
   inviteePhotographerId: string;
-  /** Thợ được mời đã được admin duyệt */
-  inviteeVerified: boolean;
-  /** Tài khoản của thợ được mời còn active */
-  inviteeActive: boolean;
   sharePercent: number;
   /** Các lời mời đã có của booking (mọi trạng thái) */
   existing: readonly {
@@ -36,7 +32,7 @@ export interface CollaborationInviteInput {
 /** Hành động trên một lời mời đang chờ. */
 export type CollaborationAction = 'accept' | 'decline' | 'revoke';
 
-/** Quy tắc thợ liên kết của booking (D5, D17–D21). */
+/** Quy tắc thợ liên kết của booking: mời, nhận/từ chối, rút; chia % phần thợ nhận. */
 export class Collaboration {
   /**
    * Kiểm tra booking còn cho thay đổi thợ liên kết: đang accepted / in_progress và gallery chưa publish.
@@ -66,11 +62,6 @@ export class Collaboration {
     ensure(
       input.inviteePhotographerId !== input.ownerPhotographerId,
       'Cannot invite yourself',
-    );
-    ensure(
-      input.inviteeVerified && input.inviteeActive,
-      'Photographer not found',
-      'missing',
     );
     ensure(
       Number.isInteger(input.sharePercent) &&

@@ -1,4 +1,4 @@
--- Thợ liên kết của booking (D5, D17–D21): thợ chính mời thợ khác chụp cùng, chia % phần thợ nhận.
+-- Thợ liên kết của booking: thợ chính mời thợ khác chụp cùng, chia % phần thợ nhận.
 -- Mỗi thợ chỉ có 1 lời mời còn hiệu lực trong 1 booking; đã từ chối thì không mời lại, bị rút thì mời lại được.
 CREATE TABLE booking_collaborators (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

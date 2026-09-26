@@ -642,7 +642,7 @@
     "method": "POST",
     "path": "/bookings/:id/confirm-receipt",
     "summary": "Khách xác nhận đã nhận ảnh",
-    "description": "Khách của booking xác nhận đã nhận ảnh, booking chuyển shot → completed. Cần đã trả đủ và gallery đã publish (D2).",
+    "description": "Khách của booking xác nhận đã nhận ảnh, booking chuyển shot → completed. Cần đã trả đủ và gallery đã publish.",
     "role": "Customer",
     "priority": "Must",
     "kind": "Command"
@@ -678,7 +678,7 @@
     "method": "POST",
     "path": "/bookings/:id/collaborators",
     "summary": "Mời thợ liên kết",
-    "description": "Thợ chính mời thợ khác chụp cùng, chia % phần thợ nhận (D5, D17–D21).",
+    "description": "Thợ chính mời thợ khác chụp cùng, chia % phần thợ nhận; tổng % ≤ 100.",
     "role": "Photographer",
     "priority": "Must",
     "kind": "Command"
@@ -726,7 +726,7 @@
     "method": "POST",
     "path": "/booking-collaborators/:id/decline",
     "summary": "Từ chối lời mời liên kết",
-    "description": "Thợ được mời từ chối; không mời lại được (D21).",
+    "description": "Thợ được mời từ chối; không mời lại được.",
     "role": "Photographer",
     "priority": "Must",
     "kind": "Command"
@@ -738,7 +738,7 @@
     "method": "POST",
     "path": "/booking-collaborators/:id/revoke",
     "summary": "Rút lời mời liên kết",
-    "description": "Thợ chính rút lời mời chưa được trả lời (D18).",
+    "description": "Thợ chính rút lời mời chưa được trả lời.",
     "role": "Photographer",
     "priority": "Must",
     "kind": "Command"

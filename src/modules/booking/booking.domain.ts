@@ -26,15 +26,25 @@ export interface BookingDraftInput {
   location: string;
   from: string;
   to: string;
-  /** Lịch tuần thợ đã khai (rỗng ⇒ giờ mặc định, D14) */
+  /** Lịch tuần thợ đã khai (rỗng ⇒ giờ mặc định 08:00–20:00) */
   schedule: readonly WorkingShift[];
   blockedTimes: readonly { from: string; to: string }[];
   bookings: readonly { from: string; to: string; status: string }[];
   now: number;
 }
 
-/** Số ngày sau khi publish gallery thì system tự hoàn tất booking nếu khách chưa xác nhận (D2). */
+/** Số ngày sau khi publish gallery thì system tự hoàn tất booking nếu khách chưa xác nhận. */
 export const AUTO_COMPLETE_AFTER_DAYS = 7;
+
+/** Hành động trên máy trạng thái booking. */
+export type BookingAction =
+  | 'accept'
+  | 'reject'
+  | 'cancel'
+  | 'start'
+  | 'completeShoot'
+  | 'complete'
+  | 'confirmReceipt';
 
 export class Booking {
   constructor(public status: BookingStatus) {}
@@ -117,33 +127,34 @@ export class Booking {
   }
 
   /**
-   * Booking đã tới hạn tự hoàn tất chưa: gallery đã publish đủ `AUTO_COMPLETE_AFTER_DAYS` ngày (D2).
-   * Chỉ xét mốc thời gian; trạng thái `shot` và điều kiện trả đủ vẫn do `transition('complete')` kiểm.
+   * Mốc tự hoàn tất: booking publish gallery từ mốc này trở về trước là tới hạn.
+   * Trạng thái `shot` và điều kiện trả đủ vẫn do `transition('complete')` kiểm.
    *
-   * @param galleryPublishedAt Thời điểm publish gallery, `null` nếu chưa publish
    * @param now Thời điểm hiện tại (ms)
-   * @returns `true` nếu đã tới hạn
+   * @returns Thời điểm ISO UTC = `now` trừ `AUTO_COMPLETE_AFTER_DAYS` ngày
    */
-  static autoCompleteDue(galleryPublishedAt: string | null, now: number) {
-    return (
-      !!galleryPublishedAt &&
-      now - Date.parse(galleryPublishedAt) >= AUTO_COMPLETE_AFTER_DAYS * 864e5
-    );
+  static autoCompleteCutoff(now: number) {
+    return new Date(now - AUTO_COMPLETE_AFTER_DAYS * 864e5).toISOString();
   }
 
-  transition(action: string, paid: boolean, delivered: boolean): BookingStatus {
-    const transitions: Record<string, [BookingStatus[], BookingStatus]> = {
-      accept: [['pending'], 'accepted'],
-      reject: [['pending'], 'rejected'],
-      cancel: [['pending', 'accepted'], 'cancelled'],
-      start: [['accepted'], 'in_progress'],
-      completeShoot: [['in_progress'], 'shot'],
-      complete: [['shot'], 'completed'],
-      confirmReceipt: [['shot'], 'completed'],
-    };
+  transition(
+    action: BookingAction,
+    paid: boolean,
+    delivered: boolean,
+  ): BookingStatus {
+    const transitions: Record<BookingAction, [BookingStatus[], BookingStatus]> =
+      {
+        accept: [['pending'], 'accepted'],
+        reject: [['pending'], 'rejected'],
+        cancel: [['pending', 'accepted'], 'cancelled'],
+        start: [['accepted'], 'in_progress'],
+        completeShoot: [['in_progress'], 'shot'],
+        complete: [['shot'], 'completed'],
+        confirmReceipt: [['shot'], 'completed'],
+      };
     const rule = transitions[action];
     ensure(
-      rule && rule[0].includes(this.status),
+      rule[0].includes(this.status),
       `Cannot ${action} booking in ${this.status}`,
       'conflict',
     );
