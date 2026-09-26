@@ -197,3 +197,57 @@ test('starting a shoot asks payment how much was paid instead of reading its tab
   await assert.rejects(run(0), /Deposit must be paid before starting/);
   assert.equal((await run(300000)).status, 'in_progress');
 });
+
+test('completing a booking counts completed bookings and returning customers, then tells feedback', async () => {
+  const shot = {
+    ...booking,
+    status: 'shot',
+    gallery_published_at: '2030-01-01T00:00:00.000Z',
+  };
+  const order: string[] = [];
+  const builder: Record<string, unknown> = {};
+  for (const m of ['select', 'from', 'where', 'andWhere', 'groupBy', 'having'])
+    builder[m] = () => builder;
+  builder.getRawOne = async () => ({ count: '2' });
+  const s = {
+    findBy: async (entity: unknown) =>
+      entity === EntitySchemas.users
+        ? [{ id: 'admin', keycloak_id: 'kc-a', status: 'active' }]
+        : [],
+    findOneBy: async (entity: unknown) =>
+      entity === EntitySchemas.bookings
+        ? shot
+        : entity === EntitySchemas.customers
+          ? { id: 'c1', user_id: 'u1' }
+          : { id: 'p1', user_id: 'u2' },
+    findOne: async () => {
+      order.push('lock photographer');
+      return { id: 'p1' };
+    },
+    countBy: async () => {
+      order.push('count completed');
+      return 5;
+    },
+    createQueryBuilder: () => builder,
+    update: async () => ({ affected: 1 }),
+    save: async (_e: unknown, row: object) => row,
+  } as unknown as EntityManager;
+  const sent: unknown[] = [];
+  const reviews = {
+    recordBookingStats: async (_s: unknown, pid: string, stats: unknown) => {
+      sent.push([pid, stats]);
+    },
+  } as unknown as RatingUpdaterPort;
+  const payments = {
+    paidAmounts: async (_s: unknown, ids: string[]) => ({ [ids[0]]: 1000000 }),
+  } as unknown as PaidAmountsPort;
+  await new BookingUseCases(reviews, payments).complete(
+    s,
+    { sub: 'kc-a', roles: ['admin'] },
+    { id: 'b1' },
+  );
+  assert.deepEqual(order.slice(0, 2), ['lock photographer', 'count completed']);
+  assert.deepEqual(sent, [
+    ['p1', { completedBookings: 5, returnCustomers: 2 }],
+  ]);
+});

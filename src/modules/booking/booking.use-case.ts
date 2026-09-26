@@ -372,7 +372,48 @@ export class BookingUseCases implements PendingBookingsPort {
    * @param b Booking vừa completed
    */
   private async afterCompleted(s: EntityManager, b: BookingEntity) {
-    await this.reviews.recalculate(s, b.photographer_id);
+    // khoá dòng thợ để hai booking của cùng thợ hoàn tất cùng lúc không đếm thiếu nhau
+    await s.findOne(EntitySchemas.photographers, {
+      where: { id: b.photographer_id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    await this.reviews.recordBookingStats(
+      s,
+      b.photographer_id,
+      await this.completionStats(s, b.photographer_id),
+    );
+  }
+
+  /**
+   * Số booking đã hoàn tất của thợ và số khách đã hoàn tất từ 2 booking trở lên (khách quay lại).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @returns `{ completedBookings, returnCustomers }`
+   */
+  private async completionStats(s: EntityManager, photographerId: string) {
+    const completedBookings = await s.countBy(EntitySchemas.bookings, {
+      photographer_id: photographerId,
+      status: BookingStatus.COMPLETED,
+    });
+    const row = await s
+      .createQueryBuilder()
+      .select('COUNT(*)', 'count')
+      .from(
+        (sub) =>
+          sub
+            .select('b.customer_id')
+            .from(EntitySchemas.bookings, 'b')
+            .where('b.photographer_id = :photographerId', { photographerId })
+            .andWhere('b.status = :status', {
+              status: BookingStatus.COMPLETED,
+            })
+            .groupBy('b.customer_id')
+            .having('COUNT(*) > 1'),
+        'returning',
+      )
+      .getRawOne<{ count: string }>();
+    return { completedBookings, returnCustomers: Number(row?.count ?? 0) };
   }
 
   /**
