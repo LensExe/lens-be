@@ -21,6 +21,7 @@ import {
   role,
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
+import { WorkSchedule, type WorkingShift } from '@shared/domain/work-schedule';
 import { RatingUpdaterPort } from './ports/rating-updater.port';
 import type { PendingBookingsPort } from '@modules/calendar/ports/pending-bookings.port';
 import {
@@ -497,11 +498,81 @@ export class BookingUseCases implements PendingBookingsPort {
     range: { from: string; to: string },
     reason: string,
   ) {
+    const pending = await this.pendingOverlapping(s, photographerId, range);
+    return this.decline(
+      s,
+      pending.map((b) => b.id),
+      reason,
+    );
+  }
+
+  /**
+   * Yêu cầu `pending` của thợ chồng lên khoảng giờ (để thợ xem trước khi chặn lịch).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @param range Khoảng giờ sắp bị chặn
+   * @returns Các yêu cầu bị ảnh hưởng, xếp theo giờ bắt đầu
+   */
+  pendingOverlapping(
+    s: EntityManager,
+    photographerId: string,
+    range: { from: string; to: string },
+  ) {
+    return s.find(EntitySchemas.bookings, {
+      where: {
+        ...this.overlapping(photographerId, range),
+        status: BookingStatus.PENDING,
+      },
+      order: { from: 'ASC' },
+    });
+  }
+
+  /**
+   * Yêu cầu `pending` của thợ không còn nằm trọn một ca theo lịch tuần mới
+   * (để thợ xem trước khi đổi giờ làm).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @param schedule Lịch tuần mới (rỗng ⇒ giờ mặc định)
+   * @returns Các yêu cầu bị ảnh hưởng, xếp theo giờ bắt đầu
+   */
+  async pendingOutside(
+    s: EntityManager,
+    photographerId: string,
+    schedule: readonly WorkingShift[],
+  ) {
+    return (
+      await s.find(EntitySchemas.bookings, {
+        where: {
+          photographer_id: photographerId,
+          status: BookingStatus.PENDING,
+        },
+        order: { from: 'ASC' },
+      })
+    ).filter((b) => !WorkSchedule.fits(b, schedule));
+  }
+
+  /**
+   * Từ chối các yêu cầu còn `pending` (system làm, kèm lý do, ghi lịch sử, bắn realtime).
+   * Yêu cầu đã được trả lời trong lúc đó thì bỏ qua.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param bookingIds ID các yêu cầu cần từ chối
+   * @param reason Lý do ghi vào lịch sử
+   * @returns Số yêu cầu đã từ chối
+   */
+  async decline(
+    s: EntityManager,
+    bookingIds: readonly string[],
+    reason: string,
+  ) {
+    if (!bookingIds.length) return 0;
     const pending = await s.findBy(EntitySchemas.bookings, {
-      ...this.overlapping(photographerId, range),
+      id: In([...bookingIds]),
       status: BookingStatus.PENDING,
     });
-    let turnedDown = 0;
+    let declined = 0;
     for (const b of pending)
       if (
         await this.tryApply(
@@ -513,8 +584,8 @@ export class BookingUseCases implements PendingBookingsPort {
           await this.recipients(s, b),
         )
       )
-        turnedDown++;
-    return turnedDown;
+        declined++;
+    return declined;
   }
 
   /**
