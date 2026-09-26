@@ -106,3 +106,52 @@ test('a photographer who declined or was revoked no longer sees the collaborator
   assert.match(JSON.stringify(lookups[0]), /invited/);
   assert.match(JSON.stringify(lookups[0]), /accepted/);
 });
+
+test('accepting a request declines the other pending requests for the same time', async () => {
+  const useCases = new BookingUseCases({} as RatingUpdaterPort);
+  const fresh = {
+    ...booking,
+    created_at: new Date(Date.now() - 36e5).toISOString(),
+    from: new Date(Date.now() + 48 * 36e5).toISOString(),
+    to: new Date(Date.now() + 49 * 36e5).toISOString(),
+  };
+  const rival = { ...fresh, id: 'rival', customer_id: 'c2' };
+  const updates: { where: { id: string }; changes: { status: string } }[] = [];
+  const s = {
+    findBy: async (entity: unknown) =>
+      entity === EntitySchemas.users
+        ? [{ id: 'u2', keycloak_id: 'kc-p', status: 'active' }]
+        : entity === EntitySchemas.bookings
+          ? [rival]
+          : [],
+    find: async () => [rival],
+    findOne: async () => ({ id: 'p1', user_id: 'u2' }),
+    findOneBy: async (entity: unknown) =>
+      entity === EntitySchemas.bookings
+        ? fresh
+        : entity === EntitySchemas.customers
+          ? { id: 'c1', user_id: 'u1' }
+          : { id: 'p1', user_id: 'u2' },
+    update: async (
+      _e: unknown,
+      where: { id: string },
+      changes: { status: string },
+    ) => {
+      updates.push({ where, changes });
+      return { affected: 1 };
+    },
+    save: async (_e: unknown, row: object) => row,
+  } as unknown as EntityManager;
+  await useCases.accept(
+    s,
+    { sub: 'kc-p', roles: ['photographer'] },
+    { id: 'b1' },
+  );
+  assert.deepEqual(
+    updates.map((u) => [u.where.id, u.changes.status]),
+    [
+      ['b1', 'accepted'],
+      ['rival', 'rejected'],
+    ],
+  );
+});

@@ -112,7 +112,7 @@ export class BookingCollaboratorMeQueryHandler implements IQueryHandler<BookingC
   ) {}
   execute(message: BookingCollaboratorMeQuery) {
     return this.dataSource.transaction((s) =>
-      this.useCases.myCollaborations(s, message.actor),
+      this.useCases.myCollaborations(s, message.actor, message.input),
     );
   }
 }

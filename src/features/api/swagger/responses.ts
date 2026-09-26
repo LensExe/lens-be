@@ -193,7 +193,7 @@ const schemas: Record<string, SchemaObject> = {
   'BOOK-012': records.bookings,
   'BOOK-013': records.booking_collaborators,
   'BOOK-014': items(records.booking_collaborators),
-  'BOOK-015': items(records.booking_collaborators),
+  'BOOK-015': paged(records.booking_collaborators),
   'BOOK-016': records.booking_collaborators,
   'BOOK-017': records.booking_collaborators,
   'BOOK-018': records.booking_collaborators,

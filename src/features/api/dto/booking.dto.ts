@@ -1,9 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { BookingStatus } from '@shared/database/entities/booking.entity';
 import {
   IsString,
   IsUUID,
   IsISO8601,
+  IsIn,
   IsInt,
   Min,
   Max,
@@ -40,12 +42,13 @@ export class BookingAdminQueryQueryDto {
   @Max(1000000)
   offset?: number;
 
-  @ApiPropertyOptional({ description: 'status', type: 'string' })
+  @ApiPropertyOptional({
+    description: 'status',
+    enum: Object.values(BookingStatus),
+  })
   @ValidateIf((_object, value) => value !== undefined)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(500)
-  status?: string;
+  @IsIn(Object.values(BookingStatus))
+  status?: BookingStatus;
 }
 
 export class BookingCreateCommandBodyDto {
@@ -117,12 +120,13 @@ export class BookingListQueryQueryDto {
   @Max(1000000)
   offset?: number;
 
-  @ApiPropertyOptional({ description: 'status', type: 'string' })
+  @ApiPropertyOptional({
+    description: 'status',
+    enum: Object.values(BookingStatus),
+  })
   @ValidateIf((_object, value) => value !== undefined)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(500)
-  status?: string;
+  @IsIn(Object.values(BookingStatus))
+  status?: BookingStatus;
 
   @ApiPropertyOptional({
     description: 'from',
@@ -188,4 +192,32 @@ export class BookingCollaboratorInviteCommandBodyDto {
   @Min(1)
   @Max(100)
   share_percent!: number;
+}
+
+export class BookingCollaboratorMeQueryQueryDto {
+  @ApiPropertyOptional({
+    description: 'limit',
+    minimum: 1,
+    maximum: 100,
+    example: 20,
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @ApiPropertyOptional({
+    description: 'offset',
+    minimum: 0,
+    maximum: 1000000,
+    example: 0,
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1000000)
+  offset?: number;
 }

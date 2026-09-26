@@ -1,5 +1,10 @@
 import { ensure } from '@shared/domain/domain.error';
-import { interval, money, overlaps } from '@shared/domain/booking-values';
+import {
+  interval,
+  isOccupied,
+  money,
+  overlaps,
+} from '@shared/domain/booking-values';
 import { WorkSchedule, type WorkingShift } from '@shared/domain/work-schedule';
 import {
   BookingStatus,
@@ -59,6 +64,15 @@ export type BookingAction =
 
 /** Số giờ thợ có để trả lời một yêu cầu; quá hạn (hoặc tới giờ chụp) thì yêu cầu hết hạn. */
 export const PENDING_EXPIRES_AFTER_HOURS = 24;
+
+/** Tiền của booking để domain quyết định có được bắt đầu / hoàn tất không. */
+export interface BookingPayment {
+  /** Tổng khách đã trả (cọc + phần còn lại, giao dịch `paid`) */
+  paidAmount: number;
+  depositAmount: number;
+  totalAmount: number;
+  galleryPublished: boolean;
+}
 
 /** Số giờ khách có để trả cọc sau khi thợ nhận; quá hạn (hoặc tới giờ chụp) thì booking bị huỷ. */
 export const PAYMENT_DUE_AFTER_HOURS = 24;
@@ -154,10 +168,7 @@ export class Booking {
     );
     ensure(
       !bookings.some(
-        (booking) =>
-          (OCCUPIED_BOOKING_STATUSES as readonly string[]).includes(
-            booking.status,
-          ) && overlaps(booking, range),
+        (booking) => isOccupied(booking.status) && overlaps(booking, range),
       ),
       'Photographer already booked or blocked',
       'conflict',
@@ -242,18 +253,25 @@ export class Booking {
   }
 
   /**
-   * Chuyển trạng thái theo hành động; kiểm đã trả cọc (start) và đã trả đủ + đã giao ảnh (hoàn tất).
+   * Hành động này có cần biết khách đã trả bao nhiêu không (bắt đầu chụp cần cọc, hoàn tất cần đủ).
+   * Use case chỉ đọc giao dịch khi cần.
    *
    * @param action Hành động
-   * @param paid Đã trả đủ số tiền hành động này cần
-   * @param delivered Gallery đã publish
-   * @returns Trạng thái mới; 409 nếu hành động không hợp lệ ở trạng thái hiện tại
+   * @returns `true` nếu cần số tiền đã trả
    */
-  transition(
-    action: BookingAction,
-    paid: boolean,
-    delivered: boolean,
-  ): BookingStatus {
+  static needsPayment(action: BookingAction) {
+    return ['start', 'complete', 'confirmReceipt'].includes(action);
+  }
+
+  /**
+   * Chuyển trạng thái theo hành động. Domain tự quyết ngưỡng tiền: bắt đầu chụp cần đủ cọc,
+   * hoàn tất cần trả đủ tổng tiền và gallery đã publish.
+   *
+   * @param action Hành động
+   * @param payment Số đã trả, tiền cọc, tổng tiền, gallery đã publish chưa
+   * @returns Trạng thái mới; 409 nếu hành động không hợp lệ ở trạng thái hiện tại hoặc chưa đủ điều kiện
+   */
+  transition(action: BookingAction, payment: BookingPayment): BookingStatus {
     const transitions: Record<BookingAction, [BookingStatus[], BookingStatus]> =
       {
         accept: [['pending'], 'accepted'],
@@ -272,10 +290,14 @@ export class Booking {
       'conflict',
     );
     if (action === 'start')
-      ensure(paid, 'Deposit must be paid before starting', 'conflict');
+      ensure(
+        payment.paidAmount >= payment.depositAmount,
+        'Deposit must be paid before starting',
+        'conflict',
+      );
     if (action === 'complete' || action === 'confirmReceipt')
       ensure(
-        paid && delivered,
+        payment.paidAmount >= payment.totalAmount && payment.galleryPublished,
         'Full payment and published gallery required',
         'conflict',
       );

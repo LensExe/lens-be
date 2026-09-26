@@ -1,7 +1,9 @@
+import type { BookingStatus } from '@shared/database/entities/booking.entity';
+
 export interface BookingAdminQueryInput {
   limit?: number;
   offset?: number;
-  status?: string;
+  status?: BookingStatus;
 }
 
 export interface BookingCreateCommandInput {
@@ -15,7 +17,7 @@ export interface BookingCreateCommandInput {
 export interface BookingListQueryInput {
   limit?: number;
   offset?: number;
-  status?: string;
+  status?: BookingStatus;
   from?: string;
   to?: string;
 }
@@ -43,8 +45,11 @@ export interface BookingCollaboratorListQueryInput {
   id: string;
 }
 
-/** Danh sách lời mời của chính thợ đang đăng nhập, không nhận tham số. */
-export type BookingCollaboratorMeQueryInput = Record<string, never>;
+/** Danh sách lời mời của chính thợ đang đăng nhập, phân trang. */
+export interface BookingCollaboratorMeQueryInput {
+  limit?: number;
+  offset?: number;
+}
 
 export interface BookingCollaboratorAcceptCommandInput {
   id: string;
