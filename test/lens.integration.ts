@@ -514,6 +514,12 @@ test('calendar blocking and concurrent booking conflict', async () => {
     ).status,
     400,
   );
+  for (const date of ['2026-13-45', '2026-02-30'])
+    assert.equal(
+      (await api('POST', '/calendar/blocked-times', 'photographer', { date }))
+        .status,
+      400,
+    );
   // a range may span days and may start right where another block ends
   const range = await ok('POST', '/calendar/blocked-times', 'photographer', {
     from: at(24),

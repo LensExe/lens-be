@@ -102,7 +102,16 @@ export class Calendar {
     const byDate = input.date !== undefined,
       byRange = input.from !== undefined || input.to !== undefined;
     ensure(byDate !== byRange, 'Send either date or from and to');
-    if (byDate) return vnDayInterval(input.date!);
+    if (byDate) {
+      const date = input.date!;
+      const parsed = new Date(`${date}T00:00:00.000Z`);
+      ensure(
+        !Number.isNaN(parsed.getTime()) &&
+          parsed.toISOString().slice(0, 10) === date,
+        'date must be a real calendar date (YYYY-MM-DD)',
+      );
+      return vnDayInterval(date);
+    }
     ensure(input.from && input.to, 'Send both from and to');
     return interval(input.from, input.to);
   }

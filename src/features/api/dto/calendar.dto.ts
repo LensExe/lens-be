@@ -23,6 +23,7 @@ export class CalendarBlockCommandBodyDto {
   })
   @ValidateIf((_object, value) => value !== undefined)
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsISO8601({ strict: true })
   date?: string;
 
   @ApiPropertyOptional({
