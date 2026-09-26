@@ -1628,6 +1628,42 @@ test('job cancels accepted bookings whose deposit is not paid in time', async ()
     assert.match(history[0].reason ?? '', /Deposit not paid in time/);
   }
 });
+test('a customer cannot keep more than 3 open requests with one photographer', async () => {
+  const created: string[] = [];
+  let refused = 0;
+  for (let d = 10; d < 15; d++) {
+    const day = new Date(Date.now() + d * 864e5).toISOString().slice(0, 10);
+    const res = await api('POST', '/bookings', 'customer', {
+      photographer_id: photo,
+      plan_id: plan,
+      location: 'Studio',
+      from: new Date(`${day}T09:00:00+07:00`).toISOString(),
+      to: new Date(`${day}T10:00:00+07:00`).toISOString(),
+    });
+    if (res.status === 200) created.push(res.body.id);
+    else {
+      assert.equal(res.status, 409);
+      assert.match(res.body.message, /Too many open requests/);
+      refused++;
+    }
+  }
+  const open = await ok(
+    'GET',
+    '/bookings?status=pending&limit=100',
+    'customer',
+  );
+  assert.equal(
+    open.items.filter(
+      (b: { photographer_id: string }) => b.photographer_id === photo,
+    ).length,
+    3,
+  );
+  assert.ok(refused > 0);
+  for (const id of created)
+    await ok('POST', `/bookings/${id}/cancel`, 'customer', {
+      reason: 'Cleanup',
+    });
+});
 test('domain rejects unsupported booking transitions', () => {
   assert.throws(
     () => new Booking('pending').transition('complete', true, true),

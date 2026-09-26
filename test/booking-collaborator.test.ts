@@ -8,6 +8,7 @@ const invite = {
   ownerPhotographerId: 'owner',
   inviteePhotographerId: 'b',
   sharePercent: 30,
+  inviteeIsCustomer: false,
   existing: [] as {
     photographer_id: string;
     status: string;
@@ -102,5 +103,32 @@ test('only a pending invitation can be answered or revoked, while the booking is
         galleryPublished: true,
       }),
     /not open for collaborators/,
+  );
+});
+
+test('the customer of the booking cannot be invited as a collaborator', () => {
+  assert.throws(
+    () => Collaboration.invite({ ...invite, inviteeIsCustomer: true }),
+    /Cannot invite the customer of this booking/,
+  );
+});
+
+test('the same photographer can be invited at most 3 times for one booking', () => {
+  const revoked = {
+    photographer_id: 'b',
+    status: 'revoked',
+    share_percent: 10,
+  };
+  assert.equal(
+    Collaboration.invite({ ...invite, existing: [revoked, revoked] }).status,
+    'invited',
+  );
+  assert.throws(
+    () =>
+      Collaboration.invite({
+        ...invite,
+        existing: [revoked, revoked, revoked],
+      }),
+    /invited too many times/,
   );
 });

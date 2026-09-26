@@ -124,6 +124,15 @@ export class BookingUseCases implements PendingBookingsPort {
       schedule,
       blockedTimes,
       bookings,
+      openRequestsWithPhotographer: await s.countBy(EntitySchemas.bookings, {
+        customer_id: c.id,
+        photographer_id: p.id,
+        status: BookingStatus.PENDING,
+      }),
+      openRequests: await s.countBy(EntitySchemas.bookings, {
+        customer_id: c.id,
+        status: BookingStatus.PENDING,
+      }),
       now: Date.now(),
     });
 
@@ -741,12 +750,11 @@ export class BookingUseCases implements PendingBookingsPort {
       where: { id: input.id },
       lock: { mode: 'pessimistic_write' },
     });
-    const { booking: b, photographer: owner } = await bookingAccess(
-      s,
-      a,
-      input.id,
-      'photographer',
-    );
+    const {
+      booking: b,
+      customer,
+      photographer: owner,
+    } = await bookingAccess(s, a, input.id, 'photographer');
     // chỉ mời thợ đã duyệt, tài khoản active; không thì 404
     const { photographer: invitee } = await publicPhotographer(
       s,
@@ -758,6 +766,7 @@ export class BookingUseCases implements PendingBookingsPort {
       ownerPhotographerId: owner.id,
       inviteePhotographerId: invitee.id,
       sharePercent: input.share_percent,
+      inviteeIsCustomer: invitee.user_id === customer.user_id,
       existing: await s.findBy(EntitySchemas.booking_collaborators, {
         booking_id: b.id,
       }),

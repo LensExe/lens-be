@@ -36,6 +36,10 @@ export interface BookingDraftInput {
     status: string;
     customer_id?: string;
   }[];
+  /** Số yêu cầu pending khách này đang có với thợ này */
+  openRequestsWithPhotographer: number;
+  /** Tổng số yêu cầu pending khách này đang có */
+  openRequests: number;
   now: number;
 }
 
@@ -58,6 +62,10 @@ export const PENDING_EXPIRES_AFTER_HOURS = 24;
 
 /** Số giờ khách có để trả cọc sau khi thợ nhận; quá hạn (hoặc tới giờ chụp) thì booking bị huỷ. */
 export const PAYMENT_DUE_AFTER_HOURS = 24;
+
+/** Số yêu cầu pending tối đa một khách được mở cùng lúc với một thợ, và tổng cộng. */
+export const MAX_OPEN_REQUESTS_PER_PHOTOGRAPHER = 3;
+export const MAX_OPEN_REQUESTS = 10;
 
 export class Booking {
   /** @param status Trạng thái hiện tại của booking */
@@ -82,6 +90,12 @@ export class Booking {
     ensure(
       input.photographerUserId !== input.customerUserId,
       'Cannot book yourself',
+    );
+    ensure(
+      input.openRequestsWithPhotographer < MAX_OPEN_REQUESTS_PER_PHOTOGRAPHER &&
+        input.openRequests < MAX_OPEN_REQUESTS,
+      'Too many open requests, wait for answers or cancel some',
+      'conflict',
     );
     const range = interval(input.from, input.to);
     ensure(Date.parse(range.from) > input.now, 'Booking must start in future');

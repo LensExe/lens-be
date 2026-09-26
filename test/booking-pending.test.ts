@@ -25,6 +25,8 @@ const facts = {
   schedule: [],
   blockedTimes: [] as { from: string; to: string }[],
   bookings: [] as { from: string; to: string; status: string }[],
+  openRequestsWithPhotographer: 0,
+  openRequests: 0,
   now: Date.parse('2029-01-01T00:00:00.000Z'),
 };
 
@@ -132,5 +134,34 @@ test('the deposit is due 24 hours after the photographer accepts', () => {
   assert.equal(
     Booking.paymentDueCutoff(Date.parse('2030-01-02T10:00:00.000Z')),
     '2030-01-01T10:00:00.000Z',
+  );
+});
+
+test('a customer keeps at most 3 open requests per photographer and 10 in total', () => {
+  assert.equal(
+    Booking.prepare({
+      ...facts,
+      openRequestsWithPhotographer: 2,
+      openRequests: 9,
+    }).status,
+    'pending',
+  );
+  assert.throws(
+    () =>
+      Booking.prepare({
+        ...facts,
+        openRequestsWithPhotographer: 3,
+        openRequests: 3,
+      }),
+    /Too many open requests/,
+  );
+  assert.throws(
+    () =>
+      Booking.prepare({
+        ...facts,
+        openRequestsWithPhotographer: 0,
+        openRequests: 10,
+      }),
+    /Too many open requests/,
   );
 });
