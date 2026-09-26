@@ -761,9 +761,14 @@ export class BookingController {
     description: 'Successful result',
     schema: responseSchema('BOOK-015'),
   })
-  myCollaborations(@Req() req: { actor?: Actor }) {
+  myCollaborations(
+    @Req() req: { actor?: Actor },
+    @Query() query: Dto.BookingCollaboratorMeQueryQueryDto,
+  ) {
     return this.queries.execute(
-      new BookingCollaboratorMeQuery(req.actor ?? { sub: '', roles: [] }, {}),
+      new BookingCollaboratorMeQuery(req.actor ?? { sub: '', roles: [] }, {
+        ...query,
+      }),
     );
   }
 

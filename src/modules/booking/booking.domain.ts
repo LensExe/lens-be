@@ -1,5 +1,10 @@
 import { ensure } from '@shared/domain/domain.error';
-import { interval, money, overlaps } from '@shared/domain/booking-values';
+import {
+  interval,
+  isOccupied,
+  money,
+  overlaps,
+} from '@shared/domain/booking-values';
 import { WorkSchedule, type WorkingShift } from '@shared/domain/work-schedule';
 import {
   BookingStatus,
@@ -163,10 +168,7 @@ export class Booking {
     );
     ensure(
       !bookings.some(
-        (booking) =>
-          (OCCUPIED_BOOKING_STATUSES as readonly string[]).includes(
-            booking.status,
-          ) && overlaps(booking, range),
+        (booking) => isOccupied(booking.status) && overlaps(booking, range),
       ),
       'Photographer already booked or blocked',
       'conflict',

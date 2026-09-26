@@ -34,8 +34,6 @@ export const OCCUPIED_BOOKING_STATUSES = [
   BookingStatus.COMPLETED,
 ] as const;
 
-export type OccupiedBookingStatus = (typeof OCCUPIED_BOOKING_STATUSES)[number];
-
 /**
  * Entity đại diện cho bảng `bookings`.
  * Bảng nghiệp vụ cốt lõi quản lý thông tin các đơn đặt lịch thuê chụp ảnh giữa Khách hàng và Nhiếp ảnh gia.

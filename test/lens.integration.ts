@@ -899,6 +899,12 @@ test('main photographer invites a collaborator who answers once', async () => {
     .body;
   assert.equal(second.share_percent, 50);
   const mine = await ok('GET', '/booking-collaborators/me', 'applicant');
+  assert.equal(mine.total, 2);
+  // a status filter outside the known statuses is a 400, not an empty list
+  assert.equal(
+    (await api('GET', '/bookings?status=foo', 'customer')).status,
+    400,
+  );
   assert.deepEqual(
     mine.items.map((c: { id: string; status: string }) => [c.id, c.status]),
     [

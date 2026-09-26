@@ -7,7 +7,7 @@ import {
   type EntityManager,
   type FindOptionsWhere,
 } from 'typeorm';
-import { EntitySchemas, updateEntity } from '@shared/database';
+import { EntitySchemas, overlapWhere, updateEntity } from '@shared/database';
 import type * as Inputs from '@shared/contracts/contracts';
 import { Injectable } from '@nestjs/common';
 import type { Actor } from '@shared/platform/auth/actor';
@@ -18,6 +18,8 @@ import {
   required,
   bookingAccess,
   emit,
+  paged,
+  pageWindow,
   role,
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
@@ -74,7 +76,8 @@ export class BookingUseCases implements PendingBookingsPort {
   constructor(private readonly reviews: RatingUpdaterPort) {}
 
   /**
-   * Khách đặt lịch với thợ theo một gói chụp. Khoá dòng thợ để hai khách không đặt trùng giờ.
+   * Khách đặt lịch với thợ theo một gói chụp. Khoá dòng thợ để không đua với lúc thợ nhận booking
+   * hoặc chặn lịch (hai việc đó đọc danh sách yêu cầu chồng giờ để từ chối).
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor (khách, phải có hồ sơ customer)
@@ -106,14 +109,11 @@ export class BookingUseCases implements PendingBookingsPort {
 
     const blockedTimes = await s.findBy(
       EntitySchemas.offline_slots,
-      this.overlapping(p.id, input),
+      overlapWhere(p.id, input),
     );
 
     const bookings = [
-      ...(await s.findBy(
-        EntitySchemas.bookings,
-        this.overlapping(p.id, input),
-      )),
+      ...(await s.findBy(EntitySchemas.bookings, overlapWhere(p.id, input))),
       ...(await this.collaborationTimes(s, p.id, input)),
     ];
 
@@ -159,7 +159,7 @@ export class BookingUseCases implements PendingBookingsPort {
     );
     await emit(s, 'booking.created', [u.id, p.user_id], {
       booking_id: booking.id,
-      status: 'pending',
+      status: booking.status,
     });
     return booking;
   }
@@ -189,7 +189,7 @@ export class BookingUseCases implements PendingBookingsPort {
       [c] = await s.findBy(EntitySchemas.customers, { user_id: u.id }),
       [p] = await s.findBy(EntitySchemas.photographers, { user_id: u.id });
     const filters = {
-      ...(input.status && { status: input.status as BookingStatus }),
+      ...(input.status && { status: input.status }),
       ...(input.from && { from: MoreThanOrEqual(input.from) }),
       ...(input.to && { to: LessThanOrEqual(input.to) }),
     };
@@ -197,7 +197,7 @@ export class BookingUseCases implements PendingBookingsPort {
       ...(c ? [{ customer_id: c.id, ...filters }] : []),
       ...(p ? [{ photographer_id: p.id, ...filters }] : []),
     ];
-    if (!where.length) return this.paged([], 0, input);
+    if (!where.length) return paged([], 0, input);
     return this.pageOfBookings(s, where, input);
   }
 
@@ -334,51 +334,6 @@ export class BookingUseCases implements PendingBookingsPort {
   }
 
   /**
-   * Điều kiện "khoảng chặn / booking của thợ chồng lên khoảng mới" (khoảng nửa mở `[from, to)`),
-   * để khi tạo booking chỉ đọc các dòng có thể trùng thay vì toàn bộ lịch sử của thợ.
-   *
-   * @param photographerId ID hồ sơ thợ
-   * @param range Khoảng giờ của booking mới
-   * @returns Điều kiện `where` cho `findBy`
-   */
-  private overlapping(
-    photographerId: string,
-    range: { from: string; to: string },
-  ) {
-    return {
-      photographer_id: photographerId,
-      to: MoreThan(new Date(range.from).toISOString()),
-      from: LessThan(new Date(range.to).toISOString()),
-    };
-  }
-
-  /**
-   * Offset / limit của một trang, cùng mặc định với `page()`.
-   *
-   * @param query `limit`, `offset` từ query string
-   * @returns `{ offset, limit }`
-   */
-  private pageWindow(query: { limit?: number; offset?: number }) {
-    return { offset: query.offset ?? 0, limit: query.limit ?? 20 };
-  }
-
-  /**
-   * Dạng response phân trang chuẩn của repo.
-   *
-   * @param items Các dòng của trang
-   * @param total Tổng số dòng khớp điều kiện
-   * @param query `limit`, `offset` từ query string
-   * @returns `{ items, total, offset, limit }`
-   */
-  private paged<T>(
-    items: T[],
-    total: number,
-    query: { limit?: number; offset?: number },
-  ) {
-    return { items, total, ...this.pageWindow(query) };
-  }
-
-  /**
    * Ghi 1 dòng lịch sử trạng thái booking.
    *
    * @param s EntityManager của transaction hiện tại
@@ -458,7 +413,7 @@ export class BookingUseCases implements PendingBookingsPort {
     const b = await required(s, 'bookings', i.id);
     if (b.status === BookingStatus.PENDING)
       Booking.assertStillPending(b, Date.now());
-    const overlap = this.overlapping(b.photographer_id, b);
+    const overlap = overlapWhere(b.photographer_id, b);
     const others = (await s.findBy(EntitySchemas.bookings, overlap)).filter(
       (o) => o.id !== b.id,
     );
@@ -526,7 +481,7 @@ export class BookingUseCases implements PendingBookingsPort {
   ) {
     return s.find(EntitySchemas.bookings, {
       where: {
-        ...this.overlapping(photographerId, range),
+        ...overlapWhere(photographerId, range),
         status: BookingStatus.PENDING,
       },
       order: { from: 'ASC' },
@@ -932,21 +887,31 @@ export class BookingUseCases implements PendingBookingsPort {
   }
 
   /**
-   * Các lời mời liên kết gửi tới thợ đang đăng nhập, mới nhất trước.
+   * Các lời mời liên kết gửi tới thợ đang đăng nhập, mới nhất trước, phân trang bằng SQL.
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor (thợ)
-   * @returns `{ items }`
+   * @param input `limit`, `offset`
+   * @returns `{ items, total, offset, limit }`
    */
-  async myCollaborations(s: EntityManager, a: Actor) {
+  async myCollaborations(
+    s: EntityManager,
+    a: Actor,
+    input: Inputs.BookingCollaboratorMeQueryInput,
+  ) {
     role(a, 'photographer');
     const p = await ownPhotographer(s, a);
-    return {
-      items: await s.find(EntitySchemas.booking_collaborators, {
+    const { offset, limit } = pageWindow(input);
+    const [items, total] = await s.findAndCount(
+      EntitySchemas.booking_collaborators,
+      {
         where: { photographer_id: p.id },
-        order: { created_at: 'DESC' },
-      }),
-    };
+        order: { created_at: 'DESC', id: 'ASC' },
+        skip: offset,
+        take: limit,
+      },
+    );
+    return paged(items, total, input);
   }
 
   /**
@@ -1000,7 +965,7 @@ export class BookingUseCases implements PendingBookingsPort {
       where: { id: photographerId },
       lock: { mode: 'pessimistic_write' },
     });
-    const overlap = this.overlapping(photographerId, booking);
+    const overlap = overlapWhere(photographerId, booking);
     Booking.assertCanAccept(
       booking,
       await s.findBy(EntitySchemas.offline_slots, overlap),
@@ -1231,7 +1196,7 @@ export class BookingUseCases implements PendingBookingsPort {
     await currentUser(s, a);
     return this.pageOfBookings(
       s,
-      input.status ? { status: input.status as BookingStatus } : {},
+      input.status ? { status: input.status } : {},
       input,
     );
   }
@@ -1249,13 +1214,13 @@ export class BookingUseCases implements PendingBookingsPort {
     where: FindOptionsWhere<BookingEntity> | FindOptionsWhere<BookingEntity>[],
     query: { limit?: number; offset?: number },
   ) {
-    const { offset, limit } = this.pageWindow(query);
+    const { offset, limit } = pageWindow(query);
     const [items, total] = await s.findAndCount(EntitySchemas.bookings, {
       where,
       order: { created_at: 'DESC', id: 'ASC' },
       skip: offset,
       take: limit,
     });
-    return this.paged(items, total, query);
+    return paged(items, total, query);
   }
 }
