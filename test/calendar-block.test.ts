@@ -200,3 +200,37 @@ test('blocking a date that does not exist is a 400, not a crash or a shifted day
     '2028-02-28T17:00:00.000Z',
   );
 });
+
+test('free time never starts in the past and defaults to 30 days from its start', () => {
+  const now = Date.parse('2030-01-10T00:00:00.000Z');
+  assert.deepEqual(
+    Calendar.availabilityWindow({ from: '2030-01-01T00:00:00.000Z' }, now),
+    { from: '2030-01-10T00:00:00.000Z', to: '2030-02-09T00:00:00.000Z' },
+  );
+  // a start far ahead without an end gets 30 days after that start, not after now
+  assert.deepEqual(
+    Calendar.availabilityWindow({ from: '2030-06-01T00:00:00.000Z' }, now),
+    { from: '2030-06-01T00:00:00.000Z', to: '2030-07-01T00:00:00.000Z' },
+  );
+});
+
+test("the photographer's own calendar is bounded: 30 days by default, 93 days at most", () => {
+  const now = Date.parse('2030-01-10T00:00:00.000Z');
+  assert.deepEqual(Calendar.personalWindow({}, now), {
+    from: '2030-01-10T00:00:00.000Z',
+    to: '2030-02-09T00:00:00.000Z',
+  });
+  // looking back is allowed for the photographer's own history
+  assert.equal(
+    Calendar.personalWindow({ from: '2029-12-01T00:00:00.000Z' }, now).from,
+    '2029-12-01T00:00:00.000Z',
+  );
+  assert.throws(
+    () =>
+      Calendar.personalWindow(
+        { from: '2030-01-01T00:00:00.000Z', to: '2030-06-01T00:00:00.000Z' },
+        now,
+      ),
+    /93 days/,
+  );
+});

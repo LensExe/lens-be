@@ -1,5 +1,5 @@
-import { LessThan, MoreThan, type EntityManager } from 'typeorm';
-import { EntitySchemas } from '@shared/database';
+import type { EntityManager } from 'typeorm';
+import { EntitySchemas, overlapWhere } from '@shared/database';
 import type * as Inputs from '@shared/contracts/contracts';
 import { Injectable } from '@nestjs/common';
 import type { Actor } from '@shared/platform/auth/actor';
@@ -23,7 +23,7 @@ const BLOCKED_REASON = 'Photographer blocked this time';
 /** Lý do ghi cho yêu cầu pending bị từ chối vì nằm ngoài giờ làm mới của thợ. */
 const HOURS_CHANGED_REASON = 'Photographer changed working hours';
 
-/** Application use cases for photographer calendar operations. */
+/** Nghiệp vụ lịch của thợ: giờ làm, chặn lịch, lịch của tôi, lịch trống cho khách. */
 @Injectable()
 export class CalendarUseCases {
   constructor(
@@ -48,23 +48,21 @@ export class CalendarUseCases {
   ) {
     const { photographer: p } = await publicPhotographer(s, input.id);
     if (!p.is_available) return { items: [] };
-    const from = input.from ?? new Date().toISOString();
-    const to = input.to ?? new Date(Date.now() + 30 * 864e5).toISOString();
-    const window = { from, to };
+    const window = Calendar.availabilityWindow(input, Date.now());
     return {
       items: Calendar.availability(
-        from,
-        to,
+        window.from,
+        window.to,
         await s.findBy(EntitySchemas.working_hours, { photographer_id: p.id }),
-        await s.find(
-          EntitySchemas.offline_slots,
-          this.overlapping(p.id, window),
-        ),
+        await s.find(EntitySchemas.offline_slots, {
+          where: overlapWhere(p.id, window),
+          order: { from: 'ASC' as const },
+        }),
         [
-          ...(await s.find(
-            EntitySchemas.bookings,
-            this.overlapping(p.id, window),
-          )),
+          ...(await s.find(EntitySchemas.bookings, {
+            where: overlapWhere(p.id, window),
+            order: { from: 'ASC' as const },
+          })),
           ...(await this.collaborations.collaborationTimes(s, p.id, window)),
         ],
       ),
@@ -174,20 +172,19 @@ export class CalendarUseCases {
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Người đang gọi API (thợ)
-   * @param input `from`: chỉ lấy mục kết thúc sau mốc này; `to`: chỉ lấy mục bắt đầu trước mốc này
-   * @returns `{ blocked, bookings }`, xếp theo thời gian bắt đầu
+   * @param input `from` / `to`: khung xem; mặc định từ bây giờ 30 ngày, tối đa 93 ngày, được xem lại quá khứ
+   * @returns `{ blocked, bookings }` chồng lên khung xem, xếp theo thời gian bắt đầu; 400 nếu khung quá 93 ngày
    */
   async me(s: EntityManager, a: Actor, input: Inputs.CalendarMeQueryInput) {
     const p = await photographer(s, a);
+    const window = Calendar.personalWindow(input, Date.now());
+    const query = {
+      where: overlapWhere(p.id, window),
+      order: { from: 'ASC' as const },
+    };
     return {
-      blocked: await s.find(
-        EntitySchemas.offline_slots,
-        this.overlapping(p.id, input),
-      ),
-      bookings: await s.find(
-        EntitySchemas.bookings,
-        this.overlapping(p.id, input),
-      ),
+      blocked: await s.find(EntitySchemas.offline_slots, query),
+      bookings: await s.find(EntitySchemas.bookings, query),
     };
   }
 
@@ -214,13 +211,16 @@ export class CalendarUseCases {
     Calendar.assertCanBlock(
       range,
       [
-        ...(await s.find(
-          EntitySchemas.bookings,
-          this.overlapping(p.id, range),
-        )),
+        ...(await s.find(EntitySchemas.bookings, {
+          where: overlapWhere(p.id, range),
+          order: { from: 'ASC' as const },
+        })),
         ...(await this.collaborations.collaborationTimes(s, p.id, range)),
       ],
-      await s.find(EntitySchemas.offline_slots, this.overlapping(p.id, range)),
+      await s.find(EntitySchemas.offline_slots, {
+        where: overlapWhere(p.id, range),
+        order: { from: 'ASC' as const },
+      }),
       Date.now(),
     );
     const affected = await this.pendingBookings.pendingOverlapping(
@@ -297,6 +297,14 @@ export class CalendarUseCases {
     );
   }
 
+  /**
+   * Thợ bỏ một khoảng đã chặn của mình.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người đang gọi API (thợ)
+   * @param input ID khoảng chặn
+   * @returns `{ deleted: true }`; 403 nếu khoảng chặn của thợ khác, 404 nếu không có
+   */
   async unblock(
     s: EntityManager,
     a: Actor,
@@ -307,26 +315,5 @@ export class CalendarUseCases {
     ensure(slot.photographer_id === p.id, 'Slot access denied', 'forbidden');
     await s.delete(EntitySchemas.offline_slots, slot.id);
     return { deleted: true };
-  }
-
-  /**
-   * Điều kiện tìm các mục (khoảng chặn, booking) của thợ chồng lên [from, to); mốc nào không gửi thì không lọc phía đó.
-   *
-   * @param photographerId ID hồ sơ thợ
-   * @param window `from`/`to` ISO, đều tuỳ chọn
-   * @returns Tuỳ chọn `find` của TypeORM, xếp theo `from` tăng dần
-   */
-  private overlapping(
-    photographerId: string,
-    window: { from?: string; to?: string },
-  ) {
-    return {
-      where: {
-        photographer_id: photographerId,
-        ...(window.from !== undefined && { to: MoreThan(window.from) }),
-        ...(window.to !== undefined && { from: LessThan(window.to) }),
-      },
-      order: { from: 'ASC' as const },
-    };
   }
 }
