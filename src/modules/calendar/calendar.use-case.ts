@@ -15,27 +15,6 @@ import {
 } from '@shared/domain/work-schedule';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 
-/**
- * Điều kiện tìm các mục (khoảng chặn, booking) của thợ chồng lên [from, to); mốc nào không gửi thì không lọc phía đó.
- *
- * @param photographerId ID hồ sơ thợ
- * @param window `from`/`to` ISO, đều tuỳ chọn
- * @returns Tuỳ chọn `find` của TypeORM, xếp theo `from` tăng dần
- */
-function overlapping(
-  photographerId: string,
-  window: { from?: string; to?: string },
-) {
-  return {
-    where: {
-      photographer_id: photographerId,
-      ...(window.from !== undefined && { to: MoreThan(window.from) }),
-      ...(window.to !== undefined && { from: LessThan(window.to) }),
-    },
-    order: { from: 'ASC' as const },
-  };
-}
-
 /** Application use cases for photographer calendar operations. */
 @Injectable()
 export class CalendarUseCases {
@@ -63,8 +42,11 @@ export class CalendarUseCases {
         from,
         to,
         await s.findBy(EntitySchemas.working_hours, { photographer_id: p.id }),
-        await s.find(EntitySchemas.offline_slots, overlapping(p.id, window)),
-        await s.find(EntitySchemas.bookings, overlapping(p.id, window)),
+        await s.find(
+          EntitySchemas.offline_slots,
+          this.overlapping(p.id, window),
+        ),
+        await s.find(EntitySchemas.bookings, this.overlapping(p.id, window)),
       ),
     };
   }
@@ -131,9 +113,12 @@ export class CalendarUseCases {
     return {
       blocked: await s.find(
         EntitySchemas.offline_slots,
-        overlapping(p.id, input),
+        this.overlapping(p.id, input),
       ),
-      bookings: await s.find(EntitySchemas.bookings, overlapping(p.id, input)),
+      bookings: await s.find(
+        EntitySchemas.bookings,
+        this.overlapping(p.id, input),
+      ),
     };
   }
 
@@ -159,8 +144,8 @@ export class CalendarUseCases {
     const range = Calendar.blockRange(input);
     Calendar.assertCanBlock(
       range,
-      await s.findBy(EntitySchemas.bookings, { photographer_id: p.id }),
-      await s.findBy(EntitySchemas.offline_slots, { photographer_id: p.id }),
+      await s.find(EntitySchemas.bookings, this.overlapping(p.id, range)),
+      await s.find(EntitySchemas.offline_slots, this.overlapping(p.id, range)),
       Date.now(),
     );
     return s.save(EntitySchemas.offline_slots, {
@@ -180,5 +165,26 @@ export class CalendarUseCases {
     ensure(slot.photographer_id === p.id, 'Slot access denied', 'forbidden');
     await s.delete(EntitySchemas.offline_slots, slot.id);
     return { deleted: true };
+  }
+
+  /**
+   * Điều kiện tìm các mục (khoảng chặn, booking) của thợ chồng lên [from, to); mốc nào không gửi thì không lọc phía đó.
+   *
+   * @param photographerId ID hồ sơ thợ
+   * @param window `from`/`to` ISO, đều tuỳ chọn
+   * @returns Tuỳ chọn `find` của TypeORM, xếp theo `from` tăng dần
+   */
+  private overlapping(
+    photographerId: string,
+    window: { from?: string; to?: string },
+  ) {
+    return {
+      where: {
+        photographer_id: photographerId,
+        ...(window.from !== undefined && { to: MoreThan(window.from) }),
+        ...(window.to !== undefined && { from: LessThan(window.to) }),
+      },
+      order: { from: 'ASC' as const },
+    };
   }
 }
