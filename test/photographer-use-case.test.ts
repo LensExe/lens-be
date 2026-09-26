@@ -4,6 +4,7 @@ import type { EntityManager } from 'typeorm';
 import { EntitySchemas } from '../src/shared/database';
 import { PhotographerUseCases } from '../src/modules/photographer/photographer.use-case';
 import type { PhotographerRolePort } from '../src/modules/photographer/ports/photographer-role.port';
+import type { PhotographerRatingsPort } from '../src/modules/photographer/ports/photographer-ratings.port';
 
 test('admin photographer list is paged by the database', async () => {
   const queries: { entity: unknown; options: any }[] = [];
@@ -19,7 +20,10 @@ test('admin photographer list is paged by the database', async () => {
       return [[{ id: 'p1' }], 42];
     },
   } as unknown as EntityManager;
-  const useCases = new PhotographerUseCases({} as PhotographerRolePort);
+  const useCases = new PhotographerUseCases(
+    {} as PhotographerRolePort,
+    {} as PhotographerRatingsPort,
+  );
   const result = await useCases.admin(
     s,
     { sub: 'kc-admin', roles: ['admin'] },
@@ -82,6 +86,8 @@ test('searching photographers costs the same number of queries for 1 or 3 result
       },
       findBy: async (entity: unknown) => {
         reads++;
+        if (entity === EntitySchemas.ratings)
+          throw new Error('photographer must ask feedback for ratings');
         return entity === EntitySchemas.photographers
           ? ids.map(row)
           : entity === EntitySchemas.users
@@ -99,8 +105,15 @@ test('searching photographers costs the same number of queries for 1 or 3 result
           : { id: where.id, fullname: where.id, status: 'active' };
       },
     } as unknown as EntityManager;
+    const ratings = {
+      ratingsOf: async (_s: unknown, pids: string[]) => {
+        reads++;
+        return Object.fromEntries(pids.map((pid) => [pid, null]));
+      },
+    } as unknown as PhotographerRatingsPort;
     const result = await new PhotographerUseCases(
       {} as PhotographerRolePort,
+      ratings,
     ).search(s, { sub: '', roles: [] }, {});
     assert.deepEqual(
       result.items.map((p) => p.id),

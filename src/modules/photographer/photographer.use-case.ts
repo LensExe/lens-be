@@ -24,11 +24,15 @@ import {
 import { Rank } from './rank.domain';
 import { Badge } from './badge.domain';
 import { PhotographerRolePort } from './ports/photographer-role.port';
+import { PhotographerRatingsPort } from './ports/photographer-ratings.port';
 
 /** Nghiệp vụ hồ sơ thợ: đăng ký, duyệt, sửa hồ sơ, tìm kiếm, xếp hạng và huy hiệu. */
 @Injectable()
 export class PhotographerUseCases {
-  constructor(private readonly roles: PhotographerRolePort) {}
+  constructor(
+    private readonly roles: PhotographerRolePort,
+    private readonly ratings: PhotographerRatingsPort,
+  ) {}
 
   /**
    * Customer gửi (hoặc gửi lại sau khi bị từ chối) hồ sơ làm thợ; hồ sơ vào trạng thái `pending` chờ admin duyệt.
@@ -67,7 +71,7 @@ export class PhotographerUseCases {
       ...application,
       user_id: u.id,
     });
-    await s.save(EntitySchemas.ratings, { photographer_id: p.id });
+    await this.ratings.openRating(s, p.id);
     return this.details(s, p.id, true);
   }
 
@@ -202,11 +206,7 @@ export class PhotographerUseCases {
     pairs: readonly { photographer: PhotographerEntity; user: UserEntity }[],
   ) {
     const ids = pairs.map((pair) => pair.photographer.id);
-    const ratings = new Map(
-      (await s.findBy(EntitySchemas.ratings, { photographer_id: In(ids) })).map(
-        (r) => [r.photographer_id, r],
-      ),
-    );
+    const ratings = await this.ratings.ratingsOf(s, ids);
     const ranks = await s.find(EntitySchemas.ranks);
     const names = new Map(
       (await s.find(EntitySchemas.badges)).map((d) => [d.code, d.name]),
@@ -216,7 +216,7 @@ export class PhotographerUseCases {
       order: { earned_at: 'ASC' },
     });
     return pairs.map(({ photographer: p, user: u }) => {
-      const rating = ratings.get(p.id) ?? null;
+      const rating = ratings[p.id];
       const rank = Rank.of(rating?.total_bookings ?? 0, ranks);
       return {
         commissionPercent: rank.commission_percent,
@@ -336,19 +336,15 @@ export class PhotographerUseCases {
    * @returns Số liệu đầu vào cho `Badge.earned`
    */
   private async badgeStats(s: EntityManager, photographerId: string) {
-    const [rating] = await s.findBy(EntitySchemas.ratings, {
-      photographer_id: photographerId,
-    });
-    const row = await s
-      .createQueryBuilder(EntitySchemas.feedbacks, 'f')
-      .innerJoin(EntitySchemas.bookings, 'b', 'b.id = f.booking_id')
-      .select('AVG(f.punctuality_rating)', 'punctuality')
-      .where('b.photographer_id = :photographerId', { photographerId })
-      .andWhere('f.is_visible = true')
-      .getRawOne<{ punctuality: string | null }>();
+    const rating = (await this.ratings.ratingsOf(s, [photographerId]))[
+      photographerId
+    ];
     return {
       averageRating: rating?.average_rating ?? 0,
-      averagePunctuality: Number(row?.punctuality ?? 0),
+      averagePunctuality: await this.ratings.averagePunctuality(
+        s,
+        photographerId,
+      ),
       visibleReviews: rating?.total_feedbacks ?? 0,
       returnCustomers: rating?.return_customers ?? 0,
     };

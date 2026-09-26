@@ -31,6 +31,8 @@ import { MediaOwnershipPort } from '@modules/photographer/ports/media-ownership.
 import { SubscriptionPaymentsPort } from '@modules/subscription/ports/subscription-payments.port';
 import { PhotographerRolePort } from '@modules/photographer/ports/photographer-role.port';
 import { WorkingHoursPort } from '@modules/photographer/ports/working-hours.port';
+import { PhotographerRatingsPort } from '@modules/photographer/ports/photographer-ratings.port';
+import { PlanBookingsPort } from '@modules/photographer/ports/plan-bookings.port';
 import { LensGateway } from '../socketio/socketio.gateway';
 import { OutboxWorker } from '../workers/outbox.worker';
 import { KeycloakGuard } from './auth/keycloak.guard';
@@ -75,6 +77,8 @@ const applicationServices = [
     { provide: CollaborationTimesPort, useExisting: BookingUseCases },
     { provide: PhotographerBookingsPort, useExisting: BookingUseCases },
     { provide: WorkingHoursPort, useExisting: CalendarUseCases },
+    { provide: PhotographerRatingsPort, useExisting: ReviewUseCases },
+    { provide: PlanBookingsPort, useExisting: BookingUseCases },
     { provide: MediaOwnershipPort, useExisting: MediaUseCases },
     { provide: SubscriptionPaymentsPort, useExisting: PaymentUseCases },
     // TODO(identity): thay bằng provider thật của identity (docs/IDENTITY_TODO.md, việc 7).

@@ -10,6 +10,7 @@ import {
 import { PortfolioUseCases } from '../src/modules/photographer/portfolio.use-case';
 import { BookingPlanUseCases } from '../src/modules/photographer/booking-plan.use-case';
 import type { WorkingHoursPort } from '../src/modules/photographer/ports/working-hours.port';
+import type { PlanBookingsPort } from '../src/modules/photographer/ports/plan-bookings.port';
 import type { MediaOwnershipPort } from '../src/modules/photographer/ports/media-ownership.port';
 import type { ObjectStorage } from '../src/shared/integrations/s3/storage.port';
 
@@ -75,9 +76,10 @@ test("the photographer's own plan list flags plans that no longer fit the workin
       { id: 'wedding', duration_minutes: 13 * 60 },
     ],
   } as unknown as EntityManager;
-  const useCases = new BookingPlanUseCases({
-    longestShiftMinutes: async () => 12 * 60,
-  } as WorkingHoursPort);
+  const useCases = new BookingPlanUseCases(
+    { longestShiftMinutes: async () => 12 * 60 } as WorkingHoursPort,
+    {} as PlanBookingsPort,
+  );
   const { items } = await useCases.me(s, {
     sub: 'kc',
     roles: ['photographer'],
@@ -133,4 +135,27 @@ test('viewing a portfolio costs the same number of queries for 1 or 3 photos', a
     return reads;
   };
   assert.equal(await run(3), await run(1));
+});
+
+test('a plan with bookings cannot be deleted; booking is asked, its table is not read', async () => {
+  const run = (bookings: number) => {
+    const s = {
+      findBy: async () => [
+        { id: 'p1', user_id: 'u1', keycloak_id: 'kc', status: 'active' },
+      ],
+      findOneBy: async () => ({ id: 'plan', photographer_id: 'p1' }),
+      countBy: async () => {
+        throw new Error('photographer must not read the bookings table');
+      },
+      delete: async () => ({}),
+    } as unknown as EntityManager;
+    return new BookingPlanUseCases(
+      {} as WorkingHoursPort,
+      {
+        bookingCountForPlan: async () => bookings,
+      } as unknown as PlanBookingsPort,
+    ).remove(s, { sub: 'kc', roles: ['photographer'] }, { id: 'plan' });
+  };
+  await assert.rejects(run(2), /deactivate it instead/);
+  assert.deepEqual(await run(0), { deleted: true });
 });
