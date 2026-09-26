@@ -33,6 +33,31 @@ export interface BookingCompleteCommandInput {
   id: string;
 }
 
+export interface BookingCollaboratorInviteCommandInput {
+  id: string;
+  photographer_id: string;
+  share_percent: number;
+}
+
+export interface BookingCollaboratorListQueryInput {
+  id: string;
+}
+
+/** Danh sách lời mời của chính thợ đang đăng nhập, không nhận tham số. */
+export type BookingCollaboratorMeQueryInput = Record<string, never>;
+
+export interface BookingCollaboratorAcceptCommandInput {
+  id: string;
+}
+
+export interface BookingCollaboratorDeclineCommandInput {
+  id: string;
+}
+
+export interface BookingCollaboratorRevokeCommandInput {
+  id: string;
+}
+
 /** Job tự hoàn tất không nhận tham số. */
 export type BookingAutoCompleteCommandInput = Record<string, never>;
 

@@ -5,6 +5,7 @@ import { Injectable } from '@nestjs/common';
 import type { Actor } from '@shared/platform/auth/actor';
 import {
   currentUser,
+  photographer as ownPhotographer,
   required,
   bookingAccess,
   emit,
@@ -18,6 +19,7 @@ import {
   Booking,
   type BookingActorRole,
 } from './booking.domain';
+import { Collaboration, type CollaborationAction } from './collaborator.domain';
 import type { BookingEntity } from '@shared/database/entities/booking.entity';
 
 @Injectable()
@@ -316,6 +318,199 @@ export class BookingUseCases {
       completed++;
     }
     return { checked: due.length, completed };
+  }
+
+  /**
+   * Thợ chính mời thợ khác làm thợ liên kết (D5, D17–D21). Khoá booking để hai lời mời
+   * cùng lúc không vượt tổng 100%.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (thợ chính của booking)
+   * @param input ID booking, thợ được mời, % chia
+   * @returns Lời mời vừa tạo
+   */
+  async inviteCollaborator(
+    s: EntityManager,
+    a: Actor,
+    input: Inputs.BookingCollaboratorInviteCommandInput,
+  ) {
+    role(a, 'photographer');
+    const { photographer: owner } = await bookingAccess(
+      s,
+      a,
+      input.id,
+      'photographer',
+    );
+    const b = await s.findOne(EntitySchemas.bookings, {
+      where: { id: input.id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    ensure(b, 'bookings not found', 'missing');
+    const [invitee] = await s.findBy(EntitySchemas.photographers, {
+      id: input.photographer_id,
+    });
+    const inviteeUser = invitee
+      ? await required(s, 'users', invitee.user_id)
+      : undefined;
+    const draft = Collaboration.invite({
+      bookingStatus: b.status,
+      galleryPublished: !!b.gallery_published_at,
+      ownerPhotographerId: owner.id,
+      inviteePhotographerId: input.photographer_id,
+      inviteeVerified: invitee?.verification_status === 'verified',
+      inviteeActive: inviteeUser?.status === 'active',
+      sharePercent: input.share_percent,
+      existing: await s.findBy(EntitySchemas.booking_collaborators, {
+        booking_id: b.id,
+      }),
+    });
+    const row = await s.save(EntitySchemas.booking_collaborators, {
+      booking_id: b.id,
+      ...draft,
+      responded_at: null,
+    });
+    await emit(s, 'booking.collaborator_invited', [invitee.user_id], {
+      booking_id: b.id,
+      collaborator_id: row.id,
+      share_percent: row.share_percent,
+    });
+    return row;
+  }
+
+  /**
+   * Danh sách thợ liên kết của booking (mọi trạng thái, theo thời gian mời).
+   * Xem được: khách, thợ chính, thợ từng được mời vào booking này, admin.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor
+   * @param input ID booking
+   * @returns `{ items }`
+   */
+  async collaborators(
+    s: EntityManager,
+    a: Actor,
+    input: Inputs.BookingCollaboratorListQueryInput,
+  ) {
+    const user = await currentUser(s, a),
+      b = await required(s, 'bookings', input.id);
+    const items = await s.find(EntitySchemas.booking_collaborators, {
+      where: { booking_id: b.id },
+      order: { created_at: 'ASC' },
+    });
+    const c = await required(s, 'customers', b.customer_id);
+    const photographerIds = [
+      b.photographer_id,
+      ...items.map((i) => i.photographer_id),
+    ];
+    const [mine] = await s.findBy(EntitySchemas.photographers, {
+      user_id: user.id,
+    });
+    ensure(
+      c.user_id === user.id ||
+        (!!mine && photographerIds.includes(mine.id)) ||
+        a.roles.includes('admin'),
+      'Booking access denied',
+      'forbidden',
+    );
+    return { items };
+  }
+
+  /**
+   * Các lời mời liên kết gửi tới thợ đang đăng nhập, mới nhất trước.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor (thợ)
+   * @returns `{ items }`
+   */
+  async myCollaborations(s: EntityManager, a: Actor) {
+    role(a, 'photographer');
+    const p = await ownPhotographer(s, a);
+    return {
+      items: await s.find(EntitySchemas.booking_collaborators, {
+        where: { photographer_id: p.id },
+        order: { created_at: 'DESC' },
+      }),
+    };
+  }
+
+  /**
+   * Nhận / từ chối (thợ được mời) hoặc rút (thợ chính) một lời mời còn chờ.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Actor
+   * @param id ID lời mời
+   * @param action 'accept' | 'decline' | 'revoke'
+   * @returns Lời mời sau khi đổi
+   */
+  private async answerCollaboration(
+    s: EntityManager,
+    a: Actor,
+    id: string,
+    action: CollaborationAction,
+  ) {
+    role(a, 'photographer');
+    const me = await ownPhotographer(s, a);
+    const invitation = await s.findOne(EntitySchemas.booking_collaborators, {
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    ensure(invitation, 'booking_collaborators not found', 'missing');
+    const b = await required(s, 'bookings', invitation.booking_id);
+    ensure(
+      action === 'revoke'
+        ? b.photographer_id === me.id
+        : invitation.photographer_id === me.id,
+      'Invitation access denied',
+      'forbidden',
+    );
+    const status = Collaboration.respond(invitation.status, action, {
+      bookingStatus: b.status,
+      galleryPublished: !!b.gallery_published_at,
+    });
+    const row = await updateEntity(
+      s,
+      EntitySchemas.booking_collaborators,
+      invitation.id,
+      {
+        status,
+        responded_at: action === 'revoke' ? null : new Date().toISOString(),
+      },
+    );
+    const notify =
+      action === 'revoke'
+        ? (await required(s, 'photographers', invitation.photographer_id))
+            .user_id
+        : (await required(s, 'photographers', b.photographer_id)).user_id;
+    await emit(s, `booking.collaborator_${status}`, [notify], {
+      booking_id: b.id,
+      collaborator_id: invitation.id,
+      status,
+    });
+    return row;
+  }
+
+  acceptCollaboration(
+    s: EntityManager,
+    a: Actor,
+    i: Inputs.BookingCollaboratorAcceptCommandInput,
+  ) {
+    return this.answerCollaboration(s, a, i.id, 'accept');
+  }
+
+  declineCollaboration(
+    s: EntityManager,
+    a: Actor,
+    i: Inputs.BookingCollaboratorDeclineCommandInput,
+  ) {
+    return this.answerCollaboration(s, a, i.id, 'decline');
+  }
+
+  revokeCollaboration(
+    s: EntityManager,
+    a: Actor,
+    i: Inputs.BookingCollaboratorRevokeCommandInput,
+  ) {
+    return this.answerCollaboration(s, a, i.id, 'revoke');
   }
 
   async timeline(

@@ -620,6 +620,99 @@ test('cancel reason is kept in the booking history', async () => {
   assert.equal(items[1].actor_role, 'customer');
   assert.equal(items[1].reason, 'Changed plans');
 });
+test('main photographer invites a collaborator who answers once', async () => {
+  // approval gives the applicant the photographer role on the next token
+  actors.applicant.roles = ['customer', 'photographer'];
+  const other = (await ok('GET', '/photographers/me', 'applicant')).id;
+  const invite = (body: object, who = 'photographer') =>
+    api('POST', `/bookings/${booking}/collaborators`, who, body);
+  assert.equal(
+    (await invite({ photographer_id: photo, share_percent: 10 })).status,
+    400,
+  );
+  assert.equal(
+    (await invite({ photographer_id: other, share_percent: 10 }, 'customer'))
+      .status,
+    403,
+  );
+  const first = (await invite({ photographer_id: other, share_percent: 60 }))
+    .body;
+  assert.equal(first.status, 'invited');
+  assert.equal(
+    (await invite({ photographer_id: other, share_percent: 5 })).status,
+    409,
+  );
+  // a pending invitation can be revoked and sent again with another share
+  assert.equal(
+    (
+      await ok(
+        'POST',
+        `/booking-collaborators/${first.id}/revoke`,
+        'photographer',
+      )
+    ).status,
+    'revoked',
+  );
+  const second = (await invite({ photographer_id: other, share_percent: 50 }))
+    .body;
+  assert.equal(second.share_percent, 50);
+  const mine = await ok('GET', '/booking-collaborators/me', 'applicant');
+  assert.deepEqual(
+    mine.items.map((c: { id: string; status: string }) => [c.id, c.status]),
+    [
+      [second.id, 'invited'],
+      [first.id, 'revoked'],
+    ],
+  );
+  // only the invited photographer answers
+  assert.equal(
+    (
+      await api(
+        'POST',
+        `/booking-collaborators/${second.id}/accept`,
+        'photographer',
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await ok(
+        'POST',
+        `/booking-collaborators/${second.id}/accept`,
+        'applicant',
+      )
+    ).status,
+    'accepted',
+  );
+  for (const [path, who] of [
+    ['decline', 'applicant'],
+    ['revoke', 'photographer'],
+  ])
+    assert.equal(
+      (await api('POST', `/booking-collaborators/${second.id}/${path}`, who))
+        .status,
+      409,
+    );
+  // customer, main and invited photographer see the list; others do not
+  for (const who of ['customer', 'photographer', 'applicant'])
+    assert.deepEqual(
+      (await ok('GET', `/bookings/${booking}/collaborators`, who)).items.map(
+        (c: { status: string; share_percent: number }) => [
+          c.status,
+          c.share_percent,
+        ],
+      ),
+      [
+        ['revoked', 60],
+        ['accepted', 50],
+      ],
+    );
+  assert.equal(
+    (await api('GET', `/bookings/${booking}/collaborators`, 'stranger')).status,
+    403,
+  );
+});
 test('booking plan with bookings can only be deactivated', async () => {
   assert.equal(
     (await api('DELETE', `/booking-plans/${plan}`, 'photographer')).status,

@@ -672,6 +672,78 @@
     "kind": "Command"
   },
   {
+    "id": "BOOK-013",
+    "module": "Booking",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/bookings/:id/collaborators",
+    "summary": "Mời thợ liên kết",
+    "description": "Thợ chính mời thợ khác chụp cùng, chia % phần thợ nhận (D5, D17–D21).",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
+    "id": "BOOK-014",
+    "module": "Booking",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/bookings/:id/collaborators",
+    "summary": "Danh sách thợ liên kết",
+    "description": "Mọi lời mời của booking; khách, thợ chính, thợ được mời xem được.",
+    "role": "Customer/Photographer/Admin",
+    "priority": "Must",
+    "kind": "Query"
+  },
+  {
+    "id": "BOOK-015",
+    "module": "Booking",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/booking-collaborators/me",
+    "summary": "Lời mời liên kết của tôi",
+    "description": "Các lời mời gửi tới thợ đang đăng nhập.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Query"
+  },
+  {
+    "id": "BOOK-016",
+    "module": "Booking",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/booking-collaborators/:id/accept",
+    "summary": "Nhận lời mời liên kết",
+    "description": "Thợ được mời nhận lời mời còn chờ.",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
+    "id": "BOOK-017",
+    "module": "Booking",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/booking-collaborators/:id/decline",
+    "summary": "Từ chối lời mời liên kết",
+    "description": "Thợ được mời từ chối; không mời lại được (D21).",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
+    "id": "BOOK-018",
+    "module": "Booking",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/booking-collaborators/:id/revoke",
+    "summary": "Rút lời mời liên kết",
+    "description": "Thợ chính rút lời mời chưa được trả lời (D18).",
+    "role": "Photographer",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
     "id": "PAY-001",
     "module": "Payment",
     "service": "Core Backend",

@@ -648,6 +648,54 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'updated_at',
     ],
   },
+  booking_collaborators: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', description: 'id', format: 'uuid' },
+      booking_id: { type: 'string', description: 'booking id', format: 'uuid' },
+      photographer_id: {
+        type: 'string',
+        description: 'invited photographer id',
+        format: 'uuid',
+      },
+      share_percent: {
+        type: 'integer',
+        description: 'share of the photographers payout, 1-100',
+        minimum: 1,
+        maximum: 100,
+      },
+      status: {
+        type: 'string',
+        description: 'invitation status',
+        enum: ['invited', 'accepted', 'declined', 'revoked'],
+      },
+      responded_at: {
+        type: 'string',
+        description: 'when the invited photographer accepted or declined',
+        format: 'date-time',
+        nullable: true,
+      },
+      created_at: {
+        type: 'string',
+        description: 'created at',
+        format: 'date-time',
+      },
+      updated_at: {
+        type: 'string',
+        description: 'updated at',
+        format: 'date-time',
+      },
+    },
+    required: [
+      'id',
+      'booking_id',
+      'photographer_id',
+      'share_percent',
+      'status',
+      'created_at',
+      'updated_at',
+    ],
+  },
   wallets: {
     type: 'object',
     properties: {
