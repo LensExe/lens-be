@@ -200,23 +200,3 @@ test('blocking a date that does not exist is a 400, not a crash or a shifted day
     '2028-02-28T17:00:00.000Z',
   );
 });
-
-test('working hours must keep room for the longest plan on sale', () => {
-  Calendar.assertCoversPlans(
-    [{ weekday: 1, start_time: '08:00', end_time: '10:00' }],
-    120,
-  );
-  // no plans on sale: any hours are fine
-  Calendar.assertCoversPlans(
-    [{ weekday: 1, start_time: '08:00', end_time: '08:30' }],
-    0,
-  );
-  assert.throws(
-    () =>
-      Calendar.assertCoversPlans(
-        [{ weekday: 1, start_time: '08:00', end_time: '08:30' }],
-        60,
-      ),
-    /shorter than your longest plan/,
-  );
-});

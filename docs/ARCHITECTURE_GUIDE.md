@@ -62,15 +62,14 @@ POST /bookings
 
 Port là hợp đồng cho một khả năng mà **module tiêu thụ** cần. Đặt port tại `src/modules/<module-tiêu-thụ>/ports/`, không gom tất cả vào `shared`. Module cung cấp có thể dùng một use-case class thực hiện nhiều port; NestJS `useExisting` ánh xạ từng token về cùng một instance. Chỉ tách adapter riêng khi nó có trách nhiệm/nguồn dữ liệu riêng.
 
-| Module tiêu thụ        | Port                       | Bên cung cấp                         |
-| ---------------------- | -------------------------- | ------------------------------------ |
-| Booking                | `RatingUpdaterPort`        | `ReviewUseCases` (feedback)          |
-| Calendar               | `PendingBookingsPort`      | `BookingUseCases` (booking)          |
-| Calendar               | `CollaborationTimesPort`   | `BookingUseCases` (booking)          |
-| Photographer           | `WorkingHoursPort`         | `WorkingHoursReader` (calendar)      |
-| Calendar               | `PlanDurationsPort`        | `BookingPlanUseCases` (photographer) |
-| Photographer/Portfolio | `MediaOwnershipPort`       | `MediaUseCases`                      |
-| Subscription           | `SubscriptionPaymentsPort` | `PaymentUseCases`                    |
+| Module tiêu thụ        | Port                       | Bên cung cấp                  |
+| ---------------------- | -------------------------- | ----------------------------- |
+| Booking                | `RatingUpdaterPort`        | `ReviewUseCases` (feedback)   |
+| Calendar               | `PendingBookingsPort`      | `BookingUseCases` (booking)   |
+| Calendar               | `CollaborationTimesPort`   | `BookingUseCases` (booking)   |
+| Photographer           | `WorkingHoursPort`         | `CalendarUseCases` (calendar) |
+| Photographer/Portfolio | `MediaOwnershipPort`       | `MediaUseCases`               |
+| Subscription           | `SubscriptionPaymentsPort` | `PaymentUseCases`             |
 
 Wiring nằm tại [`api-runtime.module.ts`](../src/features/api/api-runtime.module.ts). Use case tiêu thụ inject port, không inject trực tiếp use case của module khác. Đây là lời gọi đồng bộ khi cần kết quả ngay hoặc phải dùng cùng `EntityManager`/transaction. Tác vụ realtime được ghi vào outbox trong transaction rồi worker phát sau commit. Worker hiện đánh dấu `processed_at` trước khi gọi publisher; nếu publisher thất bại sau bước đó, sự kiện không tự được retry. Không coi outbox hiện tại là cơ chế bảo đảm phát đúng một lần.
 
