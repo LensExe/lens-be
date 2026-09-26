@@ -31,3 +31,10 @@ test('customer confirms receipt only from shot, with full payment and a publishe
     /Cannot confirmReceipt booking in in_progress/,
   );
 });
+
+test('auto-complete is due 7 days after the gallery is published', () => {
+  const now = Date.parse('2030-01-10T00:00:00.000Z');
+  assert.equal(Booking.autoCompleteDue(null, now), false);
+  assert.equal(Booking.autoCompleteDue('2030-01-03T00:00:01.000Z', now), false);
+  assert.equal(Booking.autoCompleteDue('2030-01-03T00:00:00.000Z', now), true);
+});

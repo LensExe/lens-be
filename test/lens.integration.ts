@@ -22,6 +22,7 @@ import { KeycloakService } from '../src/shared/integrations/keycloak/keycloak.se
 import { setupApi } from '../src/features/api/setup';
 import { OutboxWorker } from '../src/features/workers/outbox.worker';
 import { PhotographerBadgeJob } from '../src/features/workers/photographer-badge.job';
+import { BookingAutoCompleteJob } from '../src/features/workers/booking-auto-complete.job';
 import { Booking } from '../src/modules/booking/booking.domain';
 import { CommandBus } from '@nestjs/cqrs';
 import { IdentityCustomerRegisterCommand } from '../src/modules/identity/identity.command';
@@ -1196,6 +1197,72 @@ test(
     }
   },
 );
+test('job completes shot bookings 7 days after the gallery is published, once', async () => {
+  const base = await db.manager.findOneByOrFail(EntitySchemas.bookings, {
+    id: booking,
+  });
+  const days = (n: number) => new Date(Date.now() - n * 864e5).toISOString();
+  // [published days ago, fully paid] -> only the first one is due
+  const cases = [
+    [8, true],
+    [8, false],
+    [6, true],
+  ] as const;
+  const ids: string[] = [];
+  for (const [i, [age, paid]] of cases.entries()) {
+    const row = await db.manager.save(EntitySchemas.bookings, {
+      customer_id: base.customer_id,
+      photographer_id: base.photographer_id,
+      booking_plan_id: base.booking_plan_id,
+      location: 'Studio',
+      from: days(30 + i),
+      to: new Date(Date.parse(days(30 + i)) + 36e5).toISOString(),
+      deposit_amount: 300000,
+      total_amount: 1000000,
+      status: 'shot',
+      gallery_published_at: days(age),
+    });
+    ids.push(row.id);
+    const customer = await db.manager.findOneByOrFail(EntitySchemas.customers, {
+      id: base.customer_id,
+    });
+    for (const [type, amount] of [
+      ['deposit', 300000],
+      ['remaining', 700000],
+    ] as const)
+      if (paid || type === 'deposit')
+        await db.manager.save(EntitySchemas.transactions, {
+          user_id: customer.user_id,
+          transaction_code: `AUTO-${row.id}-${type}`,
+          type,
+          reference_id: row.id,
+          amount,
+          status: 'paid',
+          idempotency_key: `auto-${row.id}-${type}`,
+        });
+  }
+  const job = app.get(BookingAutoCompleteJob);
+  for (let run = 0; run < 2; run++) {
+    assert.equal(await job.run(), true);
+    const rows = await Promise.all(
+      ids.map((id) =>
+        db.manager.findOneByOrFail(EntitySchemas.bookings, { id }),
+      ),
+    );
+    assert.deepEqual(
+      rows.map((b) => b.status),
+      ['completed', 'shot', 'shot'],
+    );
+    const history = await db.manager.findBy(
+      EntitySchemas.booking_status_history,
+      { booking_id: ids[0] },
+    );
+    // the second run changes nothing
+    assert.equal(history.length, 1);
+    assert.equal(history[0].actor_role, 'system');
+    assert.equal(history[0].actor_user_id, null);
+  }
+});
 test('domain rejects unsupported booking transitions', () => {
   assert.throws(
     () => new Booking('pending').transition('complete', true, true),

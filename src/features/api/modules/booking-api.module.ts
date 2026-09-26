@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BookingController } from '../http/booking.controller';
 import {
   BookingAcceptCommandHandler,
+  BookingAutoCompleteCommandHandler,
   BookingCancelCommandHandler,
   BookingCompleteCommandHandler,
   BookingCompleteShootCommandHandler,
@@ -17,11 +18,13 @@ import {
   BookingListQueryHandler,
   BookingTimelineQueryHandler,
 } from '@modules/booking/bookings.query';
+import { BookingAutoCompleteJob } from '../../workers/booking-auto-complete.job';
 
 @Module({
   controllers: [BookingController],
   providers: [
     BookingAcceptCommandHandler,
+    BookingAutoCompleteCommandHandler,
     BookingCancelCommandHandler,
     BookingCompleteCommandHandler,
     BookingCompleteShootCommandHandler,
@@ -34,6 +37,7 @@ import {
     BookingGetQueryHandler,
     BookingListQueryHandler,
     BookingTimelineQueryHandler,
+    BookingAutoCompleteJob,
   ],
 })
 export class BookingApiModule {}

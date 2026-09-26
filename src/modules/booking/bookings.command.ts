@@ -79,6 +79,25 @@ export class BookingCompleteCommandHandler implements ICommandHandler<BookingCom
   }
 }
 
+export class BookingAutoCompleteCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.BookingAutoCompleteCommandInput,
+  ) {}
+}
+@CommandHandler(BookingAutoCompleteCommand)
+export class BookingAutoCompleteCommandHandler implements ICommandHandler<BookingAutoCompleteCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: BookingUseCases,
+  ) {}
+  execute(message: BookingAutoCompleteCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.autoComplete(s, message.actor),
+    );
+  }
+}
+
 export class BookingConfirmReceiptCommand {
   constructor(
     public readonly actor: Actor,

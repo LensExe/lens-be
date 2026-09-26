@@ -1,4 +1,4 @@
-import type { EntityManager } from 'typeorm';
+import { LessThanOrEqual, type EntityManager } from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import type * as Inputs from '@shared/contracts/contracts';
 import { Injectable } from '@nestjs/common';
@@ -13,7 +13,11 @@ import {
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { RatingUpdaterPort } from './ports/rating-updater.port';
-import { Booking, type BookingActorRole } from './booking.domain';
+import {
+  AUTO_COMPLETE_AFTER_DAYS,
+  Booking,
+  type BookingActorRole,
+} from './booking.domain';
 import type { BookingEntity } from '@shared/database/entities/booking.entity';
 
 @Injectable()
@@ -179,14 +183,7 @@ export class BookingUseCases {
     reason: string | null,
     recipients: string[],
   ) {
-    const paid = (
-      await s.findBy(EntitySchemas.transactions, {
-        reference_id: b.id,
-        status: 'paid',
-      })
-    )
-      .filter((t) => ['deposit', 'remaining'].includes(t.type))
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+    const paid = await this.paidAmount(s, b.id);
     const status = new Booking(b.status).transition(
       action,
       paid >=
@@ -210,6 +207,24 @@ export class BookingUseCases {
       status,
     });
     return row;
+  }
+
+  /**
+   * Tổng tiền khách đã trả cho booking (cọc + phần còn lại, chỉ giao dịch `paid`).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param bookingId ID booking
+   * @returns Số tiền VND
+   */
+  private async paidAmount(s: EntityManager, bookingId: string) {
+    return (
+      await s.findBy(EntitySchemas.transactions, {
+        reference_id: bookingId,
+        status: 'paid',
+      })
+    )
+      .filter((t) => ['deposit', 'remaining'].includes(t.type))
+      .reduce((sum, t) => sum + Number(t.amount), 0);
   }
 
   /**
@@ -259,6 +274,48 @@ export class BookingUseCases {
     i: Inputs.BookingConfirmReceiptCommandInput,
   ) {
     return this.transition(s, a, i, 'confirmReceipt');
+  }
+
+  /**
+   * Job nền (role `system`): tự hoàn tất booking `shot` đã publish gallery đủ 7 ngày mà khách
+   * chưa xác nhận (D2). Booking chưa trả đủ thì bỏ qua, lần chạy sau xét lại.
+   * Idempotent: booking đã completed không còn ở `shot` nên chạy lại không đổi gì.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người gọi (phải có role `system`)
+   * @returns `{ checked, completed }`: số booking tới hạn đã xét và số booking đã hoàn tất
+   */
+  async autoComplete(s: EntityManager, a: Actor) {
+    role(a, 'system');
+    const now = Date.now();
+    const due = (
+      await s.find(EntitySchemas.bookings, {
+        where: {
+          status: 'shot',
+          gallery_published_at: LessThanOrEqual(
+            new Date(now - AUTO_COMPLETE_AFTER_DAYS * 864e5).toISOString(),
+          ),
+        },
+        order: { gallery_published_at: 'ASC' },
+        lock: { mode: 'pessimistic_write' },
+      })
+    ).filter((b) => Booking.autoCompleteDue(b.gallery_published_at, now));
+    let completed = 0;
+    for (const b of due) {
+      if ((await this.paidAmount(s, b.id)) < Number(b.total_amount)) continue;
+      const customer = await required(s, 'customers', b.customer_id),
+        photographer = await required(s, 'photographers', b.photographer_id);
+      await this.apply(
+        s,
+        b,
+        'complete',
+        { role: 'system', userId: null },
+        null,
+        [customer.user_id, photographer.user_id],
+      );
+      completed++;
+    }
+    return { checked: due.length, completed };
   }
 
   async timeline(

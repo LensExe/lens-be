@@ -33,6 +33,9 @@ export interface BookingDraftInput {
   now: number;
 }
 
+/** Số ngày sau khi publish gallery thì system tự hoàn tất booking nếu khách chưa xác nhận (D2). */
+export const AUTO_COMPLETE_AFTER_DAYS = 7;
+
 export class Booking {
   constructor(public status: BookingStatus) {}
 
@@ -111,6 +114,21 @@ export class Booking {
     return roles.includes('admin')
       ? BookingActorRole.ADMIN
       : BookingActorRole.SYSTEM;
+  }
+
+  /**
+   * Booking đã tới hạn tự hoàn tất chưa: gallery đã publish đủ `AUTO_COMPLETE_AFTER_DAYS` ngày (D2).
+   * Chỉ xét mốc thời gian; trạng thái `shot` và điều kiện trả đủ vẫn do `transition('complete')` kiểm.
+   *
+   * @param galleryPublishedAt Thời điểm publish gallery, `null` nếu chưa publish
+   * @param now Thời điểm hiện tại (ms)
+   * @returns `true` nếu đã tới hạn
+   */
+  static autoCompleteDue(galleryPublishedAt: string | null, now: number) {
+    return (
+      !!galleryPublishedAt &&
+      now - Date.parse(galleryPublishedAt) >= AUTO_COMPLETE_AFTER_DAYS * 864e5
+    );
   }
 
   transition(action: string, paid: boolean, delivered: boolean): BookingStatus {

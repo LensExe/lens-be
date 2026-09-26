@@ -33,6 +33,9 @@ export interface BookingCompleteCommandInput {
   id: string;
 }
 
+/** Job tự hoàn tất không nhận tham số. */
+export type BookingAutoCompleteCommandInput = Record<string, never>;
+
 export interface BookingConfirmReceiptCommandInput {
   id: string;
 }
