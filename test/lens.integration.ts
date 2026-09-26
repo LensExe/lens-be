@@ -1832,7 +1832,13 @@ test('a customer cannot keep more than 3 open requests with one photographer', a
 });
 test('domain rejects unsupported booking transitions', () => {
   assert.throws(
-    () => new Booking('pending').transition('complete', true, true),
+    () =>
+      new Booking('pending').transition('complete', {
+        paidAmount: 1000,
+        depositAmount: 300,
+        totalAmount: 1000,
+        galleryPublished: true,
+      }),
     /Cannot complete/,
   );
 });

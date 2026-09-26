@@ -95,13 +95,17 @@ test('a customer cannot send two overlapping requests to the same photographer',
     );
 });
 
+const unpaid = {
+  paidAmount: 0,
+  depositAmount: 300,
+  totalAmount: 1000,
+  galleryPublished: false,
+};
+
 test('only a pending booking can expire', () => {
-  assert.equal(
-    new Booking('pending').transition('expire', false, false),
-    'expired',
-  );
+  assert.equal(new Booking('pending').transition('expire', unpaid), 'expired');
   assert.throws(
-    () => new Booking('accepted').transition('expire', false, false),
+    () => new Booking('accepted').transition('expire', unpaid),
     /Cannot expire booking in accepted/,
   );
 });

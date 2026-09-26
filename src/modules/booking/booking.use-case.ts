@@ -293,15 +293,14 @@ export class BookingUseCases implements PendingBookingsPort {
     reason: string | null,
     recipients: string[],
   ) {
-    const paid = await this.paidAmount(s, b.id);
-    const status = new Booking(b.status).transition(
-      action,
-      paid >=
-        (action === 'start'
-          ? Number(b.deposit_amount)
-          : Number(b.total_amount)),
-      !!b.gallery_published_at,
-    );
+    const status = new Booking(b.status).transition(action, {
+      paidAmount: Booking.needsPayment(action)
+        ? await this.paidAmount(s, b.id)
+        : 0,
+      depositAmount: Number(b.deposit_amount),
+      totalAmount: Number(b.total_amount),
+      galleryPublished: !!b.gallery_published_at,
+    });
     const updatedAt = new Date().toISOString();
     const { affected } = await s.update(
       EntitySchemas.bookings,
@@ -412,10 +411,9 @@ export class BookingUseCases implements PendingBookingsPort {
       await s.findBy(EntitySchemas.transactions, {
         reference_id: bookingId,
         status: 'paid',
+        type: In(['deposit', 'remaining']),
       })
-    )
-      .filter((t) => ['deposit', 'remaining'].includes(t.type))
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+    ).reduce((sum, t) => sum + Number(t.amount), 0);
   }
 
   /**
