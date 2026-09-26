@@ -151,4 +151,20 @@ export class ReviewUseCases implements RatingUpdaterPort {
       .getRawOne<{ punctuality: string | null }>();
     return Number(row?.punctuality ?? 0);
   }
+
+  /**
+   * Tạo dòng rating rỗng (điểm 0) cho thợ mới, để hồ sơ luôn có đối tượng rating. Gọi lại khi đã có
+   * thì không làm gì. Module photographer gọi qua port lúc tạo hồ sơ, thay vì ghi thẳng bảng `ratings`.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @returns Không trả gì
+   */
+  async openRating(s: EntityManager, photographerId: string) {
+    const [existing] = await s.findBy(EntitySchemas.ratings, {
+      photographer_id: photographerId,
+    });
+    if (!existing)
+      await s.save(EntitySchemas.ratings, { photographer_id: photographerId });
+  }
 }
