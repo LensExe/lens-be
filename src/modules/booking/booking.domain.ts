@@ -182,6 +182,27 @@ export class Booking {
   }
 
   /**
+   * Yêu cầu còn hạn để thợ nhận: gửi chưa quá 24 giờ và buổi chụp chưa bắt đầu.
+   * Cùng luật với job hết hạn, nên thợ không nhận được yêu cầu đã quá hạn trong lúc job chưa chạy.
+   *
+   * @param booking `created_at` (lúc gửi) và `from` (lúc bắt đầu chụp)
+   * @param now Thời điểm hiện tại (ms)
+   * @returns Không trả gì; 409 nếu đã quá hạn
+   */
+  static assertStillPending(
+    booking: { created_at: string; from: string },
+    now: number,
+  ) {
+    ensure(
+      Date.parse(booking.created_at) >
+        Date.parse(Booking.pendingExpiryCutoff(now)) &&
+        Date.parse(booking.from) > now,
+      'Booking request has expired',
+      'conflict',
+    );
+  }
+
+  /**
    * Mốc tự hoàn tất: booking publish gallery từ mốc này trở về trước là tới hạn.
    * Trạng thái `shot` và điều kiện trả đủ vẫn do `transition('complete')` kiểm.
    *

@@ -110,3 +110,20 @@ test('a pending request expires 24 hours after it was sent', () => {
     '2030-01-01T10:00:00.000Z',
   );
 });
+
+test('a request past 24 hours or past the shoot start can no longer be accepted', () => {
+  const now = Date.parse('2030-01-02T00:00:00.000Z');
+  const fresh = {
+    created_at: '2030-01-01T12:00:00.000Z',
+    from: '2030-01-03T02:00:00.000Z',
+  };
+  Booking.assertStillPending(fresh, now);
+  for (const late of [
+    { ...fresh, created_at: '2030-01-01T00:00:00.000Z' }, // sent 24 hours ago
+    { ...fresh, from: '2030-01-01T23:00:00.000Z' }, // shoot already started
+  ])
+    assert.throws(
+      () => Booking.assertStillPending(late, now),
+      /request has expired/,
+    );
+});

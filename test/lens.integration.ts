@@ -667,6 +667,19 @@ test('cancel and accept at the same time: only one of them wins', async () => {
     from: new Date(`${day}T09:00:00+07:00`).toISOString(),
     to: new Date(`${day}T10:00:00+07:00`).toISOString(),
   });
+  // a request older than 24 hours cannot be accepted even before the job runs
+  await db.query(
+    "UPDATE bookings SET created_at = now() - interval '25 hours' WHERE id = $1",
+    [request.id],
+  );
+  assert.equal(
+    (await api('POST', `/bookings/${request.id}/accept`, 'photographer'))
+      .status,
+    409,
+  );
+  await db.query('UPDATE bookings SET created_at = now() WHERE id = $1', [
+    request.id,
+  ]);
   const results = await Promise.all([
     api('POST', `/bookings/${request.id}/cancel`, 'customer', {
       reason: 'Changed plans',

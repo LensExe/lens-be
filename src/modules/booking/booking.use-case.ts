@@ -430,6 +430,8 @@ export class BookingUseCases implements PendingBookingsPort {
       lock: { mode: 'pessimistic_write' },
     });
     const b = await required(s, 'bookings', i.id);
+    if (b.status === BookingStatus.PENDING)
+      Booking.assertStillPending(b, Date.now());
     const overlap = this.overlapping(b.photographer_id, b);
     const others = (await s.findBy(EntitySchemas.bookings, overlap)).filter(
       (o) => o.id !== b.id,
