@@ -3,6 +3,7 @@ export * from './base.entity';
 export * from './booking-delivery.entity';
 export * from './booking-plan.entity';
 export * from './booking.entity';
+export * from './booking-status-history.entity';
 export * from './customer.entity';
 export * from './entity.registry';
 export * from './feedback.entity';

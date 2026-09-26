@@ -5,7 +5,8 @@ import {
   BookingStatus,
   OCCUPIED_BOOKING_STATUSES,
 } from '@shared/database/entities/booking.entity';
-export { BookingStatus, OCCUPIED_BOOKING_STATUSES };
+import { BookingActorRole } from '@shared/database/entities/booking-status-history.entity';
+export { BookingStatus, OCCUPIED_BOOKING_STATUSES, BookingActorRole };
 
 export interface BookingDraftInput {
   customerId: string;
@@ -87,6 +88,29 @@ export class Booking {
       deposit_amount: Math.ceil(total * 0.3),
       status: BookingStatus.PENDING,
     };
+  }
+
+  /**
+   * Bên đang thao tác trên booking, để ghi vào lịch sử trạng thái.
+   * Ưu tiên vai trò trong booking (khách / thợ của booking), sau đó mới tới role hệ thống.
+   *
+   * @param userId User đang thao tác
+   * @param customerUserId User của khách trong booking
+   * @param photographerUserId User của thợ trong booking
+   * @param roles Role của actor (từ token)
+   * @returns 'customer' | 'photographer' | 'admin' | 'system'
+   */
+  static actorRole(
+    userId: string,
+    customerUserId: string,
+    photographerUserId: string,
+    roles: readonly string[],
+  ): BookingActorRole {
+    if (userId === customerUserId) return BookingActorRole.CUSTOMER;
+    if (userId === photographerUserId) return BookingActorRole.PHOTOGRAPHER;
+    return roles.includes('admin')
+      ? BookingActorRole.ADMIN
+      : BookingActorRole.SYSTEM;
   }
 
   transition(action: string, paid: boolean, delivered: boolean): BookingStatus {

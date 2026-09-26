@@ -73,6 +73,14 @@ export class BookingUseCases {
     });
 
     const booking = await s.save(EntitySchemas.bookings, draft);
+    await s.save(EntitySchemas.booking_status_history, {
+      booking_id: booking.id,
+      from_status: null,
+      to_status: booking.status,
+      actor_role: 'customer',
+      actor_user_id: u.id,
+      reason: null,
+    });
     await emit(s, 'booking.created', [u.id, p.user_id], {
       booking_id: booking.id,
       status: 'pending',
@@ -114,12 +122,13 @@ export class BookingUseCases {
       ? 'photographer'
       : undefined;
     if (action === 'complete') role(a, 'admin', 'system');
-    const { booking: b, recipients } = await bookingAccess(
-      s,
-      a,
-      input.id,
-      side,
-    );
+    const {
+      booking: b,
+      user,
+      customer,
+      photographer,
+      recipients,
+    } = await bookingAccess(s, a, input.id, side);
     const paid = (
       await s.findBy(EntitySchemas.transactions, {
         reference_id: b.id,
@@ -137,6 +146,19 @@ export class BookingUseCases {
       !!b.gallery_published_at,
     );
     const row = await updateEntity(s, EntitySchemas.bookings, b.id, { status });
+    await s.save(EntitySchemas.booking_status_history, {
+      booking_id: b.id,
+      from_status: b.status,
+      to_status: status,
+      actor_role: Booking.actorRole(
+        user.id,
+        customer.user_id,
+        photographer.user_id,
+        a.roles,
+      ),
+      actor_user_id: user.id,
+      reason: input.reason ?? null,
+    });
     if (status === 'completed')
       await this.reviews.recalculate(s, b.photographer_id);
     await emit(s, `booking.${status}`, recipients, {
@@ -181,14 +203,10 @@ export class BookingUseCases {
   ) {
     const { booking } = await bookingAccess(s, a, i.id);
     return {
-      items: [
-        {
-          booking_id: booking.id,
-          status: booking.status,
-          created_at: booking.created_at,
-          updated_at: booking.updated_at,
-        },
-      ],
+      items: await s.find(EntitySchemas.booking_status_history, {
+        where: { booking_id: booking.id },
+        order: { created_at: 'ASC' },
+      }),
     };
   }
 

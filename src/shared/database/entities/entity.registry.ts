@@ -7,6 +7,7 @@ import { FeedbackEntity } from './feedback.entity';
 import { MediaEntity } from './media.entity';
 import { OfflineSlotEntity } from './offline-slot.entity';
 import { WorkingHourEntity } from './working-hour.entity';
+import { BookingStatusHistoryEntity } from './booking-status-history.entity';
 import { OutboxEventEntity } from './outbox-event.entity';
 import { PaymentWebhookEntity } from './payment-webhook.entity';
 import { PhotographerPlanEntity } from './photographer-plan.entity';
@@ -37,6 +38,7 @@ export const databaseEntities = [
   SubscriptionEntity,
   OfflineSlotEntity,
   WorkingHourEntity,
+  BookingStatusHistoryEntity,
   BookingEntity,
   WalletEntity,
   TransactionEntity,
@@ -65,6 +67,7 @@ export const EntitySchemas = {
   offline_slots: OfflineSlotEntity,
   working_hours: WorkingHourEntity,
   bookings: BookingEntity,
+  booking_status_history: BookingStatusHistoryEntity,
   wallets: WalletEntity,
   transactions: TransactionEntity,
   payment_webhooks: PaymentWebhookEntity,

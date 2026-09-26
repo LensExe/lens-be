@@ -572,6 +572,82 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'updated_at',
     ],
   },
+  booking_status_history: {
+    type: 'object',
+    properties: {
+      id: {
+        type: 'string',
+        description: 'id',
+        format: 'uuid',
+      },
+      booking_id: {
+        type: 'string',
+        description: 'booking id',
+        format: 'uuid',
+      },
+      from_status: {
+        type: 'string',
+        description: 'status before the change; null on the creation row',
+        nullable: true,
+        enum: [
+          'pending',
+          'accepted',
+          'rejected',
+          'cancelled',
+          'in_progress',
+          'shot',
+          'completed',
+        ],
+      },
+      to_status: {
+        type: 'string',
+        description: 'status after the change',
+        enum: [
+          'pending',
+          'accepted',
+          'rejected',
+          'cancelled',
+          'in_progress',
+          'shot',
+          'completed',
+        ],
+      },
+      actor_role: {
+        type: 'string',
+        description: 'who made the change',
+        enum: ['customer', 'photographer', 'admin', 'system'],
+      },
+      actor_user_id: {
+        type: 'string',
+        description: 'user who made the change; null for background jobs',
+        format: 'uuid',
+        nullable: true,
+      },
+      reason: {
+        type: 'string',
+        description: 'reason (reject / cancel)',
+        nullable: true,
+      },
+      created_at: {
+        type: 'string',
+        description: 'created at',
+        format: 'date-time',
+      },
+      updated_at: {
+        type: 'string',
+        description: 'updated at',
+        format: 'date-time',
+      },
+    },
+    required: [
+      'id',
+      'booking_id',
+      'to_status',
+      'actor_role',
+      'created_at',
+      'updated_at',
+    ],
+  },
   wallets: {
     type: 'object',
     properties: {

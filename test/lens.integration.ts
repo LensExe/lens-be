@@ -581,6 +581,43 @@ test('booking ownership and lifecycle checks', async () => {
     (await api('POST', `/bookings/${booking}/start`, 'photographer')).status,
     409,
   );
+  // every transition leaves one history row with who did it
+  const timeline = await ok('GET', `/bookings/${booking}/timeline`, 'customer');
+  assert.deepEqual(
+    timeline.items.map(
+      (x: {
+        from_status: string | null;
+        to_status: string;
+        actor_role: string;
+      }) => [x.from_status, x.to_status, x.actor_role],
+    ),
+    [
+      [null, 'pending', 'customer'],
+      ['pending', 'accepted', 'photographer'],
+    ],
+  );
+});
+test('cancel reason is kept in the booking history', async () => {
+  const day = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
+  const draft = await ok('POST', '/bookings', 'customer', {
+    photographer_id: photo,
+    plan_id: plan,
+    location: 'Studio',
+    from: new Date(`${day}T09:00:00+07:00`).toISOString(),
+    to: new Date(`${day}T10:00:00+07:00`).toISOString(),
+  });
+  await ok('POST', `/bookings/${draft.id}/cancel`, 'customer', {
+    reason: 'Changed plans',
+  });
+  const { items } = await ok(
+    'GET',
+    `/bookings/${draft.id}/timeline`,
+    'photographer',
+  );
+  assert.equal(items.length, 2);
+  assert.equal(items[1].to_status, 'cancelled');
+  assert.equal(items[1].actor_role, 'customer');
+  assert.equal(items[1].reason, 'Changed plans');
 });
 test('booking plan with bookings can only be deactivated', async () => {
   assert.equal(

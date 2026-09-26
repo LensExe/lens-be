@@ -516,9 +516,9 @@ export class BookingController {
   @Get('bookings/:id/timeline')
   @ApiOperation({
     operationId: 'BOOK-010',
-    summary: 'Trạng thái booking',
+    summary: 'Lịch sử trạng thái booking',
     description:
-      'Xem snapshot trạng thái hiện tại. Role: Customer/Photographer',
+      'Các lần tạo / đổi trạng thái theo thời gian: từ, sang, bên thực hiện, lý do (reject/cancel). Role: Customer/Photographer',
   })
   @Access(['customer', 'photographer'])
   @ApiBearerAuth()

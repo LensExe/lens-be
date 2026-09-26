@@ -220,6 +220,37 @@ VALUES
   ('d0000000-0000-4000-8000-000000000004', '20000000-0000-4000-8000-000000000004', '30000000-0000-4000-8000-000000000004', '50000000-0000-4000-8000-000000000007', 'Phố sách Đinh Lễ & Phố đi bộ Hồ Gươm', '2026-07-28 14:00:00+07', '2026-07-28 15:00:00+07', 240000, 800000, 'cancelled', NULL, '2026-07-10 16:30:00+07', '2026-07-20 10:00:00+07')
 ON CONFLICT (id) DO NOTHING;
 
+-- Lịch sử trạng thái của 4 booking trên (timeline), chỉ chèn khi booking chưa có lịch sử. actor: bên thực hiện, user lấy từ khách/thợ của booking.
+INSERT INTO booking_status_history (id, booking_id, from_status, to_status, actor_role, actor_user_id, reason, created_at, updated_at)
+SELECT h.id::uuid, b.id, h.from_status, h.to_status, h.actor_role,
+  CASE h.actor_role WHEN 'customer' THEN c.user_id WHEN 'photographer' THEN p.user_id END,
+  h.reason, h.at::timestamptz, h.at::timestamptz
+FROM (VALUES
+  ('d1000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000001', NULL, 'pending', 'customer', NULL, '2026-07-05 10:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000002', 'd0000000-0000-4000-8000-000000000001', 'pending', 'accepted', 'photographer', NULL, '2026-07-05 12:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000003', 'd0000000-0000-4000-8000-000000000001', 'accepted', 'in_progress', 'photographer', NULL, '2026-07-15 15:30:00+07'),
+  ('d1000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000001', 'in_progress', 'shot', 'photographer', NULL, '2026-07-15 17:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000005', 'd0000000-0000-4000-8000-000000000001', 'shot', 'completed', 'customer', NULL, '2026-07-17 10:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000006', 'd0000000-0000-4000-8000-000000000002', NULL, 'pending', 'customer', NULL, '2026-08-01 14:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000007', 'd0000000-0000-4000-8000-000000000002', 'pending', 'accepted', 'photographer', NULL, '2026-08-01 18:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000008', 'd0000000-0000-4000-8000-000000000002', 'accepted', 'in_progress', 'photographer', NULL, '2026-08-10 09:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000009', 'd0000000-0000-4000-8000-000000000002', 'in_progress', 'shot', 'photographer', NULL, '2026-08-10 12:30:00+07'),
+  ('d1000000-0000-4000-8000-000000000010', 'd0000000-0000-4000-8000-000000000003', NULL, 'pending', 'customer', NULL, '2026-09-01 09:15:00+07'),
+  ('d1000000-0000-4000-8000-000000000011', 'd0000000-0000-4000-8000-000000000003', 'pending', 'accepted', 'photographer', NULL, '2026-09-01 11:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000012', 'd0000000-0000-4000-8000-000000000004', NULL, 'pending', 'customer', NULL, '2026-07-10 16:30:00+07'),
+  ('d1000000-0000-4000-8000-000000000013', 'd0000000-0000-4000-8000-000000000004', 'pending', 'accepted', 'photographer', NULL, '2026-07-11 09:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000014', 'd0000000-0000-4000-8000-000000000004', 'accepted', 'cancelled', 'customer', 'Gia đình có việc đột xuất, xin huỷ lịch', '2026-07-20 10:00:00+07')
+) AS h(id, booking_id, from_status, to_status, actor_role, reason, at)
+JOIN bookings b ON b.id = h.booking_id::uuid
+JOIN customers c ON c.id = b.customer_id
+JOIN photographers p ON p.id = b.photographer_id
+-- DB đã có booking từ trước thì migration 009 đã ghi lịch sử, không chèn thêm để khỏi trùng
+WHERE NOT EXISTS (
+  SELECT 1 FROM booking_status_history x
+  WHERE x.booking_id = b.id AND x.id <> h.id::uuid
+)
+ON CONFLICT (id) DO NOTHING;
+
 -- ============================================================================
 -- 14. BẢNG TRANSACTIONS (Giao dịch tài chính trong năm 2026)
 -- ============================================================================

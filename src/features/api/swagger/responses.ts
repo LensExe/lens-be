@@ -184,9 +184,7 @@ const schemas: Record<string, SchemaObject> = {
   'BOOK-007': records.bookings,
   'BOOK-008': records.bookings,
   'BOOK-009': records.bookings,
-  'BOOK-010': items(
-    obj({ booking_id: str, status: str, created_at: str, updated_at: str }),
-  ),
+  'BOOK-010': items(records.booking_status_history),
   'BOOK-011': records.reports,
   'PAY-001': records.transactions,
   'PAY-002': records.transactions,
