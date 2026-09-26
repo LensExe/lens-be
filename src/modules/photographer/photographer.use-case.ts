@@ -1,4 +1,4 @@
-import type { EntityManager } from 'typeorm';
+import { In, type EntityManager } from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import type * as Inputs from '@shared/contracts/contracts';
 import { Injectable } from '@nestjs/common';
@@ -12,7 +12,11 @@ import {
   publicPhotographer,
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
-import { VerificationStatus } from '@shared/database/entities/photographer.entity';
+import {
+  VerificationStatus,
+  type PhotographerEntity,
+} from '@shared/database/entities/photographer.entity';
+import type { UserEntity } from '@shared/database/entities/user.entity';
 import {
   PhotographerApplication,
   PhotographerProfile,
@@ -21,7 +25,7 @@ import { Rank } from './rank.domain';
 import { Badge } from './badge.domain';
 import { PhotographerRolePort } from './ports/photographer-role.port';
 
-/** Application use cases for photographer profiles. */
+/** Nghiệp vụ hồ sơ thợ: đăng ký, duyệt, sửa hồ sơ, tìm kiếm, xếp hạng và huy hiệu. */
 @Injectable()
 export class PhotographerUseCases {
   constructor(private readonly roles: PhotographerRolePort) {}
@@ -128,13 +132,6 @@ export class PhotographerUseCases {
   }
 
   /**
-   * Lấy bản ghi `admins` của người đang gọi (cần cho cột `approved_by`).
-   *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API
-   * @returns Bản ghi admin; 403 nếu không có role admin hoặc chưa có hồ sơ admin
-   */
-  /**
    * Hồ sơ thợ cần duyệt, khoá dòng để hai admin không cùng duyệt / từ chối một hồ sơ.
    *
    * @param s EntityManager của transaction hiện tại
@@ -150,6 +147,13 @@ export class PhotographerUseCases {
     return p;
   }
 
+  /**
+   * Lấy bản ghi `admins` của người đang gọi (cần cho cột `approved_by`).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người đang gọi API
+   * @returns Bản ghi admin; 403 nếu không có role admin hoặc chưa có hồ sơ admin
+   */
   private async adminProfile(s: EntityManager, a: Actor) {
     role(a, 'admin');
     const u = await currentUser(s, a);
@@ -168,64 +172,110 @@ export class PhotographerUseCases {
    * @returns Hồ sơ thợ kèm rating, hạng (`rank`: mã + tên) và huy hiệu đã đạt (`badges`: mã, tên, ngày đạt); góc nhìn private có thêm `commission_percent`
    */
   private async details(s: EntityManager, id: string, privateView = false) {
-    const { photographer: p, user: u } = privateView
+    const pair = privateView
       ? await this.owner(s, id)
       : await publicPhotographer(s, id);
-    const [rating] = await s.findBy(EntitySchemas.ratings, {
-      photographer_id: id,
-    });
-    const rank = Rank.of(
-        rating?.total_bookings ?? 0,
-        await s.find(EntitySchemas.ranks),
-      ),
-      names = new Map(
-        (await s.find(EntitySchemas.badges)).map((d) => [d.code, d.name]),
-      ),
-      badges = (
-        await s.find(EntitySchemas.photographer_badges, {
-          where: { photographer_id: p.id },
-          order: { earned_at: 'ASC' },
-        })
-      ).map((b) => ({
-        code: b.code,
-        name: names.get(b.code) ?? b.code,
-        earned_at: b.earned_at,
-      }));
-    const result = {
-      id: p.id,
-      fullname: u.fullname,
-      avatar_url: u.avatar_url,
-      styles: p.styles,
-      started_career_at: p.started_career_at,
-      is_verified: p.is_verified,
-      verification_status: p.verification_status,
-      location: p.location,
-      is_available: p.is_available,
-      description: p.description,
-      rating,
-      rank: { code: rank.code, name: rank.name },
-      badges,
-    };
+    const [{ profile, commissionPercent }] = await this.profiles(s, [pair]);
+    const p = pair.photographer;
     return privateView
       ? {
-          ...result,
+          ...profile,
           tax_code: p.tax_code,
           user_id: p.user_id,
           rejection_reason: p.rejection_reason,
           reviewed_at: p.reviewed_at,
-          commission_percent: rank.commission_percent,
+          commission_percent: commissionPercent,
         }
-      : result;
+      : profile;
   }
 
+  /**
+   * Dựng hồ sơ public cho nhiều thợ cùng lúc: đọc rating, hạng, huy hiệu theo lô (số query không
+   * tăng theo số thợ), giữ nguyên thứ tự đầu vào.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param pairs Hồ sơ thợ và user sở hữu, theo thứ tự cần trả
+   * @returns Mỗi thợ một `{ profile, commissionPercent }`
+   */
+  private async profiles(
+    s: EntityManager,
+    pairs: readonly { photographer: PhotographerEntity; user: UserEntity }[],
+  ) {
+    const ids = pairs.map((pair) => pair.photographer.id);
+    const ratings = new Map(
+      (await s.findBy(EntitySchemas.ratings, { photographer_id: In(ids) })).map(
+        (r) => [r.photographer_id, r],
+      ),
+    );
+    const ranks = await s.find(EntitySchemas.ranks);
+    const names = new Map(
+      (await s.find(EntitySchemas.badges)).map((d) => [d.code, d.name]),
+    );
+    const earned = await s.find(EntitySchemas.photographer_badges, {
+      where: { photographer_id: In(ids) },
+      order: { earned_at: 'ASC' },
+    });
+    return pairs.map(({ photographer: p, user: u }) => {
+      const rating = ratings.get(p.id) ?? null;
+      const rank = Rank.of(rating?.total_bookings ?? 0, ranks);
+      return {
+        commissionPercent: rank.commission_percent,
+        profile: {
+          id: p.id,
+          fullname: u.fullname,
+          avatar_url: u.avatar_url,
+          styles: p.styles,
+          started_career_at: p.started_career_at,
+          is_verified: p.is_verified,
+          verification_status: p.verification_status,
+          location: p.location,
+          is_available: p.is_available,
+          description: p.description,
+          rating,
+          rank: { code: rank.code, name: rank.name },
+          badges: earned
+            .filter((b) => b.photographer_id === p.id)
+            .map((b) => ({
+              code: b.code,
+              name: names.get(b.code) ?? b.code,
+              earned_at: b.earned_at,
+            })),
+        },
+      };
+    });
+  }
+
+  /**
+   * Khách xem hồ sơ public của một thợ (chỉ thợ đã duyệt, tài khoản active).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param _a Người đang gọi API (không dùng; API public)
+   * @param input ID hồ sơ thợ
+   * @returns Hồ sơ public; 404 nếu thợ không public
+   */
   get(s: EntityManager, _a: Actor, input: Inputs.PhotographerGetQueryInput) {
     return this.details(s, input.id);
   }
 
+  /**
+   * Thợ xem hồ sơ của chính mình (mọi trạng thái duyệt, kèm mã số thuế, lý do từ chối, % commission).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người đang gọi API (thợ)
+   * @returns Hồ sơ góc nhìn chủ hồ sơ
+   */
   async me(s: EntityManager, a: Actor) {
     return this.details(s, (await photographer(s, a)).id, true);
   }
 
+  /**
+   * Thợ sửa hồ sơ (mô tả, phong cách, khu vực...). Mã số thuế khoá sau khi hồ sơ được duyệt.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người đang gọi API (thợ)
+   * @param input Các trường cần đổi
+   * @returns Hồ sơ sau khi sửa; 400 nếu đổi mã số thuế khi đã duyệt
+   */
   async update(
     s: EntityManager,
     a: Actor,
@@ -242,6 +292,14 @@ export class PhotographerUseCases {
     return this.details(s, p.id, true);
   }
 
+  /**
+   * Thợ bật / tắt nhận lịch (`is_available`). Tắt thì lịch trống trả rỗng, không nhận booking mới.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người đang gọi API (thợ)
+   * @param input `is_available`
+   * @returns Hồ sơ sau khi đổi
+   */
   async status(
     s: EntityManager,
     a: Actor,
@@ -252,6 +310,14 @@ export class PhotographerUseCases {
     return this.details(s, p.id, true);
   }
 
+  /**
+   * Thợ cập nhật khu vực hoạt động.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người đang gọi API (thợ)
+   * @param input Khu vực mới
+   * @returns Hồ sơ sau khi đổi
+   */
   async location(
     s: EntityManager,
     a: Actor,
@@ -407,11 +473,35 @@ export class PhotographerUseCases {
       .offset(offset)
       .limit(limit)
       .getRawMany<{ id: string }>();
-    const items: Awaited<ReturnType<PhotographerUseCases['details']>>[] = [];
-    for (const row of rows) items.push(await this.details(s, row.id));
+    const ids = rows.map((row) => row.id);
+    const found = new Map(
+      (await s.findBy(EntitySchemas.photographers, { id: In(ids) })).map(
+        (p) => [p.id, p],
+      ),
+    );
+    const users = new Map(
+      (
+        await s.findBy(EntitySchemas.users, {
+          id: In([...found.values()].map((p) => p.user_id)),
+        })
+      ).map((u) => [u.id, u]),
+    );
+    const pairs = ids.map((id) => {
+      const photographer = found.get(id)!;
+      return { photographer, user: users.get(photographer.user_id)! };
+    });
+    const items = (await this.profiles(s, pairs)).map((x) => x.profile);
     return { items, total, offset, limit };
   }
 
+  /**
+   * Danh sách thợ nổi bật: cùng cách xếp hạng với tìm kiếm (đang nhận lịch trước, rating cao trước).
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người đang gọi API
+   * @param input Bộ lọc và phân trang
+   * @returns `{ items, total, offset, limit }`
+   */
   top(s: EntityManager, a: Actor, input: Inputs.PhotographerTopQueryInput) {
     return this.search(s, a, input);
   }
