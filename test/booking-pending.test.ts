@@ -92,3 +92,21 @@ test('a customer cannot send two overlapping requests to the same photographer',
       'pending',
     );
 });
+
+test('only a pending booking can expire', () => {
+  assert.equal(
+    new Booking('pending').transition('expire', false, false),
+    'expired',
+  );
+  assert.throws(
+    () => new Booking('accepted').transition('expire', false, false),
+    /Cannot expire booking in accepted/,
+  );
+});
+
+test('a pending request expires 24 hours after it was sent', () => {
+  assert.equal(
+    Booking.pendingExpiryCutoff(Date.parse('2030-01-02T10:00:00.000Z')),
+    '2030-01-01T10:00:00.000Z',
+  );
+});

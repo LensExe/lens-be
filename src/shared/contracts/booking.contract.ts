@@ -58,6 +58,9 @@ export interface BookingCollaboratorRevokeCommandInput {
   id: string;
 }
 
+/** Job hết hạn yêu cầu pending không nhận tham số. */
+export type BookingExpirePendingCommandInput = Record<string, never>;
+
 /** Job tự hoàn tất không nhận tham số. */
 export type BookingAutoCompleteCommandInput = Record<string, never>;
 

@@ -23,6 +23,7 @@ import { setupApi } from '../src/features/api/setup';
 import { OutboxWorker } from '../src/features/workers/outbox.worker';
 import { PhotographerBadgeJob } from '../src/features/workers/photographer-badge.job';
 import { BookingAutoCompleteJob } from '../src/features/workers/booking-auto-complete.job';
+import { BookingExpirePendingJob } from '../src/features/workers/booking-expire-pending.job';
 import { Booking } from '../src/modules/booking/booking.domain';
 import { CommandBus } from '@nestjs/cqrs';
 import { IdentityCustomerRegisterCommand } from '../src/modules/identity/identity.command';
@@ -1416,6 +1417,62 @@ test('job completes shot bookings 7 days after the gallery is published, once', 
     assert.equal(history.length, 1);
     assert.equal(history[0].actor_role, 'system');
     assert.equal(history[0].actor_user_id, null);
+  }
+});
+test('job expires pending requests at whichever comes first: 24 hours or the shoot start', async () => {
+  const base = await db.manager.findOneByOrFail(EntitySchemas.bookings, {
+    id: booking,
+  });
+  const at = (hours: number) =>
+    new Date(Date.now() + hours * 36e5).toISOString();
+  // [sent, shoot starts, status] -> expected status after the job
+  const cases = [
+    [at(-25), at(48), 'pending', 'expired'], // no answer for 24 hours
+    [at(-1), at(-0.1), 'pending', 'expired'], // shoot time already started
+    [at(-1), at(48), 'pending', 'pending'], // still waiting
+    [at(-25), at(48), 'accepted', 'accepted'], // already answered
+  ] as const;
+  const ids: string[] = [];
+  for (const [sent, start, status] of cases) {
+    const row = await db.manager.save(EntitySchemas.bookings, {
+      customer_id: base.customer_id,
+      photographer_id: base.photographer_id,
+      booking_plan_id: base.booking_plan_id,
+      location: 'Studio',
+      from: start,
+      to: new Date(Date.parse(start) + 36e5).toISOString(),
+      deposit_amount: 300000,
+      total_amount: 1000000,
+      status,
+    });
+    // created_at is set by the database on insert, so move it back explicitly
+    await db.query('UPDATE bookings SET created_at = $1 WHERE id = $2', [
+      sent,
+      row.id,
+    ]);
+    ids.push(row.id);
+  }
+  const job = app.get(BookingExpirePendingJob);
+  for (let run = 0; run < 2; run++) {
+    assert.equal(await job.run(), true);
+    const rows = await Promise.all(
+      ids.map((id) =>
+        db.manager.findOneByOrFail(EntitySchemas.bookings, { id }),
+      ),
+    );
+    assert.deepEqual(
+      rows.map((b) => b.status),
+      cases.map((c) => c[3]),
+    );
+    const history = await db.manager.findBy(
+      EntitySchemas.booking_status_history,
+      { booking_id: ids[0] },
+    );
+    // the second run changes nothing
+    assert.equal(history.length, 1);
+    assert.equal(history[0].to_status, 'expired');
+    assert.equal(history[0].actor_role, 'system');
+    assert.match(history[0].reason ?? '', /did not respond/);
   }
 });
 test('domain rejects unsupported booking transitions', () => {

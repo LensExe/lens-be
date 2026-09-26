@@ -50,7 +50,11 @@ export type BookingAction =
   | 'start'
   | 'completeShoot'
   | 'complete'
-  | 'confirmReceipt';
+  | 'confirmReceipt'
+  | 'expire';
+
+/** Số giờ thợ có để trả lời một yêu cầu; quá hạn (hoặc tới giờ chụp) thì yêu cầu hết hạn. */
+export const PENDING_EXPIRES_AFTER_HOURS = 24;
 
 export class Booking {
   /** @param status Trạng thái hiện tại của booking */
@@ -167,6 +171,17 @@ export class Booking {
   }
 
   /**
+   * Mốc hết hạn của yêu cầu pending: gửi từ mốc này trở về trước là quá 24 giờ chưa được trả lời.
+   * Yêu cầu cũng hết hạn khi tới giờ chụp (`from <= now`), điều kiện đó do use case lọc.
+   *
+   * @param now Thời điểm hiện tại (ms)
+   * @returns Thời điểm ISO UTC = `now` trừ `PENDING_EXPIRES_AFTER_HOURS` giờ
+   */
+  static pendingExpiryCutoff(now: number) {
+    return new Date(now - PENDING_EXPIRES_AFTER_HOURS * 36e5).toISOString();
+  }
+
+  /**
    * Mốc tự hoàn tất: booking publish gallery từ mốc này trở về trước là tới hạn.
    * Trạng thái `shot` và điều kiện trả đủ vẫn do `transition('complete')` kiểm.
    *
@@ -199,6 +214,7 @@ export class Booking {
         completeShoot: [['in_progress'], 'shot'],
         complete: [['shot'], 'completed'],
         confirmReceipt: [['shot'], 'completed'],
+        expire: [['pending'], 'expired'],
       };
     const rule = transitions[action];
     ensure(

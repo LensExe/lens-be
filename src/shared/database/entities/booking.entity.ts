@@ -13,6 +13,7 @@ export const BookingStatus = {
   ACCEPTED: 'accepted',
   REJECTED: 'rejected',
   CANCELLED: 'cancelled',
+  EXPIRED: 'expired',
   IN_PROGRESS: 'in_progress',
   SHOT: 'shot',
   COMPLETED: 'completed',
@@ -77,7 +78,7 @@ export class BookingEntity extends BaseEntity {
   @Column(bigintColumn)
   total_amount!: number;
 
-  /** Trạng thái đơn booking ('pending' | 'accepted' | 'rejected' | 'cancelled' | 'in_progress' | 'shot' | 'completed') */
+  /** Trạng thái đơn booking ('pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired' | 'in_progress' | 'shot' | 'completed') */
   @Column({ default: BookingStatus.PENDING })
   status!: BookingStatus;
 

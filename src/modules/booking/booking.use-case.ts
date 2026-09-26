@@ -24,8 +24,8 @@ import { RatingUpdaterPort } from './ports/rating-updater.port';
 import {
   Booking,
   BookingActorRole,
+  BookingStatus,
   type BookingAction,
-  type BookingStatus,
 } from './booking.domain';
 import {
   BookingCollaboratorStatus,
@@ -36,6 +36,9 @@ import type {
   BookingCollaboratorEntity,
   BookingEntity,
 } from '@shared/database/entities';
+
+/** Lý do ghi khi yêu cầu pending hết hạn vì thợ không trả lời kịp. */
+const EXPIRED_REASON = 'Photographer did not respond in time';
 
 /** Lý do ghi cho các yêu cầu pending bị từ chối tự động khi thợ nhận một booking chồng giờ. */
 const TURNED_DOWN_REASON = 'Photographer accepted another booking at this time';
@@ -555,6 +558,43 @@ export class BookingUseCases {
     const customer = await required(s, 'customers', b.customer_id),
       photographer = await required(s, 'photographers', b.photographer_id);
     return [customer.user_id, photographer.user_id];
+  }
+
+  /**
+   * Job nền (role `system`): cho hết hạn các yêu cầu pending thợ chưa trả lời, ở mốc tới trước
+   * trong hai mốc: 24 giờ sau khi gửi, hoặc lúc bắt đầu buổi chụp. Idempotent: booking đã
+   * hết hạn không còn `pending` nên chạy lại không đổi gì.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param a Người gọi (phải có role `system`)
+   * @returns `{ expired }`: số yêu cầu vừa hết hạn
+   */
+  async expirePending(s: EntityManager, a: Actor) {
+    role(a, 'system');
+    const now = Date.now();
+    const due = await s.find(EntitySchemas.bookings, {
+      where: [
+        {
+          status: BookingStatus.PENDING,
+          created_at: LessThanOrEqual(Booking.pendingExpiryCutoff(now)),
+        },
+        {
+          status: BookingStatus.PENDING,
+          from: LessThanOrEqual(new Date(now).toISOString()),
+        },
+      ],
+      lock: { mode: 'pessimistic_write' },
+    });
+    for (const b of due)
+      await this.apply(
+        s,
+        b,
+        'expire',
+        { role: BookingActorRole.SYSTEM, userId: null },
+        EXPIRED_REASON,
+        await this.recipients(s, b),
+      );
+    return { expired: due.length };
   }
 
   /**
