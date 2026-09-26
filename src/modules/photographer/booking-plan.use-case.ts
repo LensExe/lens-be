@@ -10,12 +10,15 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import type * as Inputs from '@shared/contracts/contracts';
 import { BookingPlan } from './booking-plan.domain';
+import { WorkingHoursPort } from './ports/working-hours.port';
 
 /**
  * Nghiệp vụ gói chụp (booking plan): thợ tự tạo, sửa, bật/tắt, xoá gói; khách xem gói đang bán.
  */
 @Injectable()
 export class BookingPlanUseCases {
+  constructor(private readonly workingHours: WorkingHoursPort) {}
+
   /**
    * Lấy gói chụp và đảm bảo gói thuộc hồ sơ thợ của người đang gọi.
    *
@@ -41,7 +44,7 @@ export class BookingPlanUseCases {
    * @param s EntityManager của transaction hiện tại
    * @param a Người đang gọi API (phải có hồ sơ thợ)
    * @param i Thông tin gói: tên, giá (VND), thời lượng, số ảnh, số ảnh retouch, quyền lợi
-   * @returns Gói chụp vừa tạo; 400 nếu số ảnh retouch lớn hơn số ảnh giao
+   * @returns Gói chụp vừa tạo; 400 nếu số ảnh retouch lớn hơn số ảnh giao, hoặc gói dài hơn ca làm dài nhất
    */
   async create(
     s: EntityManager,
@@ -50,6 +53,10 @@ export class BookingPlanUseCases {
   ) {
     const p = await photographer(s, a);
     BookingPlan.assertPhotoCounts(i.photo_count, i.retouched_photo_count);
+    BookingPlan.assertFitsShift(
+      i.duration_minutes,
+      await this.workingHours.longestShiftMinutes(s, p.id),
+    );
     return s.save(EntitySchemas.booking_plans, {
       ...i,
       features: i.features ?? [],
@@ -64,7 +71,7 @@ export class BookingPlanUseCases {
    * @param s EntityManager của transaction hiện tại
    * @param a Người đang gọi API (phải là chủ gói)
    * @param i ID gói và các trường cần đổi
-   * @returns Gói chụp sau khi sửa
+   * @returns Gói chụp sau khi sửa; 400 nếu gói còn bán mà dài hơn ca làm dài nhất
    */
   async update(
     s: EntityManager,
@@ -77,6 +84,12 @@ export class BookingPlanUseCases {
       fields.photo_count ?? plan.photo_count,
       fields.retouched_photo_count ?? plan.retouched_photo_count,
     );
+    // chỉ gói còn bán mới cần đặt được; gói đã tắt thì cho sửa tự do
+    if (fields.is_active ?? plan.is_active)
+      BookingPlan.assertFitsShift(
+        fields.duration_minutes ?? plan.duration_minutes,
+        await this.workingHours.longestShiftMinutes(s, plan.photographer_id),
+      );
     return updateEntity(s, EntitySchemas.booking_plans, id, fields);
   }
 
@@ -134,5 +147,21 @@ export class BookingPlanUseCases {
         order: { price: 'ASC' },
       }),
     };
+  }
+
+  /**
+   * Thời lượng gói đang bán dài nhất của thợ, tính bằng phút. Module calendar gọi qua port để
+   * không cho thu ngắn giờ làm tới mức gói đang bán không còn đặt được.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param photographerId ID hồ sơ thợ
+   * @returns Số phút; 0 nếu thợ không có gói nào đang bán
+   */
+  async longestActivePlanMinutes(s: EntityManager, photographerId: string) {
+    const plans = await s.findBy(EntitySchemas.booking_plans, {
+      photographer_id: photographerId,
+      is_active: true,
+    });
+    return Math.max(0, ...plans.map((plan) => plan.duration_minutes));
   }
 }

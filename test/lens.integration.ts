@@ -420,6 +420,28 @@ test('only verified photographers are public; unavailable ones rank last', async
   await ok('PATCH', '/photographers/me/status', 'photographer', {
     is_available: true,
   });
+  // a plan longer than every working shift could never be booked
+  assert.equal(
+    (
+      await api('POST', '/photographers/me/booking-plans', 'photographer', {
+        name: 'Whole-day wedding',
+        price: 20000000,
+        duration_minutes: 13 * 60,
+        photo_count: 500,
+        retouched_photo_count: 50,
+      })
+    ).status,
+    400,
+  );
+  // once approved, the tax code only changes through an admin
+  assert.equal(
+    (
+      await api('PATCH', '/photographers/me', 'photographer', {
+        tax_code: '9999999999',
+      })
+    ).status,
+    400,
+  );
   const found = await ok('GET', '/photographers?keyword=wedd&location=hu');
   assert.deepEqual(
     found.items.map((p: any) => p.id),

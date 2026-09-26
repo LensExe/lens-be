@@ -29,4 +29,19 @@ export class BookingPlan {
       'conflict',
     );
   }
+
+  /**
+   * Gói không được dài hơn ca làm dài nhất của thợ: booking phải nằm trọn một ca, nên gói dài hơn
+   * mọi ca thì không bao giờ đặt được.
+   *
+   * @param durationMinutes Thời lượng gói (phút)
+   * @param longestShiftMinutes Ca làm dài nhất của thợ (phút)
+   * @returns Không trả gì; 400 nếu gói dài hơn
+   */
+  static assertFitsShift(durationMinutes: number, longestShiftMinutes: number) {
+    ensure(
+      durationMinutes <= longestShiftMinutes,
+      'Plan is longer than your longest working shift; extend your working hours first',
+    );
+  }
 }
