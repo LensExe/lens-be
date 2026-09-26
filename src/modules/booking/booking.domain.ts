@@ -29,7 +29,13 @@ export interface BookingDraftInput {
   /** Lịch tuần thợ đã khai (rỗng ⇒ giờ mặc định 08:00–20:00) */
   schedule: readonly WorkingShift[];
   blockedTimes: readonly { from: string; to: string }[];
-  bookings: readonly { from: string; to: string; status: string }[];
+  /** Booking khác của thợ chồng giờ (`customer_id` để nhận ra yêu cầu trùng của chính khách này) */
+  bookings: readonly {
+    from: string;
+    to: string;
+    status: string;
+    customer_id?: string;
+  }[];
   now: number;
 }
 
@@ -83,6 +89,16 @@ export class Booking {
       'conflict',
     );
     Booking.assertCanAccept(range, input.blockedTimes, input.bookings);
+    ensure(
+      !input.bookings.some(
+        (booking) =>
+          booking.customer_id === input.customerId &&
+          booking.status === BookingStatus.PENDING &&
+          overlaps(booking, range),
+      ),
+      'You already requested this time',
+      'conflict',
+    );
     const total = money(input.planPrice);
     return {
       customer_id: input.customerId,

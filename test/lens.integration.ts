@@ -565,6 +565,8 @@ test('calendar blocking and concurrent booking conflict', async () => {
   );
   booking = attempts[0].body.id;
   rival = attempts[1].body.id;
+  // the same customer cannot send the same request twice
+  assert.equal((await api('POST', '/bookings', 'customer', input)).status, 409);
   const available = await ok('GET', `/photographers/${photo}/availability`);
   assert.ok(available.items.length > 0);
 });

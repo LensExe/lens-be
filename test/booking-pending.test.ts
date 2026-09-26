@@ -72,3 +72,23 @@ test('free time and blocking ignore pending requests', () => {
   );
   Calendar.assertCanBlock(range, pending, [], facts.now);
 });
+
+test('a customer cannot send two overlapping requests to the same photographer', () => {
+  assert.throws(
+    () =>
+      Booking.prepare({
+        ...facts,
+        bookings: [{ ...range, status: 'pending', customer_id: 'customer' }],
+      }),
+    /already requested this time/,
+  );
+  // another customer's request, or my own request that is no longer pending, does not count
+  for (const other of [
+    { status: 'pending', customer_id: 'someone-else' },
+    { status: 'rejected', customer_id: 'customer' },
+  ])
+    assert.equal(
+      Booking.prepare({ ...facts, bookings: [{ ...range, ...other }] }).status,
+      'pending',
+    );
+});
