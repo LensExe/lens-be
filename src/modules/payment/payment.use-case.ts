@@ -1,4 +1,4 @@
-import type { DataSource, EntityManager } from 'typeorm';
+import { In, type DataSource, type EntityManager } from 'typeorm';
 import {
   EntitySchemas,
   updateEntity,
@@ -264,5 +264,27 @@ export class PaymentUseCases implements SubscriptionPaymentsPort {
         idempotency_key: key,
       }))
     );
+  }
+
+  /**
+   * Tổng tiền khách đã trả cho từng booking (cọc + phần còn lại, chỉ giao dịch `paid`), một query
+   * cho cả danh sách. Module booking gọi qua port để biết đã đủ cọc / đủ tiền chưa.
+   *
+   * @param s EntityManager của transaction hiện tại
+   * @param bookingIds ID các booking
+   * @returns Map ID booking → số tiền VND (0 nếu chưa trả gì)
+   */
+  async paidAmounts(s: EntityManager, bookingIds: readonly string[]) {
+    const paid: Record<string, number> = Object.fromEntries(
+      bookingIds.map((id) => [id, 0]),
+    );
+    if (!bookingIds.length) return paid;
+    for (const t of await s.findBy(EntitySchemas.transactions, {
+      reference_id: In([...bookingIds]),
+      status: 'paid',
+      type: In(['deposit', 'remaining']),
+    }))
+      paid[t.reference_id!] += Number(t.amount);
+    return paid;
   }
 }
