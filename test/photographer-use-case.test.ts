@@ -86,7 +86,7 @@ test('searching photographers costs the same number of queries for 1 or 3 result
       },
       findBy: async (entity: unknown) => {
         reads++;
-        if (entity === EntitySchemas.ratings)
+        if (entity === EntitySchemas.photographer_ratings)
           throw new Error('photographer must ask feedback for ratings');
         return entity === EntitySchemas.photographers
           ? ids.map(row)

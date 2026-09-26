@@ -207,7 +207,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'updated_at',
     ],
   },
-  ratings: {
+  photographer_ratings: {
     type: 'object',
     properties: {
       id: {
@@ -1128,9 +1128,15 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'boolean',
         description: 'is edited',
       },
-      is_visible: {
-        type: 'boolean',
-        description: 'is visible',
+      status: {
+        type: 'string',
+        enum: ['visible', 'deleted_by_author', 'hidden_by_admin'],
+        description: 'visibility status',
+      },
+      hidden_reason: {
+        type: 'string',
+        nullable: true,
+        description: 'reason the admin hid the review',
       },
       created_at: {
         type: 'string',
@@ -1152,7 +1158,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'attitude_rating',
       'comment',
       'is_edited',
-      'is_visible',
+      'status',
       'created_at',
       'updated_at',
     ],

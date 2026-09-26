@@ -1242,7 +1242,7 @@ test('remaining payment, completion and review uniqueness', async () => {
   ]);
   assert.deepEqual(clicks.map((c) => c.status).sort(), [200, 409]);
   // booking tells feedback how many bookings the photographer has completed
-  const [stats] = await db.manager.findBy(EntitySchemas.ratings, {
+  const [stats] = await db.manager.findBy(EntitySchemas.photographer_ratings, {
     photographer_id: photo,
   });
   assert.equal(
@@ -1322,21 +1322,116 @@ test('remaining payment, completion and review uniqueness', async () => {
   const listed = await ok('GET', `/photographers/${photo}/reviews?limit=1`);
   assert.equal(listed.total, 1);
   assert.equal(listed.items[0].id, review.id);
-  // an admin can hide and show a review again, the score follows
-  await ok('DELETE', `/reviews/${review.id}`, 'admin');
+  // the public list shows who wrote it, never the customer or booking id
+  assert.ok(listed.items[0].customer.name);
+  for (const field of ['customer_id', 'booking_id', 'status'])
+    assert.equal(field in listed.items[0], false);
+  // an edit tells the photographer and keeps the old reply
+  const edited = await ok('PATCH', `/reviews/${review.id}`, 'customer', {
+    comment: 'Great, edited',
+  });
+  assert.equal(edited.photographer_reply, 'Thank you so much');
+  assert.ok(
+    await db.manager.existsBy(EntitySchemas.outbox_events, {
+      topic: 'review.updated',
+    }),
+  );
+  // an empty edit is rejected instead of marking the review as edited
+  assert.equal(
+    (await api('PATCH', `/reviews/${review.id}`, 'customer', {})).status,
+    400,
+  );
+  // only an admin hides a review, with a reason; the score follows
+  assert.equal(
+    (
+      await api('POST', `/admin/reviews/${review.id}/hide`, 'customer', {
+        reason: 'x',
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (await api('POST', `/admin/reviews/${review.id}/hide`, 'admin', {})).status,
+    400,
+  );
+  const hidden = await ok('POST', `/admin/reviews/${review.id}/hide`, 'admin', {
+    reason: 'Spam',
+  });
+  assert.equal(hidden.status, 'hidden_by_admin');
+  assert.equal(hidden.hidden_reason, 'Spam');
   assert.equal(
     (await ok('GET', `/photographers/${photo}/rating-summary`)).total_feedbacks,
     0,
   );
+  assert.ok(
+    await db.manager.existsBy(EntitySchemas.outbox_events, {
+      topic: 'review.hidden',
+    }),
+  );
+  // a hidden review cannot be edited, replied to or hidden again
+  for (const [method, path, who, payload] of [
+    ['PATCH', `/reviews/${review.id}`, 'customer', { rating: 1 }],
+    ['PUT', `/reviews/${review.id}/reply`, 'photographer', { reply: 'x' }],
+    ['POST', `/admin/reviews/${review.id}/hide`, 'admin', { reason: 'x' }],
+  ] as const)
+    assert.equal((await api(method, path, who, payload)).status, 409);
   assert.equal(
     (await api('POST', `/admin/reviews/${review.id}/restore`, 'customer'))
       .status,
     403,
   );
-  await ok('POST', `/admin/reviews/${review.id}/restore`, 'admin');
+  // the admin finds hidden reviews in the admin list, customers cannot
+  assert.equal((await api('GET', '/admin/reviews', 'customer')).status, 403);
+  const hiddenList = await ok(
+    'GET',
+    `/admin/reviews?status=hidden_by_admin&photographer_id=${photo}`,
+    'admin',
+  );
+  assert.deepEqual(
+    hiddenList.items.map((r: { id: string }) => r.id),
+    [review.id],
+  );
+  assert.equal(
+    (await ok('GET', '/admin/reviews?status=visible', 'admin')).items.some(
+      (r: { id: string }) => r.id === review.id,
+    ),
+    false,
+  );
+  const restored = await ok(
+    'POST',
+    `/admin/reviews/${review.id}/restore`,
+    'admin',
+  );
+  assert.equal(restored.hidden_reason, null);
   assert.equal(
     (await ok('GET', `/photographers/${photo}/rating-summary`)).average_rating,
     5,
+  );
+  assert.equal(
+    (await api('POST', `/admin/reviews/${review.id}/restore`, 'admin')).status,
+    409,
+  );
+  // an edit racing the author's delete never brings the review back
+  await Promise.all([
+    api('PATCH', `/reviews/${review.id}`, 'customer', { comment: 'Edited' }),
+    api('DELETE', `/reviews/${review.id}`, 'customer'),
+  ]);
+  const [gone] = await db.manager.findBy(EntitySchemas.feedbacks, {
+    id: review.id,
+  });
+  assert.equal(gone.status, 'deleted_by_author');
+  // the admin cannot delete it and cannot bring back what the author deleted
+  assert.equal(
+    (await api('DELETE', `/reviews/${review.id}`, 'admin')).status,
+    403,
+  );
+  assert.equal(
+    (await api('POST', `/admin/reviews/${review.id}/restore`, 'admin')).status,
+    409,
+  );
+  assert.equal(
+    (await ok('GET', `/photographers/${photo}/rating-summary`)).total_feedbacks,
+    0,
   );
 });
 test('outbox marks core realtime events as processed', async () => {
@@ -1604,10 +1699,10 @@ test('photographer badges come from visible reviews and returning customers', as
         attitude_rating: 5,
       });
     }
-    const [rating] = await s.findBy(EntitySchemas.ratings, {
+    const [rating] = await s.findBy(EntitySchemas.photographer_ratings, {
       photographer_id: photo,
     });
-    await s.update(EntitySchemas.ratings, rating.id, {
+    await s.update(EntitySchemas.photographer_ratings, rating.id, {
       average_rating: 4.9,
       total_feedbacks: 10,
       return_customers: 5,
@@ -1628,10 +1723,10 @@ test('photographer badges come from visible reviews and returning customers', as
   assert.equal(events.length, 3);
   // once earned, badges stay even when the stats drop
   await db.transaction(async (s) => {
-    const [rating] = await s.findBy(EntitySchemas.ratings, {
+    const [rating] = await s.findBy(EntitySchemas.photographer_ratings, {
       photographer_id: photo,
     });
-    await s.update(EntitySchemas.ratings, rating.id, {
+    await s.update(EntitySchemas.photographer_ratings, rating.id, {
       average_rating: 3,
       return_customers: 0,
     });

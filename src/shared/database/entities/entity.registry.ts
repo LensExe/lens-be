@@ -17,7 +17,7 @@ import { PhotographerBadgeEntity } from './photographer-badge.entity';
 import { RankEntity } from './rank.entity';
 import { BadgeEntity } from './badge.entity';
 import { PortfolioEntity } from './portfolio.entity';
-import { RatingEntity } from './rating.entity';
+import { PhotographerRatingEntity } from './photographer-rating.entity';
 import { RefundRequestEntity } from './refund-request.entity';
 import { ReportEntity } from './report.entity';
 import { SubscriptionEntity } from './subscription.entity';
@@ -30,7 +30,7 @@ export const databaseEntities = [
   CustomerEntity,
   AdminEntity,
   PhotographerEntity,
-  RatingEntity,
+  PhotographerRatingEntity,
   PhotographerBadgeEntity,
   RankEntity,
   BadgeEntity,
@@ -59,7 +59,7 @@ export const EntitySchemas = {
   customers: CustomerEntity,
   admins: AdminEntity,
   photographers: PhotographerEntity,
-  ratings: RatingEntity,
+  photographer_ratings: PhotographerRatingEntity,
   photographer_badges: PhotographerBadgeEntity,
   ranks: RankEntity,
   badges: BadgeEntity,

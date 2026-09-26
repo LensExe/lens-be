@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { ReviewStatus } from '@shared/database/entities/feedback.entity';
 import {
+  IsIn,
+  IsUUID,
   IsString,
   IsInt,
   Min,
@@ -126,4 +129,53 @@ export class ReviewReplyCommandBodyDto {
   @MinLength(1)
   @MaxLength(10000)
   reply!: string;
+}
+
+export class ReviewHideCommandBodyDto {
+  @ApiProperty({ description: 'reason the admin hides the review' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  reason!: string;
+}
+
+export class ReviewAdminListQueryQueryDto {
+  @ApiPropertyOptional({
+    description: 'limit',
+    minimum: 1,
+    maximum: 100,
+    example: 20,
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @ApiPropertyOptional({
+    description: 'offset',
+    minimum: 0,
+    maximum: 1000000,
+    example: 0,
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1000000)
+  offset?: number;
+
+  @ApiPropertyOptional({
+    description: 'visibility status',
+    enum: Object.values(ReviewStatus),
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsIn(Object.values(ReviewStatus))
+  status?: ReviewStatus;
+
+  @ApiPropertyOptional({ description: 'photographer id', format: 'uuid' })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsUUID()
+  photographer_id?: string;
 }

@@ -1002,7 +1002,7 @@
     "method": "GET",
     "path": "/photographers/:id/reviews",
     "summary": "Danh sách đánh giá",
-    "description": "Phân trang review của photographer.",
+    "description": "Phân trang review đang hiện của photographer, kèm tên và ảnh đại diện của khách (không trả ID khách / booking).",
     "role": "Public",
     "priority": "Must",
     "kind": "Query"
@@ -1038,8 +1038,8 @@
     "method": "DELETE",
     "path": "/reviews/:id",
     "summary": "Xóa đánh giá",
-    "description": "Xóa/ẩn review theo quyền.",
-    "role": "Customer/Admin",
+    "description": "Khách tự xoá review của mình (xoá mềm, không hiện lại được).",
+    "role": "Customer",
     "priority": "Could",
     "kind": "Command"
   },
@@ -1062,7 +1062,31 @@
     "method": "POST",
     "path": "/admin/reviews/:id/restore",
     "summary": "Admin hiện lại đánh giá",
-    "description": "Hiện lại review đã bị ẩn và tính lại điểm của thợ.",
+    "description": "Hiện lại review do admin ẩn và tính lại điểm của thợ; review khách tự xoá không hiện lại được.",
+    "role": "Admin",
+    "priority": "Should",
+    "kind": "Command"
+  },
+  {
+    "id": "REV-008",
+    "module": "Review",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/admin/reviews",
+    "summary": "Admin xem danh sách đánh giá",
+    "description": "Admin xem mọi review (kể cả đã xoá / bị ẩn), lọc theo trạng thái và thợ, để ẩn hoặc hiện lại.",
+    "role": "Admin",
+    "priority": "Should",
+    "kind": "Query"
+  },
+  {
+    "id": "REV-009",
+    "module": "Review",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/admin/reviews/:id/hide",
+    "summary": "Admin ẩn đánh giá",
+    "description": "Ẩn review đang hiện kèm lý do, tính lại điểm của thợ và báo khách.",
     "role": "Admin",
     "priority": "Should",
     "kind": "Command"
