@@ -2,42 +2,59 @@
 
 FROM node:22-bookworm-slim AS build
 
+# Install pnpm and add it to PATH
 ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
 
+# Set working directory
 WORKDIR /app
 
+# Install corepack and prepare pnpm and activate it
 RUN corepack enable && corepack prepare pnpm@11.1.2 --activate
 
+# Keep dependency installation cacheable when only application source changes.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml nest-cli.json tsconfig.json tsconfig.build.json ./
 COPY apps/ai-worker/tsconfig.app.json apps/ai-worker/tsconfig.app.json
 
+# Install dependencies
 RUN pnpm install --frozen-lockfile
 
+# Copy application source ai-worker code
 COPY apps/ai-worker apps/ai-worker
+# Copy shared source code
 COPY src src
 
+# Build the ai-worker application
 RUN pnpm build:ai-worker
 
 FROM node:22-bookworm-slim AS runtime
 
+# Set environment variables for production
 ENV NODE_ENV=production
 WORKDIR /app
 
+# Create a non-root user and group for running the application
 RUN groupadd --system --gid 1001 lens \
   && useradd --system --uid 1001 --gid lens --create-home lens
 
+# Copy package.json and lock files to install production dependencies
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Install production dependencies and clean up cache
 RUN corepack enable \
   && corepack prepare pnpm@11.1.2 --activate \
   && pnpm install --prod --frozen-lockfile --ignore-scripts \
   && rm -rf /root/.cache /root/.local/share/pnpm
 
+# Copy built ai-worker application from the build stage and set ownership
 COPY --from=build --chown=lens:lens /app/dist/apps/ai-worker ./dist/apps/ai-worker
+
+# Set ownership of node_modules to the non-root user
 RUN chown -R lens:lens /app/node_modules
 
+# Switch to the non-root user for running the application
 USER lens
 
 EXPOSE 3001
 
+# Set the command to run the ai-worker application
 CMD ["node", "dist/apps/ai-worker/apps/ai-worker/src/main.js"]
