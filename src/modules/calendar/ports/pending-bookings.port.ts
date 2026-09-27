@@ -1,5 +1,5 @@
 import type { EntityManager } from 'typeorm';
-import type { WorkingShift } from '@shared/domain/work-schedule';
+import type { WorkingShift } from '@shared/domain/types/work-schedule.types';
 
 /** Yêu cầu booking đang chờ của thợ, để calendar xem trước và từ chối khi thợ chặn lịch / đổi giờ làm. */
 export interface PendingRequest {

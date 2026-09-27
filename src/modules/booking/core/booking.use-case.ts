@@ -24,9 +24,10 @@ import {
   role,
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
-import { WorkSchedule, type WorkingShift } from '@shared/domain/work-schedule';
-import { RatingUpdaterPort } from './ports/rating-updater.port';
-import { PaidAmountsPort } from './ports/paid-amounts.port';
+import { WorkSchedule } from '@shared/domain/rules/work-schedule.rules';
+import type { WorkingShift } from '@shared/domain/types/work-schedule.types';
+import { RatingUpdaterPort } from '../ports/rating-updater.port';
+import { PaidAmountsPort } from '../ports/paid-amounts.port';
 import type { PendingBookingsPort } from '@modules/calendar/ports/pending-bookings.port';
 import {
   Booking,
@@ -39,7 +40,7 @@ import {
   BookingCollaboratorStatus,
   Collaboration,
   type CollaborationAction,
-} from './collaborator.domain';
+} from '../collaborator/collaborator.domain';
 import type {
   BookingCollaboratorEntity,
   BookingEntity,

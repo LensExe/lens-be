@@ -13,6 +13,12 @@ import {
   Matches,
   ValidateIf,
 } from 'class-validator';
+import { Gender, UserStatus } from '@shared/domain/values/user.values';
+
+const EDITABLE_USER_STATUSES = [
+  UserStatus.ACTIVE,
+  UserStatus.SUSPENDED,
+] as const;
 
 export class IdentityAdminUsersQueryQueryDto {
   @ApiPropertyOptional({
@@ -43,11 +49,11 @@ export class IdentityAdminUsersQueryQueryDto {
 
   @ApiPropertyOptional({
     description: 'status',
-    enum: ['active', 'suspended'],
+    enum: EDITABLE_USER_STATUSES,
     type: 'string',
   })
   @ValidateIf((_object, value) => value !== undefined)
-  @IsIn(['active', 'suspended'])
+  @IsIn(EDITABLE_USER_STATUSES)
   status?: 'active' | 'suspended';
 
   @ApiPropertyOptional({ description: 'keyword', type: 'string' })
@@ -84,12 +90,12 @@ export class IdentityUpdateMeCommandBodyDto {
 
   @ApiPropertyOptional({
     description: 'gender',
-    enum: ['male', 'female', 'other'],
+    enum: Object.values(Gender),
     type: 'string',
   })
   @ValidateIf((_object, value) => value !== undefined)
-  @IsIn(['male', 'female', 'other'])
-  gender?: 'male' | 'female' | 'other';
+  @IsIn(Object.values(Gender))
+  gender?: Gender;
 
   @ApiPropertyOptional({ description: 'dob', type: 'string' })
   @ValidateIf((_object, value) => value !== undefined)
@@ -101,9 +107,9 @@ export class IdentityUpdateMeCommandBodyDto {
 export class IdentityStatusCommandBodyDto {
   @ApiProperty({
     description: 'status',
-    enum: ['active', 'suspended'],
+    enum: EDITABLE_USER_STATUSES,
     type: 'string',
   })
-  @IsIn(['active', 'suspended'])
+  @IsIn(EDITABLE_USER_STATUSES)
   status!: 'active' | 'suspended';
 }

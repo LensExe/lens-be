@@ -1,19 +1,9 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
-import type { BookingStatus } from './booking.entity';
-
-/**
- * Bên thực hiện một lần đổi trạng thái booking.
- */
-export const BookingActorRole = {
-  CUSTOMER: 'customer',
-  PHOTOGRAPHER: 'photographer',
-  ADMIN: 'admin',
-  SYSTEM: 'system',
-} as const;
-
-export type BookingActorRole =
-  (typeof BookingActorRole)[keyof typeof BookingActorRole];
+import type {
+  BookingActorRole,
+  BookingStatus,
+} from '@shared/domain/values/booking.values';
 
 /**
  * Entity đại diện cho bảng `booking_status_history`.

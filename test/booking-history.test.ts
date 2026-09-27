@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { Booking } from '../src/modules/booking/booking.domain';
+import { Booking } from '../src/modules/booking/core/booking.domain';
 
 test('history records the side of the booking before the token role', () => {
   const role = (userId: string, roles: string[]) =>

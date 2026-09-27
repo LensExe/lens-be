@@ -13,11 +13,11 @@ export interface PhotographerAdminQueryInput {
 }
 
 export interface PhotographerApproveCommandInput {
-  id: string;
+  photographer_id: string;
 }
 
 export interface PhotographerRejectCommandInput {
-  id: string;
+  photographer_id: string;
   reason: string;
 }
 
@@ -52,7 +52,7 @@ export interface PhotographerSearchQueryInput {
 }
 
 export interface PhotographerGetQueryInput {
-  id: string;
+  photographer_id: string;
 }
 
 export type PhotographerAwardBadgesCommandInput = Record<string, never>;

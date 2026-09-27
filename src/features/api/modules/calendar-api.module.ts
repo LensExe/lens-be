@@ -4,14 +4,14 @@ import {
   CalendarBlockCommandHandler,
   CalendarSetWorkingHoursCommandHandler,
   CalendarUnblockCommandHandler,
-} from '@modules/calendar/calendar.command';
+} from '@modules/calendar/schedule/calendar.command';
 import {
   CalendarAvailabilityQueryHandler,
   CalendarBlockPreviewQueryHandler,
   CalendarWorkingHoursPreviewQueryHandler,
   CalendarMeQueryHandler,
   CalendarWorkingHoursQueryHandler,
-} from '@modules/calendar/calendar.query';
+} from '@modules/calendar/schedule/calendar.query';
 
 @Module({
   controllers: [CalendarController],

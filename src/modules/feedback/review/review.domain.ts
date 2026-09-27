@@ -1,6 +1,6 @@
 import { ensure } from '@shared/domain/domain.error';
-import { ReviewStatus } from '@shared/database/entities/feedback.entity';
-import { BookingStatus } from '@shared/database/entities/booking.entity';
+import { ReviewStatus } from '@shared/domain/values/review.values';
+import { BookingStatus } from '@shared/domain/values/booking.values';
 
 /** Số ngày khách được sửa review kể từ lúc viết. */
 export const REVIEW_EDIT_WINDOW_DAYS = 7;

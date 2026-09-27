@@ -33,11 +33,11 @@ import {
   BookingPlanCreateCommand,
   BookingPlanRemoveCommand,
   BookingPlanUpdateCommand,
-} from '@modules/photographer/booking-plans.command';
+} from '@modules/photographer/booking-plan/booking-plans.command';
 import {
   BookingPlanListQuery,
   BookingPlanMeQuery,
-} from '@modules/photographer/booking-plans.query';
+} from '@modules/photographer/booking-plan/booking-plans.query';
 
 @ApiTags('Booking plan')
 @Controller()

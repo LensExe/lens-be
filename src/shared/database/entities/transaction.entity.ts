@@ -1,18 +1,15 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { bigintColumn } from './utils/column-transformers';
-
-/**
- * Các loại giao dịch trong hệ thống
- */
-export const TransactionType = {
-  DEPOSIT: 'deposit',
-  REMAINING: 'remaining',
-  SUBSCRIPTION: 'subscription',
-} as const;
-
-export type TransactionType =
-  (typeof TransactionType)[keyof typeof TransactionType];
+import {
+  TransactionDirection,
+  TransactionPaymentGateway,
+  TransactionStatus,
+  type TransactionDirection as TransactionDirectionType,
+  type TransactionPaymentGateway as TransactionPaymentGatewayType,
+  type TransactionStatus as TransactionStatusType,
+  type TransactionType,
+} from '@shared/domain/values/payment.values';
 
 /**
  * Entity đại diện cho bảng `transactions`.
@@ -38,8 +35,8 @@ export class TransactionEntity extends BaseEntity {
   reference_id!: string | null;
 
   /** Chiều dòng tiền: 'in' (tiền vào) hoặc 'out' (tiền ra) */
-  @Column({ default: 'in' })
-  direction!: string;
+  @Column({ default: TransactionDirection.IN })
+  direction!: TransactionDirectionType;
 
   /** Số tiền giao dịch (VND) */
   @Column(bigintColumn)
@@ -53,13 +50,13 @@ export class TransactionEntity extends BaseEntity {
   @Column('text', { default: '' })
   description!: string;
 
-  /** Trạng thái giao dịch ('pending' | 'success' | 'failed' | 'cancelled') */
-  @Column({ default: 'pending' })
-  status!: string;
+  /** Trạng thái giao dịch ('pending' | 'paid' | 'failed') */
+  @Column({ default: TransactionStatus.PENDING })
+  status!: TransactionStatusType;
 
   /** Cổng thanh toán xử lý ('payos' | 'wallet_internal' | 'bank_transfer') */
-  @Column({ default: 'payos' })
-  payment_gateway!: string;
+  @Column({ default: TransactionPaymentGateway.PAYOS })
+  payment_gateway!: TransactionPaymentGatewayType;
 
   /** Mã đơn hàng đối soát từ cổng thanh toán bên thứ ba (cho phép null với giao dịch nội bộ) */
   @Column({ ...bigintColumn, nullable: true })

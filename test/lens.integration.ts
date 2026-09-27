@@ -25,7 +25,7 @@ import { PhotographerBadgeJob } from '../src/features/workers/photographer-badge
 import { BookingAutoCompleteJob } from '../src/features/workers/booking-auto-complete.job';
 import { BookingExpirePendingJob } from '../src/features/workers/booking-expire-pending.job';
 import { BookingCancelUnpaidJob } from '../src/features/workers/booking-cancel-unpaid.job';
-import { Booking } from '../src/modules/booking/booking.domain';
+import { Booking } from '../src/modules/booking/core/booking.domain';
 import { CommandBus } from '@nestjs/cqrs';
 import { IdentityCustomerRegisterCommand } from '../src/modules/identity/identity.command';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';

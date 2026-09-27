@@ -4,19 +4,8 @@ import {
   bigintColumn,
   timestampTransformer,
 } from './utils/column-transformers';
-
-/**
- * Trạng thái của gói thuê bao / hội viên
- */
-export const SubscriptionStatus = {
-  PENDING: 'pending',
-  ACTIVE: 'active',
-  EXPIRED: 'expired',
-  CANCELLED: 'cancelled',
-} as const;
-
-export type SubscriptionStatus =
-  (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus];
+import { SubscriptionStatus } from '@shared/domain/values/subscription.values';
+import type { SubscriptionStatus as SubscriptionStatusType } from '@shared/domain/values/subscription.values';
 
 /**
  * Entity đại diện cho bảng `subscriptions`.
@@ -46,7 +35,7 @@ export class SubscriptionEntity extends BaseEntity {
 
   /** Trạng thái gói cước ('pending' | 'active' | 'expired' | 'cancelled') */
   @Column({ default: SubscriptionStatus.PENDING })
-  status!: SubscriptionStatus;
+  status!: SubscriptionStatusType;
 
   /** Cho phép tự động gia hạn khi đến hạn kết thúc chu kỳ */
   @Column({ default: true })

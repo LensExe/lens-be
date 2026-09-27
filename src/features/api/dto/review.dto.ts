@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ReviewStatus } from '@shared/database/entities/feedback.entity';
+import { ReviewStatus } from '@shared/domain/values/review.values';
 import {
   IsIn,
   IsUUID,

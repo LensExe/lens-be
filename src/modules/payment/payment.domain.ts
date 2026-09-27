@@ -1,5 +1,5 @@
 import { ensure } from '@shared/domain/domain.error';
-import { money } from '@shared/domain/booking-values';
+import { money } from '@shared/domain/rules/money.rules';
 
 export class Payment {
   constructor(

@@ -1,12 +1,12 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import {
-  DEFAULT_WORKING_HOURS,
   WorkSchedule,
   vnDate,
   vnDayInterval,
   vnWeekday,
-} from '../src/shared/domain/work-schedule';
+} from '../src/shared/domain/rules/work-schedule.rules';
+import { DEFAULT_WORKING_HOURS } from '../src/shared/domain/values/work-schedule.values';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';
 
 const invalid = (error: unknown) =>

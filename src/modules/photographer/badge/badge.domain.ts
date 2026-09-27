@@ -1,4 +1,4 @@
-import type { BadgeMetric } from '@shared/database/entities/badge.entity';
+import type { BadgeMetric } from '@shared/domain/values/badge.values';
 
 /** Số liệu đầu vào để xét huy hiệu, lấy từ review đang hiện và thống kê booking. */
 export interface BadgeStats {

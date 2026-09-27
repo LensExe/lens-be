@@ -1,4 +1,4 @@
-import type { BookingStatus } from '@shared/database/entities/booking.entity';
+import type { BookingStatus } from '@shared/domain/values/booking.values';
 
 export interface BookingAdminQueryInput {
   limit?: number;

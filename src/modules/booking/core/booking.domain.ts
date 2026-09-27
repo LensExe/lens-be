@@ -1,16 +1,14 @@
 import { ensure } from '@shared/domain/domain.error';
 import {
-  interval,
-  isOccupied,
-  money,
-  overlaps,
-} from '@shared/domain/booking-values';
-import { WorkSchedule, type WorkingShift } from '@shared/domain/work-schedule';
-import {
   BookingStatus,
+  BookingActorRole,
   OCCUPIED_BOOKING_STATUSES,
-} from '@shared/database/entities/booking.entity';
-import { BookingActorRole } from '@shared/database/entities/booking-status-history.entity';
+} from '@shared/domain/values/booking.values';
+import { isOccupied } from '@shared/domain/rules/booking.rules';
+import { money } from '@shared/domain/rules/money.rules';
+import { interval, overlaps } from '@shared/domain/rules/time-range.rules';
+import { WorkSchedule } from '@shared/domain/rules/work-schedule.rules';
+import type { WorkingShift } from '@shared/domain/types/work-schedule.types';
 export { BookingStatus, OCCUPIED_BOOKING_STATUSES, BookingActorRole };
 
 export interface BookingDraftInput {

@@ -9,17 +9,17 @@ import { PaymentGateway } from '@shared/integrations/payment/payment.port';
 import { RealtimePublisher } from '@shared/integrations/realtime/realtime-publisher.port';
 import { PayOsGateway } from '@shared/integrations/payment/payos-gateway.service';
 import { S3Module } from '@shared/integrations/s3/s3.module';
-import { BookingUseCases } from '@modules/booking/booking.use-case';
-import { CalendarUseCases } from '@modules/calendar/calendar.use-case';
-import { ReviewUseCases } from '@modules/feedback/review.use-case';
+import { BookingUseCases } from '@modules/booking/core/booking.use-case';
+import { CalendarUseCases } from '@modules/calendar/schedule/calendar.use-case';
+import { ReviewUseCases } from '@modules/feedback/review/review.use-case';
 import { MediaUseCases } from '@modules/media/media.use-case';
 import { ModerationUseCases } from '@modules/moderation/moderation.use-case';
 import { PaymentUseCases } from '@modules/payment/payment.use-case';
 import { PhotographerUseCases } from '@modules/photographer/photographer.use-case';
-import { PortfolioUseCases } from '@modules/photographer/portfolio.use-case';
-import { BookingPlanUseCases } from '@modules/photographer/booking-plan.use-case';
-import { RankUseCases } from '@modules/photographer/rank.use-case';
-import { BadgeUseCases } from '@modules/photographer/badge.use-case';
+import { PortfolioUseCases } from '@modules/photographer/portfolio/portfolio.use-case';
+import { BookingPlanUseCases } from '@modules/photographer/booking-plan/booking-plan.use-case';
+import { RankUseCases } from '@modules/photographer/rank/rank.use-case';
+import { BadgeUseCases } from '@modules/photographer/badge/badge.use-case';
 import { SubscriptionUseCases } from '@modules/subscription/subscription.use-case';
 import { IdentityUseCases } from '@modules/identity/identity.use-case';
 import { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.port';
@@ -40,6 +40,7 @@ import { DomainErrorFilter } from '@shared/platform/exceptions/domain-error.filt
 import { TypeOrmErrorFilter } from '@shared/platform/exceptions/typeorm-error.filter';
 import { EnvModule } from '@shared/platform/env';
 
+// Dùng cho các lệnh (commands) và truy vấn (queries)
 const applicationServices = [
   BookingUseCases,
   CalendarUseCases,
@@ -60,8 +61,8 @@ const applicationServices = [
 @Module({
   imports: [
     EnvModule,
-    CqrsModule.forRoot(),
-    ScheduleModule.forRoot(),
+    CqrsModule.forRoot(), // Dùng cho các lệnh (commands) và truy vấn (queries)
+    ScheduleModule.forRoot(), // Dùng cho các tác vụ định kỳ như cleanup
     DatabaseModule,
     RedisModule,
     LensCacheModule,
@@ -71,16 +72,46 @@ const applicationServices = [
   ],
   providers: [
     ...applicationServices,
-    { provide: RatingUpdaterPort, useExisting: ReviewUseCases },
-    { provide: PaidAmountsPort, useExisting: PaymentUseCases },
-    { provide: PendingBookingsPort, useExisting: BookingUseCases },
-    { provide: CollaborationTimesPort, useExisting: BookingUseCases },
-    { provide: PhotographerBookingsPort, useExisting: BookingUseCases },
-    { provide: WorkingHoursPort, useExisting: CalendarUseCases },
-    { provide: PhotographerRatingsPort, useExisting: ReviewUseCases },
-    { provide: PlanBookingsPort, useExisting: BookingUseCases },
-    { provide: MediaOwnershipPort, useExisting: MediaUseCases },
-    { provide: SubscriptionPaymentsPort, useExisting: PaymentUseCases },
+    {
+      provide: RatingUpdaterPort,
+      useExisting: ReviewUseCases,
+    },
+    {
+      provide: PaidAmountsPort,
+      useExisting: PaymentUseCases,
+    },
+    {
+      provide: PendingBookingsPort,
+      useExisting: BookingUseCases,
+    },
+    {
+      provide: CollaborationTimesPort,
+      useExisting: BookingUseCases,
+    },
+    {
+      provide: PhotographerBookingsPort,
+      useExisting: BookingUseCases,
+    },
+    {
+      provide: WorkingHoursPort,
+      useExisting: CalendarUseCases,
+    },
+    {
+      provide: PhotographerRatingsPort,
+      useExisting: ReviewUseCases,
+    },
+    {
+      provide: PlanBookingsPort,
+      useExisting: BookingUseCases,
+    },
+    {
+      provide: MediaOwnershipPort,
+      useExisting: MediaUseCases,
+    },
+    {
+      provide: SubscriptionPaymentsPort,
+      useExisting: PaymentUseCases,
+    },
     // TODO(identity): thay bằng provider thật của identity (docs/IDENTITY_TODO.md, việc 7).
     // Tạm thời duyệt hồ sơ không gán role Keycloak.
     {
@@ -90,12 +121,27 @@ const applicationServices = [
         revoke: () => Promise.resolve(),
       },
     },
-    { provide: PaymentGateway, useClass: PayOsGateway },
-    { provide: APP_GUARD, useClass: KeycloakGuard },
-    { provide: APP_FILTER, useClass: DomainErrorFilter },
-    { provide: APP_FILTER, useClass: TypeOrmErrorFilter },
+    {
+      provide: PaymentGateway,
+      useClass: PayOsGateway,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: KeycloakGuard,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: DomainErrorFilter,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: TypeOrmErrorFilter,
+    },
     LensGateway,
-    { provide: RealtimePublisher, useExisting: LensGateway },
+    {
+      provide: RealtimePublisher,
+      useExisting: LensGateway,
+    },
     OutboxWorker,
   ],
   exports: [

@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { Collaboration } from '../src/modules/booking/collaborator.domain';
+import { Collaboration } from '../src/modules/booking/collaborator/collaborator.domain';
 
 const invite = {
   bookingStatus: 'accepted',

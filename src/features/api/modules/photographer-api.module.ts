@@ -3,19 +3,19 @@ import { PhotographerController } from '../http/photographer.controller';
 import { BookingPlanController } from '../http/booking-plan.controller';
 import { RankController } from '../http/rank.controller';
 import { BadgeController } from '../http/badge.controller';
-import { RankUpdateCommandHandler } from '@modules/photographer/ranks.command';
-import { RankListQueryHandler } from '@modules/photographer/ranks.query';
-import { BadgeUpdateCommandHandler } from '@modules/photographer/badges.command';
-import { BadgeListQueryHandler } from '@modules/photographer/badges.query';
+import { RankUpdateCommandHandler } from '@modules/photographer/rank/ranks.command';
+import { RankListQueryHandler } from '@modules/photographer/rank/ranks.query';
+import { BadgeUpdateCommandHandler } from '@modules/photographer/badge/badges.command';
+import { BadgeListQueryHandler } from '@modules/photographer/badge/badges.query';
 import {
   BookingPlanCreateCommandHandler,
   BookingPlanRemoveCommandHandler,
   BookingPlanUpdateCommandHandler,
-} from '@modules/photographer/booking-plans.command';
+} from '@modules/photographer/booking-plan/booking-plans.command';
 import {
   BookingPlanListQueryHandler,
   BookingPlanMeQueryHandler,
-} from '@modules/photographer/booking-plans.query';
+} from '@modules/photographer/booking-plan/booking-plans.query';
 import { PhotographerBadgeJob } from '../../workers/photographer-badge.job';
 import {
   PhotographerApproveCommandHandler,

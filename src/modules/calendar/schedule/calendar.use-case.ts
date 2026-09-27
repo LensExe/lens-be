@@ -9,13 +9,11 @@ import {
   required,
 } from '@shared/common/access';
 import { Calendar } from './calendar.domain';
-import { PendingBookingsPort } from './ports/pending-bookings.port';
-import { CollaborationTimesPort } from './ports/collaboration-times.port';
-import { PhotographerBookingsPort } from './ports/photographer-bookings.port';
-import {
-  DEFAULT_WORKING_HOURS,
-  WorkSchedule,
-} from '@shared/domain/work-schedule';
+import { PendingBookingsPort } from '../ports/pending-bookings.port';
+import { CollaborationTimesPort } from '../ports/collaboration-times.port';
+import { PhotographerBookingsPort } from '../ports/photographer-bookings.port';
+import { WorkSchedule } from '@shared/domain/rules/work-schedule.rules';
+import { DEFAULT_WORKING_HOURS } from '@shared/domain/values/work-schedule.values';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 
 /** Lý do ghi cho yêu cầu pending bị từ chối vì thợ chặn đúng giờ đó. */

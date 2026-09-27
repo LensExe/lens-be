@@ -1,19 +1,8 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { timestampTransformer } from './utils/column-transformers';
-
-/**
- * Trạng thái xét duyệt / xác minh hồ sơ của Nhiếp ảnh gia
- */
-export const VerificationStatus = {
-  UNVERIFIED: 'unverified',
-  PENDING: 'pending',
-  VERIFIED: 'verified',
-  REJECTED: 'rejected',
-} as const;
-
-export type VerificationStatus =
-  (typeof VerificationStatus)[keyof typeof VerificationStatus];
+import { VerificationStatus } from '@shared/domain/values/photographer.values';
+import type { VerificationStatus as VerificationStatusType } from '@shared/domain/values/photographer.values';
 
 /**
  * Entity đại diện cho bảng `photographers`.
@@ -47,7 +36,7 @@ export class PhotographerEntity extends BaseEntity {
 
   /** Trạng thái xác thực hồ sơ nghề nghiệp bởi ban quản trị */
   @Column({ default: VerificationStatus.PENDING })
-  verification_status!: VerificationStatus;
+  verification_status!: VerificationStatusType;
 
   /** Cờ boolean xác nhận đã duyệt (true khi verification_status là 'verified') */
   @Column({ default: false })

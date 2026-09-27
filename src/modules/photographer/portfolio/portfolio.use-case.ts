@@ -10,7 +10,7 @@ import { ObjectStorage } from '@shared/integrations/s3/storage.port';
 import type { Actor } from '@shared/platform/auth/actor';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import type * as Inputs from '@shared/contracts/contracts';
-import { MediaOwnershipPort } from './ports/media-ownership.port';
+import { MediaOwnershipPort } from '../ports/media-ownership.port';
 import { Portfolio } from './portfolio.domain';
 
 @Injectable()

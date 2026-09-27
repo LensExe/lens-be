@@ -1,9 +1,6 @@
 import type { EntityManager } from 'typeorm';
-import {
-  EntitySchemas,
-  updateEntity,
-  ReportTargetType,
-} from '@shared/database';
+import { EntitySchemas, updateEntity } from '@shared/database';
+import { ReportTargetType } from '@shared/domain/values/report.values';
 import type * as Inputs from '@shared/contracts/contracts';
 import { Injectable } from '@nestjs/common';
 import type { Actor } from '@shared/platform/auth/actor';

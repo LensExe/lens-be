@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import type { FindOperator } from 'typeorm';
-import { isOccupied } from '../src/shared/domain/booking-values';
+import { isOccupied } from '../src/shared/domain/rules/booking.rules';
 import { pageWindow, paged } from '../src/shared/common/access';
 import { overlapWhere } from '../src/shared/database/database.helpers';
 

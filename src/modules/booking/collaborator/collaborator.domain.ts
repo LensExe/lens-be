@@ -1,5 +1,5 @@
 import { ensure } from '@shared/domain/domain.error';
-import { BookingCollaboratorStatus } from '@shared/database/entities/booking-collaborator.entity';
+import { BookingCollaboratorStatus } from '@shared/domain/values/booking.values';
 export { BookingCollaboratorStatus };
 
 /** Trạng thái lời mời còn chiếm % (tính vào tổng ≤ 100). */

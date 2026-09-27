@@ -1,5 +1,6 @@
 import type { EntityManager } from 'typeorm';
-import { EntitySchemas, updateEntity, MediaStatus } from '@shared/database';
+import { EntitySchemas, updateEntity } from '@shared/database';
+import { MediaStatus } from '@shared/domain/values/media.values';
 import type * as Inputs from '@shared/contracts/contracts';
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';

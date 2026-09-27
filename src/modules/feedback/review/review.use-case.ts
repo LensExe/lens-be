@@ -1,9 +1,7 @@
 import { In, type EntityManager } from 'typeorm';
 import type { PhotographerRatingEntity } from '@shared/database/entities/photographer-rating.entity';
-import {
-  ReviewStatus,
-  type FeedbackEntity,
-} from '@shared/database/entities/feedback.entity';
+import type { FeedbackEntity } from '@shared/database/entities/feedback.entity';
+import { ReviewStatus } from '@shared/domain/values/review.values';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import { Review } from './review.domain';
 import type * as Inputs from '@shared/contracts/contracts';

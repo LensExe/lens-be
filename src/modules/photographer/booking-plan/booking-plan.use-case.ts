@@ -10,8 +10,8 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import type * as Inputs from '@shared/contracts/contracts';
 import { BookingPlan } from './booking-plan.domain';
-import { WorkingHoursPort } from './ports/working-hours.port';
-import { PlanBookingsPort } from './ports/plan-bookings.port';
+import { WorkingHoursPort } from '../ports/working-hours.port';
+import { PlanBookingsPort } from '../ports/plan-bookings.port';
 
 /**
  * Nghiệp vụ gói chụp (booking plan): thợ tự tạo, sửa, bật/tắt, xoá gói; khách xem gói đang bán.

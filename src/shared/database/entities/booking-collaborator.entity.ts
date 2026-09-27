@@ -1,19 +1,7 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { timestampTransformer } from './utils/column-transformers';
-
-/**
- * Trạng thái lời mời thợ liên kết.
- */
-export const BookingCollaboratorStatus = {
-  INVITED: 'invited',
-  ACCEPTED: 'accepted',
-  DECLINED: 'declined',
-  REVOKED: 'revoked',
-} as const;
-
-export type BookingCollaboratorStatus =
-  (typeof BookingCollaboratorStatus)[keyof typeof BookingCollaboratorStatus];
+import { BookingCollaboratorStatus } from '@shared/domain/values/booking.values';
 
 /**
  * Entity đại diện cho bảng `booking_collaborators`.
@@ -35,7 +23,7 @@ export class BookingCollaboratorEntity extends BaseEntity {
 
   /** Trạng thái lời mời ('invited' | 'accepted' | 'declined' | 'revoked') */
   @Column('text', { default: BookingCollaboratorStatus.INVITED })
-  status!: BookingCollaboratorStatus;
+  status!: import('@shared/domain/values/booking.values').BookingCollaboratorStatus;
 
   /** Lúc thợ được mời nhận hoặc từ chối; `null` khi chưa trả lời hoặc bị rút */
   @Column('timestamptz', { nullable: true, transformer: timestampTransformer })

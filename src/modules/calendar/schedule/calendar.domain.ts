@@ -1,11 +1,12 @@
 import { ensure } from '@shared/domain/domain.error';
-import { interval, isOccupied, overlaps } from '@shared/domain/booking-values';
+import { isOccupied } from '@shared/domain/rules/booking.rules';
+import { interval, overlaps } from '@shared/domain/rules/time-range.rules';
 import {
   WorkSchedule,
   vnDate,
   vnDayInterval,
-  type WorkingShift,
-} from '@shared/domain/work-schedule';
+} from '@shared/domain/rules/work-schedule.rules';
+import type { WorkingShift } from '@shared/domain/types/work-schedule.types';
 
 type Range = { from: string; to: string };
 type CalendarBooking = Range & { status: string };

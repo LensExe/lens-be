@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { Cron } from '@nestjs/schedule';
 import { DataSource } from 'typeorm';
-import { BookingExpirePendingCommand } from '@modules/booking/bookings.command';
+import { BookingExpirePendingCommand } from '@modules/booking/core/bookings.command';
 import { runExclusive, SYSTEM_ACTOR } from './scheduled-job';
 
 /** Job cho hết hạn yêu cầu booking thợ chưa trả lời (24 giờ hoặc tới giờ chụp), chạy mỗi 10 phút. */
