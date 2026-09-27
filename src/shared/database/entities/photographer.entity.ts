@@ -1,18 +1,8 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
-
-/**
- * Trạng thái xét duyệt / xác minh hồ sơ của Nhiếp ảnh gia
- */
-export const VerificationStatus = {
-  UNVERIFIED: 'unverified',
-  PENDING: 'pending',
-  VERIFIED: 'verified',
-  REJECTED: 'rejected',
-} as const;
-
-export type VerificationStatus =
-  (typeof VerificationStatus)[keyof typeof VerificationStatus];
+import { timestampTransformer } from './utils/column-transformers';
+import { VerificationStatus } from '@shared/domain/values/photographer.values';
+import type { VerificationStatus as VerificationStatusType } from '@shared/domain/values/photographer.values';
 
 /**
  * Entity đại diện cho bảng `photographers`.
@@ -46,7 +36,7 @@ export class PhotographerEntity extends BaseEntity {
 
   /** Trạng thái xác thực hồ sơ nghề nghiệp bởi ban quản trị */
   @Column({ default: VerificationStatus.PENDING })
-  verification_status!: VerificationStatus;
+  verification_status!: VerificationStatusType;
 
   /** Cờ boolean xác nhận đã duyệt (true khi verification_status là 'verified') */
   @Column({ default: false })
@@ -55,6 +45,14 @@ export class PhotographerEntity extends BaseEntity {
   /** ID của Quản trị viên (Admin) đã phê duyệt hồ sơ thợ ảnh này */
   @Column('uuid', { nullable: true })
   approved_by!: string | null;
+
+  /** Lý do admin từ chối hồ sơ (null khi chưa bị từ chối hoặc đã gửi lại) */
+  @Column('text', { nullable: true })
+  rejection_reason!: string | null;
+
+  /** Thời điểm admin duyệt hoặc từ chối hồ sơ gần nhất */
+  @Column('timestamptz', { nullable: true, transformer: timestampTransformer })
+  reviewed_at!: string | null;
 
   /** Trạng thái sẵn sàng nhận đơn đặt lịch (bật/tắt nhận booking) */
   @Column({ default: true })

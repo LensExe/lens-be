@@ -31,14 +31,14 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { Access, Public } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
-import { PortfolioCreateCommand } from '@modules/photographer/portfolios.command';
-import { PortfolioReorderCommand } from '@modules/photographer/portfolios.command';
-import { PortfolioListQuery } from '@modules/photographer/portfolios.query';
-import { PortfolioAddCommand } from '@modules/photographer/portfolios.command';
-import { PortfolioGetQuery } from '@modules/photographer/portfolios.query';
-import { PortfolioUpdateCommand } from '@modules/photographer/portfolios.command';
-import { PortfolioRemoveCommand } from '@modules/photographer/portfolios.command';
-import { PortfolioRemoveItemCommand } from '@modules/photographer/portfolios.command';
+import { PortfolioCreateCommand } from '@modules/photographer/portfolio/portfolios.command';
+import { PortfolioReorderCommand } from '@modules/photographer/portfolio/portfolios.command';
+import { PortfolioListQuery } from '@modules/photographer/portfolio/portfolios.query';
+import { PortfolioAddCommand } from '@modules/photographer/portfolio/portfolios.command';
+import { PortfolioGetQuery } from '@modules/photographer/portfolio/portfolios.query';
+import { PortfolioUpdateCommand } from '@modules/photographer/portfolio/portfolios.command';
+import { PortfolioRemoveCommand } from '@modules/photographer/portfolio/portfolios.command';
+import { PortfolioRemoveItemCommand } from '@modules/photographer/portfolio/portfolios.command';
 
 @ApiTags('Portfolio')
 @Controller()

@@ -12,6 +12,7 @@ import {
   MaxLength,
   ArrayMaxSize,
   ArrayUnique,
+  IsIn,
   ValidateIf,
 } from 'class-validator';
 
@@ -55,6 +56,27 @@ export class PhotographerAdminQueryQueryDto {
   @Min(0)
   @Max(1000000)
   offset?: number;
+
+  @ApiPropertyOptional({
+    description: 'verification status',
+    enum: ['unverified', 'pending', 'verified', 'rejected'],
+    example: 'pending',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsIn(['unverified', 'pending', 'verified', 'rejected'])
+  verification_status?: 'unverified' | 'pending' | 'verified' | 'rejected';
+}
+
+export class PhotographerRejectCommandBodyDto {
+  @ApiProperty({
+    description: 'reason',
+    type: 'string',
+    example: 'Portfolio chưa đủ ảnh để đánh giá',
+  })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(10000)
+  reason!: string;
 }
 
 export class PhotographerUpdateCommandBodyDto {

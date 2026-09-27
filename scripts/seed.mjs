@@ -2,7 +2,7 @@
 /**
  * scripts/seed.mjs -- Nạp dữ liệu mẫu (Seed Data) chuẩn cho hệ thống Lens (EXE202)
  *
- * Tệp này đọc và thực thi toàn bộ tệp SQL 'migrations/seed_lens.sql':
+ * Tệp này đọc và thực thi toàn bộ tệp SQL 'migrations/seed_lens-dev.sql':
  *   - Toàn bộ khóa chính và khóa ngoại đều là UUID v4 (RFC 4122).
  *   - Đồng bộ 20 bảng cơ sở dữ liệu: users, admins, customers, photographers,
  *     photographer_ratings, booking_plans, photographer_plans, subscriptions,
@@ -44,7 +44,7 @@ async function seed() {
     await client.connect();
     console.log('✅ Đã kết nối cơ sở dữ liệu thành công.');
 
-    const seedSqlPath = resolve(__dirname, '../migrations/seed_lens.sql');
+    const seedSqlPath = resolve(__dirname, '../migrations/seed_lens-dev.sql');
     console.log(`📦 Đang đọc dữ liệu từ tệp: ${seedSqlPath}`);
     const seedSql = readFileSync(seedSqlPath, 'utf8');
 

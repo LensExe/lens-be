@@ -1,26 +1,7 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { bigintColumn } from './utils/column-transformers';
-
-/**
- * Cấu hình tính năng / đặc quyền của gói hội viên
- */
-export interface PlanFeature {
-  /**
-   * Mã định danh tính năng (ví dụ: 'MAX_IMAGES', 'BADGE_PRO', 'PRIORITY_SEARCH')
-   */
-  code: string;
-
-  /**
-   * Tên hiển thị tính năng (ví dụ: 'Tải tối đa 100 ảnh', 'Huy hiệu PRO nổi bật')
-   */
-  name: string;
-
-  /**
-   * Giá trị cấu hình của tính năng (ví dụ: '100', 'true', 'unlimited')
-   */
-  value: string;
-}
+import type { PlanFeature } from '@shared/domain/types/plan.types';
 
 /**
  * Entity đại diện cho bảng `photographer_plans`.

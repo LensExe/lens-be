@@ -138,12 +138,12 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================================
 -- 9. BẢNG OFFLINE_SLOTS (Ngày bận / nghỉ cá nhân của Thợ ảnh trong năm 2026)
 -- ============================================================================
-INSERT INTO offline_slots (id, photographer_id, date, reason, created_at, updated_at)
+INSERT INTO offline_slots (id, photographer_id, "from", "to", reason, created_at, updated_at)
 VALUES
-  ('80000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '2026-10-15', 'Nghỉ bảo dưỡng và hiệu chuẩn thiết bị máy ảnh', '2026-03-10 08:00:00+07', '2026-03-10 08:00:00+07'),
-  ('80000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000001', '2026-11-20', 'Tham gia triển lãm ảnh nghệ thuật Đà Nẵng', '2026-03-10 08:00:00+07', '2026-03-10 08:00:00+07'),
-  ('80000000-0000-4000-8000-000000000003', '30000000-0000-4000-8000-000000000002', '2026-10-25', 'Lịch cá nhân / Việc gia đình', '2026-03-12 09:30:00+07', '2026-03-12 09:30:00+07'),
-  ('80000000-0000-4000-8000-000000000004', '30000000-0000-4000-8000-000000000003', '2026-12-01', 'Lịch đào tạo trợ lý studio', '2026-03-15 14:00:00+07', '2026-03-15 14:00:00+07')
+  ('80000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '2026-10-15 00:00:00+07', '2026-10-16 00:00:00+07', 'Nghỉ bảo dưỡng và hiệu chuẩn thiết bị máy ảnh', '2026-03-10 08:00:00+07', '2026-03-10 08:00:00+07'),
+  ('80000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000001', '2026-11-20 00:00:00+07', '2026-11-21 00:00:00+07', 'Tham gia triển lãm ảnh nghệ thuật Đà Nẵng', '2026-03-10 08:00:00+07', '2026-03-10 08:00:00+07'),
+  ('80000000-0000-4000-8000-000000000003', '30000000-0000-4000-8000-000000000002', '2026-10-25 00:00:00+07', '2026-10-26 00:00:00+07', 'Lịch cá nhân / Việc gia đình', '2026-03-12 09:30:00+07', '2026-03-12 09:30:00+07'),
+  ('80000000-0000-4000-8000-000000000004', '30000000-0000-4000-8000-000000000003', '2026-12-01 00:00:00+07', '2026-12-02 00:00:00+07', 'Lịch đào tạo trợ lý studio', '2026-03-15 14:00:00+07', '2026-03-15 14:00:00+07')
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -220,6 +220,37 @@ VALUES
   ('d0000000-0000-4000-8000-000000000004', '20000000-0000-4000-8000-000000000004', '30000000-0000-4000-8000-000000000004', '50000000-0000-4000-8000-000000000007', 'Phố sách Đinh Lễ & Phố đi bộ Hồ Gươm', '2026-07-28 14:00:00+07', '2026-07-28 15:00:00+07', 240000, 800000, 'cancelled', NULL, '2026-07-10 16:30:00+07', '2026-07-20 10:00:00+07')
 ON CONFLICT (id) DO NOTHING;
 
+-- Lịch sử trạng thái của 4 booking trên (timeline), chỉ chèn khi booking chưa có lịch sử. actor: bên thực hiện, user lấy từ khách/thợ của booking.
+INSERT INTO booking_status_history (id, booking_id, from_status, to_status, actor_role, actor_user_id, reason, created_at, updated_at)
+SELECT h.id::uuid, b.id, h.from_status, h.to_status, h.actor_role,
+  CASE h.actor_role WHEN 'customer' THEN c.user_id WHEN 'photographer' THEN p.user_id END,
+  h.reason, h.at::timestamptz, h.at::timestamptz
+FROM (VALUES
+  ('d1000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000001', NULL, 'pending', 'customer', NULL, '2026-07-05 10:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000002', 'd0000000-0000-4000-8000-000000000001', 'pending', 'accepted', 'photographer', NULL, '2026-07-05 12:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000003', 'd0000000-0000-4000-8000-000000000001', 'accepted', 'in_progress', 'photographer', NULL, '2026-07-15 15:30:00+07'),
+  ('d1000000-0000-4000-8000-000000000004', 'd0000000-0000-4000-8000-000000000001', 'in_progress', 'shot', 'photographer', NULL, '2026-07-15 17:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000005', 'd0000000-0000-4000-8000-000000000001', 'shot', 'completed', 'customer', NULL, '2026-07-17 10:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000006', 'd0000000-0000-4000-8000-000000000002', NULL, 'pending', 'customer', NULL, '2026-08-01 14:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000007', 'd0000000-0000-4000-8000-000000000002', 'pending', 'accepted', 'photographer', NULL, '2026-08-01 18:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000008', 'd0000000-0000-4000-8000-000000000002', 'accepted', 'in_progress', 'photographer', NULL, '2026-08-10 09:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000009', 'd0000000-0000-4000-8000-000000000002', 'in_progress', 'shot', 'photographer', NULL, '2026-08-10 12:30:00+07'),
+  ('d1000000-0000-4000-8000-000000000010', 'd0000000-0000-4000-8000-000000000003', NULL, 'pending', 'customer', NULL, '2026-09-01 09:15:00+07'),
+  ('d1000000-0000-4000-8000-000000000011', 'd0000000-0000-4000-8000-000000000003', 'pending', 'accepted', 'photographer', NULL, '2026-09-01 11:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000012', 'd0000000-0000-4000-8000-000000000004', NULL, 'pending', 'customer', NULL, '2026-07-10 16:30:00+07'),
+  ('d1000000-0000-4000-8000-000000000013', 'd0000000-0000-4000-8000-000000000004', 'pending', 'accepted', 'photographer', NULL, '2026-07-11 09:00:00+07'),
+  ('d1000000-0000-4000-8000-000000000014', 'd0000000-0000-4000-8000-000000000004', 'accepted', 'cancelled', 'customer', 'Gia đình có việc đột xuất, xin huỷ lịch', '2026-07-20 10:00:00+07')
+) AS h(id, booking_id, from_status, to_status, actor_role, reason, at)
+JOIN bookings b ON b.id = h.booking_id::uuid
+JOIN customers c ON c.id = b.customer_id
+JOIN photographers p ON p.id = b.photographer_id
+-- DB đã có booking từ trước thì migration 009 đã ghi lịch sử, không chèn thêm để khỏi trùng
+WHERE NOT EXISTS (
+  SELECT 1 FROM booking_status_history x
+  WHERE x.booking_id = b.id AND x.id <> h.id::uuid
+)
+ON CONFLICT (id) DO NOTHING;
+
 -- ============================================================================
 -- 14. BẢNG TRANSACTIONS (Giao dịch tài chính trong năm 2026)
 -- ============================================================================
@@ -275,10 +306,23 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================================
 -- 18. BẢNG FEEDBACKS (Đánh giá thực tế từ Khách hàng & Phản hồi của Thợ ảnh)
 -- ============================================================================
-INSERT INTO feedbacks (id, booking_id, customer_id, rating, punctuality_rating, attitude_rating, comment, is_edited, is_visible, photographer_reply, replied_at, created_at, updated_at)
+INSERT INTO feedbacks (id, booking_id, customer_id, photographer_id, rating, punctuality_rating, attitude_rating, comment, is_edited, status, photographer_reply, replied_at, created_at, updated_at)
 VALUES
-  ('15000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 5, 5, 5, 'Anh Huy chụp siêu có tâm, nhiệt tình chỉ cách tạo dáng cho hai đứa từ đầu đến cuối. Nước màu ảnh rất trong trẻo, giao ảnh đúng hẹn!', false, true, 'Cảm ơn Mai Anh và bạn đã tin tưởng dịch vụ của Huy nhé. Chúc hai bạn luôn ngập tràn niềm vui!', '2026-07-18 08:30:00+07', '2026-07-17 20:00:00+07', '2026-07-18 08:30:00+07')
+  ('15000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 5, 5, 5, 'Anh Huy chụp siêu có tâm, nhiệt tình chỉ cách tạo dáng cho hai đứa từ đầu đến cuối. Nước màu ảnh rất trong trẻo, giao ảnh đúng hẹn!', false, 'visible', 'Cảm ơn Mai Anh và bạn đã tin tưởng dịch vụ của Huy nhé. Chúc hai bạn luôn ngập tràn niềm vui!', '2026-07-18 08:30:00+07', '2026-07-17 20:00:00+07', '2026-07-18 08:30:00+07')
 ON CONFLICT (id) DO NOTHING;
+
+-- Thống kê rating của thợ tính lại từ booking và review thật ở trên (cùng cách app tính), để rank và
+-- huy hiệu không lệch khi có booking hoàn tất / review mới.
+UPDATE photographer_ratings r
+SET average_rating = COALESCE((SELECT AVG(f.rating) FROM feedbacks f
+                               WHERE f.photographer_id = r.photographer_id AND f.status = 'visible'), 0),
+    total_feedbacks = (SELECT COUNT(*) FROM feedbacks f
+                       WHERE f.photographer_id = r.photographer_id AND f.status = 'visible'),
+    total_bookings = (SELECT COUNT(*) FROM bookings b
+                      WHERE b.photographer_id = r.photographer_id AND b.status = 'completed'),
+    return_customers = (SELECT COUNT(*) FROM (SELECT b.customer_id FROM bookings b
+                                              WHERE b.photographer_id = r.photographer_id AND b.status = 'completed'
+                                              GROUP BY b.customer_id HAVING COUNT(*) > 1) returning_customers);
 
 -- ============================================================================
 -- 19. BẢNG REPORTS (Báo cáo khiếu nại & Xử lý tranh chấp của Quản trị viên)

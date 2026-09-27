@@ -1,6 +1,7 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { timestampTransformer } from './utils/column-transformers';
+import { ReviewStatus } from '@shared/domain/values/review.values';
 
 /**
  * Entity đại diện cho bảng `feedbacks`.
@@ -15,6 +16,10 @@ export class FeedbackEntity extends BaseEntity {
   /** ID của khách hàng thực hiện đánh giá (khóa ngoại liên kết `customers.id`) */
   @Column('uuid')
   customer_id!: string;
+
+  /** ID hồ sơ thợ được đánh giá (khóa ngoại `photographers.id`), để lọc review theo thợ */
+  @Column('uuid')
+  photographer_id!: string;
 
   /** Điểm đánh giá chất lượng tổng thể (từ 1 đến 5 sao) */
   @Column()
@@ -36,9 +41,13 @@ export class FeedbackEntity extends BaseEntity {
   @Column({ default: false })
   is_edited!: boolean;
 
-  /** Trạng thái cho phép hiển thị công khai trên trang của thợ ảnh */
-  @Column({ default: true })
-  is_visible!: boolean;
+  /** Trạng thái hiển thị ('visible' | 'deleted_by_author' | 'hidden_by_admin'), xem `ReviewStatus` */
+  @Column({ default: ReviewStatus.VISIBLE })
+  status!: import('@shared/domain/values/review.values').ReviewStatus;
+
+  /** Lý do admin ẩn review; `null` khi review không bị admin ẩn (hoặc ẩn từ trước khi có lý do) */
+  @Column('text', { nullable: true })
+  hidden_reason!: string | null;
 
   // --- PHẢN HỒI CỦA NHIẾP ẢNH GIA (GỘP TỪ REPLIES) ---
 

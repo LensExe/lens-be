@@ -4,7 +4,7 @@ import {
   ReportTargetType,
   RESOLVABLE_REPORT_STATUSES,
   ReportStatus,
-} from '@shared/database/entities/report.entity';
+} from '@shared/domain/values/report.values';
 
 export {
   REPORT_TARGET_TYPES,

@@ -29,6 +29,19 @@ const portfolioItem = obj({
   download_url: str,
 });
 
+const publicReview = obj({
+  id: str,
+  rating: num,
+  punctuality_rating: num,
+  attitude_rating: num,
+  comment: str,
+  is_edited: bool,
+  photographer_reply: { ...str, nullable: true },
+  replied_at: { ...str, nullable: true },
+  created_at: str,
+  customer: obj({ name: str, avatar_url: { ...str, nullable: true } }),
+});
+
 const photographer = obj({
   id: str,
   fullname: str,
@@ -40,13 +53,50 @@ const photographer = obj({
   location: str,
   is_available: bool,
   description: str,
-  rating: records.ratings,
+  rating: obj({
+    average_rating: num,
+    total_feedbacks: num,
+    total_bookings: num,
+    return_customers: num,
+  }),
+  rank: obj({ code: str, name: str }),
+  badges: array(obj({ code: str, name: str, earned_at: str })),
+});
+
+const rank = obj({
+  id: str,
+  code: str,
+  name: str,
+  min_completed: num,
+  commission_percent: num,
+});
+
+const badge = obj({
+  id: str,
+  code: str,
+  name: str,
+  description: str,
+  metric: {
+    ...str,
+    enum: ['average_rating', 'average_punctuality', 'return_customers'],
+  },
+  min_value: num,
+  min_reviews: num,
+  is_active: bool,
+});
+
+const workingHours = obj({
+  items: array(obj({ weekday: num, start_time: str, end_time: str })),
+  is_default: bool,
 });
 
 const privatePhotographer = obj({
   ...photographer.properties,
   tax_code: { ...str, nullable: true },
   user_id: str,
+  rejection_reason: { ...str, nullable: true },
+  reviewed_at: { ...str, nullable: true },
+  commission_percent: num,
 });
 
 const gallery = obj({
@@ -81,6 +131,18 @@ const subscription = obj({
 
 const webhook = obj({ received: bool, duplicate: bool });
 
+const tokenSet = obj({
+  access_token: str,
+  expires_in: num,
+  refresh_token: str,
+  scope: str,
+  token_type: str,
+});
+
+const authSession = obj({ ...tokenSet.properties, user: records.users });
+
+const authResult = obj({ success: bool, message: str });
+
 const schemas: Record<string, SchemaObject> = {
   'AUTH-001': records.users,
   'AUTH-002': records.users,
@@ -99,6 +161,15 @@ const schemas: Record<string, SchemaObject> = {
     token_type: str,
     user: records.users,
   }),
+  'AUTH-009': authSession,
+  'AUTH-010': tokenSet,
+  'AUTH-011': authResult,
+  'AUTH-012': authResult,
+  'AUTH-013': authResult,
+  'AUTH-014': obj({ ...authResult.properties, reset_token: str }),
+  'AUTH-015': authResult,
+  'AUTH-016': authResult,
+  'AUTH-017': authResult,
   'PHO-001': privatePhotographer,
   'PHO-002': photographer,
   'PHO-003': privatePhotographer,
@@ -107,6 +178,15 @@ const schemas: Record<string, SchemaObject> = {
   'PHO-006': paged(photographer),
   'PHO-007': privatePhotographer,
   'PHO-008': privatePhotographer,
+  'PHO-009': records.booking_plans,
+  'PHO-010': items(
+    obj({ ...records.booking_plans.properties, fits_working_hours: bool }),
+  ),
+  'PHO-011': records.booking_plans,
+  'PHO-012': deleted,
+  'PHO-013': items(records.booking_plans),
+  'PHO-014': items(rank),
+  'PHO-015': items(badge),
   'PORT-001': records.portfolios,
   'PORT-002': paged(records.portfolios),
   'PORT-003': portfolio,
@@ -122,6 +202,10 @@ const schemas: Record<string, SchemaObject> = {
   }),
   'CAL-006': records.offline_slots,
   'CAL-007': deleted,
+  'CAL-008': workingHours,
+  'CAL-009': workingHours,
+  'CAL-010': items(records.bookings),
+  'CAL-011': items(records.bookings),
   'BOOK-001': records.bookings,
   'BOOK-002': records.bookings,
   'BOOK-003': paged(records.bookings),
@@ -131,10 +215,16 @@ const schemas: Record<string, SchemaObject> = {
   'BOOK-007': records.bookings,
   'BOOK-008': records.bookings,
   'BOOK-009': records.bookings,
-  'BOOK-010': items(
-    obj({ booking_id: str, status: str, created_at: str, updated_at: str }),
-  ),
+  'BOOK-010': items(records.booking_status_history),
   'BOOK-011': records.reports,
+  'BOOK-012': records.bookings,
+  'BOOK-013': records.booking_collaborators,
+  'BOOK-014': items(records.booking_collaborators),
+  'BOOK-015': paged(records.booking_collaborators),
+  'BOOK-016': records.booking_collaborators,
+  'BOOK-017': records.booking_collaborators,
+  'BOOK-018': records.booking_collaborators,
+  'BOOK-019': records.bookings,
   'PAY-001': records.transactions,
   'PAY-002': records.transactions,
   'PAY-003': items(records.transactions),
@@ -168,7 +258,7 @@ const schemas: Record<string, SchemaObject> = {
   'MEDIA-008': gallery,
   'MEDIA-009': gallery,
   'REV-001': records.feedbacks,
-  'REV-002': paged(records.feedbacks),
+  'REV-002': paged(publicReview),
   'REV-003': obj({
     average_rating: num,
     total_feedbacks: num,
@@ -176,6 +266,10 @@ const schemas: Record<string, SchemaObject> = {
   }),
   'REV-004': records.feedbacks,
   'REV-005': deleted,
+  'REV-006': records.feedbacks,
+  'REV-007': records.feedbacks,
+  'REV-008': paged(records.feedbacks),
+  'REV-009': records.feedbacks,
   'SUB-001': obj({
     items: array(
       obj({
@@ -214,6 +308,10 @@ const schemas: Record<string, SchemaObject> = {
   'ADM-006': paged(records.transactions),
   'ADM-007': paged(records.photographers),
   'ADM-008': records.users,
+  'ADM-009': privatePhotographer,
+  'ADM-010': privatePhotographer,
+  'ADM-011': rank,
+  'ADM-012': badge,
 };
 export function responseSchema(id: string): SchemaObject {
   const schema = schemas[id];

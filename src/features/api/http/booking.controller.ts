@@ -29,18 +29,26 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { Access } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
-import { BookingAdminQuery } from '@modules/booking/bookings.query';
-import { BookingCreateCommand } from '@modules/booking/bookings.command';
-import { BookingListQuery } from '@modules/booking/bookings.query';
-import { BookingAcceptCommand } from '@modules/booking/bookings.command';
-import { BookingCancelCommand } from '@modules/booking/bookings.command';
-import { BookingCompleteCommand } from '@modules/booking/bookings.command';
-import { BookingCompleteShootCommand } from '@modules/booking/bookings.command';
-import { BookingDisputeCommand } from '@modules/booking/bookings.command';
-import { BookingRejectCommand } from '@modules/booking/bookings.command';
-import { BookingStartCommand } from '@modules/booking/bookings.command';
-import { BookingTimelineQuery } from '@modules/booking/bookings.query';
-import { BookingGetQuery } from '@modules/booking/bookings.query';
+import { BookingAdminQuery } from '@modules/booking/core/bookings.query';
+import { BookingCreateCommand } from '@modules/booking/core/bookings.command';
+import { BookingListQuery } from '@modules/booking/core/bookings.query';
+import { BookingAcceptCommand } from '@modules/booking/core/bookings.command';
+import { BookingCancelCommand } from '@modules/booking/core/bookings.command';
+import { BookingAdminCancelCommand } from '@modules/booking/core/bookings.command';
+import { BookingCompleteCommand } from '@modules/booking/core/bookings.command';
+import { BookingCompleteShootCommand } from '@modules/booking/core/bookings.command';
+import { BookingConfirmReceiptCommand } from '@modules/booking/core/bookings.command';
+import { BookingDisputeCommand } from '@modules/booking/core/bookings.command';
+import { BookingRejectCommand } from '@modules/booking/core/bookings.command';
+import { BookingStartCommand } from '@modules/booking/core/bookings.command';
+import { BookingTimelineQuery } from '@modules/booking/core/bookings.query';
+import { BookingGetQuery } from '@modules/booking/core/bookings.query';
+import { BookingCollaboratorAcceptCommand } from '@modules/booking/collaborator/collaborator.command';
+import { BookingCollaboratorDeclineCommand } from '@modules/booking/collaborator/collaborator.command';
+import { BookingCollaboratorInviteCommand } from '@modules/booking/collaborator/collaborator.command';
+import { BookingCollaboratorRevokeCommand } from '@modules/booking/collaborator/collaborator.command';
+import { BookingCollaboratorListQuery } from '@modules/booking/collaborator/collaborator.query';
+import { BookingCollaboratorMeQuery } from '@modules/booking/collaborator/collaborator.query';
 
 @ApiTags('Booking')
 @Controller()
@@ -338,6 +346,49 @@ export class BookingController {
     );
   }
 
+  @Post('bookings/:id/confirm-receipt')
+  @ApiOperation({
+    operationId: 'BOOK-012',
+    summary: 'Khách xác nhận đã nhận ảnh',
+    description:
+      'Khách của booking xác nhận đã nhận ảnh, booking chuyển shot → completed. Cần đã trả đủ và gallery đã publish. Role: Customer',
+  })
+  @Access(['customer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('BOOK-012'),
+  })
+  @HttpCode(200)
+  confirmReceipt(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.commands.execute(
+      new BookingConfirmReceiptCommand(req.actor ?? { sub: '', roles: [] }, {
+        id,
+      }),
+    );
+  }
+
   @Post('bookings/:id/complete-shoot')
   @ApiOperation({
     operationId: 'BOOK-008',
@@ -516,11 +567,11 @@ export class BookingController {
   @Get('bookings/:id/timeline')
   @ApiOperation({
     operationId: 'BOOK-010',
-    summary: 'Trạng thái booking',
+    summary: 'Lịch sử trạng thái booking',
     description:
-      'Xem snapshot trạng thái hiện tại. Role: Customer/Photographer',
+      'Các lần tạo / đổi trạng thái theo thời gian: từ, sang, bên thực hiện, lý do (reject/cancel). Role: Customer/Photographer/Admin',
   })
-  @Access(['customer', 'photographer'])
+  @Access(['customer', 'photographer', 'admin'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
@@ -558,9 +609,9 @@ export class BookingController {
     operationId: 'BOOK-002',
     summary: 'Chi tiết booking',
     description:
-      'Lấy toàn bộ thông tin booking theo quyền truy cập. Role: Customer/Photographer',
+      'Lấy toàn bộ thông tin booking theo quyền truy cập. Role: Customer/Photographer/Admin',
   })
-  @Access(['customer', 'photographer'])
+  @Access(['customer', 'photographer', 'admin'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
@@ -590,6 +641,312 @@ export class BookingController {
   ) {
     return this.queries.execute(
       new BookingGetQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+    );
+  }
+
+  @Post('bookings/:id/collaborators')
+  @ApiOperation({
+    operationId: 'BOOK-013',
+    summary: 'Mời thợ liên kết',
+    description:
+      'Thợ chính mời thợ khác chụp cùng, chia % phần thợ nhận. Chỉ khi booking accepted/in_progress và gallery chưa publish; tổng % ≤ 100. Role: Photographer',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiBody({ type: Dto.BookingCollaboratorInviteCommandBodyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('BOOK-013'),
+  })
+  @HttpCode(200)
+  inviteCollaborator(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: Dto.BookingCollaboratorInviteCommandBodyDto,
+  ) {
+    return this.commands.execute(
+      new BookingCollaboratorInviteCommand(
+        req.actor ?? { sub: '', roles: [] },
+        { ...body, id },
+      ),
+    );
+  }
+
+  @Get('bookings/:id/collaborators')
+  @ApiOperation({
+    operationId: 'BOOK-014',
+    summary: 'Danh sách thợ liên kết',
+    description:
+      'Mọi lời mời của booking theo thời gian. Khách, thợ chính và thợ được mời xem được. Role: Customer/Photographer/Admin',
+  })
+  @Access(['customer', 'photographer', 'admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('BOOK-014'),
+  })
+  collaborators(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.queries.execute(
+      new BookingCollaboratorListQuery(req.actor ?? { sub: '', roles: [] }, {
+        id,
+      }),
+    );
+  }
+
+  @Get('booking-collaborators/me')
+  @ApiOperation({
+    operationId: 'BOOK-015',
+    summary: 'Lời mời liên kết của tôi',
+    description:
+      'Các lời mời liên kết gửi tới thợ đang đăng nhập, mới nhất trước. Role: Photographer',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('BOOK-015'),
+  })
+  myCollaborations(
+    @Req() req: { actor?: Actor },
+    @Query() query: Dto.BookingCollaboratorMeQueryQueryDto,
+  ) {
+    return this.queries.execute(
+      new BookingCollaboratorMeQuery(req.actor ?? { sub: '', roles: [] }, {
+        ...query,
+      }),
+    );
+  }
+
+  @Post('booking-collaborators/:id/accept')
+  @ApiOperation({
+    operationId: 'BOOK-016',
+    summary: 'Nhận lời mời liên kết',
+    description: 'Thợ được mời nhận lời mời còn chờ. Role: Photographer',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('BOOK-016'),
+  })
+  @HttpCode(200)
+  acceptCollaboration(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.commands.execute(
+      new BookingCollaboratorAcceptCommand(
+        req.actor ?? { sub: '', roles: [] },
+        { id },
+      ),
+    );
+  }
+
+  @Post('booking-collaborators/:id/decline')
+  @ApiOperation({
+    operationId: 'BOOK-017',
+    summary: 'Từ chối lời mời liên kết',
+    description:
+      'Thợ được mời từ chối lời mời còn chờ; sau đó thợ chính không mời lại thợ này được. Role: Photographer',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('BOOK-017'),
+  })
+  @HttpCode(200)
+  declineCollaboration(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.commands.execute(
+      new BookingCollaboratorDeclineCommand(
+        req.actor ?? { sub: '', roles: [] },
+        { id },
+      ),
+    );
+  }
+
+  @Post('booking-collaborators/:id/revoke')
+  @ApiOperation({
+    operationId: 'BOOK-018',
+    summary: 'Rút lời mời liên kết',
+    description:
+      'Thợ chính rút lời mời khi thợ được mời chưa trả lời. Role: Photographer',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('BOOK-018'),
+  })
+  @HttpCode(200)
+  revokeCollaboration(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.commands.execute(
+      new BookingCollaboratorRevokeCommand(
+        req.actor ?? { sub: '', roles: [] },
+        { id },
+      ),
+    );
+  }
+
+  @Post('admin/bookings/:id/cancel')
+  @ApiOperation({
+    operationId: 'BOOK-019',
+    summary: 'Admin huỷ booking',
+    description:
+      'Admin huỷ booking ở mọi trạng thái chưa xong (chờ, đã nhận, đang chụp, đã chụp), bắt buộc lý do; dùng khi phải can thiệp. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiBody({ type: Dto.BookingCancelCommandBodyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('BOOK-019'),
+  })
+  @HttpCode(200)
+  adminCancel(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: Dto.BookingCancelCommandBodyDto,
+  ) {
+    return this.commands.execute(
+      new BookingAdminCancelCommand(req.actor ?? { sub: '', roles: [] }, {
+        ...body,
+        id,
+      }),
     );
   }
 }

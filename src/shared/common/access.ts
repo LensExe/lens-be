@@ -77,6 +77,26 @@ export async function photographer(s: EntityManager, actor: Actor) {
 }
 
 /**
+ * Lấy hồ sơ Nhiếp ảnh gia để hiển thị public (khách xem hồ sơ, portfolio, gói chụp...).
+ * Chỉ thợ đã được admin duyệt (`verified`) và tài khoản còn 'active' mới hiện.
+ * Không thỏa ➔ 404, để người ngoài không phân biệt "chưa duyệt / bị khoá / không tồn tại".
+ *
+ * @param s EntityManager của TypeORM
+ * @param id ID hồ sơ photographer (`photographers.id`)
+ * @returns Hồ sơ photographer và user sở hữu
+ */
+export async function publicPhotographer(s: EntityManager, id: string) {
+  const p = await required(s, 'photographers', id),
+    u = await required(s, 'users', p.user_id);
+  ensure(
+    u.status === 'active' && p.verification_status === 'verified',
+    'Photographer not found',
+    'missing',
+  );
+  return { photographer: p, user: u };
+}
+
+/**
  * Kiểm tra quyền truy cập vào một đơn đặt lịch (Booking).
  * Xác thực xem người dùng hiện tại có phải là Khách hàng (Customer) hoặc Thợ chụp (Photographer) của đơn đó không,
  * hoặc có phải là Admin/Hệ thống hay không.
@@ -151,12 +171,33 @@ export async function emit(
  * @returns Đối tượng kết quả chuẩn gồm: items (danh sách trang hiện tại), total, offset, limit
  */
 export function page<T>(rows: T[], query: { limit?: number; offset?: number }) {
-  const offset = query.offset ?? 0,
-    limit = query.limit ?? 20;
-  return {
-    items: rows.slice(offset, offset + limit),
-    total: rows.length,
-    offset,
-    limit,
-  };
+  const { offset, limit } = pageWindow(query);
+  return paged(rows.slice(offset, offset + limit), rows.length, query);
+}
+
+/**
+ * Offset / limit của một trang, mặc định trang đầu 20 dòng. Dùng cho `skip` / `take` khi phân trang
+ * bằng SQL, để mọi module cùng một mặc định.
+ *
+ * @param query `limit`, `offset` từ query string
+ * @returns `{ offset, limit }`
+ */
+export function pageWindow(query: { limit?: number; offset?: number }) {
+  return { offset: query.offset ?? 0, limit: query.limit ?? 20 };
+}
+
+/**
+ * Dạng response phân trang chuẩn của repo: `{ items, total, offset, limit }`.
+ *
+ * @param items Các dòng của trang
+ * @param total Tổng số dòng khớp điều kiện
+ * @param query `limit`, `offset` từ query string
+ * @returns `{ items, total, offset, limit }`
+ */
+export function paged<T>(
+  items: T[],
+  total: number,
+  query: { limit?: number; offset?: number },
+) {
+  return { items, total, ...pageWindow(query) };
 }

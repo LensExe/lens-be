@@ -1,9 +1,9 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { Booking } from '../src/modules/booking/booking.domain';
-import { Calendar } from '../src/modules/calendar/calendar.domain';
+import { Booking } from '../src/modules/booking/core/booking.domain';
+import { Calendar } from '../src/modules/calendar/schedule/calendar.domain';
 import { Identity } from '../src/modules/identity/identity.domain';
-import { Portfolio } from '../src/modules/photographer/portfolio.domain';
+import { Portfolio } from '../src/modules/photographer/portfolio/portfolio.domain';
 import { Subscription } from '../src/modules/subscription/subscription.domain';
 
 test('booking domain prepares a valid draft and rejects an overlapping booking', () => {
@@ -13,15 +13,20 @@ test('booking domain prepares a valid draft and rejects an overlapping booking',
     photographerId: 'photographer',
     photographerUserId: 'photographer-user',
     photographerStatus: 'active',
+    photographerVerified: true,
     photographerAvailable: true,
     planId: 'plan',
     planPhotographerId: 'photographer',
     planActive: true,
     planPrice: 100_001,
+    planDurationMinutes: 60,
+    openRequestsWithPhotographer: 0,
+    openRequests: 0,
     location: 'Studio',
     from: '2030-01-01T09:00:00.000Z',
     to: '2030-01-01T10:00:00.000Z',
-    offlineDates: [] as string[],
+    schedule: [],
+    blockedTimes: [] as { from: string; to: string }[],
     bookings: [] as { from: string; to: string; status: string }[],
     now: Date.parse('2029-01-01T00:00:00.000Z'),
   };
@@ -47,6 +52,7 @@ test('calendar clips bookings to the requested window', () => {
     '2030-01-01T09:00:00.000Z',
     '2030-01-01T17:00:00.000Z',
     [],
+    [],
     [
       {
         from: '2030-01-01T08:00:00.000Z',
@@ -55,10 +61,11 @@ test('calendar clips bookings to the requested window', () => {
       },
     ],
   );
+  // the default shift ends at 20:00 Vietnam time = 13:00 UTC
   assert.deepEqual(items, [
     {
       from: '2030-01-01T10:00:00.000Z',
-      to: '2030-01-01T17:00:00.000Z',
+      to: '2030-01-01T13:00:00.000Z',
     },
   ]);
 });

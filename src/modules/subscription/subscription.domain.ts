@@ -1,5 +1,5 @@
 import { ensure } from '@shared/domain/domain.error';
-import { SubscriptionStatus } from '@shared/database/entities/subscription.entity';
+import { SubscriptionStatus } from '@shared/domain/values/subscription.values';
 
 export { SubscriptionStatus };
 

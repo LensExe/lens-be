@@ -4,35 +4,7 @@ import {
   bigintColumn,
   timestampTransformer,
 } from './utils/column-transformers';
-
-/**
- * Trạng thái của đơn đặt lịch chụp ảnh
- */
-export const BookingStatus = {
-  PENDING: 'pending',
-  ACCEPTED: 'accepted',
-  REJECTED: 'rejected',
-  CANCELLED: 'cancelled',
-  IN_PROGRESS: 'in_progress',
-  SHOT: 'shot',
-  COMPLETED: 'completed',
-} as const;
-
-export type BookingStatus = (typeof BookingStatus)[keyof typeof BookingStatus];
-
-/**
- * Các trạng thái booking chiếm dụng lịch chụp của photographer
- * (không thể đặt trùng hoặc tự khóa lịch trong khoảng thời gian này).
- */
-export const OCCUPIED_BOOKING_STATUSES = [
-  BookingStatus.PENDING,
-  BookingStatus.ACCEPTED,
-  BookingStatus.IN_PROGRESS,
-  BookingStatus.SHOT,
-  BookingStatus.COMPLETED,
-] as const;
-
-export type OccupiedBookingStatus = (typeof OCCUPIED_BOOKING_STATUSES)[number];
+import { BookingStatus } from '@shared/domain/values/booking.values';
 
 /**
  * Entity đại diện cho bảng `bookings`.
@@ -76,9 +48,16 @@ export class BookingEntity extends BaseEntity {
   @Column(bigintColumn)
   total_amount!: number;
 
-  /** Trạng thái đơn booking ('pending' | 'accepted' | 'rejected' | 'cancelled' | 'in_progress' | 'shot' | 'completed') */
+  /** Trạng thái đơn booking ('pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired' | 'in_progress' | 'shot' | 'completed') */
   @Column({ default: BookingStatus.PENDING })
-  status!: BookingStatus;
+  status!: import('@shared/domain/values/booking.values').BookingStatus;
+
+  /** Lúc thợ nhận booking; tính hạn thanh toán cọc từ mốc này. `null` khi chưa được nhận */
+  @Column('timestamptz', {
+    nullable: true,
+    transformer: timestampTransformer,
+  })
+  accepted_at!: string | null;
 
   /** Thời điểm album ảnh sản phẩm được bàn giao và công khai cho khách xem */
   @Column('timestamptz', {

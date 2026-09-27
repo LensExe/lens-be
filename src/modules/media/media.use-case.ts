@@ -1,10 +1,9 @@
 import type { EntityManager } from 'typeorm';
+import { EntitySchemas, updateEntity } from '@shared/database';
 import {
-  EntitySchemas,
-  updateEntity,
   MediaStatus,
   MediaVisibility,
-} from '@shared/database';
+} from '@shared/domain/values/media.values';
 import type * as Inputs from '@shared/contracts/contracts';
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -89,7 +88,7 @@ export class MediaUseCases implements MediaOwnershipPort {
     i: Inputs.MediaCompleteCommandInput,
   ) {
     const m = await this.owned(s, a, i.media_id, false);
-    if (m.status === MediaStatus.READY || m.status === MediaStatus.PROCESSING)
+    if (m.status === MediaStatus.READY || m.status === MediaStatus.UPLOADED)
       return m;
     // verify file on s3
     await this.storage.verify(m.file_key, m.content_type, Number(m.file_size));
