@@ -23,6 +23,15 @@ export const ALLOWED_MEDIA_CONTENT_TYPES = [
 export type AllowedMediaContentType =
   (typeof ALLOWED_MEDIA_CONTENT_TYPES)[number];
 
+/** Phạm vi truy cập của object media trên object storage. */
+export const MediaVisibility = {
+  PUBLIC: 'public',
+  PRIVATE: 'private',
+} as const;
+
+export type MediaVisibility =
+  (typeof MediaVisibility)[keyof typeof MediaVisibility];
+
 /** Trạng thái xử lý của tệp tin media. */
 export const MediaStatus = {
   PENDING: 'pending',

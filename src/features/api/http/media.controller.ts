@@ -133,9 +133,10 @@ export class MediaController {
   @ApiOperation({
     operationId: 'MEDIA-009',
     summary: 'Tải gallery',
-    description: 'Sinh link/package tải ảnh được phép. Role: Customer',
+    description:
+      'Sinh link/package tải ảnh được phép. Role: Customer hoặc Photographer',
   })
-  @Access(['customer'])
+  @Access(['customer', 'photographer'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
@@ -164,7 +165,9 @@ export class MediaController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.queries.execute(
-      new MediaDownloadQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new MediaDownloadQuery(req.actor ?? { sub: '', roles: [] }, {
+        booking_id: id,
+      }),
     );
   }
 
@@ -208,7 +211,7 @@ export class MediaController {
     return this.commands.execute(
       new MediaAddGalleryCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        booking_id: id,
       }),
     );
   }
@@ -249,7 +252,9 @@ export class MediaController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.commands.execute(
-      new MediaPublishCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new MediaPublishCommand(req.actor ?? { sub: '', roles: [] }, {
+        booking_id: id,
+      }),
     );
   }
 
@@ -290,7 +295,7 @@ export class MediaController {
   ) {
     return this.commands.execute(
       new MediaCreateGalleryCommand(req.actor ?? { sub: '', roles: [] }, {
-        id,
+        booking_id: id,
       }),
     );
   }
@@ -331,7 +336,9 @@ export class MediaController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.queries.execute(
-      new MediaGalleryQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new MediaGalleryQuery(req.actor ?? { sub: '', roles: [] }, {
+        booking_id: id,
+      }),
     );
   }
 
@@ -370,7 +377,9 @@ export class MediaController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.queries.execute(
-      new MediaGetQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new MediaGetQuery(req.actor ?? { sub: '', roles: [] }, {
+        media_id: id,
+      }),
     );
   }
 
@@ -409,7 +418,9 @@ export class MediaController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.commands.execute(
-      new MediaRemoveCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new MediaRemoveCommand(req.actor ?? { sub: '', roles: [] }, {
+        media_id: id,
+      }),
     );
   }
 }

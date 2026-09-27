@@ -3,6 +3,7 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { DataSource } from 'typeorm';
 import type * as Inputs from '@shared/contracts/contracts';
 import { MediaUseCases } from './media.use-case';
+import { MediaProcessingQueue } from './queue/media-processing.port';
 
 export class MediaCompleteCommand {
   constructor(
@@ -10,16 +11,23 @@ export class MediaCompleteCommand {
     public readonly input: Inputs.MediaCompleteCommandInput,
   ) {}
 }
+
 @CommandHandler(MediaCompleteCommand)
 export class MediaCompleteCommandHandler implements ICommandHandler<MediaCompleteCommand> {
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: MediaUseCases,
+    private readonly processingQueue: MediaProcessingQueue,
   ) {}
-  execute(message: MediaCompleteCommand) {
-    return this.dataSource.transaction((s) =>
+
+  async execute(message: MediaCompleteCommand) {
+    const media = await this.dataSource.transaction((s) =>
       this.useCases.complete(s, message.actor, message.input),
     );
+    if (media.status === 'uploaded' || media.status === 'failed') {
+      await this.processingQueue.enqueueVariants(media.id);
+    }
+    return media;
   }
 }
 
@@ -35,6 +43,7 @@ export class MediaUploadCommandHandler implements ICommandHandler<MediaUploadCom
     private readonly dataSource: DataSource,
     private readonly useCases: MediaUseCases,
   ) {}
+
   execute(message: MediaUploadCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.upload(s, message.actor, message.input),
@@ -54,9 +63,10 @@ export class MediaAddGalleryCommandHandler implements ICommandHandler<MediaAddGa
     private readonly dataSource: DataSource,
     private readonly useCases: MediaUseCases,
   ) {}
+
   execute(message: MediaAddGalleryCommand) {
     return this.dataSource.transaction((s) =>
-      this.useCases.addGallery(s, message.actor, message.input),
+      this.useCases.addToGallery(s, message.actor, message.input),
     );
   }
 }
@@ -75,7 +85,7 @@ export class MediaPublishCommandHandler implements ICommandHandler<MediaPublishC
   ) {}
   execute(message: MediaPublishCommand) {
     return this.dataSource.transaction((s) =>
-      this.useCases.publish(s, message.actor, message.input),
+      this.useCases.publishGallery(s, message.actor, message.input),
     );
   }
 }

@@ -1,10 +1,14 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { bigintColumn } from './utils/column-transformers';
-import { MediaStatus } from '@shared/domain/values/media.values';
+import {
+  MediaStatus,
+  MediaVisibility,
+} from '@shared/domain/values/media.values';
 import type {
   MediaContentType,
   MediaStatus as MediaStatusType,
+  MediaVisibility as MediaVisibilityType,
 } from '@shared/domain/values/media.values';
 
 /**
@@ -29,7 +33,11 @@ export class MediaEntity extends BaseEntity {
   @Column()
   content_type!: MediaContentType;
 
-  /** Trạng thái xử lý của tệp tin ('pending' | 'uploaded' | 'ready' | 'deleted') */
+  /** Private mặc định; public object phải được bucket policy cho phép đọc. */
+  @Column({ default: MediaVisibility.PRIVATE })
+  visibility!: MediaVisibilityType;
+
+  /** Trạng thái xử lý của tệp tin. */
   @Column({ default: MediaStatus.PENDING })
   status!: MediaStatusType;
 }

@@ -1,37 +1,24 @@
 import type { S3Client } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
-import { S3Provider } from './enums/s3';
+import { getActiveS3Provider } from './constants/s3';
 import { requireS3ProviderConfig } from './s3.config';
-import {
-  InjectDigitalOceanS3,
-  InjectDigitalOceanS3Presign,
-  InjectMinioS3,
-  InjectMinioS3Presign,
-} from './s3.decorators';
+import { InjectActiveS3, InjectActiveS3Presign } from './s3.decorators';
 
 @Injectable()
 export class S3ClientResolverService {
   constructor(
-    @InjectDigitalOceanS3()
-    private readonly digitalOcean: S3Client,
-    @InjectDigitalOceanS3Presign()
-    private readonly digitalOceanPresign: S3Client,
-    @InjectMinioS3()
-    private readonly minio: S3Client,
-    @InjectMinioS3Presign()
-    private readonly minioPresign: S3Client,
+    @InjectActiveS3() // Tương đương: @Inject(ACTIVE_S3)
+    private readonly active: S3Client,
+
+    @InjectActiveS3Presign() // Tương đương: @Inject(ACTIVE_S3_PRESIGN)
+    private readonly activePresign: S3Client,
   ) {}
 
-  resolve(provider: S3Provider, presign = false) {
-    const config = requireS3ProviderConfig(provider);
-    const client =
-      provider === S3Provider.DigitalOcean
-        ? presign
-          ? this.digitalOceanPresign
-          : this.digitalOcean
-        : presign
-          ? this.minioPresign
-          : this.minio;
-    return { client, config };
+  resolve(presign = false) {
+    const config = requireS3ProviderConfig(getActiveS3Provider());
+    return {
+      client: presign ? this.activePresign : this.active,
+      config,
+    };
   }
 }

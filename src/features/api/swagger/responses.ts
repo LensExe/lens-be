@@ -103,9 +103,18 @@ const gallery = obj({
   ...records.booking_deliveries.properties,
   published_at: { ...str, nullable: true },
   items: array(
-    obj({ id: str, media_id: str, file_size: num, download_url: str }),
+    obj({
+      id: str,
+      media_id: str,
+      file_size: num,
+      content_type: str,
+      thumbnail_url: str,
+      width: { ...num, nullable: true },
+      height: { ...num, nullable: true },
+      download_url: str,
+    }),
   ),
-  expires_in: num,
+  expires_in: { ...num, nullable: true },
 });
 
 const portfolio = obj({
@@ -233,10 +242,14 @@ const schemas: Record<string, SchemaObject> = {
   'MEDIA-002': records.media,
   'MEDIA-003': obj({
     id: str,
+    status: str,
     content_type: str,
     file_size: num,
-    download_url: str,
-    expires_in: num,
+    visibility: str,
+    thumbnail_url: { ...str, nullable: true },
+    preview_url: { ...str, nullable: true },
+    download_url: { ...str, nullable: true },
+    expires_in: { ...num, nullable: true },
   }),
   'MEDIA-004': deleted,
   'MEDIA-005': records.booking_deliveries,
