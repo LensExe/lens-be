@@ -7,6 +7,7 @@ export * from './types/copy';
 export * from './types/delete';
 export * from './types/bucket';
 export * from './s3.config';
+export * from './s3-errors';
 export * from './s3.decorators';
 export * from './s3.providers';
 export * from './s3-client-resolver.service';

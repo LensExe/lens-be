@@ -10,8 +10,10 @@ import {
 } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 import type { Readable } from 'node:stream';
+import { DomainError } from '../../platform/exceptions/domain.error';
 import { S3_DELETE_BATCH_SIZE } from './constants/s3';
 import { S3ClientResolverService } from './s3-client-resolver.service';
+import { isS3NotFound } from './s3-errors';
 import type { S3CopySameBucketParams } from './types/copy';
 import type { DeleteObjectsParams } from './types/delete';
 import type {
@@ -166,7 +168,7 @@ export class S3ObjectService {
       );
       return true;
     } catch (error) {
-      if (this.isNotFound(error)) return false;
+      if (isS3NotFound(error)) return false;
       throw error;
     }
   }
@@ -186,17 +188,26 @@ export class S3ObjectService {
       offset += S3_DELETE_BATCH_SIZE
     ) {
       const keys = params.keys.slice(offset, offset + S3_DELETE_BATCH_SIZE);
-      await client.send(
+      const result = await client.send(
         new DeleteObjectsCommand({
           Bucket: config.bucket,
           ChecksumAlgorithm: ChecksumAlgorithm.MD5,
           Delete: {
             Objects: keys.map((Key) => ({ Key })),
-            Quiet: true,
+            Quiet: false,
           },
         }),
       );
-      deleted += keys.length;
+      if (result.Errors?.length) {
+        const failedKeys = result.Errors.map(({ Key }) => Key).filter(
+          (key): key is string => Boolean(key),
+        );
+        throw new DomainError(
+          'unavailable',
+          `Failed to delete ${result.Errors.length} object(s): ${failedKeys.join(', ')}`,
+        );
+      }
+      deleted += result.Deleted?.length ?? keys.length;
     }
     return deleted;
   }
@@ -249,25 +260,8 @@ export class S3ObjectService {
         new GetObjectCommand({ Bucket: config.bucket, Key: key }),
       );
     } catch (error) {
-      if (this.isNotFound(error)) return null;
+      if (isS3NotFound(error)) return null;
       throw error;
     }
-  }
-
-  /**
-   * Helper kiểm tra xem lỗi ném ra từ AWS SDK có phải là lỗi "tệp không tồn tại" (404 / NoSuchKey) hay không.
-   */
-  private isNotFound(error: unknown): boolean {
-    const candidate = error as {
-      name?: string;
-      Code?: string;
-      $metadata?: { httpStatusCode?: number };
-    };
-    return (
-      candidate?.name === 'NoSuchKey' ||
-      candidate?.name === 'NotFound' ||
-      candidate?.Code === 'NoSuchKey' ||
-      candidate?.$metadata?.httpStatusCode === 404
-    );
   }
 }

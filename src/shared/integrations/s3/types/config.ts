@@ -1,6 +1,7 @@
 export interface S3ProviderConfig {
   /**
    * Khóa truy cập (Public ID / Username) dùng để định danh tài khoản với S3.
+   * Cloud có thể bỏ trống để AWS SDK dùng IAM role/default credential chain.
    */
   accessKeyId?: string;
 
@@ -38,6 +39,7 @@ export interface S3ProviderConfig {
 
   /**
    * Mật mã truy cập bí mật (Secret Key / Password) dùng để tạo chữ ký số xác thực request.
+   * Cloud có thể bỏ trống để AWS SDK dùng IAM role/default credential chain.
    */
   secretAccessKey?: string;
 }

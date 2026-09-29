@@ -3,27 +3,23 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
-  S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { Injectable, OnApplicationShutdown } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DomainError, ensure } from '../../platform/exceptions/domain.error';
 import { getActiveS3Provider } from './constants/s3';
 import { S3Provider } from './enums/s3';
-import { requireS3ProviderConfig } from './s3.config';
+import { S3ClientResolverService } from './s3-client-resolver.service';
 import { S3ObjectService } from './s3-object.service';
-import { ObjectStorage } from './storage.port';
-import type { S3ProviderConfig } from './types/config';
+import { isS3NotFound } from './s3-errors';
+import { ObjectStorage, type PresignedUploadUrl } from './storage.port';
 
 @Injectable()
-export class S3ObjectStorage
-  extends ObjectStorage
-  implements OnApplicationShutdown
-{
-  private client?: S3Client;
-  private presignClient?: S3Client;
-
-  constructor(private readonly objects?: S3ObjectService) {
+export class S3ObjectStorage extends ObjectStorage {
+  constructor(
+    private readonly resolver: S3ClientResolverService,
+    private readonly objects: S3ObjectService,
+  ) {
     super();
   }
 
@@ -31,9 +27,13 @@ export class S3ObjectStorage
    * Tạo Presigned URL để client (FE/Mobile) tự upload file trực tiếp lên S3 (PUT).
    * Ràng buộc sẵn Content-Type, Content-Length và thời gian hết hạn (TTL).
    */
-  async uploadUrl(key: string, type: string, size: number): Promise<string> {
-    const { config, presignClient } = this.getClients();
-    return getSignedUrl(
+  async uploadUrl(
+    key: string,
+    type: string,
+    size: number,
+  ): Promise<PresignedUploadUrl> {
+    const { config, client: presignClient } = this.resolver.resolve(true);
+    const url = await getSignedUrl(
       presignClient,
       new PutObjectCommand({
         Bucket: config.bucket,
@@ -43,6 +43,7 @@ export class S3ObjectStorage
       }),
       { expiresIn: config.presignedUrlTtlSeconds },
     );
+    return { url, expiresIn: config.presignedUrlTtlSeconds };
   }
 
   /**
@@ -51,16 +52,19 @@ export class S3ObjectStorage
    * - Kiểm tra size và type có đúng với thông tin đã cam kết lúc xin URL upload không.
    */
   async verify(key: string, type: string, size: number): Promise<void> {
-    const { config, client } = this.getClients();
+    const { config, client } = this.resolver.resolve();
     let metadata;
     try {
       metadata = await client.send(
         new HeadObjectCommand({ Bucket: config.bucket, Key: key }),
       );
-    } catch {
+    } catch (error) {
+      if (isS3NotFound(error)) {
+        throw new DomainError('invalid', 'Uploaded object does not exist');
+      }
       throw new DomainError(
-        'invalid',
-        'Uploaded object does not exist or storage is unavailable',
+        'unavailable',
+        'Object storage verification failed',
       );
     }
 
@@ -84,7 +88,7 @@ export class S3ObjectStorage
    * Tạo Presigned URL để tải hoặc xem file private từ S3 (GET) kèm thời gian hết hạn.
    */
   async downloadUrl(key: string): Promise<string> {
-    const { config, presignClient } = this.getClients();
+    const { config, client: presignClient } = this.resolver.resolve(true);
     return getSignedUrl(
       presignClient,
       new GetObjectCommand({ Bucket: config.bucket, Key: key }),
@@ -98,7 +102,7 @@ export class S3ObjectStorage
    */
   buildPublicObjectUrl(key: string): string {
     const provider = getActiveS3Provider();
-    const config = this.getConfig();
+    const { config } = this.resolver.resolve();
     const encodedKey = key
       .split('/')
       .map((segment) => encodeURIComponent(segment))
@@ -119,7 +123,7 @@ export class S3ObjectStorage
    * Xóa file khỏi S3/MinIO bằng key định danh.
    */
   async delete(key: string): Promise<void> {
-    const { config, client } = this.getClients();
+    const { config, client } = this.resolver.resolve();
     try {
       await client.send(
         new DeleteObjectCommand({ Bucket: config.bucket, Key: key }),
@@ -135,65 +139,11 @@ export class S3ObjectStorage
    */
   async deleteMany(keys: string[]): Promise<void> {
     if (keys.length === 0) return;
-    if (!this.objects) {
-      throw new DomainError('unavailable', 'S3 object service is unavailable');
-    }
     try {
       await this.objects.deleteObjects({ keys });
-    } catch {
+    } catch (error) {
+      if (error instanceof DomainError) throw error;
       throw new DomainError('unavailable', 'S3 objects delete failed');
     }
-  }
-
-  /**
-   * Lấy và kiểm tra cấu hình S3 theo provider active của môi trường.
-   * Ném lỗi ngay nếu thiếu thông tin xác thực hoặc endpoint.
-   */
-  private getConfig() {
-    return requireS3ProviderConfig(getActiveS3Provider());
-  }
-
-  /**
-   * Khởi tạo instance S3Client từ AWS SDK v3 với cấu hình và endpoint tương ứng.
-   */
-  private createClient(
-    config: S3ProviderConfig & {
-      accessKeyId: string;
-      secretAccessKey: string;
-    },
-    endpoint: string | undefined,
-  ): S3Client {
-    return new S3Client({
-      endpoint,
-      region: config.region,
-      forcePathStyle: config.forcePathStyle,
-      credentials: {
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-      },
-    });
-  }
-
-  /**
-   * Khởi tạo và cache 2 S3Client (Lazy Initialization):
-   * - client: Kết nối trực tiếp từ backend (dùng endpoint nội bộ, vd: http://minio:9000).
-   * - presignClient: Tạo URL cho trình duyệt/client ngoài truy cập (dùng publicEndpoint).
-   */
-  private getClients() {
-    const config = this.getConfig();
-    this.client ??= this.createClient(config, config.endpoint);
-    this.presignClient ??= this.createClient(
-      config,
-      config.publicEndpoint?.trim() || config.endpoint,
-    );
-    return { config, client: this.client, presignClient: this.presignClient };
-  }
-
-  /**
-   * Lifecycle hook của NestJS: Tự động đóng các kết nối S3Client khi server tắt (tránh leak resource).
-   */
-  onApplicationShutdown(): void {
-    this.client?.destroy();
-    if (this.presignClient !== this.client) this.presignClient?.destroy();
   }
 }

@@ -33,7 +33,7 @@ export class MediaUseCases implements MediaOwnershipPort {
    * - Xác định quyền hiển thị (PUBLIC hoặc PRIVATE) và sinh file_key lưu trữ: `{visibility}/{user_id}/{uuid}`.
    * - Tạo Presigned Upload URL từ Object Storage để Client/Frontend tải file trực tiếp lên S3/MinIO.
    * - Lưu bản ghi media ban đầu vào database (trạng thái pending/chờ hoàn tất).
-   * - Trả về thông tin media, `upload_url` và thời hạn hết hạn của URL (`expires_in: 900` giây).
+   * - Trả về thông tin media, `upload_url` và TTL thực tế của URL.
    */
   async upload(s: EntityManager, a: Actor, i: Inputs.MediaUploadCommandInput) {
     // kiểm tra Content-Type
@@ -44,18 +44,15 @@ export class MediaUseCases implements MediaOwnershipPort {
       visibility = i.visibility ?? MediaVisibility.PRIVATE,
       key = `${visibility}/${u.id}/${randomUUID()}`;
     // tạo presigned upload URL
-    const upload_url = await this.storage.uploadUrl(
-      key,
-      i.content_type,
-      i.file_size,
-    );
+    const { url: upload_url, expiresIn: expires_in } =
+      await this.storage.uploadUrl(key, i.content_type, i.file_size);
     const media = await s.save(EntitySchemas.media, {
       ...i,
       visibility,
       user_id: u.id,
       file_key: key,
     });
-    return { media, upload_url, expires_in: 900 };
+    return { media, upload_url, expires_in };
   }
 
   /**

@@ -1,11 +1,11 @@
 import type { S3Client } from '@aws-sdk/client-s3';
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnApplicationShutdown } from '@nestjs/common';
 import { getActiveS3Provider } from './constants/s3';
 import { requireS3ProviderConfig } from './s3.config';
 import { InjectActiveS3, InjectActiveS3Presign } from './s3.decorators';
 
 @Injectable()
-export class S3ClientResolverService {
+export class S3ClientResolverService implements OnApplicationShutdown {
   constructor(
     @InjectActiveS3() // Tương đương: @Inject(ACTIVE_S3)
     private readonly active: S3Client,
@@ -20,5 +20,10 @@ export class S3ClientResolverService {
       client: presign ? this.activePresign : this.active,
       config,
     };
+  }
+
+  onApplicationShutdown(): void {
+    this.active.destroy();
+    if (this.activePresign !== this.active) this.activePresign.destroy();
   }
 }

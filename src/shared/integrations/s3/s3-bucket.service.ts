@@ -2,10 +2,15 @@ import {
   CreateBucketCommand,
   HeadBucketCommand,
   PutBucketPolicyCommand,
+  type BucketLocationConstraint,
+  type CreateBucketCommandInput,
 } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 import { DomainError } from '../../platform/exceptions/domain.error';
+import { getActiveS3Provider } from './constants/s3';
+import { S3Provider } from './enums/s3';
 import { S3ClientResolverService } from './s3-client-resolver.service';
+import { isS3NotFound } from './s3-errors';
 import type { S3BucketParams, S3PublicReadParams } from './types/bucket';
 
 @Injectable()
@@ -28,10 +33,8 @@ export class S3BucketService {
       );
       return true;
     } catch (error) {
-      const status = (error as { $metadata?: { httpStatusCode?: number } })
-        ?.$metadata?.httpStatusCode;
-      if (status === 403) throw error;
-      return false;
+      if (isS3NotFound(error)) return false;
+      throw error;
     }
   }
 
@@ -44,10 +47,18 @@ export class S3BucketService {
    */
   async create(params: S3BucketParams): Promise<void> {
     const { client, config } = this.resolver.resolve();
+    const bucket = params.bucket ?? config.bucket;
+    const input: CreateBucketCommandInput = { Bucket: bucket };
+    if (
+      getActiveS3Provider() === S3Provider.Cloud &&
+      config.region !== 'us-east-1'
+    ) {
+      input.CreateBucketConfiguration = {
+        LocationConstraint: config.region as BucketLocationConstraint,
+      };
+    }
     try {
-      await client.send(
-        new CreateBucketCommand({ Bucket: params.bucket ?? config.bucket }),
-      );
+      await client.send(new CreateBucketCommand(input));
     } catch {
       throw new DomainError('unavailable', 'S3 bucket creation failed');
     }
@@ -64,9 +75,29 @@ export class S3BucketService {
   async ensurePublicReadPrefixes(params: S3PublicReadParams): Promise<void> {
     const { client, config } = this.resolver.resolve();
     const bucket = params.bucket ?? config.bucket;
-    const resources = params.prefixes.map(
-      (prefix) =>
-        `arn:aws:s3:::${bucket}/${prefix.replace(/^\/+|\/+$/g, '')}/*`,
+    const prefixes = [
+      ...new Set(
+        params.prefixes
+          .map((prefix) => prefix.replace(/^\/+|\/+$/g, ''))
+          .filter(Boolean),
+      ),
+    ];
+    if (prefixes.length === 0) return;
+    if (
+      prefixes.some(
+        (prefix) =>
+          prefix.includes('*') ||
+          prefix.includes('?') ||
+          prefix.split('/').some((segment) => segment === '..'),
+      )
+    ) {
+      throw new DomainError(
+        'invalid',
+        'Public object prefixes must not contain wildcards or parent traversal',
+      );
+    }
+    const resources = prefixes.map(
+      (prefix) => `arn:aws:s3:::${bucket}/${prefix}/*`,
     );
     await client.send(
       new PutBucketPolicyCommand({

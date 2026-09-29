@@ -1,5 +1,14 @@
+export interface PresignedUploadUrl {
+  url: string;
+  expiresIn: number;
+}
+
 export abstract class ObjectStorage {
-  abstract uploadUrl(key: string, type: string, size: number): Promise<string>;
+  abstract uploadUrl(
+    key: string,
+    type: string,
+    size: number,
+  ): Promise<PresignedUploadUrl>;
 
   abstract verify(key: string, type: string, size: number): Promise<void>;
 
