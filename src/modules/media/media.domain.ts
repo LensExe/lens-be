@@ -3,8 +3,8 @@ import {
   ALLOWED_MEDIA_CONTENT_TYPES,
   MediaContentType,
   MediaStatus,
-} from '@shared/database/entities/media.entity';
-import { BookingStatus } from '@shared/database/entities/booking.entity';
+} from '@shared/domain/values/media.values';
+import { BookingStatus } from '@shared/domain/values/booking.values';
 
 export { MediaContentType, ALLOWED_MEDIA_CONTENT_TYPES, MediaStatus };
 

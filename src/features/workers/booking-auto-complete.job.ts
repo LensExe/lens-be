@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { Cron } from '@nestjs/schedule';
 import { DataSource } from 'typeorm';
-import { BookingAutoCompleteCommand } from '@modules/booking/bookings.command';
+import { BookingAutoCompleteCommand } from '@modules/booking/core/bookings.command';
 import { runExclusive, SYSTEM_ACTOR } from './scheduled-job';
 
 /** Job tự hoàn tất booking 7 ngày sau khi publish gallery nếu khách chưa xác nhận, chạy đầu mỗi giờ. */

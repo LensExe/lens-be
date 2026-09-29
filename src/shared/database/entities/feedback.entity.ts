@@ -1,18 +1,7 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { timestampTransformer } from './utils/column-transformers';
-
-/**
- * Trạng thái hiển thị của review. Chỉ `visible` được hiện public và tính vào điểm của thợ.
- * `deleted_by_author`: khách tự xoá, không ai hiện lại được. `hidden_by_admin`: admin ẩn, admin hiện lại được.
- */
-export const ReviewStatus = {
-  VISIBLE: 'visible',
-  DELETED_BY_AUTHOR: 'deleted_by_author',
-  HIDDEN_BY_ADMIN: 'hidden_by_admin',
-} as const;
-
-export type ReviewStatus = (typeof ReviewStatus)[keyof typeof ReviewStatus];
+import { ReviewStatus } from '@shared/domain/values/review.values';
 
 /**
  * Entity đại diện cho bảng `feedbacks`.
@@ -54,7 +43,7 @@ export class FeedbackEntity extends BaseEntity {
 
   /** Trạng thái hiển thị ('visible' | 'deleted_by_author' | 'hidden_by_admin'), xem `ReviewStatus` */
   @Column({ default: ReviewStatus.VISIBLE })
-  status!: ReviewStatus;
+  status!: import('@shared/domain/values/review.values').ReviewStatus;
 
   /** Lý do admin ẩn review; `null` khi review không bị admin ẩn (hoặc ẩn từ trước khi có lý do) */
   @Column('text', { nullable: true })

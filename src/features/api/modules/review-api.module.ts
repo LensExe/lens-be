@@ -7,12 +7,12 @@ import {
   ReviewReplyCommandHandler,
   ReviewRestoreCommandHandler,
   ReviewUpdateCommandHandler,
-} from '@modules/feedback/reviews.command';
+} from '@modules/feedback/review/reviews.command';
 import {
   ReviewAdminListQueryHandler,
   ReviewListQueryHandler,
   ReviewSummaryQueryHandler,
-} from '@modules/feedback/reviews.query';
+} from '@modules/feedback/review/reviews.query';
 
 @Module({
   controllers: [ReviewController],

@@ -25,11 +25,14 @@ import { PhotographerBadgeJob } from '../src/features/workers/photographer-badge
 import { BookingAutoCompleteJob } from '../src/features/workers/booking-auto-complete.job';
 import { BookingExpirePendingJob } from '../src/features/workers/booking-expire-pending.job';
 import { BookingCancelUnpaidJob } from '../src/features/workers/booking-cancel-unpaid.job';
-import { Booking } from '../src/modules/booking/booking.domain';
+import { Booking } from '../src/modules/booking/core/booking.domain';
 import { CommandBus } from '@nestjs/cqrs';
 import { IdentityCustomerRegisterCommand } from '../src/modules/identity/identity.command';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';
+import { S3ClientResolverService } from '../src/shared/integrations/s3/s3-client-resolver.service';
+import { S3ObjectService } from '../src/shared/integrations/s3/s3-object.service';
 import { S3ObjectStorage } from '../src/shared/integrations/s3/s3-storage.service';
+import { MediaImageProcessingService } from '../src/modules/media/media-image-processing.service';
 import {
   S3Client,
   CreateBucketCommand,
@@ -146,6 +149,8 @@ before(
         downloadUrl: async () => 'https://storage.example.test/download',
         delete: async () => {},
       })
+      .overrideProvider(MediaImageProcessingService)
+      .useValue({ createVariants: async () => [] })
       .overrideProvider(PaymentGateway)
       .useValue({
         create: async (code: number) => {
@@ -1777,10 +1782,14 @@ test(
       S3_MINIO_SECRET_ACCESS_KEY: 'lens-test-only',
     });
     try {
-      const storage = new S3ObjectStorage(),
-        url = await storage.uploadUrl('test-image', 'image/jpeg', 4);
-      assert.ok(url.includes('X-Amz-Signature'));
-      const response = await fetch(url, {
+      const resolver = new S3ClientResolverService(client, client);
+      const storage = new S3ObjectStorage(
+        resolver,
+        new S3ObjectService(resolver),
+      );
+      const upload = await storage.uploadUrl('test-image', 'image/jpeg', 4);
+      assert.ok(upload.url.includes('X-Amz-Signature'));
+      const response = await fetch(upload.url, {
         method: 'PUT',
         headers: { 'Content-Type': 'image/jpeg' },
         body: Buffer.from([1, 2, 3, 4]),

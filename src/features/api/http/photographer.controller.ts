@@ -230,7 +230,7 @@ export class PhotographerController {
   ) {
     return this.commands.execute(
       new PhotographerApproveCommand(req.actor ?? { sub: '', roles: [] }, {
-        id,
+        photographer_id: id,
       }),
     );
   }
@@ -276,7 +276,7 @@ export class PhotographerController {
     return this.commands.execute(
       new PhotographerRejectCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        photographer_id: id,
       }),
     );
   }
@@ -540,7 +540,9 @@ export class PhotographerController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.queries.execute(
-      new PhotographerGetQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new PhotographerGetQuery(req.actor ?? { sub: '', roles: [] }, {
+        photographer_id: id,
+      }),
     );
   }
 }

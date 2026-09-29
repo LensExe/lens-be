@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import type { EntityManager, FindOperator } from 'typeorm';
 import { EntitySchemas } from '../src/shared/database';
-import { CalendarUseCases } from '../src/modules/calendar/calendar.use-case';
+import { CalendarUseCases } from '../src/modules/calendar/schedule/calendar.use-case';
 import type { PendingBookingsPort } from '../src/modules/calendar/ports/pending-bookings.port';
 import type { CollaborationTimesPort } from '../src/modules/calendar/ports/collaboration-times.port';
 import type { PhotographerBookingsPort } from '../src/modules/calendar/ports/photographer-bookings.port';

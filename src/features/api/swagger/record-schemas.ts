@@ -961,6 +961,11 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'string',
         description: 'content type',
       },
+      visibility: {
+        type: 'string',
+        enum: ['public', 'private'],
+        description: 'object visibility',
+      },
       status: {
         type: 'string',
         description: 'status',
@@ -982,6 +987,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'file_key',
       'file_size',
       'content_type',
+      'visibility',
       'status',
       'created_at',
       'updated_at',

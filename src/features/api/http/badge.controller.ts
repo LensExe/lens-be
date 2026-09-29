@@ -18,8 +18,8 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { Access, Public } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
-import { BadgeUpdateCommand } from '@modules/photographer/badges.command';
-import { BadgeListQuery } from '@modules/photographer/badges.query';
+import { BadgeUpdateCommand } from '@modules/photographer/badge/badges.command';
+import { BadgeListQuery } from '@modules/photographer/badge/badges.query';
 
 @ApiTags('Badge')
 @Controller()

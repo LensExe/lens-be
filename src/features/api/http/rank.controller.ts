@@ -18,8 +18,8 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { Access, Public } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
-import { RankUpdateCommand } from '@modules/photographer/ranks.command';
-import { RankListQuery } from '@modules/photographer/ranks.query';
+import { RankUpdateCommand } from '@modules/photographer/rank/ranks.command';
+import { RankListQuery } from '@modules/photographer/rank/ranks.query';
 
 @ApiTags('Rank')
 @Controller()

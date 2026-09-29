@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { Booking } from '../src/modules/booking/booking.domain';
-import { Calendar } from '../src/modules/calendar/calendar.domain';
+import { Booking } from '../src/modules/booking/core/booking.domain';
+import { Calendar } from '../src/modules/calendar/schedule/calendar.domain';
 
 const range = {
   from: '2030-01-01T02:00:00.000Z',

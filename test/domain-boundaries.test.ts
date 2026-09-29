@@ -1,9 +1,9 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { Booking } from '../src/modules/booking/booking.domain';
-import { Calendar } from '../src/modules/calendar/calendar.domain';
+import { Booking } from '../src/modules/booking/core/booking.domain';
+import { Calendar } from '../src/modules/calendar/schedule/calendar.domain';
 import { Identity } from '../src/modules/identity/identity.domain';
-import { Portfolio } from '../src/modules/photographer/portfolio.domain';
+import { Portfolio } from '../src/modules/photographer/portfolio/portfolio.domain';
 import { Subscription } from '../src/modules/subscription/subscription.domain';
 
 test('booking domain prepares a valid draft and rejects an overlapping booking', () => {

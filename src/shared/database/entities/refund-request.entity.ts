@@ -1,18 +1,8 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { bigintColumn } from './utils/column-transformers';
-
-/**
- * Trạng thái của yêu cầu hoàn tiền
- */
-export const RefundStatus = {
-  REQUESTED: 'requested',
-  APPROVED: 'approved',
-  REJECTED: 'rejected',
-  COMPLETED: 'completed',
-} as const;
-
-export type RefundStatus = (typeof RefundStatus)[keyof typeof RefundStatus];
+import { RefundStatus } from '@shared/domain/values/payment.values';
+import type { RefundStatus as RefundStatusType } from '@shared/domain/values/payment.values';
 
 /**
  * Entity đại diện cho bảng `refund_requests`.
@@ -38,5 +28,5 @@ export class RefundRequestEntity extends BaseEntity {
 
   /** Trạng thái yêu cầu hoàn tiền ('requested' | 'approved' | 'rejected' | 'completed') */
   @Column({ default: RefundStatus.REQUESTED })
-  status!: RefundStatus;
+  status!: RefundStatusType;
 }

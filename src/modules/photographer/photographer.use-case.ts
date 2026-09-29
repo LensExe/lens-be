@@ -12,17 +12,15 @@ import {
   publicPhotographer,
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
-import {
-  VerificationStatus,
-  type PhotographerEntity,
-} from '@shared/database/entities/photographer.entity';
+import type { PhotographerEntity } from '@shared/database/entities/photographer.entity';
+import { VerificationStatus } from '@shared/domain/values/photographer.values';
 import type { UserEntity } from '@shared/database/entities/user.entity';
 import {
   PhotographerApplication,
   PhotographerProfile,
 } from './photographer.domain';
-import { Rank } from './rank.domain';
-import { Badge } from './badge.domain';
+import { Rank } from './rank/rank.domain';
+import { Badge } from './badge/badge.domain';
 import { PhotographerRolePort } from './ports/photographer-role.port';
 import { PhotographerRatingsPort } from './ports/photographer-ratings.port';
 
@@ -89,7 +87,7 @@ export class PhotographerUseCases {
     input: Inputs.PhotographerApproveCommandInput,
   ) {
     const admin = await this.adminProfile(s, a),
-      p = await this.lockedApplication(s, input.id);
+      p = await this.lockedApplication(s, input.photographer_id);
     PhotographerApplication.assertNotOwnApplication(p.user_id, admin.user_id);
     PhotographerApplication.assertReviewable(p.verification_status);
     await updateEntity(s, EntitySchemas.photographers, p.id, {
@@ -119,7 +117,7 @@ export class PhotographerUseCases {
     input: Inputs.PhotographerRejectCommandInput,
   ) {
     const admin = await this.adminProfile(s, a),
-      p = await this.lockedApplication(s, input.id);
+      p = await this.lockedApplication(s, input.photographer_id);
     PhotographerApplication.assertNotOwnApplication(p.user_id, admin.user_id);
     PhotographerApplication.assertReviewable(p.verification_status);
     await updateEntity(s, EntitySchemas.photographers, p.id, {
@@ -254,7 +252,7 @@ export class PhotographerUseCases {
    * @returns Hồ sơ public; 404 nếu thợ không public
    */
   get(s: EntityManager, _a: Actor, input: Inputs.PhotographerGetQueryInput) {
-    return this.details(s, input.id);
+    return this.details(s, input.photographer_id);
   }
 
   /**
@@ -449,6 +447,7 @@ export class PhotographerUseCases {
       .andWhere('p.verification_status = :verified', {
         verified: VerificationStatus.VERIFIED,
       });
+    // phân vân đoạn này (tính location)
     if (input.location)
       query.andWhere('p.location ILIKE :location', {
         location: contains(input.location),
@@ -487,8 +486,9 @@ export class PhotographerUseCases {
       ).map((u) => [u.id, u]),
     );
     const pairs = ids.map((id) => {
-      const photographer = found.get(id)!;
-      return { photographer, user: users.get(photographer.user_id)! };
+      const photographer = found.get(id)!,
+        user = users.get(photographer.user_id)!;
+      return { photographer, user };
     });
     const items = (await this.profiles(s, pairs)).map((x) => x.profile);
     return { items, total, offset, limit };

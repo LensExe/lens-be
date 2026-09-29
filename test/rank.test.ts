@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { Rank } from '../src/modules/photographer/rank.domain';
+import { Rank } from '../src/modules/photographer/rank/rank.domain';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';
 
 /** Danh mục mặc định giống seed của migration 006. */

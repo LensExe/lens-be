@@ -1,14 +1,6 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
-
-/** Chỉ số dùng để xét huy hiệu; cách tính từng chỉ số nằm trong code. */
-export const BadgeMetric = {
-  AVERAGE_RATING: 'average_rating',
-  AVERAGE_PUNCTUALITY: 'average_punctuality',
-  RETURN_CUSTOMERS: 'return_customers',
-} as const;
-
-export type BadgeMetric = (typeof BadgeMetric)[keyof typeof BadgeMetric];
+import type { BadgeMetric } from '@shared/domain/values/badge.values';
 
 /**
  * Entity đại diện cho bảng `badges`.

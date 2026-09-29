@@ -1,4 +1,4 @@
-import { VerificationStatus } from '@shared/database/entities/photographer.entity';
+import { VerificationStatus } from '@shared/domain/values/photographer.values';
 import { ensure } from '@shared/domain/domain.error';
 
 /**
@@ -25,12 +25,6 @@ export class PhotographerApplication {
   }
 
   /**
-   * Kiểm tra admin có được duyệt / từ chối hồ sơ không. Chỉ hồ sơ `pending` mới xử lý được.
-   *
-   * @param current Trạng thái hồ sơ hiện tại
-   * @returns Không trả gì; ném `conflict` (409) nếu hồ sơ không ở `pending`
-   */
-  /**
    * Admin không tự duyệt / từ chối hồ sơ thợ của chính mình.
    *
    * @param applicantUserId User đã gửi hồ sơ
@@ -48,6 +42,12 @@ export class PhotographerApplication {
     );
   }
 
+  /**
+   * Kiểm tra admin có được duyệt / từ chối hồ sơ không. Chỉ hồ sơ `pending` mới xử lý được.
+   *
+   * @param current Trạng thái hồ sơ hiện tại
+   * @returns Không trả gì; ném `conflict` (409) nếu hồ sơ không ở `pending`
+   */
   static assertReviewable(current: VerificationStatus) {
     ensure(
       current === VerificationStatus.PENDING,

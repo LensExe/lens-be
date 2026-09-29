@@ -31,14 +31,14 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { Access, Public } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
-import { CalendarBlockCommand } from '@modules/calendar/calendar.command';
-import { CalendarMeQuery } from '@modules/calendar/calendar.query';
-import { CalendarUnblockCommand } from '@modules/calendar/calendar.command';
-import { CalendarAvailabilityQuery } from '@modules/calendar/calendar.query';
-import { CalendarWorkingHoursQuery } from '@modules/calendar/calendar.query';
-import { CalendarSetWorkingHoursCommand } from '@modules/calendar/calendar.command';
-import { CalendarBlockPreviewQuery } from '@modules/calendar/calendar.query';
-import { CalendarWorkingHoursPreviewQuery } from '@modules/calendar/calendar.query';
+import { CalendarBlockCommand } from '@modules/calendar/schedule/calendar.command';
+import { CalendarMeQuery } from '@modules/calendar/schedule/calendar.query';
+import { CalendarUnblockCommand } from '@modules/calendar/schedule/calendar.command';
+import { CalendarAvailabilityQuery } from '@modules/calendar/schedule/calendar.query';
+import { CalendarWorkingHoursQuery } from '@modules/calendar/schedule/calendar.query';
+import { CalendarSetWorkingHoursCommand } from '@modules/calendar/schedule/calendar.command';
+import { CalendarBlockPreviewQuery } from '@modules/calendar/schedule/calendar.query';
+import { CalendarWorkingHoursPreviewQuery } from '@modules/calendar/schedule/calendar.query';
 
 @ApiTags('Calendar')
 @Controller()

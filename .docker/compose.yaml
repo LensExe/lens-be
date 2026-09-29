@@ -79,7 +79,7 @@ services:
       - lens-network
     restart: unless-stopped
 
-  # ── MinIO Init (one-shot: tự tạo bucket `lens` và cấp quyền public download) ──
+  # ── MinIO Init (one-shot: tạo bucket `lens`, chỉ public prefix `public/`) ──
   minio-init:
     image: minio/mc:RELEASE.2024-06-12T14-34-03Z
     container_name: lens-minio-init
@@ -90,8 +90,8 @@ services:
         sleep 2;
         mc alias set local http://minio:9000 'LensMinioAdmin' 'Minio@#_Lens_EXE202_FPT_FA26';
         mc mb --ignore-existing local/lens;
-        mc anonymous set download local/lens;
-        echo 'MinIO bucket ready';
+        mc anonymous set download local/lens/public;
+        echo 'MinIO bucket ready; only public/ is anonymously readable';
         exit 0;
       "
     environment:

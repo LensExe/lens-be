@@ -39,12 +39,12 @@ import {
   ReviewReplyCommand,
   ReviewRestoreCommand,
   ReviewUpdateCommand,
-} from '@modules/feedback/reviews.command';
+} from '@modules/feedback/review/reviews.command';
 import {
   ReviewAdminListQuery,
   ReviewListQuery,
   ReviewSummaryQuery,
-} from '@modules/feedback/reviews.query';
+} from '@modules/feedback/review/reviews.query';
 
 @ApiTags('Review')
 @Controller()

@@ -53,7 +53,7 @@ POST /bookings
   → commit → OutboxWorker phát realtime
 ```
 
-- `*.domain.ts`: hàm/quy tắc thuần; nhận facts/giá trị, trả kết quả hoặc lỗi nghiệp vụ. Không inject service, gọi DB/API, phát sự kiện hoặc biết controller. Ví dụ [`booking.domain.ts`](../src/modules/booking/booking.domain.ts) quyết định tạo booking hợp lệ và chuyển trạng thái; [`identity.domain.ts`](../src/modules/identity/identity.domain.ts) quyết định chuyển trạng thái tài khoản.
+- `*.domain.ts`: hàm/quy tắc thuần; nhận facts/giá trị, trả kết quả hoặc lỗi nghiệp vụ. Không inject service, gọi DB/API, phát sự kiện hoặc biết controller. Ví dụ [`booking.domain.ts`](../src/modules/booking/core/booking.domain.ts) quyết định tạo booking hợp lệ và chuyển trạng thái; [`identity.domain.ts`](../src/modules/identity/identity.domain.ts) quyết định chuyển trạng thái tài khoản.
 - `*.use-case.ts`: lấy facts từ database, gọi domain, điều phối nhiều bước, kiểm tra quyền và lưu kết quả. `EntityManager` được truyền từ handler; các command và query handler hiện đều mở `DataSource.transaction()`.
 - `*.command.ts` / `*.query.ts`: adapter CQRS mỏng, chuyển input từ bus vào use case. Handler sở hữu ranh giới transaction, không chứa quy tắc nghiệp vụ.
 - `src/features/`: adapter đầu vào (HTTP) và đầu ra (realtime/worker), cùng wiring NestJS. TypeORM entity trong `src/shared/database/entities/` là mô hình lưu trữ; không đặt quy tắc domain vào entity này.

@@ -2,13 +2,13 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import type { EntityManager } from 'typeorm';
 import { EntitySchemas } from '../src/shared/database';
-import { BookingPlan } from '../src/modules/photographer/booking-plan.domain';
+import { BookingPlan } from '../src/modules/photographer/booking-plan/booking-plan.domain';
 import {
   PhotographerApplication,
   PhotographerProfile,
 } from '../src/modules/photographer/photographer.domain';
-import { PortfolioUseCases } from '../src/modules/photographer/portfolio.use-case';
-import { BookingPlanUseCases } from '../src/modules/photographer/booking-plan.use-case';
+import { PortfolioUseCases } from '../src/modules/photographer/portfolio/portfolio.use-case';
+import { BookingPlanUseCases } from '../src/modules/photographer/booking-plan/booking-plan.use-case';
 import type { WorkingHoursPort } from '../src/modules/photographer/ports/working-hours.port';
 import type { PlanBookingsPort } from '../src/modules/photographer/ports/plan-bookings.port';
 import type { MediaOwnershipPort } from '../src/modules/photographer/ports/media-ownership.port';

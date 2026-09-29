@@ -3,59 +3,37 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
-  S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { Injectable, OnApplicationShutdown } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DomainError, ensure } from '../../platform/exceptions/domain.error';
+import { getActiveS3Provider } from './constants/s3';
 import { S3Provider } from './enums/s3';
-import { requireS3ProviderConfig } from './s3.config';
-import { ObjectStorage } from './storage.port';
-import type { S3ProviderConfig } from './types/config';
+import { S3ClientResolverService } from './s3-client-resolver.service';
+import { S3ObjectService } from './s3-object.service';
+import { isS3NotFound } from './s3-errors';
+import { ObjectStorage, type PresignedUploadUrl } from './storage.port';
 
 @Injectable()
-export class S3ObjectStorage
-  extends ObjectStorage
-  implements OnApplicationShutdown
-{
-  private client?: S3Client;
-  private presignClient?: S3Client;
-
-  private getConfig() {
-    return requireS3ProviderConfig(S3Provider.Minio);
+export class S3ObjectStorage extends ObjectStorage {
+  constructor(
+    private readonly resolver: S3ClientResolverService,
+    private readonly objects: S3ObjectService,
+  ) {
+    super();
   }
 
-  private createClient(
-    config: S3ProviderConfig & {
-      accessKeyId: string;
-      secretAccessKey: string;
-    },
-    endpoint: string | undefined,
-  ): S3Client {
-    return new S3Client({
-      endpoint,
-      region: config.region,
-      forcePathStyle: true,
-      credentials: {
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-      },
-    });
-  }
-
-  private getClients() {
-    const config = this.getConfig();
-    this.client ??= this.createClient(config, config.endpoint);
-    this.presignClient ??= this.createClient(
-      config,
-      config.publicEndpoint?.trim() || config.endpoint,
-    );
-    return { config, client: this.client, presignClient: this.presignClient };
-  }
-
-  async uploadUrl(key: string, type: string, size: number): Promise<string> {
-    const { config, presignClient } = this.getClients();
-    return getSignedUrl(
+  /**
+   * Tạo Presigned URL để client (FE/Mobile) tự upload file trực tiếp lên S3 (PUT).
+   * Ràng buộc sẵn Content-Type, Content-Length và thời gian hết hạn (TTL).
+   */
+  async uploadUrl(
+    key: string,
+    type: string,
+    size: number,
+  ): Promise<PresignedUploadUrl> {
+    const { config, client: presignClient } = this.resolver.resolve(true);
+    const url = await getSignedUrl(
       presignClient,
       new PutObjectCommand({
         Bucket: config.bucket,
@@ -65,19 +43,28 @@ export class S3ObjectStorage
       }),
       { expiresIn: config.presignedUrlTtlSeconds },
     );
+    return { url, expiresIn: config.presignedUrlTtlSeconds };
   }
 
+  /**
+   * Xác thực file sau khi client upload lên S3:
+   * - Kiểm tra file có thực sự tồn tại trên S3 không (HeadObjectCommand).
+   * - Kiểm tra size và type có đúng với thông tin đã cam kết lúc xin URL upload không.
+   */
   async verify(key: string, type: string, size: number): Promise<void> {
-    const { config, client } = this.getClients();
+    const { config, client } = this.resolver.resolve();
     let metadata;
     try {
       metadata = await client.send(
         new HeadObjectCommand({ Bucket: config.bucket, Key: key }),
       );
-    } catch {
+    } catch (error) {
+      if (isS3NotFound(error)) {
+        throw new DomainError('invalid', 'Uploaded object does not exist');
+      }
       throw new DomainError(
-        'invalid',
-        'Uploaded object does not exist or storage is unavailable',
+        'unavailable',
+        'Object storage verification failed',
       );
     }
 
@@ -87,8 +74,21 @@ export class S3ObjectStorage
     );
   }
 
+  /**
+   * Chọn cách truy cập object theo visibility đã được backend lưu trong database.
+   * Public dùng URL cố định; private dùng Presigned GET URL.
+   */
+  async getUrl(key: string, visibility: 'public' | 'private'): Promise<string> {
+    return visibility === 'public'
+      ? this.buildPublicObjectUrl(key)
+      : this.downloadUrl(key);
+  }
+
+  /**
+   * Tạo Presigned URL để tải hoặc xem file private từ S3 (GET) kèm thời gian hết hạn.
+   */
   async downloadUrl(key: string): Promise<string> {
-    const { config, presignClient } = this.getClients();
+    const { config, client: presignClient } = this.resolver.resolve(true);
     return getSignedUrl(
       presignClient,
       new GetObjectCommand({ Bucket: config.bucket, Key: key }),
@@ -96,8 +96,34 @@ export class S3ObjectStorage
     );
   }
 
+  /**
+   * Tạo URL public cố định cho object.
+   * Chỉ dùng cho bucket/prefix đã được cấu hình public.
+   */
+  buildPublicObjectUrl(key: string): string {
+    const provider = getActiveS3Provider();
+    const { config } = this.resolver.resolve();
+    const encodedKey = key
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+    const configuredBase =
+      config.publicEndpoint?.trim() || config.endpoint?.trim();
+
+    if (configuredBase) {
+      return `${configuredBase.replace(/\/$/, '')}/${config.bucket}/${encodedKey}`;
+    }
+    if (provider === S3Provider.Cloud) {
+      return `https://${config.bucket}.s3.${config.region}.amazonaws.com/${encodedKey}`;
+    }
+    return `/${config.bucket}/${encodedKey}`;
+  }
+
+  /**
+   * Xóa file khỏi S3/MinIO bằng key định danh.
+   */
   async delete(key: string): Promise<void> {
-    const { config, client } = this.getClients();
+    const { config, client } = this.resolver.resolve();
     try {
       await client.send(
         new DeleteObjectCommand({ Bucket: config.bucket, Key: key }),
@@ -107,8 +133,17 @@ export class S3ObjectStorage
     }
   }
 
-  onApplicationShutdown(): void {
-    this.client?.destroy();
-    if (this.presignClient !== this.client) this.presignClient?.destroy();
+  /**
+   * Xóa nhiều object trong một hoặc nhiều batch DeleteObjects.
+   * S3ObjectService tự chia batch tối đa theo giới hạn của S3.
+   */
+  async deleteMany(keys: string[]): Promise<void> {
+    if (keys.length === 0) return;
+    try {
+      await this.objects.deleteObjects({ keys });
+    } catch (error) {
+      if (error instanceof DomainError) throw error;
+      throw new DomainError('unavailable', 'S3 objects delete failed');
+    }
   }
 }

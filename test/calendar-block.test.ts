@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { Calendar } from '../src/modules/calendar/calendar.domain';
-import { Booking } from '../src/modules/booking/booking.domain';
+import { Calendar } from '../src/modules/calendar/schedule/calendar.domain';
+import { Booking } from '../src/modules/booking/core/booking.domain';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';
 
 const code = (expected: string) => (error: unknown) =>

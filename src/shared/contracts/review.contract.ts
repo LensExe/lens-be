@@ -1,4 +1,4 @@
-import type { ReviewStatus } from '@shared/database/entities/feedback.entity';
+import type { ReviewStatus } from '@shared/domain/values/review.values';
 
 export interface ReviewCreateCommandInput {
   id: string;

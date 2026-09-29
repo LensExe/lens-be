@@ -1,3 +1,5 @@
+import type { Gender } from '@shared/domain/values/user.values';
+
 /**
  * Input cho lệnh đăng ký tài khoản mới vào hệ thống backend (sau khi đã xác thực Keycloak).
  * Dùng để khởi tạo bản ghi user, customer profile và ví (wallet).
@@ -25,7 +27,7 @@ export interface IdentityUpdateMeCommandInput {
   /** Số điện thoại liên hệ */
   phone_number?: string;
   /** Giới tính */
-  gender?: 'male' | 'female' | 'other';
+  gender?: Gender;
   /** Ngày tháng năm sinh (định dạng ISO string hoặc YYYY-MM-DD) */
   dob?: string;
 }

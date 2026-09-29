@@ -1,5 +1,5 @@
 import { ensure } from '@shared/domain/domain.error';
-import { UserStatus } from '@shared/database';
+import { UserStatus } from '@shared/domain/values/user.values';
 
 /** User state rules; the use case handles lookup, authorization and persistence. */
 export class Identity {

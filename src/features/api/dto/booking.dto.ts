@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { BookingStatus } from '@shared/database/entities/booking.entity';
+import { BookingStatus } from '@shared/domain/values/booking.values';
 import {
   IsString,
   IsUUID,

@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import type { EntityManager, FindOperator } from 'typeorm';
 import { EntitySchemas } from '../src/shared/database';
-import { BookingUseCases } from '../src/modules/booking/booking.use-case';
+import { BookingUseCases } from '../src/modules/booking/core/booking.use-case';
 import type { RatingUpdaterPort } from '../src/modules/booking/ports/rating-updater.port';
 import type { PaidAmountsPort } from '../src/modules/booking/ports/paid-amounts.port';
 

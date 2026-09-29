@@ -1,8 +1,8 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import type { EntityManager } from 'typeorm';
-import { ReviewUseCases } from '../src/modules/feedback/review.use-case';
-import { Review } from '../src/modules/feedback/review.domain';
+import { ReviewUseCases } from '../src/modules/feedback/review/review.use-case';
+import { Review } from '../src/modules/feedback/review/review.domain';
 import { EntitySchemas } from '../src/shared/database';
 
 test('ratings for many photographers in one query, zeros when none yet', async () => {

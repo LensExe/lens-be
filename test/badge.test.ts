@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import {
   Badge,
   type BadgeRule,
-} from '../src/modules/photographer/badge.domain';
+} from '../src/modules/photographer/badge/badge.domain';
 
 /** Danh mục mặc định giống seed của migration 006. */
 const definitions: BadgeRule[] = [

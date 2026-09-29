@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { Cron } from '@nestjs/schedule';
 import { DataSource } from 'typeorm';
-import { BookingCancelUnpaidCommand } from '@modules/booking/bookings.command';
+import { BookingCancelUnpaidCommand } from '@modules/booking/core/bookings.command';
 import { runExclusive, SYSTEM_ACTOR } from './scheduled-job';
 
 /** Job huỷ booking đã được nhận mà khách chưa trả cọc kịp (24 giờ hoặc tới giờ chụp), chạy mỗi 10 phút. */

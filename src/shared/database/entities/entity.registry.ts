@@ -5,6 +5,7 @@ import { BookingEntity } from './booking.entity';
 import { CustomerEntity } from './customer.entity';
 import { FeedbackEntity } from './feedback.entity';
 import { MediaEntity } from './media.entity';
+import { MediaVariantEntity } from './media-variant.entity';
 import { OfflineSlotEntity } from './offline-slot.entity';
 import { WorkingHourEntity } from './working-hour.entity';
 import { BookingStatusHistoryEntity } from './booking-status-history.entity';
@@ -47,6 +48,7 @@ export const databaseEntities = [
   PaymentWebhookEntity,
   RefundRequestEntity,
   MediaEntity,
+  MediaVariantEntity,
   PortfolioEntity,
   BookingDeliveryEntity,
   FeedbackEntity,
@@ -76,6 +78,7 @@ export const EntitySchemas = {
   payment_webhooks: PaymentWebhookEntity,
   refund_requests: RefundRequestEntity,
   media: MediaEntity,
+  media_variants: MediaVariantEntity,
   portfolios: PortfolioEntity,
   booking_deliveries: BookingDeliveryEntity,
   feedbacks: FeedbackEntity,
