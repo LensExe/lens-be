@@ -7,6 +7,7 @@ import {
   Query,
   Req,
   HttpCode,
+  NotFoundException,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
@@ -24,6 +25,7 @@ import {
   ApiNotFoundResponse,
   ApiConflictResponse,
   ApiServiceUnavailableResponse,
+  ApiExcludeEndpoint,
 } from '@nestjs/swagger';
 import type { Actor } from '@shared/platform/auth/actor';
 import { Access } from '../auth/keycloak.guard';
@@ -43,12 +45,6 @@ import { BookingRejectCommand } from '@modules/booking/core/bookings.command';
 import { BookingStartCommand } from '@modules/booking/core/bookings.command';
 import { BookingTimelineQuery } from '@modules/booking/core/bookings.query';
 import { BookingGetQuery } from '@modules/booking/core/bookings.query';
-import { BookingCollaboratorAcceptCommand } from '@modules/booking/collaborator/collaborator.command';
-import { BookingCollaboratorDeclineCommand } from '@modules/booking/collaborator/collaborator.command';
-import { BookingCollaboratorInviteCommand } from '@modules/booking/collaborator/collaborator.command';
-import { BookingCollaboratorRevokeCommand } from '@modules/booking/collaborator/collaborator.command';
-import { BookingCollaboratorListQuery } from '@modules/booking/collaborator/collaborator.query';
-import { BookingCollaboratorMeQuery } from '@modules/booking/collaborator/collaborator.query';
 
 @ApiTags('Booking')
 @Controller()
@@ -57,6 +53,13 @@ export class BookingController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  /** Collaboration is temporarily disabled: a booking has exactly one photographer. */
+  private collaborationDisabled(): never {
+    throw new NotFoundException(
+      'Booking collaboration is temporarily disabled',
+    );
+  }
   @Get('admin/bookings')
   @ApiOperation({
     operationId: 'ADM-005',
@@ -117,7 +120,8 @@ export class BookingController {
   @ApiOperation({
     operationId: 'BOOK-001',
     summary: 'Tạo booking',
-    description: 'Customer gửi yêu cầu đặt lịch photographer. Role: Customer',
+    description:
+      'Customer gửi yêu cầu đặt lịch với đúng một photographer chịu trách nhiệm. Role: Customer',
   })
   @Access(['customer'])
   @ApiBearerAuth()
@@ -645,6 +649,7 @@ export class BookingController {
   }
 
   @Post('bookings/:id/collaborators')
+  @ApiExcludeEndpoint()
   @ApiOperation({
     operationId: 'BOOK-013',
     summary: 'Mời thợ liên kết',
@@ -677,20 +682,12 @@ export class BookingController {
     schema: responseSchema('BOOK-013'),
   })
   @HttpCode(200)
-  inviteCollaborator(
-    @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() body: Dto.BookingCollaboratorInviteCommandBodyDto,
-  ) {
-    return this.commands.execute(
-      new BookingCollaboratorInviteCommand(
-        req.actor ?? { sub: '', roles: [] },
-        { ...body, id },
-      ),
-    );
+  inviteCollaborator() {
+    return this.collaborationDisabled();
   }
 
   @Get('bookings/:id/collaborators')
+  @ApiExcludeEndpoint()
   @ApiOperation({
     operationId: 'BOOK-014',
     summary: 'Danh sách thợ liên kết',
@@ -721,18 +718,12 @@ export class BookingController {
     description: 'Successful result',
     schema: responseSchema('BOOK-014'),
   })
-  collaborators(
-    @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
-  ) {
-    return this.queries.execute(
-      new BookingCollaboratorListQuery(req.actor ?? { sub: '', roles: [] }, {
-        id,
-      }),
-    );
+  collaborators() {
+    return this.collaborationDisabled();
   }
 
   @Get('booking-collaborators/me')
+  @ApiExcludeEndpoint()
   @ApiOperation({
     operationId: 'BOOK-015',
     summary: 'Lời mời liên kết của tôi',
@@ -762,18 +753,12 @@ export class BookingController {
     description: 'Successful result',
     schema: responseSchema('BOOK-015'),
   })
-  myCollaborations(
-    @Req() req: { actor?: Actor },
-    @Query() query: Dto.BookingCollaboratorMeQueryQueryDto,
-  ) {
-    return this.queries.execute(
-      new BookingCollaboratorMeQuery(req.actor ?? { sub: '', roles: [] }, {
-        ...query,
-      }),
-    );
+  myCollaborations() {
+    return this.collaborationDisabled();
   }
 
   @Post('booking-collaborators/:id/accept')
+  @ApiExcludeEndpoint()
   @ApiOperation({
     operationId: 'BOOK-016',
     summary: 'Nhận lời mời liên kết',
@@ -804,19 +789,12 @@ export class BookingController {
     schema: responseSchema('BOOK-016'),
   })
   @HttpCode(200)
-  acceptCollaboration(
-    @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
-  ) {
-    return this.commands.execute(
-      new BookingCollaboratorAcceptCommand(
-        req.actor ?? { sub: '', roles: [] },
-        { id },
-      ),
-    );
+  acceptCollaboration() {
+    return this.collaborationDisabled();
   }
 
   @Post('booking-collaborators/:id/decline')
+  @ApiExcludeEndpoint()
   @ApiOperation({
     operationId: 'BOOK-017',
     summary: 'Từ chối lời mời liên kết',
@@ -848,19 +826,12 @@ export class BookingController {
     schema: responseSchema('BOOK-017'),
   })
   @HttpCode(200)
-  declineCollaboration(
-    @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
-  ) {
-    return this.commands.execute(
-      new BookingCollaboratorDeclineCommand(
-        req.actor ?? { sub: '', roles: [] },
-        { id },
-      ),
-    );
+  declineCollaboration() {
+    return this.collaborationDisabled();
   }
 
   @Post('booking-collaborators/:id/revoke')
+  @ApiExcludeEndpoint()
   @ApiOperation({
     operationId: 'BOOK-018',
     summary: 'Rút lời mời liên kết',
@@ -892,16 +863,8 @@ export class BookingController {
     schema: responseSchema('BOOK-018'),
   })
   @HttpCode(200)
-  revokeCollaboration(
-    @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
-  ) {
-    return this.commands.execute(
-      new BookingCollaboratorRevokeCommand(
-        req.actor ?? { sub: '', roles: [] },
-        { id },
-      ),
-    );
+  revokeCollaboration() {
+    return this.collaborationDisabled();
   }
 
   @Post('admin/bookings/:id/cancel')

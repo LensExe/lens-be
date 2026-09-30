@@ -23,10 +23,15 @@ import { Rank } from './rank/rank.domain';
 import { Badge } from './badge/badge.domain';
 import { PhotographerRolePort } from './ports/photographer-role.port';
 import { PhotographerRatingsPort } from './ports/photographer-ratings.port';
+import {
+  PhotographerSearchPort,
+  PhotographerSearchFilter,
+  PhotographerSearchResult,
+} from '@modules/customer/ports/photographer-search.port';
 
 /** Nghiệp vụ hồ sơ thợ: đăng ký, duyệt, sửa hồ sơ, tìm kiếm, xếp hạng và huy hiệu. */
 @Injectable()
-export class PhotographerUseCases {
+export class PhotographerUseCases implements PhotographerSearchPort {
   constructor(
     private readonly roles: PhotographerRolePort,
     private readonly ratings: PhotographerRatingsPort,
@@ -53,6 +58,7 @@ export class PhotographerUseCases {
     PhotographerApplication.assertCanSubmit(existing?.verification_status);
     const application = {
       ...input,
+      styles: PhotographerProfile.normalizeStyles(input.styles),
       verification_status: VerificationStatus.PENDING,
       rejection_reason: null,
     };
@@ -285,8 +291,13 @@ export class PhotographerUseCases {
       p.tax_code,
       input.tax_code,
     );
-    if (Object.keys(input).length)
-      await updateEntity(s, EntitySchemas.photographers, p.id, input);
+    const normalizedInput = { ...input };
+    if (input.styles !== undefined)
+      normalizedInput.styles = PhotographerProfile.normalizeStyles(
+        input.styles,
+      );
+    if (Object.keys(normalizedInput).length)
+      await updateEntity(s, EntitySchemas.photographers, p.id, normalizedInput);
     return this.details(s, p.id, true);
   }
 
@@ -427,6 +438,74 @@ export class PhotographerUseCases {
    * @param input Bộ lọc `location`, `keyword` (tên hoặc style), `min_rating` và phân trang `limit`/`offset`
    * @returns `{ items, total, offset, limit }`
    */
+
+  async searchPhotographersForCustomer(
+    s: EntityManager,
+    filter: PhotographerSearchFilter,
+  ): Promise<PhotographerSearchResult> {
+    const offset = filter.offset ?? 0;
+    const limit = filter.limit ?? 20;
+    const contains = (value: string) => `%${value.replace(/[\\%_]/g, '\\$&')}%`;
+    const query = s
+      .createQueryBuilder(EntitySchemas.photographers, 'p')
+      .innerJoin(EntitySchemas.users, 'u', 'u.id = p.user_id')
+      .leftJoin(
+        EntitySchemas.photographer_ratings,
+        'r',
+        'r.photographer_id = p.id',
+      )
+      .where('u.status = :active', { active: 'active' })
+      .andWhere('p.verification_status = :verified', {
+        verified: VerificationStatus.VERIFIED,
+      });
+
+    if (filter.location) {
+      query.andWhere('p.location ILIKE :location', {
+        location: contains(filter.location),
+      });
+    }
+
+    if (filter.styles && filter.styles.length > 0) {
+      // `styles` là jsonb array; `?|` kiểm tra jsonb array có chứa ít nhất một style.
+      query.andWhere('p.styles ?| ARRAY[:...styles]', {
+        styles: filter.styles,
+      });
+    }
+
+    const total = await query.getCount();
+    const rows = await query
+      .select('p.id', 'id')
+      .orderBy('p.is_available', 'DESC')
+      .addOrderBy('COALESCE(r.average_rating, 0)', 'DESC')
+      .addOrderBy('p.id', 'ASC')
+      .offset(offset)
+      .limit(limit)
+      .getRawMany<{ id: string }>();
+
+    const ids = rows.map((row) => row.id);
+    if (!ids.length) return { items: [], total, offset, limit };
+
+    const found = new Map(
+      (await s.findBy(EntitySchemas.photographers, { id: In(ids) })).map(
+        (p) => [p.id, p],
+      ),
+    );
+    const users = new Map(
+      (
+        await s.findBy(EntitySchemas.users, {
+          id: In([...found.values()].map((p) => p.user_id)),
+        })
+      ).map((u) => [u.id, u]),
+    );
+    const pairs = ids.map((id) => {
+      const photographer = found.get(id)!,
+        user = users.get(photographer.user_id)!;
+      return { photographer, user };
+    });
+    const items = (await this.profiles(s, pairs)).map((x) => x.profile);
+    return { items, total, offset, limit };
+  }
+
   async search(
     s: EntityManager,
     _a: Actor,

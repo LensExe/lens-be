@@ -53,7 +53,7 @@ export class BookingAdminQueryQueryDto {
 
 export class BookingCreateCommandBodyDto {
   @ApiProperty({
-    description: 'photographer id',
+    description: 'Photographer duy nhất chịu trách nhiệm cho booking',
     format: 'uuid',
     example: '11111111-1111-4111-8111-111111111111',
   })

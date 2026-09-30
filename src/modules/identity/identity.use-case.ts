@@ -1,3 +1,4 @@
+import { KeycloakUserService } from '@shared/integrations/keycloak/user.service';
 import { Injectable } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
 import { currentUser, required, role } from '@shared/common/access';
@@ -10,6 +11,7 @@ import { Identity } from './identity.domain';
 
 @Injectable()
 export class IdentityUseCases {
+  constructor(private readonly keycloakUsers: KeycloakUserService) {}
   async register(
     s: EntityManager,
     actor: Actor,
@@ -115,13 +117,22 @@ export class IdentityUseCases {
     role(actor, 'admin');
     const current = await currentUser(s, actor);
     const target = await required(s, 'users', input.id);
+    const newStatus = Identity.adminUpdateStatus(
+      current.id,
+      target.id,
+      target.status,
+      input.status,
+    );
+
+    // Keycloak integration
+    const isActive = newStatus === UserStatus.ACTIVE;
+    await this.keycloakUsers.setUserEnabled(target.keycloak_id, isActive);
+    if (!isActive) {
+      await this.keycloakUsers.logoutUser(target.keycloak_id);
+    }
+
     return updateEntity(s, EntitySchemas.users, input.id, {
-      status: Identity.adminUpdateStatus(
-        current.id,
-        target.id,
-        target.status,
-        input.status as UserStatus,
-      ),
+      status: newStatus,
     });
   }
 
@@ -133,13 +144,19 @@ export class IdentityUseCases {
     role(actor, 'admin');
     const current = await currentUser(s, actor);
     const target = await required(s, 'users', input.id);
+    const newStatus = Identity.adminUpdateStatus(
+      current.id,
+      target.id,
+      target.status,
+      UserStatus.BANNED,
+    );
+
+    // Keycloak integration
+    await this.keycloakUsers.setUserEnabled(target.keycloak_id, false);
+    await this.keycloakUsers.logoutUser(target.keycloak_id);
+
     return updateEntity(s, EntitySchemas.users, input.id, {
-      status: Identity.adminUpdateStatus(
-        current.id,
-        target.id,
-        target.status,
-        UserStatus.BANNED,
-      ),
+      status: newStatus,
     });
   }
 
@@ -157,5 +174,63 @@ export class IdentityUseCases {
     input: Inputs.IdentityUnsuspendCommandInput,
   ) {
     return this.status(s, actor, { ...input, status: UserStatus.ACTIVE });
+  }
+
+  async assignRole(
+    s: EntityManager,
+    actor: Actor,
+    input: Inputs.IdentityAssignRoleCommandInput,
+  ) {
+    role(actor, 'admin');
+    const target = await required(s, 'users', input.id);
+    await this.keycloakUsers.assignRealmRoleToUser(
+      target.keycloak_id,
+      input.role,
+    );
+  }
+
+  async revokeRole(
+    s: EntityManager,
+    actor: Actor,
+    input: Inputs.IdentityRevokeRoleCommandInput,
+  ) {
+    role(actor, 'admin');
+    const target = await required(s, 'users', input.id);
+    await this.keycloakUsers.removeRealmRoleFromUser(
+      target.keycloak_id,
+      input.role,
+    );
+  }
+
+  async verifyEmail(
+    s: EntityManager,
+    actor: Actor,
+    input: Inputs.IdentityVerifyEmailCommandInput,
+  ) {
+    role(actor, 'admin');
+    const target = await required(s, 'users', input.id);
+    await this.keycloakUsers.setUserEmailVerified(target.keycloak_id);
+  }
+
+  async forcePasswordReset(
+    s: EntityManager,
+    actor: Actor,
+    input: Inputs.IdentityForcePasswordResetCommandInput,
+  ) {
+    role(actor, 'admin');
+    const target = await required(s, 'users', input.id);
+    await this.keycloakUsers.executeActionsEmail(target.keycloak_id, [
+      'UPDATE_PASSWORD',
+    ]);
+  }
+
+  async logout(
+    s: EntityManager,
+    actor: Actor,
+    input: Inputs.IdentityLogoutCommandInput,
+  ) {
+    role(actor, 'admin');
+    const target = await required(s, 'users', input.id);
+    await this.keycloakUsers.logoutUser(target.keycloak_id);
   }
 }

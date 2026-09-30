@@ -32,6 +32,17 @@ test('the tax code is locked once the profile is approved', () => {
   );
 });
 
+test('photographer styles use the shared vocabulary and are normalized', () => {
+  assert.deepEqual(
+    PhotographerProfile.normalizeStyles([' Wedding ', 'PORTRAIT']),
+    ['wedding', 'portrait'],
+  );
+  assert.throws(
+    () => PhotographerProfile.normalizeStyles(['unknown-style']),
+    /Unsupported photography style/,
+  );
+});
+
 test('an admin cannot review their own photographer application', () => {
   PhotographerApplication.assertNotOwnApplication('applicant', 'admin');
   assert.throws(

@@ -16,7 +16,7 @@ export class BookingEntity extends BaseEntity {
   @Column('uuid')
   customer_id!: string;
 
-  /** ID của nhiếp ảnh gia được thuê (khóa ngoại liên kết tới `photographers.id`) */
+  /** Photographer duy nhất chịu trách nhiệm cho booking (khóa ngoại `photographers.id`). */
   @Column('uuid')
   photographer_id!: string;
 

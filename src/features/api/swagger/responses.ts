@@ -1,9 +1,14 @@
 import type { SchemaObject } from '@nestjs/swagger';
 import { recordSchemas as records } from './record-schemas';
+import { PhotographyStyle } from '@shared/domain/values/photography-style.values';
 
 const str: SchemaObject = { type: 'string' },
   num: SchemaObject = { type: 'number' },
-  bool: SchemaObject = { type: 'boolean' };
+  bool: SchemaObject = { type: 'boolean' },
+  photographyStyle: SchemaObject = {
+    type: 'string',
+    enum: Object.values(PhotographyStyle),
+  };
 
 const obj = (properties: Record<string, SchemaObject>): SchemaObject => ({
   type: 'object',
@@ -46,7 +51,7 @@ const photographer = obj({
   id: str,
   fullname: str,
   avatar_url: { ...str, nullable: true },
-  styles: array(str),
+  styles: array(photographyStyle),
   started_career_at: { ...num, nullable: true },
   is_verified: bool,
   verification_status: str,
@@ -312,6 +317,33 @@ const schemas: Record<string, SchemaObject> = {
   'ADM-010': privatePhotographer,
   'ADM-011': rank,
   'ADM-012': badge,
+  'CUST-001': obj({
+    ...records.customers.properties!,
+    fullname: str,
+    avatar_url: { ...str, nullable: true },
+  }),
+  'CUST-002': records.customers,
+  'CUST-003': obj({
+    ...records.customers.properties!,
+    fullname: str,
+    avatar_url: { ...str, nullable: true },
+  }),
+  'CUST-004': paged(
+    obj({
+      ...records.customers.properties!,
+      fullname: str,
+      email: str,
+      avatar_url: { ...str, nullable: true },
+      status: str,
+    }),
+  ),
+  'CUST-005': obj({
+    total: num,
+    pending: num,
+    completed: num,
+    total_spent_vnd: num,
+  }),
+  'CUST-006': paged(photographer),
 };
 export function responseSchema(id: string): SchemaObject {
   const schema = schemas[id];

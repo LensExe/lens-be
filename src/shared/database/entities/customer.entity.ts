@@ -1,5 +1,6 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
+import type { PhotographyStyle } from '@shared/domain/values/photography-style.values';
 
 /**
  * Entity đại diện cho bảng `customers`.
@@ -11,9 +12,15 @@ export class CustomerEntity extends BaseEntity {
   @Column('uuid', { unique: true })
   user_id!: string;
 
+  /** Giới thiệu ngắn về khách hàng hoặc nhu cầu chụp ảnh */
+  @Column('text', { nullable: true })
+  description!: string | null;
+
   /** Danh sách các phong cách chụp ảnh yêu thích để gợi ý thợ ảnh phù hợp */
-  @Column('jsonb', { default: [] })
-  preferred_styles!: string[];
+  @Column('jsonb', {
+    default: () => "'[]'::jsonb",
+  })
+  preferred_styles!: PhotographyStyle[];
 
   /** Vị trí / khu vực hoạt động hoặc nơi cư trú của khách hàng */
   @Column('text', { nullable: true })

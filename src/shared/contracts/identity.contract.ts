@@ -96,3 +96,25 @@ export interface IdentityUnsuspendCommandInput {
   /** ID (UUID) của người dùng cần mở khóa */
   id: string;
 }
+
+export interface IdentityAssignRoleCommandInput {
+  id: string;
+  role: string;
+}
+
+export interface IdentityRevokeRoleCommandInput {
+  id: string;
+  role: string;
+}
+
+export interface IdentityVerifyEmailCommandInput {
+  id: string;
+}
+
+export interface IdentityForcePasswordResetCommandInput {
+  id: string;
+}
+
+export interface IdentityLogoutCommandInput {
+  id: string;
+}

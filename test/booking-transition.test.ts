@@ -83,9 +83,8 @@ test('only the customer or photographer of the booking may cancel it, not an adm
   assert.equal(s.updates.length, 0);
 });
 
-test('a photographer who declined or was revoked no longer sees the collaborator list', async () => {
+test('a photographer who is not assigned to the booking cannot read it', async () => {
   const useCases = new BookingUseCases({} as RatingUpdaterPort, noPayments);
-  const lookups: object[] = [];
   const s = {
     findBy: async (entity: unknown) =>
       entity === EntitySchemas.users
@@ -95,23 +94,11 @@ test('a photographer who declined or was revoked no longer sees the collaborator
           : [],
     findOneBy: async (entity: unknown) =>
       entity === EntitySchemas.bookings ? booking : { id: 'c1', user_id: 'u1' },
-    existsBy: async (_entity: unknown, where: object) => {
-      lookups.push(where);
-      return false; // only a declined invitation exists
-    },
-    find: async () => [],
   } as unknown as EntityManager;
   await assert.rejects(
-    useCases.collaborators(
-      s,
-      { sub: 'kc-b', roles: ['photographer'] },
-      { id: 'b1' },
-    ),
+    useCases.get(s, { sub: 'kc-b', roles: ['photographer'] }, { id: 'b1' }),
     /Booking access denied/,
   );
-  // the lookup only counts live invitations
-  assert.match(JSON.stringify(lookups[0]), /invited/);
-  assert.match(JSON.stringify(lookups[0]), /accepted/);
 });
 
 test('accepting a request declines the other pending requests for the same time', async () => {

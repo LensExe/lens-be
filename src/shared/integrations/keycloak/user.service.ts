@@ -101,6 +101,62 @@ export class KeycloakUserService {
     );
   }
 
+  async logoutUser(userId: string): Promise<void> {
+    await this.request(
+      `/admin/realms/${this.realm()}/users/${encodeURIComponent(userId)}/logout`,
+      { method: 'POST' },
+    );
+  }
+
+  async executeActionsEmail(userId: string, actions: string[]): Promise<void> {
+    await this.request(
+      `/admin/realms/${this.realm()}/users/${encodeURIComponent(userId)}/execute-actions-email`,
+      { method: 'PUT', data: actions },
+    );
+  }
+
+  async setUserEnabled(userId: string, enabled: boolean): Promise<void> {
+    const user = await this.getUserById(userId);
+    await this.request(
+      `/admin/realms/${this.realm()}/users/${encodeURIComponent(userId)}`,
+      {
+        method: 'PUT',
+        data: { ...user, enabled },
+      },
+    );
+  }
+
+  async getRealmRole(roleName: string): Promise<{ id: string; name: string }> {
+    return this.request<{ id: string; name: string }>(
+      `/admin/realms/${this.realm()}/roles/${encodeURIComponent(roleName)}`,
+    );
+  }
+
+  async assignRealmRoleToUser(userId: string, roleName: string): Promise<void> {
+    const role = await this.getRealmRole(roleName);
+    await this.request(
+      `/admin/realms/${this.realm()}/users/${encodeURIComponent(userId)}/role-mappings/realm`,
+      {
+        method: 'POST',
+        data: [role],
+      },
+    );
+  }
+
+  async removeRealmRoleFromUser(
+    userId: string,
+    roleName: string,
+  ): Promise<void> {
+    const role = await this.getRealmRole(roleName);
+    await this.request(
+      `/admin/realms/${this.realm()}/users/${encodeURIComponent(userId)}/role-mappings/realm`,
+      {
+        method: 'DELETE',
+        data: [role],
+      },
+    );
+  }
+
   private async request<T = void>(
     path: string,
     config: AxiosRequestConfig = {},

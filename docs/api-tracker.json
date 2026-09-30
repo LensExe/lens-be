@@ -180,6 +180,78 @@
     "kind": "Command"
   },
   {
+    "id": "CUST-001",
+    "module": "Customer",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/customers/me",
+    "summary": "Xem customer profile của mình",
+    "description": "Trả về hồ sơ khách hàng cùng fullname và avatar của người dùng.",
+    "role": "Authenticated",
+    "priority": "Must",
+    "kind": "Query"
+  },
+  {
+    "id": "CUST-002",
+    "module": "Customer",
+    "service": "Core Backend",
+    "method": "PATCH",
+    "path": "/customers/me",
+    "summary": "Cập nhật customer profile",
+    "description": "Cập nhật description, preferred_styles và location của khách hàng.",
+    "role": "Authenticated",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
+    "id": "CUST-003",
+    "module": "Customer",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/admin/customers/:id",
+    "summary": "Admin xem customer profile",
+    "description": "Admin xem hồ sơ của một khách hàng theo customer_id.",
+    "role": "Admin",
+    "priority": "Should",
+    "kind": "Query"
+  },
+  {
+    "id": "CUST-004",
+    "module": "Customer",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/admin/customers",
+    "summary": "Admin xem danh sách khách hàng",
+    "description": "Tìm theo tên hoặc email, lọc theo khu vực và phân trang.",
+    "role": "Admin",
+    "priority": "Should",
+    "kind": "Query"
+  },
+  {
+    "id": "CUST-005",
+    "module": "Customer",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/customers/me/summary",
+    "summary": "Khách hàng xem thống kê booking của mình",
+    "description": "Trả về tổng booking, booking đang chờ, booking hoàn tất và tổng tiền đã thanh toán.",
+    "role": "Customer",
+    "priority": "Should",
+    "kind": "Query"
+  },
+  {
+    "id": "CUST-006",
+    "module": "Customer",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/customers/me/recommendations",
+    "summary": "Gợi ý photographer cho khách hàng",
+    "description": "Gợi ý photographer theo phong cách và khu vực trong hồ sơ khách hàng.",
+    "role": "Customer",
+    "priority": "Should",
+    "kind": "Query"
+  },
+  {
     "id": "PHO-001",
     "module": "Photographer",
     "service": "Core Backend",
@@ -702,9 +774,9 @@
     "method": "POST",
     "path": "/bookings/:id/collaborators",
     "summary": "Mời thợ liên kết",
-    "description": "Thợ chính mời thợ khác chụp cùng, chia % phần thợ nhận; tổng % ≤ 100.",
+    "description": "Tạm vô hiệu hoá: mỗi booking chỉ có một photographer; giữ yêu cầu để cân nhắc bật lại sau.",
     "role": "Photographer",
-    "priority": "Must",
+    "priority": "Could",
     "kind": "Command"
   },
   {
@@ -714,9 +786,9 @@
     "method": "GET",
     "path": "/bookings/:id/collaborators",
     "summary": "Danh sách thợ liên kết",
-    "description": "Mọi lời mời của booking; khách, thợ chính, thợ được mời xem được.",
+    "description": "Tạm vô hiệu hoá: API danh sách thợ liên kết chưa được cung cấp.",
     "role": "Customer/Photographer/Admin",
-    "priority": "Must",
+    "priority": "Could",
     "kind": "Query"
   },
   {
@@ -726,9 +798,9 @@
     "method": "GET",
     "path": "/booking-collaborators/me",
     "summary": "Lời mời liên kết của tôi",
-    "description": "Các lời mời gửi tới thợ đang đăng nhập.",
+    "description": "Tạm vô hiệu hoá: API lời mời thợ liên kết chưa được cung cấp.",
     "role": "Photographer",
-    "priority": "Must",
+    "priority": "Could",
     "kind": "Query"
   },
   {
@@ -738,9 +810,9 @@
     "method": "POST",
     "path": "/booking-collaborators/:id/accept",
     "summary": "Nhận lời mời liên kết",
-    "description": "Thợ được mời nhận lời mời còn chờ.",
+    "description": "Tạm vô hiệu hoá: không thể nhận lời mời thợ liên kết.",
     "role": "Photographer",
-    "priority": "Must",
+    "priority": "Could",
     "kind": "Command"
   },
   {
@@ -750,9 +822,9 @@
     "method": "POST",
     "path": "/booking-collaborators/:id/decline",
     "summary": "Từ chối lời mời liên kết",
-    "description": "Thợ được mời từ chối; không mời lại được.",
+    "description": "Tạm vô hiệu hoá: không thể phản hồi lời mời thợ liên kết.",
     "role": "Photographer",
-    "priority": "Must",
+    "priority": "Could",
     "kind": "Command"
   },
   {
@@ -762,9 +834,9 @@
     "method": "POST",
     "path": "/booking-collaborators/:id/revoke",
     "summary": "Rút lời mời liên kết",
-    "description": "Thợ chính rút lời mời chưa được trả lời.",
+    "description": "Tạm vô hiệu hoá: không thể rút lời mời thợ liên kết.",
     "role": "Photographer",
-    "priority": "Must",
+    "priority": "Could",
     "kind": "Command"
   },
   {

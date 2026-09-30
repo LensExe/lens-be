@@ -18,6 +18,7 @@ import { PayOsGateway } from '@shared/integrations/payment/payos-gateway.service
 import { S3Module } from '@shared/integrations/s3/s3.module';
 import { BookingUseCases } from '@modules/booking/core/booking.use-case';
 import { CalendarUseCases } from '@modules/calendar/schedule/calendar.use-case';
+import { CustomerUseCases } from '@modules/customer/customer.use-case';
 import { ReviewUseCases } from '@modules/feedback/review/review.use-case';
 import { MediaUseCases } from '@modules/media/media.use-case';
 import { MediaImageProcessingService } from '@modules/media/media-image-processing.service';
@@ -31,9 +32,10 @@ import { BadgeUseCases } from '@modules/photographer/badge/badge.use-case';
 import { SubscriptionUseCases } from '@modules/subscription/subscription.use-case';
 import { IdentityUseCases } from '@modules/identity/identity.use-case';
 import { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.port';
+import { CustomerBookingStatsPort } from '@modules/customer/ports/customer-booking-stats.port';
+import { PhotographerSearchPort } from '@modules/customer/ports/photographer-search.port';
 import { PaidAmountsPort } from '@modules/booking/ports/paid-amounts.port';
 import { PendingBookingsPort } from '@modules/calendar/ports/pending-bookings.port';
-import { CollaborationTimesPort } from '@modules/calendar/ports/collaboration-times.port';
 import { PhotographerBookingsPort } from '@modules/calendar/ports/photographer-bookings.port';
 import { MediaOwnershipPort } from '@modules/photographer/ports/media-ownership.port';
 import { SubscriptionPaymentsPort } from '@modules/subscription/ports/subscription-payments.port';
@@ -52,6 +54,7 @@ import { EnvModule } from '@shared/platform/env';
 const applicationServices = [
   BookingUseCases,
   CalendarUseCases,
+  CustomerUseCases,
   ReviewUseCases,
   MediaUseCases,
   MediaImageProcessingService,
@@ -105,11 +108,15 @@ const applicationServices = [
       useExisting: PaymentUseCases,
     },
     {
-      provide: PendingBookingsPort,
+      provide: CustomerBookingStatsPort,
       useExisting: BookingUseCases,
     },
     {
-      provide: CollaborationTimesPort,
+      provide: PhotographerSearchPort,
+      useExisting: PhotographerUseCases,
+    },
+    {
+      provide: PendingBookingsPort,
       useExisting: BookingUseCases,
     },
     {

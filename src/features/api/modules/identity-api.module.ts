@@ -10,6 +10,11 @@ import {
   IdentitySuspendCommandHandler,
   IdentityUnsuspendCommandHandler,
   IdentityUpdateMeCommandHandler,
+  IdentityAssignRoleCommandHandler,
+  IdentityRevokeRoleCommandHandler,
+  IdentityVerifyEmailCommandHandler,
+  IdentityForcePasswordResetCommandHandler,
+  IdentityLogoutCommandHandler,
 } from '@modules/identity/identity.command';
 import {
   IdentityAdminUserQueryHandler,
@@ -36,6 +41,11 @@ import { AuthService } from '../auth/auth.service';
     IdentitySuspendCommandHandler,
     IdentityUnsuspendCommandHandler,
     IdentityUpdateMeCommandHandler,
+    IdentityAssignRoleCommandHandler,
+    IdentityRevokeRoleCommandHandler,
+    IdentityVerifyEmailCommandHandler,
+    IdentityForcePasswordResetCommandHandler,
+    IdentityLogoutCommandHandler,
     IdentityAdminUserQueryHandler,
     IdentityAdminUsersQueryHandler,
     IdentityGetUserQueryHandler,

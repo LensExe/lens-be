@@ -14,6 +14,7 @@ export { BookingStatus, OCCUPIED_BOOKING_STATUSES, BookingActorRole };
 export interface BookingDraftInput {
   customerId: string;
   customerUserId: string;
+  /** Photographer duy nhất chịu trách nhiệm cho booking này. */
   photographerId: string;
   photographerUserId: string;
   photographerStatus: string;
@@ -85,7 +86,7 @@ export class Booking {
   constructor(public status: BookingStatus) {}
 
   /**
-   * Kiểm luật tạo booking và tính tiền: cọc = làm tròn lên 30% tổng giá gói.
+   * Kiểm luật tạo booking với đúng một photographer và tính tiền: cọc = làm tròn lên 30% tổng giá gói.
    *
    * @param input Dữ kiện khách, thợ, gói, lịch và các booking/khoảng chặn chồng giờ
    * @returns Dữ liệu booking `pending` để lưu; ném 400/404/409 khi sai luật

@@ -1,6 +1,6 @@
 import type { EntityManager } from 'typeorm';
 
-/** Các buổi thợ đi chụp liên kết đã nhận lời, để lịch trống và chặn lịch tính như lịch đã bận. */
+/** Legacy collaboration contract, currently not bound to Calendar while the feature is disabled. */
 export abstract class CollaborationTimesPort {
   /**
    * Buổi liên kết (lời mời đã nhận, booking còn giữ lịch) của thợ chồng lên khoảng giờ.

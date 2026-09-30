@@ -3,6 +3,7 @@ import { BaseEntity } from './base.entity';
 import { timestampTransformer } from './utils/column-transformers';
 import { VerificationStatus } from '@shared/domain/values/photographer.values';
 import type { VerificationStatus as VerificationStatusType } from '@shared/domain/values/photographer.values';
+import type { PhotographyStyle } from '@shared/domain/values/photography-style.values';
 
 /**
  * Entity đại diện cho bảng `photographers`.
@@ -19,8 +20,8 @@ export class PhotographerEntity extends BaseEntity {
   tax_code!: string | null;
 
   /** Danh sách các phong cách chụp ảnh (ví dụ: chân dung, kỷ yếu, sự kiện, cưới, ngoại cảnh...) */
-  @Column('jsonb', { default: [] })
-  styles!: string[];
+  @Column('jsonb', { default: () => "'[]'::jsonb" })
+  styles!: PhotographyStyle[];
 
   /** Năm bắt đầu làm nghề chụp ảnh */
   @Column({ type: 'int', nullable: true })

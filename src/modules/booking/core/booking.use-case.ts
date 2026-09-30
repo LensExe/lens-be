@@ -71,8 +71,12 @@ const ACTION_SIDE: Partial<Record<BookingAction, 'customer' | 'photographer'>> =
     confirmReceipt: 'customer',
   };
 
+import { CustomerBookingStatsPort } from '@modules/customer/ports/customer-booking-stats.port';
+
 @Injectable()
-export class BookingUseCases implements PendingBookingsPort {
+export class BookingUseCases
+  implements PendingBookingsPort, CustomerBookingStatsPort
+{
   constructor(
     private readonly reviews: RatingUpdaterPort,
     private readonly payments: PaidAmountsPort,
@@ -111,10 +115,10 @@ export class BookingUseCases implements PendingBookingsPort {
       overlapWhere(p.id, input),
     );
 
-    const bookings = [
-      ...(await s.findBy(EntitySchemas.bookings, overlapWhere(p.id, input))),
-      ...(await this.collaborationTimes(s, p.id, input)),
-    ];
+    const bookings = await s.findBy(
+      EntitySchemas.bookings,
+      overlapWhere(p.id, input),
+    );
 
     const draft = Booking.prepare({
       customerId: c.id,
@@ -164,7 +168,7 @@ export class BookingUseCases implements PendingBookingsPort {
   }
 
   /**
-   * Chi tiết một booking; khách, thợ chính, thợ liên kết đã nhận lời và admin xem được.
+   * Chi tiết một booking; khách, photographer được gán và admin/system xem được.
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor
@@ -172,7 +176,7 @@ export class BookingUseCases implements PendingBookingsPort {
    * @returns Booking; 403 nếu không liên quan, 404 nếu không có
    */
   async get(s: EntityManager, a: Actor, input: Inputs.BookingGetQueryInput) {
-    return this.viewable(s, a, input.id, [BookingCollaboratorStatus.ACCEPTED]);
+    return this.viewable(s, a, input.id);
   }
 
   /**
@@ -198,6 +202,33 @@ export class BookingUseCases implements PendingBookingsPort {
     ];
     if (!where.length) return paged([], 0, input);
     return this.pageOfBookings(s, where, input);
+  }
+
+  /**
+   * Thống kê booking cho 1 customer (Dành cho customer module)
+   */
+  async statsForCustomer(s: EntityManager, customerId: string) {
+    const [total, pending, completed, bookings] = await Promise.all([
+      s.countBy(EntitySchemas.bookings, { customer_id: customerId }),
+      s.countBy(EntitySchemas.bookings, {
+        customer_id: customerId,
+        status: BookingStatus.PENDING,
+      }),
+      s.countBy(EntitySchemas.bookings, {
+        customer_id: customerId,
+        status: BookingStatus.COMPLETED,
+      }),
+      s.find(EntitySchemas.bookings, {
+        where: { customer_id: customerId },
+        select: { id: true },
+      }),
+    ]);
+    const bookingIds = bookings.map((booking) => booking.id);
+    const paid = bookingIds.length
+      ? await this.payments.paidAmounts(s, bookingIds)
+      : {};
+    const total_spent_vnd = Object.values(paid).reduce((a, b) => a + b, 0);
+    return { total, pending, completed, total_spent_vnd };
   }
 
   /**
@@ -455,7 +486,7 @@ export class BookingUseCases implements PendingBookingsPort {
     Booking.assertCanAccept(
       b,
       await s.findBy(EntitySchemas.offline_slots, overlap),
-      [...others, ...(await this.collaborationTimes(s, b.photographer_id, b))],
+      others,
     );
     const row = await this.apply(
       s,
@@ -852,6 +883,8 @@ export class BookingUseCases implements PendingBookingsPort {
   }
 
   /**
+   * Legacy collaboration workflow, retained for a possible later re-enable.
+   * It is currently disabled and its CQRS handlers are not registered.
    * Thợ chính mời thợ khác làm thợ liên kết. Khoá booking trước để hai lời mời
    * cùng lúc không vượt tổng 100%.
    *
@@ -918,10 +951,7 @@ export class BookingUseCases implements PendingBookingsPort {
     a: Actor,
     input: Inputs.BookingCollaboratorListQueryInput,
   ) {
-    const b = await this.viewable(s, a, input.id, [
-      BookingCollaboratorStatus.INVITED,
-      BookingCollaboratorStatus.ACCEPTED,
-    ]);
+    const b = await this.viewable(s, a, input.id);
     return {
       items: await s.find(EntitySchemas.booking_collaborators, {
         where: { booking_id: b.id },
@@ -931,43 +961,16 @@ export class BookingUseCases implements PendingBookingsPort {
   }
 
   /**
-   * Booking mà actor được xem: khách, thợ chính, admin/system, hoặc thợ liên kết có lời mời
-   * ở một trong các trạng thái cho phép. Một chỗ duy nhất quyết định ai xem được booking.
+   * Booking mà actor được xem: khách, thợ chính hoặc admin/system. Mỗi booking chỉ có một photographer.
    *
    * @param s EntityManager của transaction hiện tại
    * @param a Actor
    * @param id ID booking
-   * @param collaboratorStatuses Trạng thái lời mời liên kết được tính là được xem
    * @returns Booking; 403 nếu không liên quan, 404 nếu không có
    */
-  private async viewable(
-    s: EntityManager,
-    a: Actor,
-    id: string,
-    collaboratorStatuses: BookingCollaboratorStatus[],
-  ) {
-    const user = await currentUser(s, a),
-      b = await required(s, 'bookings', id),
-      c = await required(s, 'customers', b.customer_id),
-      [mine] = await s.findBy(EntitySchemas.photographers, {
-        user_id: user.id,
-      });
-    const collaborator =
-      !!mine &&
-      (await s.existsBy(EntitySchemas.booking_collaborators, {
-        booking_id: b.id,
-        photographer_id: mine.id,
-        status: In(collaboratorStatuses),
-      }));
-    ensure(
-      c.user_id === user.id ||
-        mine?.id === b.photographer_id ||
-        collaborator ||
-        a.roles.some((r) => ['admin', 'system'].includes(r)),
-      'Booking access denied',
-      'forbidden',
-    );
-    return b;
+  private async viewable(s: EntityManager, a: Actor, id: string) {
+    const { booking } = await bookingAccess(s, a, id);
+    return booking;
   }
 
   /**
@@ -1050,17 +1053,13 @@ export class BookingUseCases implements PendingBookingsPort {
     Booking.assertCanAccept(
       booking,
       await s.findBy(EntitySchemas.offline_slots, overlap),
-      [
-        ...(await s.findBy(EntitySchemas.bookings, overlap)),
-        ...(await this.collaborationTimes(s, photographerId, booking)),
-      ],
+      await s.findBy(EntitySchemas.bookings, overlap),
     );
   }
 
   /**
-   * Các buổi thợ đi chụp liên kết (lời mời đã nhận, booking còn giữ lịch) chồng lên khoảng giờ.
-   * Những buổi này chiếm lịch của thợ liên kết như booking của chính họ. Calendar gọi qua
-   * `CollaborationTimesPort` để trừ khỏi lịch trống và chặn lịch.
+   * Truy vấn lịch liên kết còn được giữ trong code legacy để có thể khôi phục collaboration.
+   * Hiện Calendar và các luồng booking chính không sử dụng kết quả này.
    *
    * @param s EntityManager của transaction hiện tại
    * @param photographerId ID hồ sơ thợ
@@ -1277,7 +1276,7 @@ export class BookingUseCases implements PendingBookingsPort {
    * Lịch sử trạng thái của booking theo thời gian.
    *
    * @param s EntityManager của transaction hiện tại
-   * @param a Actor (khách, thợ chính, thợ liên kết đã nhận lời hoặc admin)
+   * @param a Actor (khách, photographer được gán hoặc admin)
    * @param i ID booking
    * @returns `{ items }` các dòng lịch sử, cũ trước
    */
@@ -1286,9 +1285,7 @@ export class BookingUseCases implements PendingBookingsPort {
     a: Actor,
     i: Inputs.BookingTimelineQueryInput,
   ) {
-    const booking = await this.viewable(s, a, i.id, [
-      BookingCollaboratorStatus.ACCEPTED,
-    ]);
+    const booking = await this.viewable(s, a, i.id);
     return {
       items: await s.find(EntitySchemas.booking_status_history, {
         where: { booking_id: booking.id },

@@ -1,4 +1,5 @@
 import type { SchemaObject } from '@nestjs/swagger';
+import { PhotographyStyle } from '@shared/domain/values/photography-style.values';
 
 export const recordSchemas: Record<string, SchemaObject> = {
   users: {
@@ -80,6 +81,19 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'user id',
         format: 'uuid',
       },
+      description: {
+        type: 'string',
+        description: 'customer description',
+        nullable: true,
+      },
+      preferred_styles: {
+        type: 'array',
+        description: 'preferred photography styles',
+        items: {
+          type: 'string',
+          enum: Object.values(PhotographyStyle),
+        },
+      },
       location: {
         type: 'string',
         description: 'location',
@@ -96,7 +110,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
         format: 'date-time',
       },
     },
-    required: ['id', 'user_id', 'created_at', 'updated_at'],
+    required: ['id', 'user_id', 'preferred_styles', 'created_at', 'updated_at'],
   },
   admins: {
     type: 'object',
@@ -150,6 +164,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'array',
         items: {
           type: 'string',
+          enum: Object.values(PhotographyStyle),
         },
       },
       started_career_at: {

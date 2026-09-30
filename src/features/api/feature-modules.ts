@@ -2,6 +2,7 @@ import type { Type } from '@nestjs/common';
 import {
   BookingApiModule,
   CalendarApiModule,
+  CustomerApiModule,
   IdentityApiModule,
   MediaApiModule,
   ModerationApiModule,
@@ -16,6 +17,7 @@ export const apiFeatureModuleRegistry: ReadonlyArray<
   readonly [name: string, module: Type]
 > = [
   ['IDENTITY', IdentityApiModule],
+  ['CUSTOMER', CustomerApiModule],
   ['PHOTOGRAPHER', PhotographerApiModule],
   ['PORTFOLIO', PortfolioApiModule],
   ['BOOKING', BookingApiModule],

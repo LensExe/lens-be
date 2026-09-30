@@ -1,5 +1,9 @@
 import { VerificationStatus } from '@shared/domain/values/photographer.values';
 import { ensure } from '@shared/domain/domain.error';
+import {
+  isPhotographyStyle,
+  type PhotographyStyle,
+} from '@shared/domain/values/photography-style.values';
 
 /**
  * Quy tắc duyệt hồ sơ thợ: customer gửi hồ sơ → `pending` → admin duyệt `verified` hoặc từ chối `rejected`.
@@ -59,6 +63,36 @@ export class PhotographerApplication {
 
 /** Quy tắc sửa hồ sơ thợ sau khi đã gửi. */
 export class PhotographerProfile {
+  static readonly MAX_STYLES = 200;
+
+  /** Chuẩn hoá và kiểm tra style trước khi ghi vào hồ sơ photographer. */
+  static normalizeStyles(styles: string[]): PhotographyStyle[] {
+    ensure(
+      styles.length <= PhotographerProfile.MAX_STYLES,
+      `Maximum ${PhotographerProfile.MAX_STYLES} styles allowed`,
+      'conflict',
+    );
+
+    const normalized = styles.map((style) => style.trim().toLowerCase());
+    ensure(
+      normalized.every(Boolean),
+      'Photographer styles must not be empty',
+      'invalid',
+    );
+    ensure(
+      normalized.every(isPhotographyStyle),
+      'Unsupported photography style',
+      'invalid',
+    );
+    ensure(
+      new Set(normalized).size === normalized.length,
+      'Photographer styles must be unique',
+      'invalid',
+    );
+
+    return normalized;
+  }
+
   /**
    * Mã số thuế khoá sau khi hồ sơ được duyệt (liên quan thuế và tiền trả cho thợ); đổi phải qua admin.
    * Mô tả, phong cách, khu vực vẫn sửa tự do.

@@ -113,3 +113,10 @@ export class IdentityStatusCommandBodyDto {
   @IsIn(EDITABLE_USER_STATUSES)
   status!: 'active' | 'suspended';
 }
+
+export class IdentityAssignRoleCommandBodyDto {
+  @ApiProperty({ description: 'Role name to assign (e.g., admin, moderator)' })
+  @IsString()
+  @MaxLength(50)
+  role!: string;
+}

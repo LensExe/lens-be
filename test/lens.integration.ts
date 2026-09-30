@@ -887,7 +887,30 @@ test('booking lists are filtered and paged in the database', async () => {
   assert.equal(admin.total, 3);
   assert.equal(admin.limit, 5);
 });
-test('main photographer invites a collaborator who answers once', async () => {
+test('booking collaboration endpoints are temporarily disabled', async () => {
+  const collaboratorId = '11111111-1111-4111-8111-111111111111';
+  const disabledRoutes: [string, string, string, object?][] = [
+    [
+      'POST',
+      `/bookings/${booking}/collaborators`,
+      'photographer',
+      { photographer_id: collaboratorId, share_percent: 10 },
+    ],
+    ['GET', `/bookings/${booking}/collaborators`, 'photographer'],
+    ['GET', '/booking-collaborators/me', 'photographer'],
+    ['POST', `/booking-collaborators/${collaboratorId}/accept`, 'photographer'],
+    [
+      'POST',
+      `/booking-collaborators/${collaboratorId}/decline`,
+      'photographer',
+    ],
+    ['POST', `/booking-collaborators/${collaboratorId}/revoke`, 'photographer'],
+  ];
+  for (const [method, path, who, body] of disabledRoutes)
+    assert.equal((await api(method, path, who, body)).status, 404, path);
+});
+
+test.skip('future: main photographer invites a collaborator who answers once', async () => {
   // approval gives the applicant the photographer role on the next token
   actors.applicant.roles = ['customer', 'photographer'];
   const other = (await ok('GET', '/photographers/me', 'applicant')).id;

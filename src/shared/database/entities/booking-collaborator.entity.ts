@@ -4,8 +4,8 @@ import { timestampTransformer } from './utils/column-transformers';
 import { BookingCollaboratorStatus } from '@shared/domain/values/booking.values';
 
 /**
- * Entity đại diện cho bảng `booking_collaborators`.
- * Thợ chính mời thợ khác chụp cùng booking và chia % phần thợ nhận (sau khi trừ commission).
+ * Entity lưu dữ liệu collaboration cũ/tạm giữ để có thể bật lại sau này.
+ * Tính năng hiện bị vô hiệu hoá; booking runtime chỉ dùng `bookings.photographer_id`.
  */
 @Entity('booking_collaborators')
 export class BookingCollaboratorEntity extends BaseEntity {

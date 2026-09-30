@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsString,
   IsBoolean,
@@ -15,6 +15,10 @@ import {
   IsIn,
   ValidateIf,
 } from 'class-validator';
+import {
+  PhotographyStyle,
+  type PhotographyStyle as PhotographyStyleValue,
+} from '@shared/domain/values/photography-style.values';
 
 export class PhotographerLocationCommandBodyDto {
   @ApiProperty({ description: 'location', type: 'string' })
@@ -91,13 +95,22 @@ export class PhotographerUpdateCommandBodyDto {
     description: 'styles',
     type: 'array',
     items: { type: 'string' },
+    enum: Object.values(PhotographyStyle),
   })
   @ValidateIf((_object, value) => value !== undefined)
   @IsArray()
   @ArrayMaxSize(200)
   @ArrayUnique()
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? value.map((style) =>
+          typeof style === 'string' ? style.trim().toLowerCase() : style,
+        )
+      : value,
+  )
   @IsString({ each: true })
-  styles?: string[];
+  @IsIn(Object.values(PhotographyStyle), { each: true })
+  styles?: PhotographyStyleValue[];
 
   @ApiPropertyOptional({
     description: 'Year the photographer started their career',
@@ -131,12 +144,21 @@ export class PhotographerCreateCommandBodyDto {
     description: 'styles',
     type: 'array',
     items: { type: 'string' },
+    enum: Object.values(PhotographyStyle),
   })
   @IsArray()
   @ArrayMaxSize(200)
   @ArrayUnique()
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? value.map((style) =>
+          typeof style === 'string' ? style.trim().toLowerCase() : style,
+        )
+      : value,
+  )
   @IsString({ each: true })
-  styles!: string[];
+  @IsIn(Object.values(PhotographyStyle), { each: true })
+  styles!: PhotographyStyleValue[];
 
   @ApiPropertyOptional({
     description: 'Year the photographer started their career',

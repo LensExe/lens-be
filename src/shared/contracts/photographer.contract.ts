@@ -23,7 +23,7 @@ export interface PhotographerRejectCommandInput {
 
 export interface PhotographerUpdateCommandInput {
   tax_code?: string;
-  styles?: string[];
+  styles?: PhotographyStyle[];
   started_career_at?: number;
   description?: string;
 }
@@ -32,7 +32,7 @@ export type PhotographerMeQueryInput = Record<string, never>;
 
 export interface PhotographerCreateCommandInput {
   tax_code?: string;
-  styles: string[];
+  styles: PhotographyStyle[];
   started_career_at?: number;
   location: string;
   description?: string;
@@ -56,3 +56,4 @@ export interface PhotographerGetQueryInput {
 }
 
 export type PhotographerAwardBadgesCommandInput = Record<string, never>;
+import type { PhotographyStyle } from '@shared/domain/values/photography-style.values';

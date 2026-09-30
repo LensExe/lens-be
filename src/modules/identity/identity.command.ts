@@ -118,3 +118,116 @@ export class IdentityAdminBanCommandHandler implements ICommandHandler<IdentityA
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Roles
+// ---------------------------------------------------------------------------
+
+export class IdentityAssignRoleCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.IdentityAssignRoleCommandInput,
+  ) {}
+}
+
+@CommandHandler(IdentityAssignRoleCommand)
+export class IdentityAssignRoleCommandHandler implements ICommandHandler<IdentityAssignRoleCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: IdentityUseCases,
+  ) {}
+
+  execute(message: IdentityAssignRoleCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.assignRole(s, message.actor, message.input),
+    );
+  }
+}
+
+export class IdentityRevokeRoleCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.IdentityRevokeRoleCommandInput,
+  ) {}
+}
+
+@CommandHandler(IdentityRevokeRoleCommand)
+export class IdentityRevokeRoleCommandHandler implements ICommandHandler<IdentityRevokeRoleCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: IdentityUseCases,
+  ) {}
+
+  execute(message: IdentityRevokeRoleCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.revokeRole(s, message.actor, message.input),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Admin Auth Actions
+// ---------------------------------------------------------------------------
+
+export class IdentityVerifyEmailCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.IdentityVerifyEmailCommandInput,
+  ) {}
+}
+
+@CommandHandler(IdentityVerifyEmailCommand)
+export class IdentityVerifyEmailCommandHandler implements ICommandHandler<IdentityVerifyEmailCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: IdentityUseCases,
+  ) {}
+
+  execute(message: IdentityVerifyEmailCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.verifyEmail(s, message.actor, message.input),
+    );
+  }
+}
+
+export class IdentityForcePasswordResetCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.IdentityForcePasswordResetCommandInput,
+  ) {}
+}
+
+@CommandHandler(IdentityForcePasswordResetCommand)
+export class IdentityForcePasswordResetCommandHandler implements ICommandHandler<IdentityForcePasswordResetCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: IdentityUseCases,
+  ) {}
+
+  execute(message: IdentityForcePasswordResetCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.forcePasswordReset(s, message.actor, message.input),
+    );
+  }
+}
+
+export class IdentityLogoutCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.IdentityLogoutCommandInput,
+  ) {}
+}
+
+@CommandHandler(IdentityLogoutCommand)
+export class IdentityLogoutCommandHandler implements ICommandHandler<IdentityLogoutCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: IdentityUseCases,
+  ) {}
+
+  execute(message: IdentityLogoutCommand) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.logout(s, message.actor, message.input),
+    );
+  }
+}

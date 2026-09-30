@@ -4,12 +4,7 @@ import type { EntityManager, FindOperator } from 'typeorm';
 import { EntitySchemas } from '../src/shared/database';
 import { CalendarUseCases } from '../src/modules/calendar/schedule/calendar.use-case';
 import type { PendingBookingsPort } from '../src/modules/calendar/ports/pending-bookings.port';
-import type { CollaborationTimesPort } from '../src/modules/calendar/ports/collaboration-times.port';
 import type { PhotographerBookingsPort } from '../src/modules/calendar/ports/photographer-bookings.port';
-
-const noCollaborations = {
-  collaborationTimes: async () => [],
-} as unknown as CollaborationTimesPort;
 const noBookings = {
   bookingsOverlapping: async () => [],
 } as unknown as PhotographerBookingsPort;
@@ -44,7 +39,6 @@ test('blocking time asks booking for overlapping bookings and reads only overlap
       pendingOverlapping: async () => [],
       decline: async () => 0,
     } as unknown as PendingBookingsPort,
-    noCollaborations,
     bookings,
   ).block(s, { sub: 'kc-u1', roles: ['photographer'] }, { from, to });
   assert.deepEqual(asked, [
@@ -93,7 +87,7 @@ test('blocking over pending requests needs the photographer consent', async () =
     to: '2030-01-01T12:00:00+07:00',
   };
   await assert.rejects(
-    new CalendarUseCases(port, noCollaborations, noBookings).block(
+    new CalendarUseCases(port, noBookings).block(
       s,
       { sub: 'kc-u1', roles: ['photographer'] },
       range,
@@ -104,11 +98,7 @@ test('blocking over pending requests needs the photographer consent', async () =
 });
 
 test('longest shift of a photographer, default hours when none declared', async () => {
-  const useCases = new CalendarUseCases(
-    {} as PendingBookingsPort,
-    noCollaborations,
-    noBookings,
-  );
+  const useCases = new CalendarUseCases({} as PendingBookingsPort, noBookings);
   const withShifts = {
     findBy: async () => [
       { weekday: 1, start_time: '08:00', end_time: '12:00' },

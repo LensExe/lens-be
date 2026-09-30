@@ -10,7 +10,6 @@ import {
 } from '@shared/common/access';
 import { Calendar } from './calendar.domain';
 import { PendingBookingsPort } from '../ports/pending-bookings.port';
-import { CollaborationTimesPort } from '../ports/collaboration-times.port';
 import { PhotographerBookingsPort } from '../ports/photographer-bookings.port';
 import { WorkSchedule } from '@shared/domain/rules/work-schedule.rules';
 import { DEFAULT_WORKING_HOURS } from '@shared/domain/values/work-schedule.values';
@@ -27,13 +26,11 @@ const HOURS_CHANGED_REASON = 'Photographer changed working hours';
 export class CalendarUseCases {
   constructor(
     private readonly pendingBookings: PendingBookingsPort,
-    private readonly collaborations: CollaborationTimesPort,
     private readonly bookings: PhotographerBookingsPort,
   ) {}
 
   /**
-   * Khách xem lịch trống của thợ (public): ca làm theo giờ Việt Nam trừ khoảng chặn, booking và
-   * các buổi thợ đi chụp liên kết.
+   * Khách xem lịch trống của thợ (public): ca làm theo giờ Việt Nam trừ khoảng chặn và booking.
    * Chỉ thợ đã duyệt, tài khoản active; thợ tắt nhận lịch (`is_available = false`) thì rỗng.
    *
    * @param s EntityManager của transaction hiện tại
@@ -58,10 +55,7 @@ export class CalendarUseCases {
           where: overlapWhere(p.id, window),
           order: { from: 'ASC' as const },
         }),
-        [
-          ...(await this.bookings.bookingsOverlapping(s, p.id, window)),
-          ...(await this.collaborations.collaborationTimes(s, p.id, window)),
-        ],
+        await this.bookings.bookingsOverlapping(s, p.id, window),
       ),
     };
   }
@@ -207,10 +201,7 @@ export class CalendarUseCases {
     const range = Calendar.blockRange(input);
     Calendar.assertCanBlock(
       range,
-      [
-        ...(await this.bookings.bookingsOverlapping(s, p.id, range)),
-        ...(await this.collaborations.collaborationTimes(s, p.id, range)),
-      ],
+      await this.bookings.bookingsOverlapping(s, p.id, range),
       await s.find(EntitySchemas.offline_slots, {
         where: overlapWhere(p.id, range),
         order: { from: 'ASC' as const },
