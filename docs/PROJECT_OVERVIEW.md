@@ -398,16 +398,16 @@ Database chính là PostgreSQL. Schema khởi tạo nằm tại migrations/001_l
 | Gói và lịch         | booking_plans, photographer_plans, subscriptions, offline_slots |
 | Booking và nội dung | bookings, booking_deliveries, media, portfolios, feedbacks      |
 | Tài chính           | wallets, transactions, payment_webhooks, refund_requests        |
-| Quản trị và hạ tầng | reports, outbox_events                                          |
+| Quản trị và hạ tầng | reports, report_evidences, report_status_history, outbox_events              |
 
-Tổng cộng hiện có 20 bảng nghiệp vụ và hạ tầng theo tài liệu database.
+Tổng cộng hiện có 22 bảng nghiệp vụ và hạ tầng sau khi chuẩn hóa report evidence và status history.
 
 ### 9.2. Quy ước dữ liệu
 
 - ID dùng UUID.
 - Timestamp dùng timestamptz.
 - Tiền VND lưu dạng bigint, sau đó transformer thành number trong application.
-- Một số trường có cấu trúc JSONB như portfolio items, plan features, gallery media IDs và report evidence IDs.
+- Một số trường có cấu trúc JSONB như portfolio items, plan features và gallery media IDs.
 - Request/response API dùng snake_case.
 - Thời gian truyền qua API nên ở định dạng ISO 8601 có timezone.
 

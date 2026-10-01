@@ -10,7 +10,7 @@ import {
 } from 'typeorm';
 import { EntitySchemas, overlapWhere, updateEntity } from '@shared/database';
 import type * as Inputs from '@shared/contracts/contracts';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import type { Actor } from '@shared/platform/auth/actor';
 import {
   currentUser,
@@ -28,6 +28,7 @@ import { WorkSchedule } from '@shared/domain/rules/work-schedule.rules';
 import type { WorkingShift } from '@shared/domain/types/work-schedule.types';
 import { RatingUpdaterPort } from '../ports/rating-updater.port';
 import { PaidAmountsPort } from '../ports/paid-amounts.port';
+import { BookingDisputeReportPort } from '../ports/booking-dispute-report.port';
 import type { PendingBookingsPort } from '@modules/calendar/ports/pending-bookings.port';
 import {
   Booking,
@@ -80,6 +81,8 @@ export class BookingUseCases
   constructor(
     private readonly reviews: RatingUpdaterPort,
     private readonly payments: PaidAmountsPort,
+    @Optional()
+    private readonly disputeReports?: BookingDisputeReportPort,
   ) {}
 
   /**
@@ -1308,10 +1311,14 @@ export class BookingUseCases
     input: Inputs.BookingDisputeCommandInput,
   ) {
     const { user } = await bookingAccess(s, a, input.id);
-    return s.save(EntitySchemas.reports, {
+    ensure(
+      this.disputeReports,
+      'Booking dispute reporting is unavailable',
+      'unavailable',
+    );
+    return this.disputeReports.createBookingDispute(s, {
       user_id: user.id,
-      target_type: 'booking',
-      target_id: input.id,
+      booking_id: input.id,
       reason: input.reason,
     });
   }

@@ -2,33 +2,7 @@ import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import type { Actor } from '@shared/platform/auth/actor';
 import { DataSource } from 'typeorm';
 import type * as Inputs from '@shared/contracts/contracts';
-import { ModerationUseCases } from './moderation.use-case';
-
-export class ModerationDashboardQuery {
-  constructor(
-    public readonly actor: Actor,
-    public readonly input: Inputs.ModerationDashboardQueryInput,
-  ) {}
-}
-@QueryHandler(ModerationDashboardQuery)
-export class ModerationDashboardQueryHandler implements IQueryHandler<ModerationDashboardQuery> {
-  constructor(
-    private readonly dataSource: DataSource,
-    private readonly useCases: ModerationUseCases,
-  ) {}
-
-  /**
-   * Run the moderation dashboard query in the current transaction.
-   *
-   * @param message Command or query message to execute.
-   * @returns Result of the operation performed in the transaction.
-   */
-  execute(message: ModerationDashboardQuery) {
-    return this.dataSource.transaction((s) =>
-      this.useCases.dashboard(s, message.actor),
-    );
-  }
-}
+import { ModerationReportUseCases } from './report.use-case';
 
 export class ModerationListQuery {
   constructor(
@@ -40,7 +14,7 @@ export class ModerationListQuery {
 export class ModerationListQueryHandler implements IQueryHandler<ModerationListQuery> {
   constructor(
     private readonly dataSource: DataSource,
-    private readonly useCases: ModerationUseCases,
+    private readonly useCases: ModerationReportUseCases,
   ) {}
 
   /**
@@ -66,7 +40,7 @@ export class ModerationMineQuery {
 export class ModerationMineQueryHandler implements IQueryHandler<ModerationMineQuery> {
   constructor(
     private readonly dataSource: DataSource,
-    private readonly useCases: ModerationUseCases,
+    private readonly useCases: ModerationReportUseCases,
   ) {}
 
   /**
@@ -92,7 +66,7 @@ export class ModerationGetQuery {
 export class ModerationGetQueryHandler implements IQueryHandler<ModerationGetQuery> {
   constructor(
     private readonly dataSource: DataSource,
-    private readonly useCases: ModerationUseCases,
+    private readonly useCases: ModerationReportUseCases,
   ) {}
 
   /**

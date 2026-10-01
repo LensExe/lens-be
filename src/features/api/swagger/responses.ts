@@ -58,6 +58,53 @@ const portfolioItem = obj({
   download_url: str,
 });
 
+const reportHistory = obj({
+  id: str,
+  report_id: str,
+  event_type: str,
+  from_status: { ...str, nullable: true },
+  to_status: str,
+  actor_user_id: { ...str, nullable: true },
+  actor_role: str,
+  note: { ...str, nullable: true },
+  created_at: str,
+  updated_at: str,
+});
+
+const reportHistoryPublic = obj({
+  id: str,
+  event_type: str,
+  from_status: { ...str, nullable: true },
+  to_status: str,
+  actor_role: str,
+  created_at: str,
+});
+
+const reportEvidence = obj({
+  report_evidence_id: str,
+  sort_order: num,
+  id: str,
+  status: str,
+  content_type: str,
+  file_size: num,
+  visibility: str,
+  thumbnail_url: { ...str, nullable: true },
+  preview_url: { ...str, nullable: true },
+  download_url: { ...str, nullable: true },
+  expires_in: { ...num, nullable: true },
+});
+
+const reportMine = obj({
+  ...records.reports.properties,
+  history: array(reportHistoryPublic),
+});
+
+const reportDetails = obj({
+  ...records.reports.properties,
+  evidence: array(reportEvidence),
+  history: array(reportHistory),
+});
+
 const publicReview = obj({
   id: str,
   rating: num,
@@ -317,9 +364,9 @@ const schemas: Record<string, SchemaObject> = {
   'SUB-005': obj({ ...subscription.properties, storage_bytes: num }),
   'SUB-006': webhook,
   'MOD-001': records.reports,
-  'MOD-002': paged(records.reports),
+  'MOD-002': paged(reportMine),
   'MOD-003': paged(records.reports),
-  'MOD-004': records.reports,
+  'MOD-004': reportDetails,
   'MOD-005': records.reports,
   'MOD-006': records.users,
   'MOD-007': records.users,

@@ -11,8 +11,14 @@ import {
   MinLength,
   MaxLength,
   ArrayMaxSize,
+  ArrayUnique,
   ValidateIf,
 } from 'class-validator';
+import {
+  REPORT_RESOLUTION_STATUSES,
+  REPORT_TARGET_TYPES,
+  ReportStatus,
+} from '@shared/domain/values/report.values';
 
 export class ModerationListQueryQueryDto {
   @ApiPropertyOptional({
@@ -41,21 +47,23 @@ export class ModerationListQueryQueryDto {
   @Max(1000000)
   offset?: number;
 
-  @ApiPropertyOptional({ description: 'status', type: 'string' })
-  @ValidateIf((_object, value) => value !== undefined)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(500)
-  status?: string;
-
   @ApiPropertyOptional({
-    description: 'target type',
-    enum: ['user', 'booking', 'photographer', 'portfolio', 'feedback'],
+    description: 'status',
+    enum: Object.values(ReportStatus),
     type: 'string',
   })
   @ValidateIf((_object, value) => value !== undefined)
-  @IsIn(['user', 'booking', 'photographer', 'portfolio', 'feedback'])
-  target_type?: 'user' | 'booking' | 'photographer' | 'portfolio' | 'feedback';
+  @IsIn(Object.values(ReportStatus))
+  status?: ReportStatus;
+
+  @ApiPropertyOptional({
+    description: 'target type',
+    enum: REPORT_TARGET_TYPES,
+    type: 'string',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsIn(REPORT_TARGET_TYPES)
+  target_type?: (typeof REPORT_TARGET_TYPES)[number];
 }
 
 export class ModerationMineQueryQueryDto {
@@ -89,11 +97,11 @@ export class ModerationMineQueryQueryDto {
 export class ModerationCreateCommandBodyDto {
   @ApiProperty({
     description: 'target type',
-    enum: ['user', 'booking', 'photographer', 'portfolio', 'feedback'],
+    enum: REPORT_TARGET_TYPES,
     type: 'string',
   })
-  @IsIn(['user', 'booking', 'photographer', 'portfolio', 'feedback'])
-  target_type!: 'user' | 'booking' | 'photographer' | 'portfolio' | 'feedback';
+  @IsIn(REPORT_TARGET_TYPES)
+  target_type!: (typeof REPORT_TARGET_TYPES)[number];
 
   @ApiProperty({
     description: 'target id',
@@ -117,6 +125,7 @@ export class ModerationCreateCommandBodyDto {
   @ValidateIf((_object, value) => value !== undefined)
   @IsArray()
   @ArrayMaxSize(20)
+  @ArrayUnique()
   @IsUUID('4', { each: true })
   evidence_media_ids?: string[];
 }
@@ -124,11 +133,11 @@ export class ModerationCreateCommandBodyDto {
 export class ModerationResolveCommandBodyDto {
   @ApiProperty({
     description: 'status',
-    enum: ['resolved', 'rejected', 'escalated'],
+    enum: REPORT_RESOLUTION_STATUSES,
     type: 'string',
   })
-  @IsIn(['resolved', 'rejected', 'escalated'])
-  status!: 'resolved' | 'rejected' | 'escalated';
+  @IsIn(REPORT_RESOLUTION_STATUSES)
+  status!: (typeof REPORT_RESOLUTION_STATUSES)[number];
 
   @ApiProperty({ description: 'resolution', type: 'string' })
   @IsString()

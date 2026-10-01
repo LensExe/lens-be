@@ -28,6 +28,16 @@ export const ReportStatus = {
 
 export type ReportStatus = (typeof ReportStatus)[keyof typeof ReportStatus];
 
+/** Statuses an administrator may set when processing a report. */
+export const REPORT_RESOLUTION_STATUSES = [
+  ReportStatus.RESOLVED,
+  ReportStatus.REJECTED,
+  ReportStatus.ESCALATED,
+] as const;
+
+export type ReportResolutionStatus =
+  (typeof REPORT_RESOLUTION_STATUSES)[number];
+
 export const RESOLVABLE_REPORT_STATUSES = [
   ReportStatus.OPEN,
   ReportStatus.ESCALATED,
@@ -35,3 +45,23 @@ export const RESOLVABLE_REPORT_STATUSES = [
 
 export type ResolvableReportStatus =
   (typeof RESOLVABLE_REPORT_STATUSES)[number];
+
+/** Events recorded in the append-only report status history. */
+export const ReportHistoryEventType = {
+  CREATED: 'created',
+  STATUS_CHANGED: 'status_changed',
+  IMPORTED: 'imported',
+} as const;
+
+export type ReportHistoryEventType =
+  (typeof ReportHistoryEventType)[keyof typeof ReportHistoryEventType];
+
+/** Actor categories stored with report history events. */
+export const ReportHistoryActorRole = {
+  USER: 'user',
+  ADMIN: 'admin',
+  SYSTEM: 'system',
+} as const;
+
+export type ReportHistoryActorRole =
+  (typeof ReportHistoryActorRole)[keyof typeof ReportHistoryActorRole];

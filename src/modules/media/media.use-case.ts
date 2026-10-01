@@ -1,4 +1,4 @@
-import type { EntityManager } from 'typeorm';
+import { In, type EntityManager } from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import {
   MediaStatus,
@@ -22,9 +22,15 @@ import {
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { Media } from './media.domain';
 import type { MediaOwnershipPort } from '@modules/photographer/ports/media-ownership.port';
+import type {
+  ModerationEvidenceMedia,
+  ReportEvidenceMediaPort,
+} from '@modules/moderation/ports/report-evidence-media.port';
 
 @Injectable()
-export class MediaUseCases implements MediaOwnershipPort {
+export class MediaUseCases
+  implements MediaOwnershipPort, ReportEvidenceMediaPort
+{
   constructor(private readonly storage: ObjectStorage) {}
 
   /**
@@ -197,9 +203,82 @@ export class MediaUseCases implements MediaOwnershipPort {
   }
 
   /**
+   * Return view/download URLs for evidence already attached to a report.
+   * Moderation performs the admin authorization and only passes attached media IDs.
+   */
+  async forModeration(
+    s: EntityManager,
+    mediaIds: readonly string[],
+  ): Promise<ModerationEvidenceMedia[]> {
+    if (!mediaIds.length) return [];
+    const uniqueIds = [...new Set(mediaIds)];
+    const media = await s.find(EntitySchemas.media, {
+      where: { id: In(uniqueIds) },
+    });
+    const variants = await s.find(EntitySchemas.media_variants, {
+      where: { media_id: In(uniqueIds) },
+    });
+    const variantOf = new Map(
+      variants.map((variant) => [
+        `${variant.media_id}:${variant.variant}`,
+        variant,
+      ]),
+    );
+    const mediaOf = new Map(media.map((item) => [item.id, item]));
+
+    const result: ModerationEvidenceMedia[] = [];
+    for (const mediaId of mediaIds) {
+      const item = mediaOf.get(mediaId);
+      if (!item) continue;
+      if (item.status !== MediaStatus.READY) {
+        result.push({
+          id: item.id,
+          status: item.status,
+          content_type: item.content_type,
+          file_size: item.file_size,
+          visibility: item.visibility,
+          thumbnail_url: null,
+          preview_url: null,
+          download_url: null,
+          expires_in: null,
+        });
+        continue;
+      }
+
+      const thumbnail = variantOf.get(
+        `${item.id}:${MediaVariantType.THUMBNAIL}`,
+      );
+      const preview = variantOf.get(`${item.id}:${MediaVariantType.PREVIEW}`);
+      const [thumbnailUrl, previewUrl, downloadUrl] = await Promise.all([
+        this.storage.getUrl(
+          thumbnail?.file_key ?? item.file_key,
+          item.visibility,
+        ),
+        this.storage.getUrl(
+          preview?.file_key ?? item.file_key,
+          item.visibility,
+        ),
+        this.storage.getUrl(item.file_key, item.visibility),
+      ]);
+      result.push({
+        id: item.id,
+        status: item.status,
+        content_type: item.content_type,
+        file_size: item.file_size,
+        visibility: item.visibility,
+        thumbnail_url: thumbnailUrl,
+        preview_url: previewUrl,
+        download_url: downloadUrl,
+        expires_in: item.visibility === MediaVisibility.PRIVATE ? 900 : null,
+      });
+    }
+    return result;
+  }
+
+  /**
    * Delete a media file and clean up its related resources.
    * - Verify that the user owns the media.
-   * - Check data constraints: the media must not be used in any booking delivery or portfolio.
+   * - Check data constraints: the media must not be used in a booking delivery, portfolio, or report evidence.
    * - Delete all image variants (thumbnail, preview, etc.) and the original file from S3 storage.
    * - Delete the variant records from the `media_variants` table.
    * - Set the media status to `DELETED` (soft delete).
@@ -220,7 +299,8 @@ export class MediaUseCases implements MediaOwnershipPort {
           portfolio.items.includes(m.id),
         ) &&
         !(await s.findBy(EntitySchemas.portfolios, { cover_media_id: m.id }))
-          .length,
+          .length &&
+        !(await s.countBy(EntitySchemas.report_evidences, { media_id: m.id })),
       'Media is still referenced',
       'conflict',
     );

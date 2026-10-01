@@ -31,10 +31,6 @@ export class ReportEntity extends BaseEntity {
   @Column('text')
   reason!: string;
 
-  /** IDs of attached evidence media files (for example, message screenshots or photos of defective deliverables). */
-  @Column('jsonb', { default: [] })
-  evidence_media_ids!: string[];
-
   /** Report processing status ('open' | 'resolved' | 'rejected' | 'escalated'). */
   @Column({ default: ReportStatus.OPEN })
   status!: ReportStatusType;

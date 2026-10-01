@@ -10,16 +10,17 @@
 | Gói và lịch          | `booking_plans`, `photographer_plans`, `subscriptions`, `offline_slots` |
 | Đặt lịch và nội dung | `bookings`, `booking_deliveries`, `media`, `portfolios`, `feedbacks`    |
 | Tài chính            | `wallets`, `transactions`, `payment_webhooks`, `refund_requests`        |
-| Quản trị và hạ tầng  | `reports`, `outbox_events`                                              |
+| Quản trị và hạ tầng  | `reports`, `report_evidences`, `report_status_history`, `outbox_events`     |
 
-Có 20 bảng nghiệp vụ và hạ tầng. ID dùng UUID; thời điểm dùng `timestamptz`; tiền VND dùng `bigint` và được transformer đổi thành number trong ứng dụng. Command và query hiện đều đọc/ghi cùng PostgreSQL qua TypeORM; không có read database riêng.
+Có 22 bảng nghiệp vụ và hạ tầng sau khi chuẩn hóa report evidence và status history. ID dùng UUID; thời điểm dùng `timestamptz`; tiền VND dùng `bigint` và được transformer đổi thành number trong ứng dụng. Command và query hiện đều đọc/ghi cùng PostgreSQL qua TypeORM; không có read database riêng.
 
 ## Cấu trúc dữ liệu
 
 - `photographers` chứa hồ sơ nghề nghiệp, bao gồm `description` và `started_career_at`.
 - `users.status` nhận `active`, `suspended`, `banned`, `inactive`; domain Identity xử lý chuyển trạng thái. Tài khoản `banned` không được kích hoạt lại qua use case hiện tại.
 - `booking_plans` thuộc một `photographer_id`; booking lưu `booking_plan_id`, `total_amount` snapshot và `gallery_published_at`.
-- `photographer_plans.features`, `portfolios.items`, `booking_deliveries.media_ids`, `reports.evidence_media_ids` lưu dữ liệu dạng JSONB.
+- `photographer_plans.features`, `portfolios.items` và `booking_deliveries.media_ids` lưu dữ liệu dạng JSONB.
+- Evidence của report nằm trong `report_evidences`; các lần tạo/chuyển trạng thái nằm trong `report_status_history`. Migration `020_moderation_report_workflow.sql` chuyển evidence hiện có từ JSONB sang bảng quan hệ và lưu trạng thái gần nhất cũ thành event `imported`.
 - `feedbacks` chứa `photographer_reply` và `replied_at`.
 - `offline_slots` lưu `photographer_id`, `date`, `reason`; lịch trống được tính từ ngày nghỉ và booking hiện có.
 - `subscriptions` thuộc `photographer_id`, lưu `start_at`, `end_at`, `price` snapshot. Chu kỳ gốc nằm trên photographer plan.

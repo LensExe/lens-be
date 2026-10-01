@@ -327,9 +327,20 @@ SET average_rating = COALESCE((SELECT AVG(f.rating) FROM feedbacks f
 -- ============================================================================
 -- 19. BẢNG REPORTS (Báo cáo khiếu nại & Xử lý tranh chấp của Quản trị viên)
 -- ============================================================================
-INSERT INTO reports (id, user_id, target_type, target_id, reason, evidence_media_ids, status, resolution, resolved_by, created_at, updated_at)
+INSERT INTO reports (id, user_id, target_type, target_id, reason, status, resolution, resolved_by, created_at, updated_at)
 VALUES
-  ('16000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-000000000001', 'booking', 'd0000000-0000-4000-8000-000000000001', 'Khách hàng phản ánh thợ ảnh phản hồi tin nhắn chậm 1 ngày trong quá trình chọn ảnh chỉnh sửa.', '["e0000000-0000-4000-8000-000000000021"]'::jsonb, 'resolved', 'Admin đã liên hệ thợ ảnh xác minh. Thợ ảnh gửi lời xin lỗi và đã bàn giao ảnh đúng hạn kèm tặng thêm 3 ảnh blend màu.', 'a0000000-0000-4000-8000-000000000001', '2026-07-16 10:00:00+07', '2026-07-16 15:30:00+07')
+  ('16000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-000000000001', 'booking', 'd0000000-0000-4000-8000-000000000001', 'Khách hàng phản ánh thợ ảnh phản hồi tin nhắn chậm 1 ngày trong quá trình chọn ảnh chỉnh sửa.', 'resolved', 'Admin đã liên hệ thợ ảnh xác minh. Thợ ảnh gửi lời xin lỗi và đã bàn giao ảnh đúng hạn kèm tặng thêm 3 ảnh blend màu.', 'a0000000-0000-4000-8000-000000000001', '2026-07-16 10:00:00+07', '2026-07-16 15:30:00+07')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO report_evidences (id, report_id, media_id, sort_order, created_at, updated_at)
+VALUES
+  ('18000000-0000-4000-8000-000000000001', '16000000-0000-4000-8000-000000000001', 'e0000000-0000-4000-8000-000000000021', 0, '2026-07-16 10:00:00+07', '2026-07-16 10:00:00+07')
+ON CONFLICT (report_id, media_id) DO NOTHING;
+
+INSERT INTO report_status_history (id, report_id, event_type, from_status, to_status, actor_user_id, actor_role, note, created_at, updated_at)
+VALUES
+  ('18000000-0000-4000-8000-000000000011', '16000000-0000-4000-8000-000000000001', 'created', NULL, 'open', 'c0000000-0000-4000-8000-000000000001', 'user', NULL, '2026-07-16 10:00:00+07', '2026-07-16 10:00:00+07'),
+  ('18000000-0000-4000-8000-000000000012', '16000000-0000-4000-8000-000000000001', 'status_changed', 'open', 'resolved', 'a0000000-0000-4000-8000-000000000001', 'admin', 'Admin đã liên hệ thợ ảnh xác minh. Thợ ảnh gửi lời xin lỗi và đã bàn giao ảnh đúng hạn kèm tặng thêm 3 ảnh blend màu.', '2026-07-16 15:30:00+07', '2026-07-16 15:30:00+07')
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================

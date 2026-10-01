@@ -22,7 +22,8 @@ import { CustomerUseCases } from '@modules/customer/customer.use-case';
 import { ReviewUseCases } from '@modules/feedback/review/review.use-case';
 import { MediaUseCases } from '@modules/media/media.use-case';
 import { MediaImageProcessingService } from '@modules/media/media-image-processing.service';
-import { ModerationUseCases } from '@modules/moderation/moderation.use-case';
+import { ModerationDashboardUseCases } from '@modules/moderation/dashboard/dashboard.use-case';
+import { ModerationReportUseCases } from '@modules/moderation/report/report.use-case';
 import { PaymentUseCases } from '@modules/payment/payment.use-case';
 import { PhotographerUseCases } from '@modules/photographer/photographer.use-case';
 import { PortfolioUseCases } from '@modules/photographer/portfolio/portfolio.use-case';
@@ -35,9 +36,11 @@ import { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.port';
 import { CustomerBookingStatsPort } from '@modules/customer/ports/customer-booking-stats.port';
 import { PhotographerSearchPort } from '@modules/customer/ports/photographer-search.port';
 import { PaidAmountsPort } from '@modules/booking/ports/paid-amounts.port';
+import { BookingDisputeReportPort } from '@modules/booking/ports/booking-dispute-report.port';
 import { PendingBookingsPort } from '@modules/calendar/ports/pending-bookings.port';
 import { PhotographerBookingsPort } from '@modules/calendar/ports/photographer-bookings.port';
 import { MediaOwnershipPort } from '@modules/photographer/ports/media-ownership.port';
+import { ReportEvidenceMediaPort } from '@modules/moderation/ports/report-evidence-media.port';
 import { SubscriptionPaymentsPort } from '@modules/subscription/ports/subscription-payments.port';
 import { PhotographerRolePort } from '@modules/photographer/ports/photographer-role.port';
 import { WorkingHoursPort } from '@modules/photographer/ports/working-hours.port';
@@ -58,7 +61,8 @@ const applicationServices = [
   ReviewUseCases,
   MediaUseCases,
   MediaImageProcessingService,
-  ModerationUseCases,
+  ModerationDashboardUseCases,
+  ModerationReportUseCases,
   PaymentUseCases,
   PhotographerUseCases,
   PortfolioUseCases,
@@ -108,6 +112,10 @@ const applicationServices = [
       useExisting: PaymentUseCases,
     },
     {
+      provide: BookingDisputeReportPort,
+      useExisting: ModerationReportUseCases,
+    },
+    {
       provide: CustomerBookingStatsPort,
       useExisting: BookingUseCases,
     },
@@ -137,6 +145,10 @@ const applicationServices = [
     },
     {
       provide: MediaOwnershipPort,
+      useExisting: MediaUseCases,
+    },
+    {
+      provide: ReportEvidenceMediaPort,
       useExisting: MediaUseCases,
     },
     {

@@ -29,12 +29,16 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { Access } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
-import { ModerationDashboardQuery } from '@modules/moderation/moderation.query';
-import { ModerationListQuery } from '@modules/moderation/moderation.query';
-import { ModerationMineQuery } from '@modules/moderation/moderation.query';
-import { ModerationCreateCommand } from '@modules/moderation/moderation.command';
-import { ModerationResolveCommand } from '@modules/moderation/moderation.command';
-import { ModerationGetQuery } from '@modules/moderation/moderation.query';
+import { ModerationDashboardQuery } from '@modules/moderation/dashboard/dashboard.query';
+import {
+  ModerationGetQuery,
+  ModerationListQuery,
+  ModerationMineQuery,
+} from '@modules/moderation/report/report.query';
+import {
+  ModerationCreateCommand,
+  ModerationResolveCommand,
+} from '@modules/moderation/report/report.command';
 
 @ApiTags('Moderation')
 @Controller()

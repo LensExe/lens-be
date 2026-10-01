@@ -1,10 +1,16 @@
+import type {
+  ReportResolutionStatus,
+  ReportStatus,
+  ReportTargetType,
+} from '@shared/domain/values/report.values';
+
 export type ModerationDashboardQueryInput = Record<string, never>;
 
 export interface ModerationListQueryInput {
   limit?: number;
   offset?: number;
-  status?: string;
-  target_type?: 'user' | 'booking' | 'photographer' | 'portfolio' | 'feedback';
+  status?: ReportStatus;
+  target_type?: ReportTargetType;
 }
 
 export interface ModerationMineQueryInput {
@@ -13,7 +19,7 @@ export interface ModerationMineQueryInput {
 }
 
 export interface ModerationCreateCommandInput {
-  target_type: 'user' | 'booking' | 'photographer' | 'portfolio' | 'feedback';
+  target_type: ReportTargetType;
   target_id: string;
   reason: string;
   evidence_media_ids?: string[];
@@ -21,7 +27,7 @@ export interface ModerationCreateCommandInput {
 
 export interface ModerationResolveCommandInput {
   id: string;
-  status: 'resolved' | 'rejected' | 'escalated';
+  status: ReportResolutionStatus;
   resolution: string;
 }
 

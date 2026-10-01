@@ -20,7 +20,9 @@ import { BadgeEntity } from './badge.entity';
 import { PortfolioEntity } from './portfolio.entity';
 import { PhotographerRatingEntity } from './photographer-rating.entity';
 import { RefundRequestEntity } from './refund-request.entity';
+import { ReportEvidenceEntity } from './report-evidence.entity';
 import { ReportEntity } from './report.entity';
+import { ReportStatusHistoryEntity } from './report-status-history.entity';
 import { SubscriptionEntity } from './subscription.entity';
 import { TransactionEntity } from './transaction.entity';
 import { UserEntity } from './user.entity';
@@ -53,6 +55,8 @@ export const databaseEntities = [
   BookingDeliveryEntity,
   FeedbackEntity,
   ReportEntity,
+  ReportEvidenceEntity,
+  ReportStatusHistoryEntity,
   OutboxEventEntity,
 ];
 
@@ -83,6 +87,8 @@ export const EntitySchemas = {
   booking_deliveries: BookingDeliveryEntity,
   feedbacks: FeedbackEntity,
   reports: ReportEntity,
+  report_evidences: ReportEvidenceEntity,
+  report_status_history: ReportStatusHistoryEntity,
   outbox_events: OutboxEventEntity,
 };
 

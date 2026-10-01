@@ -2,7 +2,7 @@ import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import type { Actor } from '@shared/platform/auth/actor';
 import { DataSource } from 'typeorm';
 import type * as Inputs from '@shared/contracts/contracts';
-import { ModerationUseCases } from './moderation.use-case';
+import { ModerationReportUseCases } from './report.use-case';
 
 export class ModerationCreateCommand {
   constructor(
@@ -14,7 +14,7 @@ export class ModerationCreateCommand {
 export class ModerationCreateCommandHandler implements ICommandHandler<ModerationCreateCommand> {
   constructor(
     private readonly dataSource: DataSource,
-    private readonly useCases: ModerationUseCases,
+    private readonly useCases: ModerationReportUseCases,
   ) {}
 
   /**
@@ -40,7 +40,7 @@ export class ModerationResolveCommand {
 export class ModerationResolveCommandHandler implements ICommandHandler<ModerationResolveCommand> {
   constructor(
     private readonly dataSource: DataSource,
-    private readonly useCases: ModerationUseCases,
+    private readonly useCases: ModerationReportUseCases,
   ) {}
 
   /**
