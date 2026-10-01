@@ -9,7 +9,7 @@ import { selectApiFeatureModules } from '../src/features/api/feature-modules';
 import { setupApi } from '../src/features/api/setup';
 import { DataSource } from 'typeorm';
 import { ObjectStorage } from '../src/shared/integrations/s3/storage.port';
-import { PaymentGateway } from '../src/shared/integrations/payment/payment.port';
+import { PaymentGateway } from '../src/shared/integrations/payment/port/payment.port';
 import { KeycloakService } from '../src/shared/integrations/keycloak/keycloak.service';
 
 function compileApi(

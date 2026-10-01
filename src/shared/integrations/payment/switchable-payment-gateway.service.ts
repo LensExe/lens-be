@@ -9,6 +9,7 @@ import { PaymentGateway } from './port/payment.port';
 import {
   PAYMENT_PROVIDER_ADAPTERS,
   type PaymentProviderAdapter,
+  type PaymentProviderOrderState,
   type PaymentWebhookHeaders,
 } from './payment-provider.adapter';
 
@@ -72,8 +73,28 @@ export class SwitchablePaymentGateway extends PaymentGateway {
     orderCode: number,
     amount: number,
     provider: ExternalPaymentProviderType = this.activeProvider,
+    expiresAt?: string,
   ) {
-    return this.gateway(provider).create(orderCode, amount);
+    return this.gateway(provider).create(orderCode, amount, expiresAt);
+  }
+
+  inspect(
+    orderCode: number,
+    provider: ExternalPaymentProviderType = this.activeProvider,
+  ): Promise<PaymentProviderOrderState | null> {
+    const gateway = this.gateway(provider);
+    return gateway.inspect ? gateway.inspect(orderCode) : Promise.resolve(null);
+  }
+
+  cancel(
+    orderCode: number,
+    reason: string,
+    provider: ExternalPaymentProviderType = this.activeProvider,
+  ): Promise<PaymentProviderOrderState | null> {
+    const gateway = this.gateway(provider);
+    return gateway.cancel
+      ? gateway.cancel(orderCode, reason)
+      : Promise.resolve(null);
   }
 
   /**

@@ -32,7 +32,7 @@ export class SePayGateway implements PaymentProviderAdapter {
    * @param amount Transaction amount in the system’s currency.
    * @returns Result object containing the fields `checkout_url`, `qr_code`.
    */
-  create(orderCode: number, amount: number) {
+  create(orderCode: number, amount: number, _expiresAt?: string) {
     const account = this.required(
       'sepay.accountNumber',
       'SEPAY_ACCOUNT_NUMBER',

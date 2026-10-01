@@ -12,7 +12,7 @@ import { INestApplication } from '@nestjs/common';
 import jwt from 'jsonwebtoken';
 import { ApiModule } from '../src/features/api/api.module';
 import { ObjectStorage } from '../src/shared/integrations/s3/storage.port';
-import { PaymentGateway } from '../src/shared/integrations/payment/payment.port';
+import { PaymentGateway } from '../src/shared/integrations/payment/port/payment.port';
 import type { Actor } from '../src/shared/platform/auth/actor';
 import {
   databaseEntities,

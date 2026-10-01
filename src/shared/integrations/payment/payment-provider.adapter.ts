@@ -19,11 +19,35 @@ export interface PaymentVerification {
   success: boolean;
 }
 
+export interface PaymentProviderOrderState {
+  status:
+    | 'pending'
+    | 'paid'
+    | 'underpaid'
+    | 'processing'
+    | 'expired'
+    | 'cancelled'
+    | 'failed';
+  amount_paid: number;
+  reference: string | null;
+}
+
 /** Shared contract implemented by each external payment provider adapter. */
 export interface PaymentProviderAdapter {
   readonly provider: ExternalPaymentProvider;
 
-  create(orderCode: number, amount: number): Promise<PaymentCheckout>;
+  create(
+    orderCode: number,
+    amount: number,
+    expiresAt?: string,
+  ): Promise<PaymentCheckout>;
+
+  inspect?(orderCode: number): Promise<PaymentProviderOrderState>;
+
+  cancel?(
+    orderCode: number,
+    reason: string,
+  ): Promise<PaymentProviderOrderState>;
 
   verify(
     body: unknown,

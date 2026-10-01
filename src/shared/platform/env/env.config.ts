@@ -61,10 +61,21 @@ export const envConfig = (): EnvConfig => {
       apiKey: process.env.PAYOS_API_KEY,
       checksumKey: process.env.PAYOS_CHECKSUM_KEY,
     },
+    payment: {
+      provider: process.env.PAYMENT_PROVIDER ?? 'payos',
+    },
     notification: {
       serviceUrl: process.env.NOTIFICATION_SERVICE_URL,
     },
     axios: {
+      returnUrl: process.env.PAYOS_RETURN_URL,
+      cancelUrl: process.env.PAYOS_CANCEL_URL,
+    },
+    sepay: {
+      accountNumber: process.env.SEPAY_ACCOUNT_NUMBER,
+      accountName: process.env.SEPAY_ACCOUNT_NAME,
+      bankCode: process.env.SEPAY_BANK_CODE,
+      webhookApiKey: process.env.SEPAY_WEBHOOK_API_KEY,
       timeoutMs: Number.parseInt(process.env.AXIOS_TIMEOUT_MS ?? '10000', 10),
       retry: {
         retries: Number.parseInt(process.env.AXIOS_RETRY_COUNT ?? '3', 10),

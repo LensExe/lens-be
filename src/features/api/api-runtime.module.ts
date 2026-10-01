@@ -12,9 +12,9 @@ import {
 } from '@shared/database';
 import { KeycloakModule } from '@shared/integrations/keycloak/keycloak.module';
 import { NotificationModule } from '@shared/integrations/notification/notification.module';
-import { PaymentGateway } from '@shared/integrations/payment/payment.port';
+import { PaymentGateway } from '@shared/integrations/payment/port/payment.port';
+import { PaymentModule } from '@shared/integrations/payment/payment.module';
 import { RealtimePublisher } from '@shared/integrations/realtime/realtime-publisher.port';
-import { PayOsGateway } from '@shared/integrations/payment/payos-gateway.service';
 import { S3Module } from '@shared/integrations/s3/s3.module';
 import { BookingUseCases } from '@modules/booking/core/booking.use-case';
 import { CalendarUseCases } from '@modules/calendar/schedule/calendar.use-case';
@@ -25,6 +25,9 @@ import { MediaImageProcessingService } from '@modules/media/media-image-processi
 import { ModerationDashboardUseCases } from '@modules/moderation/dashboard/dashboard.use-case';
 import { ModerationReportUseCases } from '@modules/moderation/report/report.use-case';
 import { PaymentUseCases } from '@modules/payment/payment.use-case';
+import { RefundUseCases } from '@modules/payment/refund/refund.use-case';
+import { TransactionUseCases } from '@modules/payment/transaction/transaction.use-case';
+import { WalletUseCases } from '@modules/payment/wallet/wallet.use-case';
 import { PhotographerUseCases } from '@modules/photographer/photographer.use-case';
 import { PortfolioUseCases } from '@modules/photographer/portfolio/portfolio.use-case';
 import { BookingPlanUseCases } from '@modules/photographer/booking-plan/booking-plan.use-case';
@@ -36,6 +39,7 @@ import { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.port';
 import { CustomerBookingStatsPort } from '@modules/customer/ports/customer-booking-stats.port';
 import { PhotographerSearchPort } from '@modules/customer/ports/photographer-search.port';
 import { PaidAmountsPort } from '@modules/booking/ports/paid-amounts.port';
+import { BookingPaymentSettlementPort } from '@modules/booking/ports/booking-payment-settlement.port';
 import { BookingDisputeReportPort } from '@modules/booking/ports/booking-dispute-report.port';
 import { PendingBookingsPort } from '@modules/calendar/ports/pending-bookings.port';
 import { PhotographerBookingsPort } from '@modules/calendar/ports/photographer-bookings.port';
@@ -64,6 +68,9 @@ const applicationServices = [
   ModerationDashboardUseCases,
   ModerationReportUseCases,
   PaymentUseCases,
+  RefundUseCases,
+  TransactionUseCases,
+  WalletUseCases,
   PhotographerUseCases,
   PortfolioUseCases,
   BookingPlanUseCases,
@@ -99,6 +106,7 @@ const applicationServices = [
     LensCacheModule,
     KeycloakModule,
     NotificationModule,
+    PaymentModule,
     S3Module,
   ],
   providers: [
@@ -109,6 +117,10 @@ const applicationServices = [
     },
     {
       provide: PaidAmountsPort,
+      useExisting: TransactionUseCases,
+    },
+    {
+      provide: BookingPaymentSettlementPort,
       useExisting: PaymentUseCases,
     },
     {
@@ -163,10 +175,6 @@ const applicationServices = [
         grant: () => Promise.resolve(),
         revoke: () => Promise.resolve(),
       },
-    },
-    {
-      provide: PaymentGateway,
-      useClass: PayOsGateway,
     },
     {
       provide: APP_GUARD,

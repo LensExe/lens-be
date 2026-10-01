@@ -28,6 +28,7 @@ import { WorkSchedule } from '@shared/domain/rules/work-schedule.rules';
 import type { WorkingShift } from '@shared/domain/types/work-schedule.types';
 import { RatingUpdaterPort } from '../ports/rating-updater.port';
 import { PaidAmountsPort } from '../ports/paid-amounts.port';
+import { BookingPaymentSettlementPort } from '../ports/booking-payment-settlement.port';
 import { BookingDisputeReportPort } from '../ports/booking-dispute-report.port';
 import type { PendingBookingsPort } from '@modules/calendar/ports/pending-bookings.port';
 import {
@@ -83,6 +84,8 @@ export class BookingUseCases
     private readonly payments: PaidAmountsPort,
     @Optional()
     private readonly disputeReports?: BookingDisputeReportPort,
+    @Optional()
+    private readonly paymentSettlement?: BookingPaymentSettlementPort,
   ) {}
 
   /**
@@ -353,7 +356,26 @@ export class BookingUseCases
     );
     if (affected !== 1) return null;
     await this.recordHistory(s, b.id, b.status, status, actor, reason);
-    if (status === BookingStatus.COMPLETED) await this.afterCompleted(s, b);
+    if (status === BookingStatus.COMPLETED) {
+      await this.afterCompleted(s, b);
+      await this.paymentSettlement?.scheduleBookingEscrowRelease(
+        s,
+        b.id,
+        updatedAt,
+      );
+    }
+    const terminalRefundStatuses: string[] = [
+      BookingStatus.CANCELLED,
+      BookingStatus.REJECTED,
+      BookingStatus.EXPIRED,
+    ];
+    if (terminalRefundStatuses.includes(status))
+      await this.paymentSettlement?.requestCancellationRefunds(
+        s,
+        b.id,
+        actor.userId,
+        reason,
+      );
     await emit(s, `booking.${status}`, recipients, {
       booking_id: b.id,
       status,

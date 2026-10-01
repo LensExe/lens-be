@@ -38,7 +38,7 @@ export class PayOsGateway implements PaymentProviderAdapter {
    * @returns Result object containing the fields `checkout_url`, `qr_code`.
    * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
-  async create(orderCode: number, amount: number) {
+  async create(orderCode: number, amount: number, expiresAt?: string) {
     const client = this.getClient(),
       returnUrl = this.config.get<string>('payos.returnUrl'),
       cancelUrl = this.config.get<string>('payos.cancelUrl');
@@ -56,6 +56,9 @@ export class PayOsGateway implements PaymentProviderAdapter {
         description: `Lens ${orderCode}`.slice(0, 25),
         returnUrl,
         cancelUrl,
+        ...(expiresAt
+          ? { expiredAt: Math.floor(Date.parse(expiresAt) / 1000) }
+          : {}),
       });
       return { checkout_url: link.checkoutUrl, qr_code: link.qrCode };
     } catch {
@@ -84,6 +87,89 @@ export class PayOsGateway implements PaymentProviderAdapter {
           'PayOS payment creation failed; retry with the same idempotency key',
         );
       }
+    }
+  }
+
+  /**
+   * Retrieve and normalize the latest state of a PayOS payment link.
+   *
+   * @param orderCode PayOS order code.
+   * @returns Normalized provider state, received amount, and latest payment reference.
+   * @throws {DomainError} Thrown when PayOS cannot return the order state.
+   */
+  async inspect(orderCode: number) {
+    try {
+      const link = await this.getClient().paymentRequests.get(orderCode);
+      const statusByProviderValue = {
+        PENDING: 'pending',
+        PAID: 'paid',
+        UNDERPAID: 'underpaid',
+        PROCESSING: 'processing',
+        EXPIRED: 'expired',
+        CANCELLED: 'cancelled',
+        FAILED: 'failed',
+      } as const;
+      const status = statusByProviderValue[link.status];
+      ensure(
+        status,
+        'PayOS returned an unsupported payment status',
+        'unavailable',
+      );
+      return {
+        status,
+        amount_paid: link.amountPaid,
+        reference:
+          link.transactions.length > 0
+            ? link.transactions[link.transactions.length - 1].reference
+            : null,
+      };
+    } catch {
+      throw new DomainError(
+        'unavailable',
+        'Could not retrieve payment status from PayOS',
+      );
+    }
+  }
+
+  /**
+   * Cancel a PayOS link and return its normalized provider state.
+   *
+   * @param orderCode PayOS order code.
+   * @param reason Reason recorded by PayOS for the cancellation.
+   * @returns Normalized provider state, received amount, and latest payment reference.
+   * @throws {DomainError} Thrown when PayOS cannot cancel the order.
+   */
+  async cancel(orderCode: number, reason: string) {
+    try {
+      const link = await this.getClient().paymentRequests.cancel(
+        orderCode,
+        reason,
+      );
+      const statusByProviderValue = {
+        PENDING: 'pending',
+        PAID: 'paid',
+        UNDERPAID: 'underpaid',
+        PROCESSING: 'processing',
+        EXPIRED: 'expired',
+        CANCELLED: 'cancelled',
+        FAILED: 'failed',
+      } as const;
+      const status = statusByProviderValue[link.status];
+      ensure(
+        status,
+        'PayOS returned an unsupported payment status',
+        'unavailable',
+      );
+      return {
+        status,
+        amount_paid: link.amountPaid,
+        reference:
+          link.transactions.length > 0
+            ? link.transactions[link.transactions.length - 1].reference
+            : null,
+      };
+    } catch {
+      throw new DomainError('unavailable', 'Could not cancel the PayOS link');
     }
   }
 

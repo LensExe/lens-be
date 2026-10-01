@@ -2,6 +2,7 @@ import type { ExternalPaymentProvider } from '@shared/domain/values/payment.valu
 import type {
   PaymentCheckout,
   PaymentVerification,
+  PaymentProviderOrderState,
   PaymentWebhookHeaders,
 } from '@shared/integrations/payment/payment-provider.adapter';
 
@@ -26,7 +27,34 @@ export abstract class PaymentGateway {
     orderCode: number,
     amount: number,
     provider?: ExternalPaymentProvider,
+    expiresAt?: string,
   ): Promise<PaymentCheckout>;
+
+  /**
+   * Inspect a provider order when that provider exposes order lookup.
+   *
+   * @param orderCode Provider order code.
+   * @param provider Provider that owns the order.
+   * @returns Current provider state, or `null` when inspection is unsupported.
+   */
+  abstract inspect(
+    orderCode: number,
+    provider?: ExternalPaymentProvider,
+  ): Promise<PaymentProviderOrderState | null>;
+
+  /**
+   * Cancel a provider order when that provider supports cancellation.
+   *
+   * @param orderCode Provider order code.
+   * @param reason Reason sent to the payment provider.
+   * @param provider Provider that owns the order.
+   * @returns Provider state after cancellation, or `null` when cancellation is unsupported.
+   */
+  abstract cancel(
+    orderCode: number,
+    reason: string,
+    provider?: ExternalPaymentProvider,
+  ): Promise<PaymentProviderOrderState | null>;
 
   /**
    * Validate the payment callback and normalize the provider result.

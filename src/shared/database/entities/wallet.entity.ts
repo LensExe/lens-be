@@ -3,20 +3,20 @@ import { BaseEntity } from './base.entity';
 import { bigintColumn } from './utils/column-transformers';
 
 /**
- * Entity đại diện cho bảng `wallets`.
- * Quản lý ví điện tử nội bộ của người dùng trên hệ thống Lens.
+ * Entity representing the `wallets` table.
+ * Manages users' internal electronic wallets on the Lens platform.
  */
 @Entity('wallets')
 export class WalletEntity extends BaseEntity {
-  /** ID của người dùng sở hữu ví (khóa ngoại duy nhất liên kết `users.id`) */
+  /** ID of the wallet owner (unique foreign key referencing `users.id`). */
   @Column('uuid', { unique: true })
   user_id!: string;
 
-  /** Số dư khả dụng hiện tại trong ví (VND, có thể dùng để thanh toán hoặc rút) */
+  /** Current available wallet balance (VND; available for payment or withdrawal). */
   @Column({ ...bigintColumn, default: 0 })
   balance!: number;
 
-  /** Số dư đang bị đóng băng (VND, dùng trong cơ chế ký quỹ Escrow khi đang giữ cọc đơn booking) */
+  /** Frozen balance (VND; used for escrow while a booking deposit is held). */
   @Column({ ...bigintColumn, default: 0 })
   frozen_balance!: number;
 }

@@ -10,6 +10,10 @@ import {
   MinLength,
   MaxLength,
   ValidateIf,
+  IsOptional,
+  IsIn,
+  ValidateNested,
+  Matches,
 } from 'class-validator';
 
 export class PaymentAdminQueryQueryDto {
@@ -53,10 +57,80 @@ export class PaymentDepositCommandBodyDto {
   @MinLength(1)
   @MaxLength(128)
   idempotency_key!: string;
+
+  @ApiPropertyOptional({ enum: ['gateway', 'wallet'], default: 'gateway' })
+  @IsOptional()
+  @IsIn(['gateway', 'wallet'])
+  payment_method?: 'gateway' | 'wallet';
 }
 
 export class PaymentRemainingCommandBodyDto {
   @ApiProperty({ description: 'idempotency key', type: 'string' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  idempotency_key!: string;
+
+  @ApiPropertyOptional({ enum: ['gateway', 'wallet'], default: 'gateway' })
+  @IsOptional()
+  @IsIn(['gateway', 'wallet'])
+  payment_method?: 'gateway' | 'wallet';
+}
+
+export class PaymentTopUpCommandBodyDto {
+  @ApiProperty({ minimum: 1000, maximum: 9000000000000, example: 100000 })
+  @IsInt()
+  @Min(1000)
+  @Max(9000000000000)
+  amount!: number;
+
+  @ApiProperty({ description: 'idempotency key', type: 'string' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  idempotency_key!: string;
+}
+
+export class PayoutDestinationDto {
+  @ApiProperty({
+    description: 'Mã BIN hoặc mã ngân hàng dùng cho lệnh chuyển khoản.',
+  })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(32)
+  bank_code!: string;
+
+  @ApiProperty({ description: 'Số tài khoản nhận tiền.' })
+  @IsString()
+  @Matches(/^[0-9]{4,34}$/)
+  account_number!: string;
+
+  @ApiProperty({ description: 'Tên chủ tài khoản.' })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  account_name!: string;
+}
+
+export class PaymentWithdrawalCommandBodyDto {
+  @ApiProperty({ minimum: 10000, maximum: 9000000000000, example: 100000 })
+  @IsInt()
+  @Min(10000)
+  @Max(9000000000000)
+  amount!: number;
+
+  @ApiProperty({ type: 'string' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  reason!: string;
+
+  @ApiProperty({ type: PayoutDestinationDto })
+  @ValidateNested()
+  @Type(() => PayoutDestinationDto)
+  payout_destination!: PayoutDestinationDto;
+
+  @ApiProperty({ type: 'string' })
   @IsString()
   @MinLength(1)
   @MaxLength(128)
@@ -80,6 +154,109 @@ export class PaymentRefundCommandBodyDto {
   @MinLength(1)
   @MaxLength(10000)
   reason!: string;
+
+  @ApiPropertyOptional({ description: 'idempotency key' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  idempotency_key?: string;
+}
+
+export class PaymentRefundReviewBodyDto {
+  @ApiPropertyOptional({
+    type: 'string',
+    description: 'Lý do quyết định từ chối.',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  reason?: string;
+
+  @ApiPropertyOptional({ type: PayoutDestinationDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PayoutDestinationDto)
+  payout_destination?: PayoutDestinationDto;
+}
+
+export class PaymentRefundCompleteBodyDto {
+  @ApiPropertyOptional({
+    description: 'Mã đối soát payout/refund ngoài hệ thống.',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  payout_reference?: string;
+}
+
+export class PaymentDeadlineExtensionBodyDto {
+  @ApiProperty({
+    description: 'Number of hours added to the current deadline.',
+    minimum: 1,
+    maximum: 168,
+    example: 24,
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(168)
+  hours!: number;
+
+  @ApiProperty({
+    description: 'Reason for extending the payment processing deadline.',
+    type: 'string',
+    maxLength: 1000,
+  })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(1000)
+  reason!: string;
+}
+
+export class PaymentRefundQueueQueryDto {
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 20 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @ApiPropertyOptional({ minimum: 0, default: 0 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1000000)
+  offset?: number;
+
+  @ApiPropertyOptional({
+    enum: ['requested', 'approved', 'rejected', 'completed'],
+  })
+  @IsOptional()
+  @IsIn(['requested', 'approved', 'rejected', 'completed'])
+  status?: string;
+}
+
+export class PaymentWalletLedgerQueryDto {
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 50 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @ApiPropertyOptional({ minimum: 0, default: 0 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1000000)
+  offset?: number;
 }
 
 export class PaymentWebhookCommandBodyDto {
@@ -113,4 +290,11 @@ export class PaymentWebhookCommandBodyDto {
   @MinLength(1)
   @MaxLength(500)
   signature!: string;
+}
+
+/** SePay sends a bank-transfer event rather than the payOS webhook envelope. */
+export class SePayWebhookCommandBodyDto {
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  @IsObject()
+  payload!: Record<string, unknown>;
 }

@@ -761,6 +761,22 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'updated_at',
     ],
   },
+  wallet_ledger: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      wallet_id: { type: 'string', format: 'uuid' },
+      transaction_id: { type: 'string', format: 'uuid', nullable: true },
+      refund_request_id: { type: 'string', format: 'uuid', nullable: true },
+      entry_type: { type: 'string' },
+      available_delta: { type: 'number' },
+      frozen_delta: { type: 'number' },
+      idempotency_key: { type: 'string' },
+      description: { type: 'string' },
+      created_at: { type: 'string', format: 'date-time' },
+      updated_at: { type: 'string', format: 'date-time' },
+    },
+  },
   transactions: {
     type: 'object',
     properties: {
@@ -824,6 +840,28 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'string',
         description: 'qr code',
         nullable: true,
+      },
+      checkout_expires_at: {
+        type: 'string',
+        description: 'checkout expiration time',
+        format: 'date-time',
+        nullable: true,
+      },
+      checkout_expired_at: {
+        type: 'string',
+        description: 'checkout expiration processing time',
+        format: 'date-time',
+        nullable: true,
+      },
+      checkout_review_required_at: {
+        type: 'string',
+        description: 'manual checkout reconciliation time',
+        format: 'date-time',
+        nullable: true,
+      },
+      checkout_expired: {
+        type: 'boolean',
+        description: 'whether the checkout can still be used',
       },
       idempotency_key: {
         type: 'string',
@@ -907,10 +945,22 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'id',
         format: 'uuid',
       },
+      request_type: { type: 'string' },
       transaction_id: {
         type: 'string',
         description: 'transaction id',
         format: 'uuid',
+        nullable: true,
+      },
+      booking_id: {
+        type: 'string',
+        format: 'uuid',
+        nullable: true,
+      },
+      wallet_id: {
+        type: 'string',
+        format: 'uuid',
+        nullable: true,
       },
       user_id: {
         type: 'string',
@@ -928,6 +978,37 @@ export const recordSchemas: Record<string, SchemaObject> = {
       status: {
         type: 'string',
         description: 'status',
+      },
+      payout_destination: {
+        type: 'object',
+        nullable: true,
+        properties: {
+          bank_code: { type: 'string' },
+          account_number: { type: 'string' },
+          account_name: { type: 'string' },
+        },
+      },
+      processing_due_at: {
+        type: 'string',
+        description: 'next payment request processing deadline',
+        format: 'date-time',
+        nullable: true,
+      },
+      sla_reminded_at: {
+        type: 'string',
+        description: 'time when administrators were reminded',
+        format: 'date-time',
+        nullable: true,
+      },
+      sla_escalated_at: {
+        type: 'string',
+        description: 'time when the overdue request was escalated',
+        format: 'date-time',
+        nullable: true,
+      },
+      deadline_extension_count: {
+        type: 'integer',
+        description: 'number of deadline extensions',
       },
       created_at: {
         type: 'string',

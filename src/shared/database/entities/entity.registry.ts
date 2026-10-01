@@ -12,6 +12,9 @@ import { BookingStatusHistoryEntity } from './booking-status-history.entity';
 import { BookingCollaboratorEntity } from './booking-collaborator.entity';
 import { OutboxEventEntity } from './outbox-event.entity';
 import { PaymentWebhookEntity } from './payment-webhook.entity';
+import { PaymentEscrowSettlementEntity } from './payment-escrow-settlement.entity';
+import { PaymentEscrowExtensionEntity } from './payment-escrow-extension.entity';
+import { PaymentRequestDeadlineExtensionEntity } from './payment-request-deadline-extension.entity';
 import { PhotographerPlanEntity } from './photographer-plan.entity';
 import { PhotographerEntity } from './photographer.entity';
 import { PhotographerBadgeEntity } from './photographer-badge.entity';
@@ -27,6 +30,7 @@ import { SubscriptionEntity } from './subscription.entity';
 import { TransactionEntity } from './transaction.entity';
 import { UserEntity } from './user.entity';
 import { WalletEntity } from './wallet.entity';
+import { WalletLedgerEntity } from './wallet-ledger.entity';
 
 export const databaseEntities = [
   UserEntity,
@@ -46,8 +50,12 @@ export const databaseEntities = [
   BookingCollaboratorEntity,
   BookingEntity,
   WalletEntity,
+  WalletLedgerEntity,
   TransactionEntity,
   PaymentWebhookEntity,
+  PaymentEscrowSettlementEntity,
+  PaymentEscrowExtensionEntity,
+  PaymentRequestDeadlineExtensionEntity,
   RefundRequestEntity,
   MediaEntity,
   MediaVariantEntity,
@@ -78,8 +86,12 @@ export const EntitySchemas = {
   booking_status_history: BookingStatusHistoryEntity,
   booking_collaborators: BookingCollaboratorEntity,
   wallets: WalletEntity,
+  wallet_ledger: WalletLedgerEntity,
   transactions: TransactionEntity,
   payment_webhooks: PaymentWebhookEntity,
+  payment_escrow_settlements: PaymentEscrowSettlementEntity,
+  payment_escrow_extensions: PaymentEscrowExtensionEntity,
+  payment_request_deadline_extensions: PaymentRequestDeadlineExtensionEntity,
   refund_requests: RefundRequestEntity,
   media: MediaEntity,
   media_variants: MediaVariantEntity,

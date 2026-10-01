@@ -51,6 +51,19 @@ export interface PayOSConfig {
   clientId?: string;
   apiKey?: string;
   checksumKey?: string;
+  returnUrl?: string;
+  cancelUrl?: string;
+}
+
+export interface SePayConfig {
+  accountNumber?: string;
+  accountName?: string;
+  bankCode?: string;
+  webhookApiKey?: string;
+}
+
+export interface PaymentConfig {
+  provider: string;
 }
 
 export interface NotificationConfig {
@@ -75,7 +88,9 @@ export interface EnvConfig {
   redis: RedisConfig;
   auth: AuthConfig;
   cookie: CookieConfig;
+  payment: PaymentConfig;
   payos: PayOSConfig;
+  sepay: SePayConfig;
   notification: NotificationConfig;
   axios: AxiosConfig;
 }
