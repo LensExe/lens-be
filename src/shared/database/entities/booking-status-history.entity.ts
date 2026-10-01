@@ -6,32 +6,32 @@ import type {
 } from '@shared/domain/values/booking.values';
 
 /**
- * Entity đại diện cho bảng `booking_status_history`.
- * Mỗi lần tạo hoặc chuyển trạng thái booking ghi 1 dòng; dùng cho timeline.
+ * Entity representing the `booking_status_history` table.
+ * Each booking creation or status change adds a row for the timeline.
  */
 @Entity('booking_status_history')
 export class BookingStatusHistoryEntity extends BaseEntity {
-  /** ID booking (khóa ngoại `bookings.id`) */
+  /** Booking ID (foreign key `bookings.id`). */
   @Column('uuid')
   booking_id!: string;
 
-  /** Trạng thái trước khi đổi; `null` ở dòng tạo booking */
+  /** Previous status; `null` when the booking is created. */
   @Column('text', { nullable: true })
   from_status!: BookingStatus | null;
 
-  /** Trạng thái sau khi đổi */
+  /** Status after the change. */
   @Column('text')
   to_status!: BookingStatus;
 
-  /** Bên thực hiện ('customer' | 'photographer' | 'admin' | 'system') */
+  /** Actor type ('customer' | 'photographer' | 'admin' | 'system'). */
   @Column('text')
   actor_role!: BookingActorRole;
 
-  /** User thực hiện (khóa ngoại `users.id`); chỉ được `null` khi `actor_role = 'system'` (job nền) */
+  /** Acting user (foreign key `users.id`); may be `null` only when `actor_role = 'system'` (background job). */
   @Column('uuid', { nullable: true })
   actor_user_id!: string | null;
 
-  /** Lý do (bắt buộc với reject / cancel) */
+  /** Reason (required for rejection or cancellation). */
   @Column('text', { nullable: true })
   reason!: string | null;
 }

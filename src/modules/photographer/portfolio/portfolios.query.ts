@@ -16,6 +16,13 @@ export class PortfolioListQueryHandler implements IQueryHandler<PortfolioListQue
     private readonly dataSource: DataSource,
     private readonly useCases: PortfolioUseCases,
   ) {}
+
+  /**
+   * Run the portfolio list query in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PortfolioListQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.list(s, message.actor, message.input),
@@ -35,6 +42,13 @@ export class PortfolioGetQueryHandler implements IQueryHandler<PortfolioGetQuery
     private readonly dataSource: DataSource,
     private readonly useCases: PortfolioUseCases,
   ) {}
+
+  /**
+   * Run the portfolio query in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PortfolioGetQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.get(s, message.actor, message.input),

@@ -16,6 +16,13 @@ export class CalendarMeQueryHandler implements IQueryHandler<CalendarMeQuery> {
     private readonly dataSource: DataSource,
     private readonly useCases: CalendarUseCases,
   ) {}
+
+  /**
+   * Run the query for the current user’s calendar in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: CalendarMeQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.me(s, message.actor, message.input),
@@ -35,6 +42,13 @@ export class CalendarAvailabilityQueryHandler implements IQueryHandler<CalendarA
     private readonly dataSource: DataSource,
     private readonly useCases: CalendarUseCases,
   ) {}
+
+  /**
+   * Run the query for available photographer calendar time ranges.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: CalendarAvailabilityQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.availability(s, message.actor, message.input),
@@ -54,6 +68,13 @@ export class CalendarWorkingHoursQueryHandler implements IQueryHandler<CalendarW
     private readonly dataSource: DataSource,
     private readonly useCases: CalendarUseCases,
   ) {}
+
+  /**
+   * Run the query for the photographer’s working hours in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: CalendarWorkingHoursQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.workingHours(s, message.actor),
@@ -73,6 +94,13 @@ export class CalendarBlockPreviewQueryHandler implements IQueryHandler<CalendarB
     private readonly dataSource: DataSource,
     private readonly useCases: CalendarUseCases,
   ) {}
+
+  /**
+   * Run the query that previews a blocked time range and the affected bookings.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: CalendarBlockPreviewQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.blockPreview(s, message.actor, message.input),
@@ -92,6 +120,13 @@ export class CalendarWorkingHoursPreviewQueryHandler implements IQueryHandler<Ca
     private readonly dataSource: DataSource,
     private readonly useCases: CalendarUseCases,
   ) {}
+
+  /**
+   * Run the query for the photographer’s working hours in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: CalendarWorkingHoursPreviewQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.workingHoursPreview(s, message.actor, message.input),

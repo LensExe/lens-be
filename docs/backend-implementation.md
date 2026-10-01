@@ -25,7 +25,7 @@ Controller gọi `CommandBus`/`QueryBus`; handler hiện mở `DataSource.transa
 ```bash
 pnpm install
 pnpm docker:up
-# Cấu hình .env cho dịch vụ cục bộ trước khi chạy migration.
+# Configure `.env` for local services before running migrations.
 pnpm db:migrate
 pnpm start:dev
 ```

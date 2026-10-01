@@ -3,7 +3,11 @@ import { test } from 'node:test';
 import type { DataSource } from 'typeorm';
 import { runExclusive } from '../src/features/workers/scheduled-job';
 
-/** DataSource giả: mỗi query runner là một session, cùng chia sẻ bảng advisory lock. */
+/**
+ * Fake DataSource: each query runner is a session, with all sessions sharing the advisory-lock table.
+ *
+ * @returns Result object containing the fields `dataSource`, `held`, `released`.
+ */
 function fakeDataSource() {
   const held = new Set<string>();
   let released = 0;

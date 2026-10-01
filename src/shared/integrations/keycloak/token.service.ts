@@ -32,6 +32,13 @@ export class KeycloakTokenService {
   ) {}
 
   // login with OIDC (Google)
+
+  /**
+   * Exchange an authorization code for a Keycloak token using the OIDC flow.
+   *
+   * @param params params data of type KeycloakExchangeCodeForTokenParams.
+   * @returns Result returned by `tokenRequest`.
+   */
   exchangeCodeForToken(
     params: KeycloakExchangeCodeForTokenParams,
   ): Promise<KeycloakExchangeCodeForTokenResponse> {
@@ -44,6 +51,15 @@ export class KeycloakTokenService {
   }
 
   // login with username/password
+
+  /**
+   * Exchange an email and password for a Keycloak token.
+   *
+   * @param params params data of type KeycloakPasswordLoginParams.
+   * @returns Result returned by `tokenRequest`.
+   * @throws {UnauthorizedException} Thrown when the credentials are invalid or have expired.
+   * @throws {Error} Thrown when the operation cannot be completed.
+   */
   async exchangePasswordForToken(
     params: KeycloakPasswordLoginParams,
   ): Promise<KeycloakExchangeCodeForTokenResponse> {
@@ -66,6 +82,13 @@ export class KeycloakTokenService {
   }
 
   // refresh token
+
+  /**
+   * Exchange a refresh token for a new Keycloak token set.
+   *
+   * @param params params data of type KeycloakRefreshTokenParams.
+   * @returns Result returned by `tokenRequest`.
+   */
   exchangeRefreshTokenForToken(
     params: KeycloakRefreshTokenParams,
   ): Promise<KeycloakExchangeCodeForTokenResponse> {
@@ -75,7 +98,14 @@ export class KeycloakTokenService {
     });
   }
 
-  // revoke (thu hồi) refresh token
+  // Revoke the refresh token.
+
+  /**
+   * Revoke the refresh token.
+   *
+   * @param params params data of type KeycloakRefreshTokenParams.
+   * @returns No value is returned.
+   */
   async revokeRefreshToken(params: KeycloakRefreshTokenParams): Promise<void> {
     await this.formRequest<void>(
       `/realms/${this.realm()}/protocol/openid-connect/revoke`,
@@ -88,6 +118,15 @@ export class KeycloakTokenService {
   }
 
   // register user
+
+  /**
+   * Register a user.
+   *
+   * @param params params data of type KeycloakRegisterUserParams.
+   * @returns Result of the operation described above.
+   * @throws {ConflictException} Thrown when the current state does not allow this operation.
+   * @throws {BadGatewayException} Thrown when the operation cannot be completed.
+   */
   async registerUserWithPassword(
     params: KeycloakRegisterUserParams,
   ): Promise<string> {
@@ -155,22 +194,49 @@ export class KeycloakTokenService {
   // }
 
   // verify access-token by jwks (local)
+
+  /**
+   * Validate the Keycloak access token signature, issuer, and expiration.
+   *
+   * @param token Token to validate, exchange, or revoke.
+   * @returns Result returned by `verifyAccessToken`.
+   */
   verifyAccessToken(token: string): Promise<KeycloakTokenIntrospectResponse> {
     return this.jwks.verifyAccessToken(token);
   }
 
   // verify fresh-token by keycloak server
+
+  /**
+   * Validate a refresh token by checking it with Keycloak.
+   *
+   * @param token Token to validate, exchange, or revoke.
+   * @returns Result returned by `introspect`.
+   */
   verifyRefreshToken(token: string): Promise<KeycloakTokenIntrospectResponse> {
     return this.introspect(token, 'refresh_token');
   }
 
   // verify access-token by keycloak server
+
+  /**
+   * Check the access token status through the Keycloak introspection endpoint.
+   *
+   * @param token Token to validate, exchange, or revoke.
+   * @returns Result returned by `introspect`.
+   */
   verifyAccessTokenIntrospect(
     token: string,
   ): Promise<KeycloakTokenIntrospectResponse> {
     return this.introspect(token, 'access_token');
   }
 
+  /**
+   * Send a request to the Keycloak token endpoint and normalize the result.
+   *
+   * @param values values data of type Record<string, string>.
+   * @returns Result returned by `formRequest`.
+   */
   private tokenRequest(
     values: Record<string, string>,
   ): Promise<KeycloakExchangeCodeForTokenResponse> {
@@ -180,6 +246,13 @@ export class KeycloakTokenService {
     );
   }
 
+  /**
+   * Send a token to the introspection endpoint and return its active status.
+   *
+   * @param token Token to validate, exchange, or revoke.
+   * @param tokenTypeHint Token type hint.
+   * @returns Result returned by `formRequest`.
+   */
   private introspect(
     token: string,
     tokenTypeHint: 'access_token' | 'refresh_token',
@@ -195,6 +268,14 @@ export class KeycloakTokenService {
   }
 
   // send request with form-urlencoded
+
+  /**
+   * Send a form-encoded HTTP request to Keycloak.
+   *
+   * @param path String value used by the operation: path.
+   * @param values values data of type Record<string, string>.
+   * @returns Result returned by `jsonRequest`.
+   */
   private formRequest<T>(
     path: string,
     values: Record<string, string>,
@@ -207,6 +288,14 @@ export class KeycloakTokenService {
   }
 
   // send request with json
+
+  /**
+   * Send a JSON HTTP request to Keycloak.
+   *
+   * @param path String value used by the operation: path.
+   * @param config Service configuration.
+   * @returns Result of the operation described above.
+   */
   private async jsonRequest<T>(
     path: string,
     config: AxiosRequestConfig,
@@ -220,6 +309,13 @@ export class KeycloakTokenService {
   }
 
   // get client credentials
+
+  /**
+   * Get a service access token using the Keycloak client credentials flow.
+   *
+   * @returns Result object containing the fields `client_id`, `client_secret`.
+   * @throws {ServiceUnavailableException} Thrown when an external service is not configured or is unavailable.
+   */
   private clientCredentials(): Record<string, string> {
     const clientId = this.config.get<string>('auth.keycloakClientId');
     const clientSecret = this.config.get<string>('auth.keycloakSecret');
@@ -229,6 +325,13 @@ export class KeycloakTokenService {
   }
 
   // get realm
+
+  /**
+   * Get the configured Keycloak realm name.
+   *
+   * @returns Result returned by `encodeURIComponent`.
+   * @throws {ServiceUnavailableException} Thrown when an external service is not configured or is unavailable.
+   */
   private realm(): string {
     const value = this.config.get<string>('auth.keycloakRealm');
     if (!value)

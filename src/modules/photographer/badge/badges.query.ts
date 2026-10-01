@@ -16,6 +16,12 @@ export class BadgeListQueryHandler implements IQueryHandler<BadgeListQuery> {
     private readonly dataSource: DataSource,
     private readonly useCases: BadgeUseCases,
   ) {}
+
+  /**
+   * Run the badge list query in the current transaction.
+   *
+   * @returns Result of the operation performed in the transaction.
+   */
   execute() {
     return this.dataSource.transaction((s) => this.useCases.list(s));
   }

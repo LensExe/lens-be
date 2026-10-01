@@ -6,13 +6,18 @@ import { BookingUseCases } from '../src/modules/booking/core/booking.use-case';
 import type { RatingUpdaterPort } from '../src/modules/booking/ports/rating-updater.port';
 import type { PaidAmountsPort } from '../src/modules/booking/ports/paid-amounts.port';
 
-/** Bên payment giả: chưa ai trả đồng nào. */
+/** Fake payment service: no payments have been made. */
 const noPayments = {
   paidAmounts: async (_s: unknown, ids: string[]) =>
     Object.fromEntries(ids.map((id) => [id, 0])),
 } as unknown as PaidAmountsPort;
 
-/** 2030-01-01 là thứ Ba; giờ theo Việt Nam. */
+/**
+ * 2030-01-01 is a Tuesday; times are in Vietnam time.
+ *
+ * @param hour String value used by the operation: hour.
+ * @returns Result returned by `toISOString`.
+ */
 const at = (hour: string) =>
   new Date(`2030-01-01T${hour}:00+07:00`).toISOString();
 const pending = [

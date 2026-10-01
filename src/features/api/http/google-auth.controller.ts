@@ -22,6 +22,11 @@ export class GoogleAuthController {
     private readonly googleAuth: GoogleAuthService,
   ) {}
 
+  /**
+   * Build a Google sign-in URL to start the authentication flow.
+   *
+   * @returns Result object containing the fields `authorization_url`.
+   */
   @Get('login')
   @Public()
   @ApiOperation({
@@ -42,6 +47,12 @@ export class GoogleAuthController {
     return { authorization_url: await this.googleAuth.buildLoginUrl() };
   }
 
+  /**
+   * Complete sign-in using the OAuth provider callback data.
+   *
+   * @param query Query filters and pagination options.
+   * @returns Result object containing the fields `user`.
+   */
   @Get('callback')
   @Public()
   @ApiOperation({

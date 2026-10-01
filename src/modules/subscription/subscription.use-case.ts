@@ -12,6 +12,13 @@ import { SubscriptionPaymentsPort } from './ports/subscription-payments.port';
 export class SubscriptionUseCases {
   constructor(private readonly payments: SubscriptionPaymentsPort) {}
 
+  /**
+   * Settle a paid transaction and update the balance or related status.
+   *
+   * @param dataSource Data source used to open a transaction.
+   * @param result Value used by the operation: result.
+   * @returns Result object containing the fields `payment`.
+   */
   async fulfill(
     dataSource: DataSource,
     result: Awaited<ReturnType<SubscriptionUseCases['create']>>,
@@ -22,6 +29,12 @@ export class SubscriptionUseCases {
     };
   }
 
+  /**
+   * List the subscriptions available for enrollment.
+   *
+   * @param s EntityManager for the current transaction.
+   * @returns Result object containing the fields `items`, `booking_plans`.
+   */
   async plans(s: EntityManager) {
     return {
       items: await s.findBy(EntitySchemas.photographer_plans, {
@@ -33,6 +46,15 @@ export class SubscriptionUseCases {
     };
   }
 
+  /**
+   * Create a subscription after validating the input and business rules.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result object containing the fields `subscription`, `payment`.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
+   */
   async create(
     s: EntityManager,
     a: Actor,
@@ -91,6 +113,13 @@ export class SubscriptionUseCases {
     };
   }
 
+  /**
+   * Get the current user information from the authenticated identity.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @returns Result object containing the fields `subscription`, `features`.
+   */
   async me(s: EntityManager, a: Actor) {
     const owner = await photographer(s, a),
       [sub] = await s.find(EntitySchemas.subscriptions, {
@@ -109,6 +138,15 @@ export class SubscriptionUseCases {
     };
   }
 
+  /**
+   * Cancel a subscription and apply the related business rules.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result returned by `updateEntity`.
+   * @throws {DomainError} Thrown when the actor is not authorized.
+   */
   async cancel(
     s: EntityManager,
     a: Actor,
@@ -127,6 +165,13 @@ export class SubscriptionUseCases {
     });
   }
 
+  /**
+   * Summarize the current subscription usage for the user.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @returns Result object containing the fields `storage_bytes`.
+   */
   async usage(s: EntityManager, a: Actor) {
     const u = await currentUser(s, a),
       current = await this.me(s, a);
@@ -137,6 +182,15 @@ export class SubscriptionUseCases {
       ).reduce((n, m) => n + Number(m.file_size), 0),
     };
   }
+
+  /**
+   * Validate and process a webhook from the provider.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result returned by `webhook`.
+   */
   webhook(
     s: EntityManager,
     a: Actor,

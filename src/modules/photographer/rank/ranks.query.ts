@@ -16,6 +16,12 @@ export class RankListQueryHandler implements IQueryHandler<RankListQuery> {
     private readonly dataSource: DataSource,
     private readonly useCases: RankUseCases,
   ) {}
+
+  /**
+   * Run the rank list query in the current transaction.
+   *
+   * @returns Result of the operation performed in the transaction.
+   */
   execute() {
     return this.dataSource.transaction((s) => this.useCases.list(s));
   }

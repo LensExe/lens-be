@@ -1,4 +1,4 @@
-/** Trạng thái của gói thuê bao / hội viên. */
+/** Membership or subscription status. */
 export const SubscriptionStatus = {
   PENDING: 'pending',
   ACTIVE: 'active',

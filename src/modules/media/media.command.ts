@@ -20,6 +20,12 @@ export class MediaCompleteCommandHandler implements ICommandHandler<MediaComplet
     private readonly processingQueue: MediaProcessingQueue,
   ) {}
 
+  /**
+   * Route the media completion command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Processed media value.
+   */
   async execute(message: MediaCompleteCommand) {
     const media = await this.dataSource.transaction((s) =>
       this.useCases.complete(s, message.actor, message.input),
@@ -44,6 +50,12 @@ export class MediaUploadCommandHandler implements ICommandHandler<MediaUploadCom
     private readonly useCases: MediaUseCases,
   ) {}
 
+  /**
+   * Route the media upload command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: MediaUploadCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.upload(s, message.actor, message.input),
@@ -64,6 +76,12 @@ export class MediaAddGalleryCommandHandler implements ICommandHandler<MediaAddGa
     private readonly useCases: MediaUseCases,
   ) {}
 
+  /**
+   * Route the add-media-to-gallery command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: MediaAddGalleryCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.addToGallery(s, message.actor, message.input),
@@ -83,6 +101,13 @@ export class MediaPublishCommandHandler implements ICommandHandler<MediaPublishC
     private readonly dataSource: DataSource,
     private readonly useCases: MediaUseCases,
   ) {}
+
+  /**
+   * Route the media publication command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: MediaPublishCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.publishGallery(s, message.actor, message.input),
@@ -102,6 +127,13 @@ export class MediaCreateGalleryCommandHandler implements ICommandHandler<MediaCr
     private readonly dataSource: DataSource,
     private readonly useCases: MediaUseCases,
   ) {}
+
+  /**
+   * Route the media gallery creation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: MediaCreateGalleryCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.createGallery(s, message.actor, message.input),
@@ -121,6 +153,13 @@ export class MediaRemoveCommandHandler implements ICommandHandler<MediaRemoveCom
     private readonly dataSource: DataSource,
     private readonly useCases: MediaUseCases,
   ) {}
+
+  /**
+   * Route the media deletion command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: MediaRemoveCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.remove(s, message.actor, message.input),

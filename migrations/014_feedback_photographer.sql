@@ -1,4 +1,4 @@
--- Review lưu thẳng thợ được đánh giá, để feedback lọc review theo thợ mà không phải đọc bảng bookings.
+-- Store the reviewed photographer directly so feedback can filter reviews without reading the `bookings` table.
 ALTER TABLE feedbacks ADD COLUMN photographer_id uuid REFERENCES photographers(id);
 
 UPDATE feedbacks f

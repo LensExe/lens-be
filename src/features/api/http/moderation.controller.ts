@@ -43,6 +43,13 @@ export class ModerationController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  /**
+   * Summarize moderation metrics for the admin dashboard.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('admin/dashboard')
   @ApiOperation({
     operationId: 'ADM-001',
@@ -78,6 +85,13 @@ export class ModerationController {
     );
   }
 
+  /**
+   * List moderation records using the supplied query filters.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('admin/reports')
   @ApiOperation({
     operationId: 'MOD-003',
@@ -142,6 +156,13 @@ export class ModerationController {
     );
   }
 
+  /**
+   * List reports created by the current user.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('reports/me')
   @ApiOperation({
     operationId: 'MOD-002',
@@ -194,6 +215,13 @@ export class ModerationController {
     );
   }
 
+  /**
+   * Create a moderation report for the target and reason supplied by the user.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('reports')
   @ApiOperation({
     operationId: 'MOD-001',
@@ -237,6 +265,14 @@ export class ModerationController {
     );
   }
 
+  /**
+   * Resolve the target entity using the current data.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('admin/reports/:id/resolve')
   @ApiOperation({
     operationId: 'MOD-005',
@@ -282,6 +318,13 @@ export class ModerationController {
     );
   }
 
+  /**
+   * Get moderation details by ID after checking access permissions.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('admin/reports/:id')
   @ApiOperation({
     operationId: 'MOD-004',

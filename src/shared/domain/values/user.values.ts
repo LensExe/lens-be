@@ -1,4 +1,4 @@
-/** Giới tính người dùng. */
+/** User gender. */
 export const Gender = {
   MALE: 'male',
   FEMALE: 'female',
@@ -7,7 +7,7 @@ export const Gender = {
 
 export type Gender = (typeof Gender)[keyof typeof Gender];
 
-/** Trạng thái tài khoản người dùng. */
+/** User account status. */
 export const UserStatus = {
   ACTIVE: 'active',
   INACTIVE: 'inactive',

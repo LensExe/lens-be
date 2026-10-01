@@ -53,6 +53,12 @@ export class AuthService {
     private readonly tokens: KeycloakTokenService,
   ) {}
 
+  /**
+   * Create a Keycloak account with the supplied email and password, then return the tokens and user information.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `tokenSet`, `actor`.
+   */
   async registerWithPassword(body: AuthRegisterCommandBodyDto) {
     const { firstName, lastName } = SeparateFullname(body.fullname);
 
@@ -82,6 +88,12 @@ export class AuthService {
     return { tokenSet, actor };
   }
 
+  /**
+   * Sign in with an email and password, validate the access token, and return the session information.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `tokenSet`, `actor`.
+   */
   async loginWithPassword(body: AuthLoginQueryDto) {
     // get tokens (access & refresh)
     const tokenSet = await this.tokens.exchangePasswordForToken({
@@ -100,6 +112,13 @@ export class AuthService {
     return { tokenSet, actor };
   }
 
+  /**
+   * Exchange a refresh token for a new token set; reject the request if the token is invalid.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Authentication token set.
+   * @throws {UnauthorizedException} Thrown when the credentials are invalid or have expired.
+   */
   async refresh(body: AuthRefreshDto) {
     try {
       // refresh token
@@ -108,11 +127,17 @@ export class AuthService {
       });
       return tokenSet;
     } catch {
-      // Khi refresh token hết hạn hoặc không hợp lệ -> Bắn lỗi 401 chuẩn
+      // If the refresh token is expired or invalid, return the standard 401 error.
       throw new UnauthorizedException('Refresh token is invalid or expired');
     }
   }
 
+  /**
+   * Revoke the refresh token if present and complete logout idempotently.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `success`, `message`.
+   */
   async logout(body: AuthLogoutDto) {
     try {
       // revoke refresh token
@@ -122,7 +147,7 @@ export class AuthService {
         });
       }
     } catch {
-      // logout nên bỏ qua lỗi để đảm bảo idempotent
+      // Ignore logout errors to keep the operation idempotent.
     }
     return {
       success: true,
@@ -130,6 +155,15 @@ export class AuthService {
     };
   }
 
+  /**
+   * Change the password after verifying the current password and applying the security policy.
+   *
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `success`, `message`.
+   * @throws {BadRequestException} Thrown when the input data is invalid.
+   * @throws {UnauthorizedException} Thrown when the credentials are invalid or have expired.
+   */
   async changePassword(actor: Actor, body: AuthChangePasswordDto) {
     if (body.new_password !== body.confirm_password) {
       throw new BadRequestException(
@@ -157,8 +191,17 @@ export class AuthService {
     };
   }
 
+  /**
+   * Send an OTP for the requested authentication purpose while enforcing the send limit.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `success`, `message`.
+   * @throws {NotFoundException} Thrown when the requested resource does not exist.
+   * @throws {BadRequestException} Thrown when the input data is invalid.
+   * @throws {ServiceUnavailableException} Thrown when an external service is not configured or is unavailable.
+   */
   async sendOTP(body: AuthSendOTP) {
-    // Kiểm tra email có tồn tại trong KeyCloak hay không
+    // Check whether the email exists in Keycloak.
     const user = await this.keyCloakUser.getUserByEmail(body.email);
     if (!user?.id) {
       throw new NotFoundException('Không thể gửi OTP đến tài khoản mail này');
@@ -179,9 +222,9 @@ export class AuthService {
       );
     }
 
-    // Sinh mã OTP ngẫu nhiên 6 chữ số
+    // Generate a random six-digit OTP.
     const otp = randomInt(100000, 999999).toString();
-    // Lưu OTP vào cache theo sự kiện (event) với thời hạn sống (TTL) 5 phút
+    // Cache the OTP by event with a five-minute TTL.
     const otpKey = this.getCacheKey(body.event, body.email);
     await this.cacheManager.set(
       otpKey,
@@ -189,7 +232,7 @@ export class AuthService {
       OTP_EXPIRED_IN_MINUTES * 60 * 1000,
     );
 
-    // Lấy URL của Notification / Mail Microservice từ config
+    // Get the Notification/Mail microservice URL from the configuration.
     const notificationServiceUrl =
       this.config.get<string>('NOTIFICATION_SERVICE_URL') ??
       'http://localhost:3001';
@@ -199,7 +242,7 @@ export class AuthService {
         `Gửi OTP [${body.event}] đến microservice cho email: ${body.email}`,
       );
 
-      // Bắn HTTP POST sang Notification Microservice kèm event để bên đó chọn template
+      // Send an HTTP POST to the Notification microservice with the event so it can select a template.
       await axios.post(
         `${notificationServiceUrl}/api/v1/emails/send-otp`,
         {
@@ -230,19 +273,25 @@ export class AuthService {
     }
   }
 
+  /**
+   * Verify the OTP used in the password recovery flow.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `success`, `message`, `reset_token`.
+   */
   async verifyForgotPasswordOtp(body: AuthVerifyForgotPasswordOtpDto) {
-    // Xác minh OTP từ CacheManager và kiểm tra user Keycloak
+    // Verify the OTP from CacheManager and check the Keycloak user.
     await this.verifyAndConsumeOtp(
       AuthOtpEvent.FORGOT_PASSWORD,
       body.email,
       body.otp,
     );
 
-    // Tạo reset_token ngẫu nhiên an toàn (one-time reset token)
+    // Generate a cryptographically secure, single-use reset token.
     const resetToken = randomBytes(32).toString('hex');
     const resetTokenKey = `reset_password_token:${resetToken}`;
 
-    // Lưu reset_token map tới email trong cache với TTL 10 phút
+    // Cache the reset-token-to-email mapping with a 10-minute TTL.
     await this.cacheManager.set(
       resetTokenKey,
       body.email.trim().toLowerCase(),
@@ -256,15 +305,23 @@ export class AuthService {
     };
   }
 
+  /**
+   * Reset the password after verifying the OTP and password reset token.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `success`, `message`.
+   * @throws {BadRequestException} Thrown when the input data is invalid.
+   * @throws {NotFoundException} Thrown when the requested resource does not exist.
+   */
   async resetPassword(body: AuthResetPasswordDto) {
-    // Kiểm tra mật khẩu mới và mật khẩu xác nhận có khớp không
+    // Check that the new password matches the password confirmation.
     if (body.new_password !== body.confirm_password) {
       throw new BadRequestException(
         'Mật khẩu mới và mật khẩu xác nhận không trùng khớp',
       );
     }
 
-    // Lấy email từ Redis dựa trên reset_token
+    // Get the email from Redis using the reset token.
     const resetTokenKey = `reset_password_token:${body.reset_token}`;
     const email = await this.cacheManager.get<string>(resetTokenKey);
     if (!email) {
@@ -273,16 +330,16 @@ export class AuthService {
       );
     }
 
-    // Tìm user trong Keycloak theo email
+    // Find the Keycloak user by email.
     const user = await this.keyCloakUser.getUserByEmail(email);
     if (!user?.id) {
       throw new NotFoundException('Không tìm thấy tài khoản người dùng');
     }
 
     await Promise.all([
-      // Cập nhật mật khẩu mới trên Keycloak
+      // Update the password in Keycloak.
       this.keyCloakUser.resetUserPassword(user.id, body.new_password),
-      // Xóa reset_token sau khi sử dụng thành công (One-time use)
+      // Delete the reset token after successful use (single use).
       this.cacheManager.del(resetTokenKey),
     ]);
 
@@ -293,15 +350,22 @@ export class AuthService {
     };
   }
 
+  /**
+   * Verify the user email using the supplied OTP.
+   *
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `success`, `message`.
+   */
   async verifyEmail(actor: Actor, body: AuthVerifyEmailDto) {
-    // Xác minh OTP từ CacheManager
+    // Verify the OTP from CacheManager.
     const result = await this.verifyAndConsumeOtp(
       AuthOtpEvent.VERIFY_EMAIL,
       body.email,
       body.otp,
     );
 
-    // Đánh dấu email đã được xác minh trên Keycloak
+    // Mark the email as verified in Keycloak.
     if (result) {
       await this.keyCloakUser.setUserEmailVerified(actor.sub || '');
     }
@@ -313,7 +377,12 @@ export class AuthService {
   }
 
   /**
-   * Tạo và kiểm tra định dạng key CacheManager cho OTP bằng Regex
+   * Build and validate the CacheManager OTP key format with a regular expression.
+   *
+   * @param event Event type or event information to process.
+   * @param email Email address associated with the operation.
+   * @returns Processed key value.
+   * @throws {BadRequestException} Thrown when the input data is invalid.
    */
   private getCacheKey(event: AuthOtpEvent, email: string): string {
     const key = `otp:${event}:${email.trim().toLowerCase()}`;
@@ -324,19 +393,25 @@ export class AuthService {
   }
 
   /**
-   * Hàm private dùng chung: Xác minh OTP từ CacheManager, hủy OTP sau khi dùng
+   * Shared private helper that verifies an OTP in CacheManager and deletes it after use.
+   *
+   * @param event Event type or event information to process.
+   * @param email Email address associated with the operation.
+   * @param otp OTP to verify or consume.
+   * @returns Boolean indicating the result of the check or operation.
+   * @throws {BadRequestException} Thrown when the input data is invalid.
    */
   private async verifyAndConsumeOtp(
     event: AuthOtpEvent,
     email: string,
     otp: string,
   ) {
-    // Lấy OTP từ CacheManager theo event và email
+    // Get the OTP from CacheManager by event and email.
     const otpKey = this.getCacheKey(event, email);
     const [cachedOtp] = await Promise.all([
       // Get OTP
       this.cacheManager.get<string>(otpKey),
-      // Xóa OTP sau khi sử dụng thành công (One-time use)
+      // Delete the OTP after successful use (single use).
       this.cacheManager.del(otpKey),
     ]);
 

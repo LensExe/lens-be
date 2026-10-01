@@ -47,6 +47,13 @@ export class BookingPlanController {
     private readonly queries: QueryBus,
   ) {}
 
+  /**
+   * Create a photographer booking plan after validating the input and permissions.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('photographers/me/booking-plans')
   @ApiOperation({
     operationId: 'PHO-009',
@@ -90,6 +97,12 @@ export class BookingPlanController {
     );
   }
 
+  /**
+   * Get the current user information from the authenticated identity.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('photographers/me/booking-plans')
   @ApiOperation({
     operationId: 'PHO-010',
@@ -126,6 +139,14 @@ export class BookingPlanController {
     );
   }
 
+  /**
+   * Update a booking plan after checking ownership and validating the input.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('booking-plans/:id')
   @ApiOperation({
     operationId: 'PHO-011',
@@ -171,6 +192,13 @@ export class BookingPlanController {
     );
   }
 
+  /**
+   * Delete a booking plan after checking ownership and related bookings.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Delete('booking-plans/:id')
   @ApiOperation({
     operationId: 'PHO-012',
@@ -213,6 +241,13 @@ export class BookingPlanController {
     );
   }
 
+  /**
+   * List booking plans for a photographer using the supplied filters.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('photographers/:id/booking-plans')
   @ApiOperation({
     operationId: 'PHO-013',

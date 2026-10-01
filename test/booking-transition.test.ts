@@ -6,7 +6,7 @@ import { BookingUseCases } from '../src/modules/booking/core/booking.use-case';
 import type { RatingUpdaterPort } from '../src/modules/booking/ports/rating-updater.port';
 import type { PaidAmountsPort } from '../src/modules/booking/ports/paid-amounts.port';
 
-/** Bên payment giả: chưa ai trả đồng nào. */
+/** Fake payment service: no payments have been made. */
 const noPayments = {
   paidAmounts: async (_s: unknown, ids: string[]) =>
     Object.fromEntries(ids.map((id) => [id, 0])),
@@ -24,7 +24,12 @@ const booking = {
   gallery_published_at: null,
 };
 
-/** EntityManager giả cho một lần khách huỷ booking; `affected` là số dòng câu UPDATE đổi được. */
+/**
+ * Fake EntityManager for one customer booking cancellation; `affected` is the number of rows updated.
+ *
+ * @param affected Numeric value used by the operation: affected.
+ * @returns Processed s value.
+ */
 function manager(affected: number) {
   const updates: { where: object; changes: object }[] = [];
   const s = {

@@ -22,17 +22,17 @@ import { ensure } from '@shared/platform/exceptions/domain.error';
 import type { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.port';
 import type { PhotographerRatingStats } from '@modules/photographer/ports/photographer-ratings.port';
 
-/** Nghiệp vụ review: viết, sửa, ẩn / hiện lại, thợ trả lời, điểm tổng của thợ. */
+/** Review business operations: submit, edit, hide or restore, photographer replies, and photographer aggregate ratings. */
 @Injectable()
 export class ReviewUseCases implements RatingUpdaterPort {
   /**
-   * Khách của booking viết review sau khi booking hoàn tất (mỗi booking một review); tính lại điểm
-   * review của thợ và báo thợ.
+   * A customer reviews a booking after it is completed (one review per booking); the photographer's review score is recalculated
+   * and the photographer is notified.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (khách của booking)
-   * @param i ID booking, điểm tổng / đúng giờ / thái độ, bình luận
-   * @returns Review vừa tạo; 409 nếu booking chưa hoàn tất hoặc đã có review
+   * @param s EntityManager for the current transaction.
+   * @param a Customer actor for the booking.
+   * @param i Booking ID, overall score, punctuality score, attitude score, and comment.
+   * @returns Review just created; throws HTTP 409 if the booking is incomplete or already has a review.
    */
   async create(s: EntityManager, a: Actor, i: Inputs.ReviewCreateCommandInput) {
     const { id, ...values } = i,
@@ -59,13 +59,13 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Review đang hiện của một thợ, mới trước, phân trang bằng SQL. Thợ chưa duyệt / bị khoá thì 404.
-   * Chỉ trả phần người ngoài được xem: điểm, bình luận, trả lời, tên và ảnh đại diện của khách; không
-   * trả ID khách / booking.
+   * Visible reviews for a photographer, newest first, paginated in SQL. Unapproved or locked photographers receive a 404.
+   * Return only publicly visible fields: rating, comment, reply, and the customer's name and avatar; do not
+   * return customer or booking IDs.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param _a Người đang gọi API (không dùng; API public)
-   * @param i ID hồ sơ thợ, `limit`, `offset`
+   * @param s EntityManager for the current transaction.
+   * @param _a Caller provided for interface compatibility; unused because this API is public.
+   * @param i Photographer profile ID, `limit`, and `offset`.
    * @returns `{ items, total, offset, limit }`
    */
   async list(s: EntityManager, _a: Actor, i: Inputs.ReviewListQueryInput) {
@@ -81,13 +81,13 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Admin xem mọi review (kể cả đã xoá / bị ẩn), lọc theo trạng thái và thợ, mới trước, phân trang
-   * bằng SQL. Dùng để tìm review cần ẩn hoặc hiện lại.
+   * Admins can view all reviews (including deleted or hidden ones), filter by status and photographer, sort newest first, and paginate
+   * in SQL. Use this to find reviews that need to be hidden or restored.
    *
-   * @param s EntityManager của transaction hiện tại
+   * @param s EntityManager for the current transaction.
    * @param a Actor (admin)
    * @param i `status`, `photographer_id`, `limit`, `offset`
-   * @returns `{ items, total, offset, limit }`, mỗi item là bản ghi review đầy đủ
+   * @returns `{ items, total, offset, limit }`, where each item is a full review record.
    */
   async adminList(
     s: EntityManager,
@@ -110,12 +110,12 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Đổi một trang review sang bản public, lấy tên và ảnh đại diện của khách bằng hai query cho cả
-   * trang (không query theo từng review).
+   * Convert a page of reviews to the public response format, fetching customer names and avatars with two queries for the entire
+   * page instead of querying once per review.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param rows Các review của trang
-   * @returns Review bản public, giữ nguyên thứ tự
+   * @param s EntityManager for the current transaction.
+   * @param rows Reviews for the current page.
+   * @returns Public review records in their original order.
    */
   private async publicReviews(s: EntityManager, rows: FeedbackEntity[]) {
     if (!rows.length) return [];
@@ -146,12 +146,12 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Tổng điểm public của thợ: trung bình điểm tổng và phân bố 1–5 của review đang hiện, gom bằng SQL.
+   * A photographer's public rating: the average overall score and distribution of ratings from 1 to 5 across visible reviews, aggregated in SQL.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param _a Người đang gọi API (không dùng; API public)
-   * @param i ID hồ sơ thợ
-   * @returns `{ average_rating, total_feedbacks, distribution }`; 404 nếu thợ không public
+   * @param s EntityManager for the current transaction.
+   * @param _a Caller provided for interface compatibility; unused because this API is public.
+   * @param i Photographer profile ID.
+   * @returns `{ average_rating, total_feedbacks, distribution }`; throws HTTP 404 if the photographer is not public.
    */
   async summary(
     s: EntityManager,
@@ -163,11 +163,11 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Số review đang hiện của thợ theo từng mức điểm.
+   * Number of visible reviews for the photographer at each rating level.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @returns Mỗi mức điểm có review và số lượng
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @returns Number of reviews at each score.
    */
   private async ratingCounts(s: EntityManager, photographerId: string) {
     const rows = await s
@@ -185,12 +185,12 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Tính lại phần điểm review trong rating của thợ (trung bình, số review đang hiện). Khoá dòng
-   * rating trước khi đếm để hai thay đổi review cùng lúc không ghi đè nhau.
+   * Recalculate the review portion of a photographer's rating (average and number of visible reviews). Lock the rating row
+   * before counting so concurrent review changes cannot overwrite one another.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @returns Không trả gì
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @returns Returns no value.
    */
   private async refreshReviewStats(s: EntityManager, photographerId: string) {
     await this.lockRating(s, photographerId);
@@ -204,14 +204,14 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Người viết sửa review đang hiện trong 7 ngày, đánh dấu đã sửa, tính lại điểm review của thợ và
-   * báo thợ (câu trả lời cũ của thợ giữ nguyên, thợ tự sửa nếu muốn).
+   * The author edits a visible review within 7 days; mark it as edited, recalculate the photographer's review score,
+   * and notify the photographer. The photographer's existing reply is kept; they can edit it separately if needed.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (khách đã viết)
-   * @param i ID review và các trường cần đổi
-   * @returns Review sau khi sửa; 400 nếu không có trường nào, 409 nếu review không còn hiện hoặc đã
-   * quá 7 ngày
+   * @param s EntityManager for the current transaction.
+   * @param a Customer who wrote the review.
+   * @param i Review ID and fields to update.
+   * @returns Updated review; throws HTTP 400 if no fields were supplied, or HTTP 409 if the review is no longer visible or has already been edited.
+   * after 7 days
    */
   async update(s: EntityManager, a: Actor, i: Inputs.ReviewUpdateCommandInput) {
     const { id, ...fields } = i,
@@ -235,12 +235,12 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Người viết tự xoá review (xoá mềm); review đã xoá không tính vào điểm và không hiện lại được.
+   * The author soft-deletes their own review; deleted reviews are excluded from ratings and cannot be restored.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (khách đã viết)
+   * @param s EntityManager for the current transaction.
+   * @param a Customer who wrote the review.
    * @param i ID review
-   * @returns `{ deleted: true }`; 409 nếu review đã xoá
+   * @returns `{ deleted: true }`; throws HTTP 409 if the review was already deleted.
    */
   async remove(s: EntityManager, a: Actor, i: Inputs.ReviewRemoveCommandInput) {
     const r = await this.lockedReview(s, i.id);
@@ -253,13 +253,14 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Thợ của booking trả lời review đang hiện; trả lời lại thì ghi đè và cập nhật `replied_at`.
-   * Báo realtime cho khách.
+   * The photographer assigned to the booking replies to a visible review; a new reply replaces the previous one and updates `replied_at`.
+   * Send a real-time notification to the customer.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (thợ của booking)
-   * @param i ID review và nội dung trả lời
-   * @returns Review sau khi trả lời; 403 nếu không phải thợ của booking, 409 nếu review không còn hiện
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer actor for the booking.
+   * @param i Review ID and reply content.
+   * @returns Review after the reply; throws HTTP 403 if the caller is not the booking photographer, or HTTP 409 if the review is no longer visible.
+   * @throws {DomainError} Thrown when the actor is not authorized.
    */
   async reply(s: EntityManager, a: Actor, i: Inputs.ReviewReplyCommandInput) {
     const r = await this.lockedReview(s, i.id);
@@ -282,12 +283,12 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Admin ẩn review đang hiện kèm lý do, tính lại điểm của thợ và báo khách đã viết.
+   * An admin hides a visible review with a reason, recalculates the photographer's rating, and notifies the author.
    *
-   * @param s EntityManager của transaction hiện tại
+   * @param s EntityManager for the current transaction.
    * @param a Actor (admin)
-   * @param i ID review và lý do ẩn
-   * @returns Review sau khi ẩn; 409 nếu review không đang hiện
+   * @param i Review ID and reason for hiding it.
+   * @returns Review after hiding; throws HTTP 409 if the review is not currently visible.
    */
   async hide(s: EntityManager, a: Actor, i: Inputs.ReviewHideCommandInput) {
     role(a, 'admin');
@@ -308,13 +309,13 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Admin hiện lại review do admin ẩn (xoá lý do ẩn) và tính lại điểm của thợ. Review khách tự xoá
-   * không hiện lại được.
+   * An admin restores a review hidden by an admin (clearing the hide reason) and recalculates the photographer's rating. A review deleted by its customer
+   * cannot be restored.
    *
-   * @param s EntityManager của transaction hiện tại
+   * @param s EntityManager for the current transaction.
    * @param a Actor (admin)
    * @param i ID review
-   * @returns Review sau khi hiện lại; 409 nếu review không do admin ẩn
+   * @returns Review after restoring visibility; throws HTTP 409 if it was not hidden by an admin.
    */
   async restore(
     s: EntityManager,
@@ -333,12 +334,13 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Đọc review và khoá dòng đến hết transaction, để hai lệnh đổi cùng một review (sửa và xoá, trả lời
-   * và ẩn...) chạy lần lượt và lệnh sau thấy trạng thái lệnh trước đã ghi.
+   * Read the review and lock its row until the transaction ends, so concurrent operations on the same review (edit and delete, reply
+   * and hide, etc.) run sequentially, and each operation sees the state written by the previous one.
    *
-   * @param s EntityManager của transaction hiện tại
+   * @param s EntityManager for the current transaction.
    * @param id ID review
-   * @returns Review đã khoá; 404 nếu không có
+   * @returns Locked review; throws HTTP 404 if it does not exist.
+   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   private async lockedReview(s: EntityManager, id: string) {
     const r = await s.findOne(EntitySchemas.feedbacks, {
@@ -350,13 +352,14 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Chỉ khách đã viết review được sửa / xoá nó. So bằng `customer_id` lưu trên review, không phải
-   * đọc booking.
+   * Only the customer who wrote a review may edit or delete it. Compare the `customer_id` stored on the review instead of
+   * reading the booking.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor đang gọi
-   * @param r Review cần đổi
-   * @returns Không trả gì; 403 nếu người gọi không phải khách đã viết
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the request.
+   * @param r Review to transition.
+   * @returns Returns no value; throws HTTP 403 if the caller did not write the review.
+   * @throws {DomainError} Thrown when the actor is not authorized.
    */
   private async requireAuthor(s: EntityManager, a: Actor, r: FeedbackEntity) {
     const user = await currentUser(s, a);
@@ -365,12 +368,12 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Thống kê rating của nhiều thợ trong một query. Module photographer gọi qua port để hiện điểm
-   * trên hồ sơ và xét rank, huy hiệu, thay vì đọc thẳng bảng `photographer_ratings`.
+   * Retrieve rating statistics for multiple photographers in one query. The photographer module calls this port to display scores
+   * on profiles and evaluate ranks and badges, rather than reading the `photographer_ratings` table directly.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerIds ID hồ sơ các thợ
-   * @returns Map ID thợ → thống kê; thợ chưa có dòng rating thì mọi số là 0
+   * @param s EntityManager for the current transaction.
+   * @param photographerIds Photographer profile IDs.
+   * @returns Map from photographer ID to statistics; all values are zero when a photographer has no rating record.
    */
   async ratingsOf(
     s: EntityManager,
@@ -398,12 +401,12 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Điểm đúng giờ trung bình của thợ, chỉ tính review đang hiện. Module photographer gọi qua port
-   * để xét huy hiệu đúng giờ.
+   * A photographer's average punctuality score, based only on visible reviews. The photographer module calls this port
+   * to evaluate the punctuality badge.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @returns Điểm trung bình, 0 nếu chưa có review
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @returns Average score, or 0 if there are no reviews.
    */
   async averagePunctuality(s: EntityManager, photographerId: string) {
     const row = await s
@@ -416,12 +419,12 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Tạo dòng rating rỗng (điểm 0) cho thợ mới, để hồ sơ luôn có đối tượng rating. Gọi lại khi đã có
-   * thì không làm gì. Module photographer gọi qua port lúc tạo hồ sơ, thay vì ghi thẳng bảng `photographer_ratings`.
+   * Create an empty rating row (score 0) for a new photographer so their profile always has a rating record. If a rating row already exists,
+   * do nothing. The photographer module calls this port when creating a profile instead of writing directly to `photographer_ratings`.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @returns Không trả gì
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @returns Returns no value.
    */
   async openRating(s: EntityManager, photographerId: string) {
     const [existing] = await s.findBy(EntitySchemas.photographer_ratings, {
@@ -434,14 +437,14 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Ghi phần số liệu booking trong rating của thợ (số booking hoàn tất, số khách quay lại).
-   * Module booking tự đếm trên bảng của mình rồi gọi qua port khi có booking hoàn tất, nên feedback
-   * không phải đọc bảng `bookings`. Chỉ đổi hai cột này, khoá dòng rating trước khi ghi.
+   * Write booking metrics to the photographer's rating (completed booking count and returning customer count).
+   * The booking module counts these in its own tables and calls this port when a booking is completed, so the feedback module
+   * does not need to read the `bookings` table. Update only these two columns, locking the rating row before writing.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
    * @param stats `completedBookings`, `returnCustomers`
-   * @returns Không trả gì
+   * @returns Returns no value.
    */
   async recordBookingStats(
     s: EntityManager,
@@ -456,12 +459,12 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Tạo dòng rating nếu chưa có rồi khoá nó đến hết transaction, để hai lần ghi rating của cùng một
-   * thợ (review đổi, booking hoàn tất) chạy lần lượt.
+   * Create the rating row if needed, then lock it until the transaction ends so two rating updates for the same
+   * photographer (a review change and a booking completion) run sequentially.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @returns Không trả gì
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @returns Returns no value.
    */
   private async lockRating(s: EntityManager, photographerId: string) {
     await this.openRating(s, photographerId);
@@ -472,12 +475,12 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
-   * Ghi các cột rating đã tính của thợ và cập nhật `updated_at`. Gọi sau `lockRating`.
+   * Write the photographer's calculated rating fields and update `updated_at`. Call this after `lockRating`.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @param values Các cột cần ghi
-   * @returns Không trả gì
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @param values Columns to write.
+   * @returns Returns no value.
    */
   private async writeRating(
     s: EntityManager,

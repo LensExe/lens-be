@@ -16,6 +16,13 @@ export class ModerationDashboardQueryHandler implements IQueryHandler<Moderation
     private readonly dataSource: DataSource,
     private readonly useCases: ModerationUseCases,
   ) {}
+
+  /**
+   * Run the moderation dashboard query in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ModerationDashboardQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.dashboard(s, message.actor),
@@ -35,6 +42,13 @@ export class ModerationListQueryHandler implements IQueryHandler<ModerationListQ
     private readonly dataSource: DataSource,
     private readonly useCases: ModerationUseCases,
   ) {}
+
+  /**
+   * Run the query for the moderation list in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ModerationListQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.list(s, message.actor, message.input),
@@ -54,6 +68,13 @@ export class ModerationMineQueryHandler implements IQueryHandler<ModerationMineQ
     private readonly dataSource: DataSource,
     private readonly useCases: ModerationUseCases,
   ) {}
+
+  /**
+   * Run the moderation query in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ModerationMineQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.mine(s, message.actor, message.input),
@@ -73,6 +94,13 @@ export class ModerationGetQueryHandler implements IQueryHandler<ModerationGetQue
     private readonly dataSource: DataSource,
     private readonly useCases: ModerationUseCases,
   ) {}
+
+  /**
+   * Run the query to fetch a moderation record in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ModerationGetQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.get(s, message.actor, message.input),

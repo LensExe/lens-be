@@ -28,22 +28,27 @@ export class MediaUseCases implements MediaOwnershipPort {
   constructor(private readonly storage: ObjectStorage) {}
 
   /**
-   * Khởi tạo quá trình tải lên (upload) media mới.
-   * - Kiểm tra định dạng (MIME type) và dung lượng file hợp lệ theo quy định domain.
-   * - Xác định quyền hiển thị (PUBLIC hoặc PRIVATE) và sinh file_key lưu trữ: `{visibility}/{user_id}/{uuid}`.
-   * - Tạo Presigned Upload URL từ Object Storage để Client/Frontend tải file trực tiếp lên S3/MinIO.
-   * - Lưu bản ghi media ban đầu vào database (trạng thái pending/chờ hoàn tất).
-   * - Trả về thông tin media, `upload_url` và TTL thực tế của URL.
+   * Initialize an upload for new media.
+   * - Validate the MIME type and file size against domain rules.
+   * - Determine the visibility (PUBLIC or PRIVATE) and generate the storage file_key: `{visibility}/{user_id}/{uuid}`.
+   * - Generate a presigned upload URL from Object Storage so the client or frontend can upload the file directly to S3 or MinIO.
+   * - Save the initial media record to the database with a pending status.
+   * - Return the media details, `upload_url`, and the URL's actual TTL.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result object containing the fields `media`, `upload_url`, `expires_in`.
    */
   async upload(s: EntityManager, a: Actor, i: Inputs.MediaUploadCommandInput) {
-    // kiểm tra Content-Type
+    // Validate Content-Type.
     Media.assertAllowedContentType(i.content_type);
-    // kiểm tra dung lượng
+    // Validate file size.
     Media.assertFileSize(i.file_size);
     const u = await currentUser(s, a),
       visibility = i.visibility ?? MediaVisibility.PRIVATE,
       key = `${visibility}/${u.id}/${randomUUID()}`;
-    // tạo presigned upload URL
+    // Create the presigned upload URL.
     const { url: upload_url, expiresIn: expires_in } =
       await this.storage.uploadUrl(key, i.content_type, i.file_size);
     const media = await s.save(EntitySchemas.media, {
@@ -56,11 +61,18 @@ export class MediaUseCases implements MediaOwnershipPort {
   }
 
   /**
-   * Kiểm tra quyền sở hữu và tính hợp lệ của media đối với người dùng hiện tại.
-   * - Xác thực người dùng hiện tại là chủ nhân tạo ra media (`media.user_id === user.id`).
-   * - Đảm bảo media chưa bị xóa (khác trạng thái `DELETED`).
-   * - Nếu `ready = true` (mặc định), yêu cầu media phải ở trạng thái sẵn sàng (`READY`).
-   * - Trả về entity media nếu đáp ứng đầy đủ điều kiện.
+   * Validate that the media belongs to the current user and is valid for their use.
+   * - Confirm that the current user created the media (`media.user_id === user.id`).
+   * - Ensure the media has not been deleted (its status is not `DELETED`).
+   * - When `ready = true` (the default), require the media to have `READY` status.
+   * - Return the media entity if all conditions are met.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param id ID of the record to process.
+   * @param ready Value used by the operation: ready.
+   * @returns Processed m value.
+   * @throws {DomainError} Thrown when the actor is not authorized.
    */
   async owned(s: EntityManager, a: Actor, id: string, ready = true) {
     const u = await currentUser(s, a),
@@ -72,12 +84,17 @@ export class MediaUseCases implements MediaOwnershipPort {
   }
 
   /**
-   * Xác nhận hoàn tất upload sau khi client đã tải file lên S3 thành công.
-   * - Kiểm tra quyền sở hữu media của người dùng.
-   * - Nếu media đã ở trạng thái `READY` trước đó, trả về luôn (đảm bảo tính idempotent).
-   * - Gọi storage kiểm tra thực tế (HeadObject) xem file đã lên S3 chưa, đúng Content-Type và dung lượng không.
-   * - Chỉ verify object và chuyển sang `UPLOADED`.
-   * - Worker sẽ xử lý thumbnail/preview sau khi transaction này commit.
+   * Confirm that the upload completed after the client successfully uploaded the file to S3.
+   * - Verify that the media belongs to the user.
+   * - If the media is already `READY`, return it immediately (idempotent behavior).
+   * - Ask storage to verify that the file exists in S3 (HeadObject) and has the expected Content-Type and size.
+   * - Verify the object and transition the media to `UPLOADED` only.
+   * - The worker processes the thumbnail and preview after this transaction commits.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result returned by `updateEntity`.
    */
   async complete(
     s: EntityManager,
@@ -95,13 +112,19 @@ export class MediaUseCases implements MediaOwnershipPort {
   }
 
   /**
-   * Lấy chi tiết thông tin media kèm các đường dẫn URL (thumbnail, preview, download).
-   * - Kiểm tra quyền truy cập (Access Control) đa tầng:
-   *   1. Người yêu cầu là chủ sở hữu file.
-   *   2. Hoặc file được dùng làm ảnh bìa (cover) hay item trong Portfolio của một photographer đang active.
-   *   3. Hoặc file nằm trong bộ ảnh bàn giao (Booking Delivery) mà người dùng là photographer hoặc customer (đã publish).
-   * - Truy vấn các biến thể ảnh `THUMBNAIL` và `PREVIEW`.
-   * - Sinh URL tương ứng cho từng loại (tự động xử lý public URL hoặc presigned URL 15 phút nếu private).
+   * Get media details along with its URLs (thumbnail, preview, and download).
+   * - Check access control at multiple levels:
+   * 1. The requester owns the file.
+   * 2. Or the file is used as a cover image or portfolio item for an active photographer.
+   * 3. Or the file belongs to a booking delivery gallery that has been published and the user is its photographer or customer.
+   * - Query the `THUMBNAIL` and `PREVIEW` image variants.
+   * - Generate the corresponding URL for each variant (a public URL or a 15-minute presigned URL for private media).
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result object containing the fields `id`, `status`, `content_type`, `file_size`, `visibility`.
+   * @throws {DomainError} Thrown when the actor is not authorized.
    */
   async get(s: EntityManager, a: Actor, i: Inputs.MediaGetQueryInput) {
     const u = await currentUser(s, a),
@@ -174,12 +197,18 @@ export class MediaUseCases implements MediaOwnershipPort {
   }
 
   /**
-   * Xóa file media và dọn dẹp các tài nguyên liên quan.
-   * - Xác thực quyền sở hữu của người dùng đối với media.
-   * - Kiểm tra ràng buộc dữ liệu: Media không được đang sử dụng trong bất kỳ Booking Delivery hoặc Portfolio nào.
-   * - Xóa toàn bộ file biến thể (thumbnail, preview...) và file gốc trên S3 Storage.
-   * - Xóa bản ghi các biến thể trong bảng `media_variants`.
-   * - Cập nhật trạng thái media thành `DELETED` (soft-delete).
+   * Delete a media file and clean up its related resources.
+   * - Verify that the user owns the media.
+   * - Check data constraints: the media must not be used in any booking delivery or portfolio.
+   * - Delete all image variants (thumbnail, preview, etc.) and the original file from S3 storage.
+   * - Delete the variant records from the `media_variants` table.
+   * - Set the media status to `DELETED` (soft delete).
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result object containing the fields `deleted`.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   async remove(s: EntityManager, a: Actor, i: Inputs.MediaRemoveCommandInput) {
     const m = await this.owned(s, a, i.media_id, false);
@@ -211,9 +240,14 @@ export class MediaUseCases implements MediaOwnershipPort {
   }
 
   /**
-   * Khởi tạo bộ sưu tập ảnh bàn giao (Gallery / Delivery) cho một đơn Booking.
-   * - Xác thực quyền: Người gọi phải là Photographer được phân công cho đơn booking này.
-   * - Kiểm tra nếu delivery đã tồn tại thì trả về luôn; nếu chưa có thì tạo mới bản ghi `booking_deliveries` với danh sách ảnh rỗng (`media_ids: []`).
+   * Initialize a delivery gallery for a booking.
+   * - Validate authorization: the caller must be the photographer assigned to this booking.
+   * - If the delivery already exists, return it; otherwise, create a `booking_deliveries` record with an empty image list (`media_ids: []`).
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result of the operation described above.
    */
   async createGallery(
     s: EntityManager,
@@ -234,34 +268,40 @@ export class MediaUseCases implements MediaOwnershipPort {
   }
 
   /**
-   * Thêm một ảnh đã upload vào bộ sưu tập bàn giao của đơn Booking.
-   * - Xác thực quyền photographer và đảm bảo gallery chưa được công bố (`gallery_published_at` chưa set).
-   * - Đảm bảo gallery đã được khởi tạo trước đó.
-   * - Đảm bảo photographer là chủ sở hữu của ảnh và ảnh chưa có trong gallery.
-   * - Bổ sung `media_id` vào mảng `media_ids` của bảng `booking_deliveries`.
+   * Add an uploaded image to a booking's delivery gallery.
+   * - Verify that the photographer is authorized and the gallery has not been published (`gallery_published_at` is not set).
+   * - Ensure the gallery has already been initialized.
+   * - Ensure the photographer owns the image and it is not already in the gallery.
+   * - Add `media_id` to the `media_ids` array in `booking_deliveries`.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result returned by `updateEntity`.
+   * @throws {DomainError} Thrown when input is invalid, a business condition is not met, or the current state or data conflicts with the operation.
    */
   async addToGallery(
     s: EntityManager,
     a: Actor,
     i: Inputs.MediaAddGalleryCommandInput,
   ) {
-    // quyền photographer của booking
+    // Verify the caller is the booking's photographer.
     const { booking: b } = await bookingAccess(
       s,
       a,
       i.booking_id,
       'photographer',
     );
-    // gallery chưa được công bố
+    // Ensure the gallery has not been published.
     Media.assertGalleryMutable(b.gallery_published_at);
-    // lấy delivery của booking
+    // Load the booking delivery.
     const [delivery] = await s.findBy(EntitySchemas.booking_deliveries, {
       booking_id: i.booking_id,
     });
     ensure(delivery, 'Create gallery first', 'conflict');
-    // đảm bảo photographer là chủ sở hữu của ảnh
+    // Ensure the photographer owns the image.
     const m = await this.owned(s, a, i.media_id);
-    // đảm bảo ảnh chưa có trong gallery
+    // Ensure the image is not already in the gallery.
     ensure(
       !delivery.media_ids.includes(m.id),
       'Media already added to gallery',
@@ -272,12 +312,19 @@ export class MediaUseCases implements MediaOwnershipPort {
   }
 
   /**
-   * Lấy danh sách ảnh trong bộ sưu tập (Gallery) của đơn Booking.
-   * - Xác thực quyền xem: Chỉ Photographer của đơn booking hoặc Khách hàng (sau khi gallery đã được publish) mới có quyền xem.
-   * - Hỗ trợ 2 chế độ hiển thị (`mode`):
-   *   - `'thumbnail'`: Lấy URL ảnh thu nhỏ và kích thước (width/height) để hiển thị lưới ảnh mượt mà trên web/app.
-   *   - `'original'`: Lấy URL tải ảnh gốc độ phân giải cao.
-   * - Tự động thiết lập thời gian hết hạn (`expires_in`) nếu trong bộ ảnh có chứa ảnh private.
+   * Get the list of images in a booking's gallery.
+   * - Verify viewing access: only the booking's photographer or its customer (after the gallery is published) may view it.
+   * - Support two display modes (`mode`):
+   * - `'thumbnail'`: Return thumbnail URLs and dimensions (width/height) for smooth image grids in the web or app.
+   * - `'original'`: Return URLs for downloading the high-resolution originals.
+   * - Set the expiration time (`expires_in`) automatically when the gallery contains private images.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @param mode Value used by the operation: mode.
+   * @returns Result object containing the fields `published_at`, `items`, `expires_in`.
+   * @throws {DomainError} Thrown when the actor is not authorized or required data or a resource is missing.
    */
   async gallery(
     s: EntityManager,
@@ -343,13 +390,19 @@ export class MediaUseCases implements MediaOwnershipPort {
   }
 
   /**
-   * Công bố bộ sưu tập ảnh (Publish Gallery) cho khách hàng của đơn Booking.
-   * - Xác thực quyền: Người thực hiện phải là Photographer của đơn booking.
-   * - Kiểm tra đơn booking đã ở trạng thái cho phép bàn giao ảnh chưa.
-   * - Đảm bảo bộ sưu tập có ít nhất 1 ảnh trước khi công bố.
-   * - Cập nhật mốc thời gian `gallery_published_at` của booking.
-   * - Bắn sự kiện (event) `'gallery.ready'` để hệ thống gửi thông báo cho khách hàng.
-   * - Trả về dữ liệu gallery đã công bố.
+   * Publish the image gallery for a booking's customer.
+   * - Verify authorization: the caller must be the photographer assigned to the booking.
+   * - Check that the booking is in a status that allows image delivery.
+   * - Ensure the gallery contains at least one image before publishing.
+   * - Update the booking's `gallery_published_at` timestamp.
+   * - Emit the `'gallery.ready'` event so the system can notify the customer.
+   * - Return the published gallery data.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result returned by `gallery`.
+   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   async publishGallery(
     s: EntityManager,
@@ -378,8 +431,13 @@ export class MediaUseCases implements MediaOwnershipPort {
   }
 
   /**
-   * Customer hoặc photographer tải toàn bộ ảnh gốc trong gallery của booking.
-   * `bookingAccess` vẫn kiểm tra người gọi phải thuộc đúng booking đó.
+   * Download all original images in a booking's gallery as the customer or photographer.
+   * `bookingAccess` still verifies that the caller belongs to the booking.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result returned by `gallery`.
    */
   async downloadGallery(
     s: EntityManager,
@@ -391,7 +449,12 @@ export class MediaUseCases implements MediaOwnershipPort {
   }
 
   /**
-   * Tìm kiếm biến thể ảnh (THUMBNAIL, PREVIEW...) theo `mediaId` và loại biến thể trong bảng `media_variants`.
+   * Find an image variant (THUMBNAIL, PREVIEW, etc.) by `mediaId` and variant type in the `media_variants` table.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param mediaId Media ID to process.
+   * @param variant variant data of type MediaVariantType.
+   * @returns Result returned by `findOneBy`.
    */
   private findVariant(
     s: EntityManager,

@@ -2,28 +2,28 @@ import { ensure } from '@shared/domain/domain.error';
 import { BookingCollaboratorStatus } from '@shared/domain/values/booking.values';
 export { BookingCollaboratorStatus };
 
-/** Trạng thái lời mời còn chiếm % (tính vào tổng ≤ 100). */
+/** Invitation status that still counts toward the percentage total (maximum 100%). */
 const HOLDING_SHARE: readonly string[] = [
   BookingCollaboratorStatus.INVITED,
   BookingCollaboratorStatus.ACCEPTED,
 ];
 
-/** Trạng thái chặn mời lại cùng thợ: còn hiệu lực hoặc thợ đã từ chối. */
+/** Status that blocks reinviting the same photographer: the invitation is still active or the photographer declined it. */
 const BLOCKS_REINVITE: readonly string[] = [
   ...HOLDING_SHARE,
   BookingCollaboratorStatus.DECLINED,
 ];
 
-/** Dữ kiện để tạo lời mời thợ liên kết. Thợ được mời đã được kiểm là thợ đã duyệt, active. */
+/** Data for creating a booking collaboration invitation. The invitee must be an approved, active photographer. */
 export interface CollaborationInviteInput {
   bookingStatus: string;
   galleryPublished: boolean;
   ownerPhotographerId: string;
   inviteePhotographerId: string;
   sharePercent: number;
-  /** Thợ được mời chính là khách của booking (tài khoản vừa là khách vừa là thợ) */
+  /** The invitee is also the booking customer (one account can act as both a customer and a photographer). */
   inviteeIsCustomer: boolean;
-  /** Các lời mời đã có của booking (mọi trạng thái) */
+  /** Existing invitations for the booking, in any status. */
   existing: readonly {
     photographer_id: string;
     status: string;
@@ -31,18 +31,20 @@ export interface CollaborationInviteInput {
   }[];
 }
 
-/** Hành động trên một lời mời đang chờ. */
+/** Action to apply to a pending invitation. */
 export type CollaborationAction = 'accept' | 'decline' | 'revoke';
 
-/** Số lần tối đa một thợ được mời vào cùng một booking (tính cả lời mời đã bị rút). */
+/** Maximum number of times a photographer can be invited to the same booking, including withdrawn invitations. */
 export const MAX_INVITES_PER_PHOTOGRAPHER = 3;
 
-/** Quy tắc thợ liên kết của booking: mời, nhận/từ chối, rút; chia % phần thợ nhận. */
+/** Booking collaboration rules: invite, accept or decline, revoke, and split the photographer’s share. */
 export class Collaboration {
   /**
-   * Kiểm tra booking còn cho thay đổi thợ liên kết: đang accepted / in_progress và gallery chưa publish.
+   * Check whether the booking still allows photographer changes: it must be `accepted` or `in_progress`, and the gallery must not be published.
    *
-   * @param booking Trạng thái booking và gallery đã publish chưa
+   * @param booking Booking status and whether its gallery has been published.
+   * @returns No value is returned.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   static assertOpen(booking: {
     bookingStatus: string;
@@ -57,10 +59,11 @@ export class Collaboration {
   }
 
   /**
-   * Tạo lời mời mới sau khi kiểm luật.
+   * Create a new invitation after validating the rules.
    *
-   * @param input Dữ kiện booking, thợ được mời và các lời mời đã có
-   * @returns Dữ liệu lời mời để lưu (`status = 'invited'`)
+   * @param input Booking, invited photographer, and existing invitations used to create the new invitation.
+   * @returns Invitation data to save with `status = 'invited'`.
+   * @throws {DomainError} Thrown when input is invalid, a business condition is not met, or the current state or data conflicts with the operation.
    */
   static invite(input: CollaborationInviteInput) {
     Collaboration.assertOpen(input);
@@ -110,12 +113,13 @@ export class Collaboration {
   }
 
   /**
-   * Trả lời (accept / decline) hoặc rút (revoke) một lời mời; chỉ khi lời mời còn chờ và booking còn mở.
+   * Accept, decline, or revoke an invitation only while it is pending and the booking remains open.
    *
-   * @param status Trạng thái hiện tại của lời mời
-   * @param action Hành động
-   * @param booking Trạng thái booking và gallery đã publish chưa
-   * @returns Trạng thái mới của lời mời
+   * @param status Current invitation status.
+   * @param action Action to perform.
+   * @param booking Booking status and whether its gallery has been published.
+   * @returns New invitation status.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   static respond(
     status: string,

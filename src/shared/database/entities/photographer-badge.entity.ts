@@ -3,20 +3,20 @@ import { BaseEntity } from './base.entity';
 import { timestampTransformer } from './utils/column-transformers';
 
 /**
- * Entity đại diện cho bảng `photographer_badges`.
- * Huy hiệu thợ đã đạt; giữ vĩnh viễn, mỗi thợ mỗi mã huy hiệu một dòng.
+ * Entity representing the `photographer_badges` table.
+ * Badges earned by photographers; permanent, with one row per badge code for each photographer.
  */
 @Entity('photographer_badges')
 export class PhotographerBadgeEntity extends BaseEntity {
-  /** ID hồ sơ thợ đạt huy hiệu (khóa ngoại `photographers.id`) */
+  /** ID of the photographer profile that earned the badge (foreign key `photographers.id`). */
   @Column('uuid')
   photographer_id!: string;
 
-  /** Mã huy hiệu (khóa ngoại `badges.code`) */
+  /** Badge code (foreign key `badges.code`). */
   @Column('text')
   code!: string;
 
-  /** Thời điểm thợ đạt huy hiệu */
+  /** Time when the photographer earned the badge. */
   @Column('timestamptz', { transformer: timestampTransformer })
   earned_at!: string;
 }

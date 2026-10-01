@@ -16,6 +16,13 @@ export class CalendarBlockCommandHandler implements ICommandHandler<CalendarBloc
     private readonly dataSource: DataSource,
     private readonly useCases: CalendarUseCases,
   ) {}
+
+  /**
+   * Route the calendar block command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: CalendarBlockCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.block(s, message.actor, message.input),
@@ -35,6 +42,13 @@ export class CalendarUnblockCommandHandler implements ICommandHandler<CalendarUn
     private readonly dataSource: DataSource,
     private readonly useCases: CalendarUseCases,
   ) {}
+
+  /**
+   * Route the calendar unblock command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: CalendarUnblockCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.unblock(s, message.actor, message.input),
@@ -54,6 +68,13 @@ export class CalendarSetWorkingHoursCommandHandler implements ICommandHandler<Ca
     private readonly dataSource: DataSource,
     private readonly useCases: CalendarUseCases,
   ) {}
+
+  /**
+   * Route the photographer working-hours update command to the use case in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: CalendarSetWorkingHoursCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.setWorkingHours(s, message.actor, message.input),

@@ -41,6 +41,13 @@ export class SubscriptionController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  /**
+   * Summarize the current subscription usage for the user.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('subscriptions/me/usage')
   @ApiOperation({
     operationId: 'SUB-005',
@@ -76,6 +83,12 @@ export class SubscriptionController {
     );
   }
 
+  /**
+   * Get the current user information from the authenticated identity.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('subscriptions/me')
   @ApiOperation({
     operationId: 'SUB-003',
@@ -112,6 +125,12 @@ export class SubscriptionController {
     );
   }
 
+  /**
+   * List the subscriptions available for enrollment.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('plans')
   @ApiOperation({
     operationId: 'SUB-001',
@@ -140,6 +159,13 @@ export class SubscriptionController {
     );
   }
 
+  /**
+   * Create a subscription after validating the input and business rules.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('subscriptions')
   @ApiOperation({
     operationId: 'SUB-002',
@@ -182,6 +208,13 @@ export class SubscriptionController {
     );
   }
 
+  /**
+   * Cancel a subscription and apply the related business rules.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('subscriptions/:id/cancel')
   @ApiOperation({
     operationId: 'SUB-004',
@@ -224,6 +257,14 @@ export class SubscriptionController {
     );
   }
 
+  /**
+   * Validate and process a webhook from the provider.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param provider Selected service provider.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('subscriptions/webhooks/:provider')
   @ApiOperation({
     operationId: 'SUB-006',

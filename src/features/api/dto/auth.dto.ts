@@ -122,7 +122,7 @@ export class AuthSendOTP extends AuthSendOtpDto {
   @ApiProperty({
     description: 'Loại sự kiện cần gửi OTP',
     enum: AuthOtpEvent,
-    example: AuthOtpEvent.FORGOT_PASSWORD, // Trên Swagger sẽ hiện Dropdown chọn luôn
+    example: AuthOtpEvent.FORGOT_PASSWORD, // Swagger displays this as a dropdown.
   })
   @IsEnum(AuthOtpEvent, {
     message: 'Event phải là FORGOT_PASSWORD hoặc VERIFY_EMAIL',

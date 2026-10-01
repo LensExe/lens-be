@@ -1,4 +1,4 @@
--- Huy hiệu thợ đã đạt (D13): giữ vĩnh viễn, mỗi thợ mỗi huy hiệu một dòng.
+-- Earned photographer badges (D13): permanent, with one row per badge per photographer.
 CREATE TABLE photographer_badges (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     photographer_id uuid NOT NULL REFERENCES photographers(id),

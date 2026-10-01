@@ -1,4 +1,4 @@
--- Outbox retry: chỉ đánh dấu processed khi publish thành công, đếm số lần thử, dead-letter khi quá hạn.
+-- Outbox retries: mark an event processed only after successful publishing, count attempts, and dead-letter it after the retry limit.
 ALTER TABLE outbox_events
     ADD COLUMN attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
     ADD COLUMN last_error text,

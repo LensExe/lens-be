@@ -13,7 +13,11 @@ try {
 const MIGRATIONS_DIR = resolve(__dirname, '../migrations');
 const MIGRATION_FILE = /^\d{3}_[a-z0-9_-]+\.sql$/i;
 
-/** Lists migration files as { name, sql, checksum }, sorted by file name. */
+/**
+ * Lists migration files as { name, sql, checksum }, sorted by file name.
+ *
+ * @returns Result returned by `map`.
+ */
 function loadMigrations() {
   return readdirSync(MIGRATIONS_DIR)
     .filter((file) => MIGRATION_FILE.test(file))
@@ -28,6 +32,12 @@ function loadMigrations() {
     });
 }
 
+/**
+ * Run the main flow of the migrate-lens script.
+ *
+ * @returns No value is returned.
+ * @throws {Error} Thrown when the operation cannot be completed.
+ */
 async function main() {
   const client = new Client({
     connectionString: process.env.DATABASE_URL,

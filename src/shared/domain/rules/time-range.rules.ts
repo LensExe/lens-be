@@ -1,7 +1,14 @@
 import { ensure } from '@shared/domain/domain.error';
 import type { TimeRange } from '@shared/domain/types/time-range.types';
 
-/** Chuẩn hóa một khoảng thời gian UTC dạng nửa mở [from, to). */
+/**
+ * Normalize a UTC half-open time interval [from, to).
+ *
+ * @param from Start of the time range.
+ * @param to End of the time range.
+ * @returns Result object containing the fields `from`, `to`.
+ * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
+ */
 export function interval(from: string, to: string): TimeRange {
   const start = Date.parse(from);
   const end = Date.parse(to);
@@ -15,7 +22,13 @@ export function interval(from: string, to: string): TimeRange {
   };
 }
 
-/** Kiểm tra hai khoảng thời gian có giao nhau hay không. */
+/**
+ * Check whether two time intervals overlap.
+ *
+ * @param a Actor performing the operation; used for role and access checks.
+ * @param b b data of type TimeRange.
+ * @returns Result of the operation described above.
+ */
 export function overlaps(a: TimeRange, b: TimeRange) {
   return (
     Date.parse(a.from) < Date.parse(b.to) &&

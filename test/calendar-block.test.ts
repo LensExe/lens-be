@@ -4,6 +4,12 @@ import { Calendar } from '../src/modules/calendar/schedule/calendar.domain';
 import { Booking } from '../src/modules/booking/core/booking.domain';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';
 
+/**
+ * Create an assertion that checks the expected error code of a thrown exception.
+ *
+ * @param expected String value used by the operation: expected.
+ * @returns Result of the operation described above.
+ */
 const code = (expected: string) => (error: unknown) =>
   error instanceof DomainError && error.code === expected;
 const now = Date.parse('2026-09-25T00:00:00.000Z');

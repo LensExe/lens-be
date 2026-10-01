@@ -3,6 +3,13 @@ import { QueryFailedError } from 'typeorm';
 
 @Catch(QueryFailedError)
 export class TypeOrmErrorFilter implements ExceptionFilter {
+  /**
+   * Convert an exception into an HTTP response appropriate for its error type.
+   *
+   * @param error Caught error to convert or log.
+   * @param host host data of type ArgumentsHost.
+   * @returns No value is returned.
+   */
   catch(error: QueryFailedError, host: ArgumentsHost) {
     const code = (error.driverError as { code?: string }).code;
     const mapped =

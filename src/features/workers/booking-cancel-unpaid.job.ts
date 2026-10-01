@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 import { BookingCancelUnpaidCommand } from '@modules/booking/core/bookings.command';
 import { runExclusive, SYSTEM_ACTOR } from './scheduled-job';
 
-/** Job huỷ booking đã được nhận mà khách chưa trả cọc kịp (24 giờ hoặc tới giờ chụp), chạy mỗi 10 phút. */
+/** Every 10 minutes, cancel accepted bookings whose customers have not paid the deposit within 24 hours or before the photo shoot starts. */
 @Injectable()
 export class BookingCancelUnpaidJob {
   constructor(
@@ -14,9 +14,9 @@ export class BookingCancelUnpaidJob {
   ) {}
 
   /**
-   * Huỷ các booking quá hạn thanh toán; chỉ một instance chạy mỗi lần.
+   * Cancel bookings with overdue deposits; only one instance runs at a time.
    *
-   * @returns `true` nếu đã chạy, `false` nếu instance khác đang chạy nên bỏ qua
+   * @returns `true` if started; `false` if another instance is already running and this run is skipped.
    */
   @Cron('*/10 * * * *', {
     name: 'booking.cancel-unpaid',

@@ -18,6 +18,12 @@ export class CustomerUpdateCommandHandler implements ICommandHandler<CustomerUpd
     private readonly useCases: CustomerUseCases,
   ) {}
 
+  /**
+   * Route the customer update command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: CustomerUpdateCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.update(s, message.actor, message.input),

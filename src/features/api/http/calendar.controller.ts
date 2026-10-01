@@ -47,6 +47,14 @@ export class CalendarController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  /**
+   * Block a time range in the photographer’s work calendar.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('calendar/blocked-times')
   @ApiOperation({
     operationId: 'CAL-006',
@@ -90,6 +98,12 @@ export class CalendarController {
     );
   }
 
+  /**
+   * Get the current photographer’s configured working hours.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('calendar/me/working-hours')
   @ApiOperation({
     operationId: 'CAL-008',
@@ -126,6 +140,13 @@ export class CalendarController {
     );
   }
 
+  /**
+   * Update the photographer’s weekly schedule after validating its time ranges.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Put('calendar/me/working-hours')
   @ApiOperation({
     operationId: 'CAL-009',
@@ -168,6 +189,13 @@ export class CalendarController {
     );
   }
 
+  /**
+   * Get the current user information from the authenticated identity.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('calendar/me')
   @ApiOperation({
     operationId: 'CAL-002',
@@ -207,6 +235,13 @@ export class CalendarController {
     );
   }
 
+  /**
+   * Remove a blocked time range from the photographer’s calendar.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Delete('calendar/blocked-times/:id')
   @ApiOperation({
     operationId: 'CAL-007',
@@ -246,6 +281,14 @@ export class CalendarController {
     );
   }
 
+  /**
+   * Get the available time ranges in the photographer’s calendar.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('photographers/:id/availability')
   @ApiOperation({
     operationId: 'CAL-001',
@@ -290,6 +333,13 @@ export class CalendarController {
     );
   }
 
+  /**
+   * Preview a calendar block and return the affected bookings.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('calendar/blocked-times/affected')
   @ApiOperation({
     operationId: 'CAL-010',
@@ -331,6 +381,13 @@ export class CalendarController {
     );
   }
 
+  /**
+   * Validate a new work schedule and identify conflicting bookings.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Post('calendar/me/working-hours/affected')
   @ApiOperation({
     operationId: 'CAL-011',

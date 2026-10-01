@@ -1,6 +1,6 @@
--- Cột id (uuid PRIMARY KEY) chưa có DEFAULT: TypeORM @PrimaryGeneratedColumn('uuid') trên Postgres
--- chèn DEFAULT và trông vào DB sinh id, nên mọi insert không truyền id đều lỗi (id null).
--- gen_random_uuid() có sẵn từ Postgres 13, không cần extension.
+-- The UUID PRIMARY KEY `id` column had no DEFAULT. On PostgreSQL, TypeORM's `@PrimaryGeneratedColumn('uuid')`
+-- adds a DEFAULT and expects the database to generate the ID, so inserts that omit it otherwise fail with a null ID.
+-- `gen_random_uuid()` is available in PostgreSQL 13; no extension is required.
 ALTER TABLE users ALTER COLUMN id SET DEFAULT gen_random_uuid();
 ALTER TABLE customers ALTER COLUMN id SET DEFAULT gen_random_uuid();
 ALTER TABLE admins ALTER COLUMN id SET DEFAULT gen_random_uuid();

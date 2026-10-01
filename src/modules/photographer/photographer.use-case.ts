@@ -29,7 +29,7 @@ import {
   PhotographerSearchResult,
 } from '@modules/customer/ports/photographer-search.port';
 
-/** Nghiệp vụ hồ sơ thợ: đăng ký, duyệt, sửa hồ sơ, tìm kiếm, xếp hạng và huy hiệu. */
+/** Photographer profile operations: apply, approve, edit profiles, search, rank, and award badges. */
 @Injectable()
 export class PhotographerUseCases implements PhotographerSearchPort {
   constructor(
@@ -38,12 +38,12 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   ) {}
 
   /**
-   * Customer gửi (hoặc gửi lại sau khi bị từ chối) hồ sơ làm thợ; hồ sơ vào trạng thái `pending` chờ admin duyệt.
+   * A customer submits or resubmits an application after rejection; it enters `pending` for admin review.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (customer)
-   * @param input Hồ sơ nghề nghiệp: styles, khu vực, mô tả, mã số thuế, năm vào nghề
-   * @returns Hồ sơ thợ (góc nhìn chủ hồ sơ); 409 nếu đang chờ duyệt hoặc đã là thợ
+   * @param s EntityManager for the current transaction.
+   * @param a Customer actor making the request.
+   * @param input Professional profile details: styles, location, description, tax ID, and years of experience.
+   * @returns Photographer profile from the owner’s perspective; throws HTTP 409 if the application is pending or the user is already a photographer.
    */
   async create(
     s: EntityManager,
@@ -80,12 +80,12 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Admin duyệt hồ sơ thợ: chuyển `verified`, ghi người duyệt, gán role `photographer` và báo realtime cho người gửi.
+   * An admin approves a photographer application: set it to `verified`, record the approver, assign the `photographer` role, and notify the applicant in real time.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (admin, phải có bản ghi `admins`)
-   * @param input ID hồ sơ thợ
-   * @returns Hồ sơ thợ sau khi duyệt; 409 nếu hồ sơ không ở `pending`
+   * @param s EntityManager for the current transaction.
+   * @param a Admin actor; must have an `admins` record.
+   * @param input Photographer profile ID.
+   * @returns Photographer profile after approval; throws HTTP 409 if the profile is not pending.
    */
   async approve(
     s: EntityManager,
@@ -110,12 +110,12 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Admin từ chối hồ sơ thợ kèm lý do; người gửi sửa rồi gửi lại được.
+   * An admin rejects a photographer application with a reason; the applicant may edit it and resubmit.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (admin, phải có bản ghi `admins`)
-   * @param input ID hồ sơ thợ và lý do từ chối
-   * @returns Hồ sơ thợ sau khi từ chối; 409 nếu hồ sơ không ở `pending`
+   * @param s EntityManager for the current transaction.
+   * @param a Admin actor; must have an `admins` record.
+   * @param input Photographer profile ID and rejection reason.
+   * @returns Photographer profile after rejection; throws HTTP 409 if the profile is not pending.
    */
   async reject(
     s: EntityManager,
@@ -140,11 +140,12 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Hồ sơ thợ cần duyệt, khoá dòng để hai admin không cùng duyệt / từ chối một hồ sơ.
+   * Lock the photographer application row while it is under review so two admins cannot approve or reject it simultaneously.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param id ID hồ sơ thợ
-   * @returns Hồ sơ thợ; 404 nếu không có
+   * @param s EntityManager for the current transaction.
+   * @param id Photographer profile ID.
+   * @returns Photographer profile; throws HTTP 404 if it does not exist.
+   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   private async lockedApplication(s: EntityManager, id: string) {
     const p = await s.findOne(EntitySchemas.photographers, {
@@ -156,11 +157,12 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Lấy bản ghi `admins` của người đang gọi (cần cho cột `approved_by`).
+   * Get the calling user's `admins` record (required for the `approved_by` column).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API
-   * @returns Bản ghi admin; 403 nếu không có role admin hoặc chưa có hồ sơ admin
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the request.
+   * @returns Admin record; throws HTTP 403 if the caller lacks the admin role or an admin profile.
+   * @throws {DomainError} Thrown when the actor is not authorized.
    */
   private async adminProfile(s: EntityManager, a: Actor) {
     role(a, 'admin');
@@ -171,13 +173,13 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Dựng hồ sơ thợ để trả về API.
+   * Build the photographer profile returned by the API.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param id ID hồ sơ thợ
-   * @param privateView `true`: góc nhìn chủ hồ sơ/admin (mọi trạng thái, thêm mã số thuế, lý do từ chối);
-   *   `false`: góc nhìn public (chỉ thợ `verified` và còn active, không thì 404)
-   * @returns Hồ sơ thợ kèm rating, hạng (`rank`: mã + tên) và huy hiệu đã đạt (`badges`: mã, tên, ngày đạt); góc nhìn private có thêm `commission_percent`
+   * @param s EntityManager for the current transaction.
+   * @param id Photographer profile ID.
+   * @param privateView `true` for the owner/admin view (all statuses, tax ID, and rejection reason included);
+   * `false`: public view (only verified photographers with active accounts are shown; otherwise return 404).
+   * @returns Photographer profile with rating, rank (`rank`: code and name), and earned badges (`badges`: code, name, and award date); the private view also includes `commission_percent`.
    */
   private async details(s: EntityManager, id: string, privateView = false) {
     const pair = privateView
@@ -198,12 +200,12 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Dựng hồ sơ public cho nhiều thợ cùng lúc: đọc rating, hạng, huy hiệu theo lô (số query không
-   * tăng theo số thợ), giữ nguyên thứ tự đầu vào.
+   * Build public profiles for multiple photographers at once. Fetch ratings, ranks, and badges in batches (the query count
+   * does not grow with the number of photographers), while preserving the input order.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param pairs Hồ sơ thợ và user sở hữu, theo thứ tự cần trả
-   * @returns Mỗi thợ một `{ profile, commissionPercent }`
+   * @param s EntityManager for the current transaction.
+   * @param pairs Photographer profiles and their owners, in the requested return order.
+   * @returns One `{ profile, commissionPercent }` entry per photographer.
    */
   private async profiles(
     s: EntityManager,
@@ -250,35 +252,35 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Khách xem hồ sơ public của một thợ (chỉ thợ đã duyệt, tài khoản active).
+   * A customer views a photographer's public profile (only approved photographers with active accounts are shown).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param _a Người đang gọi API (không dùng; API public)
-   * @param input ID hồ sơ thợ
-   * @returns Hồ sơ public; 404 nếu thợ không public
+   * @param s EntityManager for the current transaction.
+   * @param _a Caller provided for interface compatibility; unused because this API is public.
+   * @param input Photographer profile ID.
+   * @returns Public profile; throws HTTP 404 if the photographer is not public.
    */
   get(s: EntityManager, _a: Actor, input: Inputs.PhotographerGetQueryInput) {
     return this.details(s, input.photographer_id);
   }
 
   /**
-   * Thợ xem hồ sơ của chính mình (mọi trạng thái duyệt, kèm mã số thuế, lý do từ chối, % commission).
+   * A photographer views their own profile (all approval states, including tax ID, rejection reason, and commission percentage).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (thợ)
-   * @returns Hồ sơ góc nhìn chủ hồ sơ
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer making the API request.
+   * @returns Photographer profile from the owner’s perspective.
    */
   async me(s: EntityManager, a: Actor) {
     return this.details(s, (await photographer(s, a)).id, true);
   }
 
   /**
-   * Thợ sửa hồ sơ (mô tả, phong cách, khu vực...). Mã số thuế khoá sau khi hồ sơ được duyệt.
+   * A photographer edits their profile (description, styles, service areas, etc.). The tax ID is locked after approval.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (thợ)
-   * @param input Các trường cần đổi
-   * @returns Hồ sơ sau khi sửa; 400 nếu đổi mã số thuế khi đã duyệt
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer making the API request.
+   * @param input Fields to update.
+   * @returns Updated profile; throws HTTP 400 if the tax ID changes after approval.
    */
   async update(
     s: EntityManager,
@@ -302,12 +304,12 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Thợ bật / tắt nhận lịch (`is_available`). Tắt thì lịch trống trả rỗng, không nhận booking mới.
+   * A photographer enables or disables availability (`is_available`). When disabled, available slots are empty and no new bookings are accepted.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (thợ)
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer making the API request.
    * @param input `is_available`
-   * @returns Hồ sơ sau khi đổi
+   * @returns Updated profile.
    */
   async status(
     s: EntityManager,
@@ -320,12 +322,12 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Thợ cập nhật khu vực hoạt động.
+   * A photographer updates their service areas.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (thợ)
-   * @param input Khu vực mới
-   * @returns Hồ sơ sau khi đổi
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer making the API request.
+   * @param input New location.
+   * @returns Updated profile.
    */
   async location(
     s: EntityManager,
@@ -338,11 +340,11 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Số liệu để xét huy hiệu: thống kê rating và điểm đúng giờ trung bình của review đang hiện.
+   * Metrics used to evaluate badges: rating statistics and average punctuality from visible reviews.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @returns Số liệu đầu vào cho `Badge.earned`
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @returns Input statistics for `Badge.earned`.
    */
   private async badgeStats(s: EntityManager, photographerId: string) {
     const rating = (await this.ratings.ratingsOf(s, [photographerId]))[
@@ -360,12 +362,12 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Xét và cấp huy hiệu mới cho một thợ. Huy hiệu đã đạt giữ vĩnh viễn, không bao giờ bị gỡ.
-   * Mỗi huy hiệu mới: ghi `earned_at` và báo realtime `photographer.badge_earned` cho thợ.
+   * Evaluate and award new badges to a photographer. Earned badges are permanent and are never revoked.
+   * For each newly earned badge, record `earned_at` and send the photographer a real-time `photographer.badge_earned` notification.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @returns Mã các huy hiệu vừa đạt trong lần xét này
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @returns Codes of the badges newly earned in this evaluation.
    */
   async awardBadges(s: EntityManager, photographerId: string) {
     const earned = Badge.earned(
@@ -399,11 +401,11 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Job hằng ngày (role `system`): xét huy hiệu cho mọi thợ đã được duyệt.
+   * Daily job (role `system`): evaluate badges for every approved photographer.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người gọi (phải có role `system`)
-   * @returns `{ checked, awarded }`: số thợ đã xét và số huy hiệu mới cấp
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the request; must have the `system` role.
+   * @returns `{ checked, awarded }`: number of photographers evaluated and new badges awarded.
    */
   async awardAllBadges(s: EntityManager, a: Actor) {
     role(a, 'system');
@@ -417,11 +419,11 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Hồ sơ thợ và user sở hữu, không lọc trạng thái (dùng cho góc nhìn chủ hồ sơ / admin).
+   * Photographer profile and its owning user, without filtering by status (for profile owners and admins).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param id ID hồ sơ thợ
-   * @returns Hồ sơ photographer và user; 404 nếu không có
+   * @param s EntityManager for the current transaction.
+   * @param id Photographer profile ID.
+   * @returns Photographer profile and user; throws HTTP 404 if either is missing.
    */
   private async owner(s: EntityManager, id: string) {
     const photographer = await required(s, 'photographers', id),
@@ -430,13 +432,14 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Khách tìm thợ: chỉ thợ `verified` và còn active. Lọc, sắp xếp, phân trang ngay trong DB.
-   * Thứ tự: thợ đang nhận việc trước, rồi rating cao trước, cuối cùng theo id cho ổn định.
+   * Customer photographer search: include only verified photographers with active accounts. Filter, sort, and paginate in the database.
+   * Sort by available photographers first, then highest rating, and finally by ID for stable ordering.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param _a Người đang gọi API (không dùng; API public)
-   * @param input Bộ lọc `location`, `keyword` (tên hoặc style), `min_rating` và phân trang `limit`/`offset`
+   * @param s EntityManager for the current transaction.
+   * @param _a Caller provided for interface compatibility; unused because this API is public.
+   * @param input Filters: `location`, `keyword` (name or style), `min_rating`, `limit`, and `offset`.
    * @returns `{ items, total, offset, limit }`
+   * @param filter filter data of type PhotographerSearchFilter.
    */
 
   async searchPhotographersForCustomer(
@@ -466,7 +469,7 @@ export class PhotographerUseCases implements PhotographerSearchPort {
     }
 
     if (filter.styles && filter.styles.length > 0) {
-      // `styles` là jsonb array; `?|` kiểm tra jsonb array có chứa ít nhất một style.
+      // `styles` is a JSONB array; `?|` checks whether it contains at least one style.
       query.andWhere('p.styles ?| ARRAY[:...styles]', {
         styles: filter.styles,
       });
@@ -506,6 +509,14 @@ export class PhotographerUseCases implements PhotographerSearchPort {
     return { items, total, offset, limit };
   }
 
+  /**
+   * Search photographers by keyword, location, and the supplied filters.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param _a Actor passed through the interface; unused by this code path.
+   * @param input Input data for the operation.
+   * @returns Result object containing the fields `items`, `total`, `offset`, `limit`.
+   */
   async search(
     s: EntityManager,
     _a: Actor,
@@ -526,7 +537,7 @@ export class PhotographerUseCases implements PhotographerSearchPort {
       .andWhere('p.verification_status = :verified', {
         verified: VerificationStatus.VERIFIED,
       });
-    // phân vân đoạn này (tính location)
+    // This part may need reconsideration (location calculation).
     if (input.location)
       query.andWhere('p.location ILIKE :location', {
         location: contains(input.location),
@@ -574,11 +585,11 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Danh sách thợ nổi bật: cùng cách xếp hạng với tìm kiếm (đang nhận lịch trước, rating cao trước).
+   * Featured photographer list, using the same ordering as search (available first, then highest rating).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API
-   * @param input Bộ lọc và phân trang
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the request.
+   * @param input Filters and pagination options.
    * @returns `{ items, total, offset, limit }`
    */
   top(s: EntityManager, a: Actor, input: Inputs.PhotographerTopQueryInput) {
@@ -586,12 +597,12 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Admin xem danh sách hồ sơ thợ, lọc được theo trạng thái duyệt (ví dụ `pending` để xem hàng chờ).
+   * Admin photographer profile list, with an optional approval-status filter (for example, `pending` to view the review queue).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (admin)
-   * @param input Bộ lọc `verification_status` và phân trang `limit`/`offset`
-   * @returns `{ items, total, limit, offset }`, hồ sơ cũ nhất trước
+   * @param s EntityManager for the current transaction.
+   * @param a Admin actor making the request.
+   * @param input Filter by `verification_status`, `limit`, and `offset`.
+   * @returns `{ items, total, limit, offset }`, oldest profiles first.
    */
   async admin(
     s: EntityManager,

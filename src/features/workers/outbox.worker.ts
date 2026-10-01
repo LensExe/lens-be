@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { RealtimePublisher } from '@shared/integrations/realtime/realtime-publisher.port';
 
-/** Số lần publish thất bại tối đa trước khi đưa sự kiện vào dead-letter (`failed_at`). */
+/** Maximum number of failed publish attempts before moving an event to the dead-letter queue (`failed_at`). */
 export const MAX_OUTBOX_ATTEMPTS = 5;
 
 @Injectable()
@@ -22,13 +22,31 @@ export class OutboxWorker
     private readonly dataSource: DataSource,
     private readonly realtime: RealtimePublisher,
   ) {}
+
+  /**
+   * Start the background task after the application finishes starting.
+   *
+   * @returns No value is returned.
+   */
   onApplicationBootstrap() {
     this.timer = setInterval(() => void this.tick(), 2000);
     this.timer.unref();
   }
+
+  /**
+   * Release resources when the application shuts down.
+   *
+   * @returns No value is returned.
+   */
   onApplicationShutdown() {
     clearInterval(this.timer);
   }
+
+  /**
+   * Run one processing cycle for the outbox workers.
+   *
+   * @returns No value is returned.
+   */
   async tick() {
     if (this.running) return;
     this.running = true;
@@ -52,9 +70,12 @@ export class OutboxWorker
   }
 
   /**
-   * Publish một sự kiện rồi mới đánh dấu `processed_at` (at-least-once; client khử trùng bằng `event_id`).
-   * Dòng bị khoá `FOR UPDATE SKIP LOCKED` nên nhiều instance không gửi trùng cùng lúc.
-   * Publish lỗi: tăng `attempts`; đủ `MAX_OUTBOX_ATTEMPTS` thì ghi `failed_at` (dead-letter).
+   * Publish an event before setting `processed_at` (at-least-once delivery; clients deduplicate by `event_id`).
+   * The row is locked with `FOR UPDATE SKIP LOCKED`, preventing multiple instances from sending it at the same time.
+   * On publish failure, increment `attempts`; set `failed_at` (dead letter) once `MAX_OUTBOX_ATTEMPTS` is reached.
+   *
+   * @param id ID of the record to process.
+   * @returns No value is returned.
    */
   private async deliver(id: string) {
     try {

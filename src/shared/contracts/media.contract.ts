@@ -3,7 +3,7 @@ import type { MediaVisibility } from '@shared/domain/values/media.values';
 export interface MediaUploadCommandInput {
   content_type: 'image/jpeg' | 'image/png' | 'image/webp';
   file_size: number;
-  /** Private mặc định nếu client không truyền. */
+  /** Private by default if the client does not provide a value. */
   visibility?: MediaVisibility;
 }
 

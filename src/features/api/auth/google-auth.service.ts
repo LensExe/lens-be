@@ -23,6 +23,11 @@ export class GoogleAuthService {
     private readonly tokens: KeycloakTokenService,
   ) {}
 
+  /**
+   * Build a Google sign-in URL with a state value to protect the callback flow.
+   *
+   * @returns Result returned by `buildAuthorizeRedirectUrl`.
+   */
   async buildLoginUrl(): Promise<string> {
     return this.oidc.buildAuthorizeRedirectUrl(
       KeycloakIdentityProvider.Google,
@@ -30,6 +35,13 @@ export class GoogleAuthService {
     );
   }
 
+  /**
+   * Validate the sign-in callback and complete authentication with the provider.
+   *
+   * @param code Business or configuration code to process.
+   * @param state State value used by the operation.
+   * @returns Result object containing the fields `tokenSet`, `actor`.
+   */
   async handleCallback(
     code: string,
     state: string,
@@ -57,6 +69,12 @@ export class GoogleAuthService {
     return { tokenSet, actor };
   }
 
+  /**
+   * Build the callback URI used to complete the OAuth sign-in flow.
+   *
+   * @returns String result of the operation.
+   * @throws {ServiceUnavailableException} Thrown when an external service is not configured or is unavailable.
+   */
   private redirectUri(): string {
     const redirectUri = this.config.get<string>(
       'auth.keycloakGoogleRedirectUri',

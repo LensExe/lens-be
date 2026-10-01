@@ -11,6 +11,7 @@
  *
  * @example
  * deriveUsername({ email: "anhdonguyennhi@gmail.com" }) // "anhdonguyennhi"
+ * @param email Email address associated with the operation.
  */
 export const DeriveUsername = (email: string): string => {
   // an email with a local-part wins -- take everything before the first "@"

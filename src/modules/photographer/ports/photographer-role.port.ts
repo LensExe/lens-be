@@ -1,23 +1,23 @@
 /**
- * Khả năng gán / gỡ role `photographer` trên Keycloak mà context photographer cần khi admin duyệt hồ sơ.
+ * Ability to assign or remove the `photographer` role in Keycloak, as required by the photographer context when an admin approves an application.
  *
- * Bên cung cấp: identity (xem `docs/IDENTITY_TODO.md`, việc 7). Trong lúc chờ, wiring bằng bản no-op.
- * User phải refresh token / đăng nhập lại để token có role mới.
+ * Provided by the identity module (see `docs/IDENTITY_TODO.md`, item 7). Until then, use no-op wiring.
+ * The user must refresh their token or sign in again to receive the new role in the token.
  */
 export abstract class PhotographerRolePort {
   /**
-   * Gán realm role `photographer` cho user.
+   * Assign the `photographer` realm role to a user.
    *
-   * @param keycloakUserId ID user bên Keycloak (`users.keycloak_id`)
-   * @returns Promise hoàn tất khi đã gán
+   * @param keycloakUserId Keycloak user ID (`users.keycloak_id`).
+   * @returns Promise that resolves when the role has been assigned.
    */
   abstract grant(keycloakUserId: string): Promise<void>;
 
   /**
-   * Gỡ realm role `photographer` khỏi user.
+   * Remove the `photographer` realm role from a user.
    *
-   * @param keycloakUserId ID user bên Keycloak (`users.keycloak_id`)
-   * @returns Promise hoàn tất khi đã gỡ
+   * @param keycloakUserId Keycloak user ID (`users.keycloak_id`).
+   * @returns Promise that resolves when the role has been removed.
    */
   abstract revoke(keycloakUserId: string): Promise<void>;
 }

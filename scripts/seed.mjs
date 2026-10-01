@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * scripts/seed.mjs -- Nạp dữ liệu mẫu (Seed Data) chuẩn cho hệ thống Lens (EXE202)
+ * `scripts/seed.mjs` — load standard seed data for the Lens (EXE202) system.
  *
- * Tệp này đọc và thực thi toàn bộ tệp SQL 'migrations/seed_lens-dev.sql':
- *   - Toàn bộ khóa chính và khóa ngoại đều là UUID v4 (RFC 4122).
- *   - Đồng bộ 20 bảng cơ sở dữ liệu: users, admins, customers, photographers,
+ * This file reads and executes the SQL file `migrations/seed_lens-dev.sql`:
+ * - All primary and foreign keys use UUID v4 (RFC 4122).
+ * - Seeds 20 database tables, including users, admins, customers, and photographers.
  *     photographer_ratings, booking_plans, photographer_plans, subscriptions,
  *     offline_slots, wallets, media, portfolios, bookings, transactions,
  *     payment_webhooks, refund_requests, booking_deliveries, feedbacks,
  *     reports, outbox_events.
- *   - Sử dụng 'ON CONFLICT (id) DO NOTHING' bảo đảm an toàn khi chạy nhiều lần (idempotent).
+ * - `ON CONFLICT (id) DO NOTHING` makes repeated runs safe (idempotent).
  */
 
 import pg from 'pg';
@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 const { Client } = pg;
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Tự động tải file .env nếu có
+// Automatically load `.env` if it exists.
 try {
   process.loadEnvFile?.();
 } catch (error) {
@@ -36,6 +36,11 @@ const config = {
   database: process.env.DB_NAME || 'lens',
 };
 
+/**
+ * Seed the database using the current configuration.
+ *
+ * @returns No value is returned.
+ */
 async function seed() {
   console.log(`\n🌱 [Seed] Đang kết nối tới PostgreSQL [${config.host}:${config.port}/${config.database}]...`);
   const client = new Client(config);

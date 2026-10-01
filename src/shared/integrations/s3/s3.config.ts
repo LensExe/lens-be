@@ -6,6 +6,13 @@ import {
 import { S3Provider } from './enums/s3';
 import type { S3ProviderConfig } from './types/config';
 
+/**
+ * Read a positive integer setting or use the default when the value is invalid.
+ *
+ * @param value Value used by the operation: value.
+ * @param fallback Numeric value used by the operation: fallback.
+ * @returns Result of the operation described above.
+ */
 const positiveInteger = (
   value: string | undefined,
   fallback: number,
@@ -15,13 +22,13 @@ const positiveInteger = (
 };
 
 /**
- * Đọc và ánh xạ cấu hình S3 từ biến môi trường (process.env) theo từng Provider.
+ * Read and map S3 configuration from environment variables (`process.env`) for each provider.
  *
- * - Thiết lập giá trị mặc định cho region, TTL presigned URL, và forcePathStyle (MinIO: true, Cloud: false).
- * - Cloud có thể dùng static credentials hoặc credential chain mặc định của AWS SDK.
+ * - Set defaults for region, presigned URL TTL, and `forcePathStyle` (MinIO: true; cloud: false).
+ * - Cloud providers can use static credentials or the AWS SDK's default credential chain.
  *
- * @param provider - Nhà cung cấp S3 (MinIO hoặc cloud S3-compatible)
- * @returns Object S3ProviderConfig chứa các thông số kết nối
+ * @param provider S3 provider (MinIO or a cloud S3-compatible service).
+ * @returns `S3ProviderConfig` object containing the connection settings.
  */
 export function getS3ProviderConfig(provider: S3Provider): S3ProviderConfig {
   switch (provider) {
@@ -62,15 +69,15 @@ export function getS3ProviderConfig(provider: S3Provider): S3ProviderConfig {
 }
 
 /**
- * Lấy cấu hình và bắt buộc (validate) các trường quan trọng phải tồn tại để kết nối.
+ * Get the configuration and validate that all required connection settings are present.
  *
- * - Bucket luôn bắt buộc phải có.
- * - MinIO bắt buộc endpoint và static credentials.
- * - Cloud cho phép AWS SDK tự lấy credentials từ IAM role/default credential chain.
+ * - A bucket is always required.
+ * - MinIO requires an endpoint and static credentials.
+ * - Cloud providers can let the AWS SDK retrieve credentials from an IAM role or the default credential chain.
  *
- * @param provider - Nhà cung cấp S3 (MinIO hoặc cloud S3-compatible)
- * @throws DomainError nếu cấu hình bị thiếu hoặc không hợp lệ
- * @returns Cấu hình S3 hoàn chỉnh với các trường xác thực đã được đảm bảo tồn tại
+ * @param provider S3 provider (MinIO or a cloud S3-compatible service).
+ * @throws DomainError Throws `DomainError` if the configuration is missing or invalid.
+ * @returns Complete S3 configuration with all required credentials.
  */
 export function requireS3ProviderConfig(
   provider: S3Provider,

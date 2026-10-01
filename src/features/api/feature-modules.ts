@@ -29,6 +29,12 @@ export const apiFeatureModuleRegistry: ReadonlyArray<
   ['MODERATION', ModerationApiModule],
 ];
 
+/**
+ * Select the API modules to initialize based on the environment configuration.
+ *
+ * @param env Environment configuration to read.
+ * @returns Result returned by `map`.
+ */
 export function selectApiFeatureModules(
   env: NodeJS.ProcessEnv = process.env,
 ): Type[] {

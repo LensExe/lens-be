@@ -29,6 +29,12 @@ export class BadgeController {
     private readonly queries: QueryBus,
   ) {}
 
+  /**
+   * List badges using the supplied query filters.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('badges')
   @ApiOperation({
     operationId: 'PHO-015',
@@ -58,6 +64,14 @@ export class BadgeController {
     );
   }
 
+  /**
+   * Update the badge definition and qualification criteria.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param code Business or configuration code to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('admin/badges/:code')
   @ApiOperation({
     operationId: 'ADM-012',

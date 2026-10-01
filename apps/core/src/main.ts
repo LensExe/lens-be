@@ -2,6 +2,11 @@ import { NestFactory } from '@nestjs/core';
 import { CoreModule } from './core.module';
 import { setupApi } from '@features/api/setup';
 
+/**
+ * Initialize the API application and start accepting requests.
+ *
+ * @returns No value is returned.
+ */
 async function bootstrap() {
   const app = await NestFactory.create(CoreModule);
   setupApi(app);

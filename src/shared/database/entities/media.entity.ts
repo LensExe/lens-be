@@ -12,32 +12,32 @@ import type {
 } from '@shared/domain/values/media.values';
 
 /**
- * Entity đại diện cho bảng `media`.
- * Lưu trữ thông tin metadata của tất cả các tập tin tải lên hệ thống (ảnh đại diện, album ảnh, bằng chứng tranh chấp...).
+ * Entity representing the `media` table.
+ * Stores metadata for all files uploaded to the system (profile images, photo albums, dispute evidence, etc.).
  */
 @Entity('media')
 export class MediaEntity extends BaseEntity {
-  /** ID của người dùng sở hữu tập tin tải lên (khóa ngoại liên kết `users.id`) */
+  /** ID of the user who owns the uploaded file (foreign key referencing `users.id`). */
   @Column('uuid')
   user_id!: string;
 
-  /** Đường dẫn / định danh duy nhất của tệp tin trên dịch vụ lưu trữ đám mây (S3 Key) */
+  /** Unique path or identifier for the file in cloud storage (S3 key). */
   @Column({ unique: true })
   file_key!: string;
 
-  /** Dung lượng tập tin (bytes), tự động ép kiểu sang dạng số number */
+  /** File size in bytes, automatically converted to a number. */
   @Column(bigintColumn)
   file_size!: number;
 
-  /** Định dạng MIME của tập tin (ví dụ: 'image/jpeg', 'image/png', 'image/webp') */
+  /** File MIME type (for example, 'image/jpeg', 'image/png', or 'image/webp'). */
   @Column()
   content_type!: MediaContentType;
 
-  /** Private mặc định; public object phải được bucket policy cho phép đọc. */
+  /** Private by default; public objects must be readable under the bucket policy. */
   @Column({ default: MediaVisibility.PRIVATE })
   visibility!: MediaVisibilityType;
 
-  /** Trạng thái xử lý của tệp tin. */
+  /** Processing status of the file. */
   @Column({ default: MediaStatus.PENDING })
   status!: MediaStatusType;
 }

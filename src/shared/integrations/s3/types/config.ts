@@ -1,45 +1,45 @@
 export interface S3ProviderConfig {
   /**
-   * Khóa truy cập (Public ID / Username) dùng để định danh tài khoản với S3.
-   * Cloud có thể bỏ trống để AWS SDK dùng IAM role/default credential chain.
+   * Access key (public ID or username) used to identify the account to S3.
+   * Cloud providers may omit this so the AWS SDK can use an IAM role or the default credential chain.
    */
   accessKeyId?: string;
 
   /**
-   * Tên thùng chứa (Bucket) lưu trữ các file trên S3.
+   * Name of the S3 bucket used to store files.
    */
   bucket?: string;
 
   /**
-   * URL máy chủ S3 cho backend kết nối nội bộ (vd: http://minio:9000 hoặc endpoint của Cloud S3).
+   * S3 server URL used by the backend to connect through an internal endpoint (for example, `http://minio:9000` or a cloud S3 endpoint).
    */
   endpoint?: string;
 
   /**
-   * Định dạng đường dẫn URL:
-   * - true: Path-Style (https://endpoint/bucket/key) - bắt buộc cho MinIO.
-   * - false: Virtual-Hosted-Style (https://bucket.endpoint/key) - chuẩn cho Cloud S3 / AWS.
+   * URL addressing style:
+   * - `true`: Path-style (`https://endpoint/bucket/key`), required for MinIO.
+   * - `false`: Virtual-hosted style (`https://bucket.endpoint/key`), standard for cloud S3/AWS.
    */
   forcePathStyle: boolean;
 
   /**
-   * Thời gian sống (giây) của link Presigned URL tải/upload trước khi bị vô hiệu hóa.
+   * Lifetime in seconds for a presigned upload or download URL before it expires.
    */
   presignedUrlTtlSeconds: number;
 
   /**
-   * URL công khai cho người dùng bên ngoài (trình duyệt, mobile app) truy cập khi tạo Presigned URL.
+   * Public URL external users (browser or mobile apps) can access when generating presigned URLs.
    */
   publicEndpoint?: string;
 
   /**
-   * Vùng địa lý của Data Center lưu trữ S3 (ví dụ: us-east-1, ap-southeast-1).
+   * AWS region of the data center storing the S3 objects (for example, `us-east-1` or `ap-southeast-1`).
    */
   region: string;
 
   /**
-   * Mật mã truy cập bí mật (Secret Key / Password) dùng để tạo chữ ký số xác thực request.
-   * Cloud có thể bỏ trống để AWS SDK dùng IAM role/default credential chain.
+   * Secret access key or password used to sign requests.
+   * Cloud providers may omit this so the AWS SDK can use an IAM role or the default credential chain.
    */
   secretAccessKey?: string;
 }

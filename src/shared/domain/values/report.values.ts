@@ -1,4 +1,4 @@
-/** Loại đối tượng có thể bị báo cáo / khiếu nại. */
+/** Types of targets that can be reported or disputed. */
 export const ReportTargetType = {
   USER: 'user',
   BOOKING: 'booking',
@@ -18,7 +18,7 @@ export const REPORT_TARGET_TYPES = [
   ReportTargetType.FEEDBACK,
 ] as const;
 
-/** Trạng thái xử lý của report / dispute. */
+/** Processing status of a report or dispute. */
 export const ReportStatus = {
   OPEN: 'open',
   RESOLVED: 'resolved',

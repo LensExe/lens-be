@@ -16,6 +16,13 @@ export class PhotographerLocationCommandHandler implements ICommandHandler<Photo
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Route the photographer location update command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerLocationCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.location(s, message.actor, message.input),
@@ -35,6 +42,13 @@ export class PhotographerStatusCommandHandler implements ICommandHandler<Photogr
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Route the photographer status update command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerStatusCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.status(s, message.actor, message.input),
@@ -54,6 +68,13 @@ export class PhotographerUpdateCommandHandler implements ICommandHandler<Photogr
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Route the photographer update command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerUpdateCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.update(s, message.actor, message.input),
@@ -73,6 +94,13 @@ export class PhotographerCreateCommandHandler implements ICommandHandler<Photogr
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Route the photographer creation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerCreateCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.create(s, message.actor, message.input),
@@ -92,6 +120,13 @@ export class PhotographerApproveCommandHandler implements ICommandHandler<Photog
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Route the photographer approval command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerApproveCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.approve(s, message.actor, message.input),
@@ -111,6 +146,13 @@ export class PhotographerRejectCommandHandler implements ICommandHandler<Photogr
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Route the photographer rejection command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerRejectCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.reject(s, message.actor, message.input),
@@ -130,6 +172,13 @@ export class PhotographerAwardBadgesCommandHandler implements ICommandHandler<Ph
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Route the photographer badge award command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerAwardBadgesCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.awardAllBadges(s, message.actor),

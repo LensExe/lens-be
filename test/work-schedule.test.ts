@@ -9,6 +9,12 @@ import {
 import { DEFAULT_WORKING_HOURS } from '../src/shared/domain/values/work-schedule.values';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';
 
+/**
+ * Check that an invalid work schedule is rejected.
+ *
+ * @param error Caught error to convert or log.
+ * @returns Result of the operation described above.
+ */
 const invalid = (error: unknown) =>
   error instanceof DomainError && error.code === 'invalid';
 

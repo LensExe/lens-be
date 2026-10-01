@@ -18,6 +18,12 @@ export class BookingCollaboratorListQueryHandler implements IQueryHandler<Bookin
     private readonly useCases: BookingUseCases,
   ) {}
 
+  /**
+   * Run the query for booking collaborators by user and invitation status.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingCollaboratorListQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.collaborators(s, message.actor, message.input),
@@ -39,6 +45,12 @@ export class BookingCollaboratorMeQueryHandler implements IQueryHandler<BookingC
     private readonly useCases: BookingUseCases,
   ) {}
 
+  /**
+   * Run the query for booking collaborators by user and invitation status.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingCollaboratorMeQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.myCollaborations(s, message.actor, message.input),

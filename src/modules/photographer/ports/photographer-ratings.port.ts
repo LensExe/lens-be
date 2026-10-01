@@ -1,25 +1,25 @@
 import type { EntityManager } from 'typeorm';
 
-/** Thống kê rating của một thợ; thợ chưa có số liệu thì mọi số là 0. */
+/** Get a photographer's rating statistics; return zeros for all values if no statistics exist yet. */
 export interface PhotographerRatingStats {
-  /** Điểm trung bình của review đang hiện (0 khi chưa có review) */
+  /** Average score across visible reviews (0 when there are no reviews). */
   average_rating: number;
-  /** Số review đang hiện */
+  /** Number of visible reviews. */
   total_feedbacks: number;
-  /** Số booking đã hoàn tất */
+  /** Number of completed bookings. */
   total_bookings: number;
-  /** Số khách hoàn tất từ hai booking trở lên với thợ */
+  /** Number of customers who have completed at least two bookings with the photographer. */
   return_customers: number;
 }
 
-/** Rating và điểm review của thợ (module feedback), để dựng hồ sơ và xét huy hiệu. */
+/** A photographer's rating and review scores (from the feedback module), used to build profiles and evaluate badges. */
 export abstract class PhotographerRatingsPort {
   /**
-   * Thống kê rating của nhiều thợ trong một query.
+   * Get rating statistics for multiple photographers in one query.
    *
-   * @param manager EntityManager của transaction bên gọi
-   * @param photographerIds ID hồ sơ các thợ
-   * @returns Map ID thợ → thống kê; mọi thợ được hỏi đều có mặt (chưa có số liệu thì toàn 0)
+   * @param manager EntityManager from the caller’s transaction.
+   * @param photographerIds Photographer profile IDs.
+   * @returns Map from photographer ID to statistics; includes every requested photographer, with zeros when data is missing.
    */
   abstract ratingsOf(
     manager: EntityManager,
@@ -27,11 +27,11 @@ export abstract class PhotographerRatingsPort {
   ): Promise<Record<string, PhotographerRatingStats>>;
 
   /**
-   * Điểm đúng giờ trung bình của thợ, chỉ tính review đang hiện.
+   * A photographer's average punctuality score, based only on visible reviews.
    *
-   * @param manager EntityManager của transaction bên gọi
-   * @param photographerId ID hồ sơ thợ
-   * @returns Điểm trung bình, 0 nếu chưa có review
+   * @param manager EntityManager from the caller’s transaction.
+   * @param photographerId Photographer profile ID.
+   * @returns Average score, or 0 if there are no reviews.
    */
   abstract averagePunctuality(
     manager: EntityManager,
@@ -39,11 +39,11 @@ export abstract class PhotographerRatingsPort {
   ): Promise<number>;
 
   /**
-   * Tạo rating rỗng cho thợ mới (đã có thì bỏ qua).
+   * Create an empty rating record for a new photographer (skip if one already exists).
    *
-   * @param manager EntityManager của transaction bên gọi
-   * @param photographerId ID hồ sơ thợ
-   * @returns Không trả gì
+   * @param manager EntityManager from the caller’s transaction.
+   * @param photographerId Photographer profile ID.
+   * @returns Returns no value.
    */
   abstract openRating(
     manager: EntityManager,

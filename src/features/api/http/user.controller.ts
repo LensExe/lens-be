@@ -40,6 +40,12 @@ export class UserController {
     private readonly queries: QueryBus,
   ) {}
 
+  /**
+   * Get the current user information from the authenticated identity.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('users/me')
   @ApiOperation({
     operationId: 'AUTH-002',
@@ -75,6 +81,13 @@ export class UserController {
     );
   }
 
+  /**
+   * Update a user after checking permissions and validating the data.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('users/me')
   @ApiOperation({
     operationId: 'AUTH-003',
@@ -117,6 +130,13 @@ export class UserController {
     );
   }
 
+  /**
+   * Get user details by ID after checking the caller’s permissions.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('users/:id')
   @ApiOperation({
     operationId: 'AUTH-004',

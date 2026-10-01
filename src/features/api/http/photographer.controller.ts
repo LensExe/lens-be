@@ -51,6 +51,14 @@ export class PhotographerController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  /**
+   * Update the photographer’s location using the supplied data.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('photographers/me/location')
   @ApiOperation({
     operationId: 'PHO-008',
@@ -92,6 +100,13 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * Get the current user status with administrator access.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('photographers/me/status')
   @ApiOperation({
     operationId: 'PHO-004',
@@ -134,6 +149,13 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * List records for the admin view using the supplied filters.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('admin/photographers')
   @ApiOperation({
     operationId: 'ADM-007',
@@ -192,6 +214,13 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * Approve a photographer after checking permissions and the current status.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('admin/photographers/:id/approve')
   @ApiOperation({
     operationId: 'ADM-009',
@@ -235,6 +264,14 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * Reject a photographer and record the reason when provided.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('admin/photographers/:id/reject')
   @ApiOperation({
     operationId: 'ADM-010',
@@ -281,6 +318,13 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * Update a photographer profile after checking ownership and validating the input.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('photographers/me')
   @ApiOperation({
     operationId: 'PHO-003',
@@ -323,6 +367,12 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * Get the current user information from the authenticated identity.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('photographers/me')
   @ApiOperation({
     operationId: 'PHO-007',
@@ -359,6 +409,13 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * Create a photographer profile after validating the input and business rules.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('photographers/profile')
   @ApiOperation({
     operationId: 'PHO-001',
@@ -402,6 +459,13 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * List featured photographers using the ranking criteria.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('photographers/top-rated')
   @ApiOperation({
     operationId: 'PHO-006',
@@ -448,6 +512,13 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * Search photographers by keyword, location, and the supplied filters.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('photographers')
   @ApiOperation({
     operationId: 'PHO-005',
@@ -511,6 +582,13 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * Get photographer details by ID after checking access permissions.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('photographers/:id')
   @ApiOperation({
     operationId: 'PHO-002',

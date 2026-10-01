@@ -15,6 +15,13 @@ export class BookingCreateCommandHandler implements ICommandHandler<BookingCreat
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Route the booking creation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingCreateCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.create(s, message.actor, message.input),
@@ -34,6 +41,13 @@ export class BookingAcceptCommandHandler implements ICommandHandler<BookingAccep
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Route the booking acceptance command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingAcceptCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.accept(s, message.actor, message.input),
@@ -53,6 +67,13 @@ export class BookingAdminCancelCommandHandler implements ICommandHandler<Booking
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Route the booking cancellation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingAdminCancelCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.adminCancel(s, message.actor, message.input),
@@ -72,6 +93,13 @@ export class BookingCancelCommandHandler implements ICommandHandler<BookingCance
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Route the booking cancellation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingCancelCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.cancel(s, message.actor, message.input),
@@ -91,6 +119,13 @@ export class BookingCompleteCommandHandler implements ICommandHandler<BookingCom
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Route the booking completion command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingCompleteCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.complete(s, message.actor, message.input),
@@ -110,6 +145,13 @@ export class BookingCancelUnpaidCommandHandler implements ICommandHandler<Bookin
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Route the unpaid booking cancellation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingCancelUnpaidCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.cancelUnpaid(s, message.actor),
@@ -129,6 +171,13 @@ export class BookingExpirePendingCommandHandler implements ICommandHandler<Booki
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Route the command to expire bookings awaiting a response to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingExpirePendingCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.expirePending(s, message.actor),
@@ -148,6 +197,13 @@ export class BookingAutoCompleteCommandHandler implements ICommandHandler<Bookin
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Route the command to auto-complete eligible bookings to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingAutoCompleteCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.autoComplete(s, message.actor),
@@ -167,6 +223,13 @@ export class BookingConfirmReceiptCommandHandler implements ICommandHandler<Book
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Route the customer photo receipt confirmation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingConfirmReceiptCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.confirmReceipt(s, message.actor, message.input),
@@ -186,6 +249,13 @@ export class BookingCompleteShootCommandHandler implements ICommandHandler<Booki
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Route the booking photo shoot completion command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingCompleteShootCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.completeShoot(s, message.actor, message.input),
@@ -205,6 +275,13 @@ export class BookingDisputeCommandHandler implements ICommandHandler<BookingDisp
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Route the booking dispute command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingDisputeCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.dispute(s, message.actor, message.input),
@@ -224,6 +301,13 @@ export class BookingRejectCommandHandler implements ICommandHandler<BookingRejec
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Route the booking rejection command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingRejectCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.reject(s, message.actor, message.input),
@@ -243,6 +327,13 @@ export class BookingStartCommandHandler implements ICommandHandler<BookingStartC
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Route the booking start command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingStartCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.start(s, message.actor, message.input),

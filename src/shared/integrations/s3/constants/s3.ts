@@ -1,6 +1,10 @@
 import { S3Provider } from '../enums/s3';
 
-/** Provider active; ưu tiên S3_PROVIDER, fallback theo môi trường. */
+/**
+ * Active provider; prefer S3_PROVIDER, with an environment-based fallback.
+ *
+ * @returns Result of type S3Provider.
+ */
 export const getActiveS3Provider = (): S3Provider =>
   (process.env.S3_PROVIDER as S3Provider | undefined) ??
   (process.env.NODE_ENV === 'production' ? S3Provider.Cloud : S3Provider.Minio);

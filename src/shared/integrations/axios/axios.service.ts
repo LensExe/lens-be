@@ -9,6 +9,12 @@ import { computeRetryDelayWithJitter } from './utils/compute-retry-delay';
 export class AxiosService {
   private readonly instances = new Map<string, AxiosInstance>();
 
+  /**
+   * Create an Axios client after validating the input and business rules.
+   *
+   * @param param Object containing the HTTP client identifier, Axios configuration, and retry policy.
+   * @returns Result of the operation described above.
+   */
   create({ key, config, retry }: AxiosCreateParams): AxiosInstance {
     const existing = this.instances.get(key);
     if (existing) return existing;
@@ -27,14 +33,33 @@ export class AxiosService {
     return instance;
   }
 
+  /**
+   * Get an Axios client by its key.
+   *
+   * @param key Key used by the operation.
+   * @returns Result returned by `get`.
+   */
   get(key: string): AxiosInstance | undefined {
     return this.instances.get(key);
   }
 
+  /**
+   * Remove the HTTP client with the specified key from the client manager.
+   *
+   * @param key Key used by the operation.
+   * @returns Result returned by `delete`.
+   */
   remove(key: string): boolean {
     return this.instances.delete(key);
   }
 
+  /**
+   * Attach retry rules and retry delays to the HTTP client.
+   *
+   * @param instance instance data of type AxiosInstance.
+   * @param options Options for the operation.
+   * @returns No value is returned.
+   */
   private addRetry(instance: AxiosInstance, options: AxiosRetryOptions): void {
     axiosRetry(instance, {
       retries: options.retries,

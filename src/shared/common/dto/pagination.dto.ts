@@ -2,7 +2,7 @@ import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
 /**
- * DTO nhận tham số phân trang từ Query params (page, limit)
+ * DTO for pagination query parameters (`page`, `limit`).
  */
 export class PaginationQueryDto {
   @IsOptional()
@@ -18,13 +18,18 @@ export class PaginationQueryDto {
   @Max(100)
   limit: number = 10;
 
+  /**
+   * Calculate the number of records to skip from the page and page size.
+   *
+   * @returns Result of the operation described above.
+   */
   get skip(): number {
     return (this.page - 1) * this.limit;
   }
 }
 
 /**
- * Metadata thông tin phân trang trả về cho Client
+ * Pagination metadata returned to the client.
  */
 export interface PaginatedMeta {
   page: number;
@@ -36,7 +41,7 @@ export interface PaginatedMeta {
 }
 
 /**
- * DTO chuẩn hóa kết quả phân trang
+ * DTO for normalizing paginated results.
  */
 export class PaginatedResultDto<T> {
   data: T[];

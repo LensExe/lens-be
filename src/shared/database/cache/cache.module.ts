@@ -1,15 +1,15 @@
 import { Global, Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
 
-/** TTL mặc định của cache (ms): 5 phút. */
+/** Default cache TTL (ms): 5 minutes. */
 export const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000;
 
 /**
- * Cache in-memory (riêng từng instance), đăng ký một lần cho toàn ứng dụng.
+ * In-memory cache (separate for each instance), registered once for the whole application.
  *
- * Module nào cần thì inject `CACHE_MANAGER` từ `@nestjs/cache-manager`, không cần import lại.
- * Dùng cho dữ liệu mất được và không cần mọi instance thấy giống nhau.
- * Dữ liệu phải dùng chung giữa các instance thì dùng `RedisService` (`../redis`).
+ * Modules can inject `CACHE_MANAGER` from `@nestjs/cache-manager` without importing it again.
+ * Use for data that can be lost and does not need to be consistent across all instances.
+ * Use `RedisService` (`../redis`) for data shared across instances.
  */
 @Global()
 @Module({

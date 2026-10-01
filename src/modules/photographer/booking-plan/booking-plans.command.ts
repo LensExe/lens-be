@@ -16,6 +16,13 @@ export class BookingPlanCreateCommandHandler implements ICommandHandler<BookingP
     private readonly dataSource: DataSource,
     private readonly useCases: BookingPlanUseCases,
   ) {}
+
+  /**
+   * Route the booking plan creation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingPlanCreateCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.create(s, message.actor, message.input),
@@ -35,6 +42,13 @@ export class BookingPlanUpdateCommandHandler implements ICommandHandler<BookingP
     private readonly dataSource: DataSource,
     private readonly useCases: BookingPlanUseCases,
   ) {}
+
+  /**
+   * Route the booking plan update command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingPlanUpdateCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.update(s, message.actor, message.input),
@@ -54,6 +68,13 @@ export class BookingPlanRemoveCommandHandler implements ICommandHandler<BookingP
     private readonly dataSource: DataSource,
     private readonly useCases: BookingPlanUseCases,
   ) {}
+
+  /**
+   * Route the booking plan deletion command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingPlanRemoveCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.remove(s, message.actor, message.input),

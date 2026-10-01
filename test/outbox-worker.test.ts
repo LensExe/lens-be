@@ -16,7 +16,12 @@ type Row = {
   failed_at: string | null;
 };
 
-/** Bảng outbox_events giả trong RAM, đủ các hàm worker dùng. */
+/**
+ * In-memory fake `outbox_events` table with the methods used by workers.
+ *
+ * @param rows List of rows to process.
+ * @returns Result object containing the fields `dataSource`, `table`.
+ */
 function fakeOutbox(rows: Row[]) {
   const table = new Map(rows.map((row) => [row.id, { ...row }]));
   const pending = (row?: Row) => row && !row.processed_at && !row.failed_at;
@@ -47,6 +52,12 @@ function fakeOutbox(rows: Row[]) {
   return { dataSource, table };
 }
 
+/**
+ * Build sample transaction data for test cases.
+ *
+ * @param id ID of the record to process.
+ * @returns Result object containing the fields `id`, `topic`, `recipient_ids`, `payload`, `created_at`.
+ */
 function row(id: string): Row {
   return {
     id,
@@ -61,6 +72,12 @@ function row(id: string): Row {
   };
 }
 
+/**
+ * Create a mock event publisher that can simulate publishing failures.
+ *
+ * @param fail Flag indicating whether fail should be processed.
+ * @returns Result object containing the fields `realtime`, `calls`.
+ */
 function publisher(fail: boolean) {
   const calls: string[] = [];
   const realtime = {

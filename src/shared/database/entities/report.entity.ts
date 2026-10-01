@@ -7,43 +7,43 @@ import {
 } from '@shared/domain/values/report.values';
 
 /**
- * Entity đại diện cho bảng `reports`.
- * Hệ thống tiếp nhận và xử lý Khiếu nại (Disputes) và Báo cáo vi phạm (Reports) tập trung.
+ * Entity representing the `reports` table.
+ * Central intake and processing for disputes and violation reports.
  */
 @Entity('reports')
 export class ReportEntity extends BaseEntity {
-  /** ID người dùng gửi báo cáo / khiếu nại (khóa ngoại liên kết `users.id`) */
+  /** ID of the user who submitted the report or dispute (foreign key referencing `users.id`). */
   @Column('uuid')
   user_id!: string;
 
   /**
-   * Loại đối tượng bị báo cáo / khiếu nại
+   * Type of reported or disputed target.
    * ('booking' | 'user' | 'photographer' | 'portfolio' | 'feedback')
    */
   @Column()
   target_type!: ReportTargetType;
 
-  /** ID của đối tượng cụ thể bị báo cáo / khiếu nại (ví dụ: booking_id, photographer_id...) */
+  /** ID of the specific reported or disputed target (for example, `booking_id` or `photographer_id`). */
   @Column('uuid')
   target_id!: string;
 
-  /** Lý do / nội dung tố cáo, khiếu nại chi tiết */
+  /** Detailed report or dispute reason and description. */
   @Column('text')
   reason!: string;
 
-  /** Danh sách ID các tệp media bằng chứng kèm theo (ảnh tin nhắn, ảnh sản phẩm lỗi...) */
+  /** IDs of attached evidence media files (for example, message screenshots or photos of defective deliverables). */
   @Column('jsonb', { default: [] })
   evidence_media_ids!: string[];
 
-  /** Trạng thái xử lý báo cáo ('open' | 'resolved' | 'rejected' | 'escalated') */
+  /** Report processing status ('open' | 'resolved' | 'rejected' | 'escalated'). */
   @Column({ default: ReportStatus.OPEN })
   status!: ReportStatusType;
 
-  /** Kết luận giải quyết hoặc hình thức xử lý của ban quản trị */
+  /** Resolution or action taken by the administration. */
   @Column('text', { nullable: true })
   resolution!: string | null;
 
-  /** ID của Quản trị viên đã giải quyết báo cáo này (khóa ngoại `users.id`) */
+  /** ID of the admin who resolved this report (foreign key `users.id`). */
   @Column('uuid', { nullable: true })
   resolved_by!: string | null;
 }

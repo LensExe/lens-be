@@ -16,6 +16,13 @@ export class ModerationCreateCommandHandler implements ICommandHandler<Moderatio
     private readonly dataSource: DataSource,
     private readonly useCases: ModerationUseCases,
   ) {}
+
+  /**
+   * Route the moderation creation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ModerationCreateCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.create(s, message.actor, message.input),
@@ -35,6 +42,13 @@ export class ModerationResolveCommandHandler implements ICommandHandler<Moderati
     private readonly dataSource: DataSource,
     private readonly useCases: ModerationUseCases,
   ) {}
+
+  /**
+   * Route the moderation resolution command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ModerationResolveCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.resolve(s, message.actor, message.input),

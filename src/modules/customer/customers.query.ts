@@ -22,6 +22,12 @@ export class CustomerMeQueryHandler implements IQueryHandler<CustomerMeQuery> {
     private readonly useCases: CustomerUseCases,
   ) {}
 
+  /**
+   * Run the query for the current user’s customer profile in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: CustomerMeQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.me(s, message.actor),
@@ -47,6 +53,12 @@ export class CustomerAdminGetQueryHandler implements IQueryHandler<CustomerAdmin
     private readonly useCases: CustomerUseCases,
   ) {}
 
+  /**
+   * Run the query for the admin customer list in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: CustomerAdminGetQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.adminGet(s, message.actor, message.input),
@@ -72,6 +84,12 @@ export class CustomerAdminListQueryHandler implements IQueryHandler<CustomerAdmi
     private readonly useCases: CustomerUseCases,
   ) {}
 
+  /**
+   * Run the query for the admin customer list in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: CustomerAdminListQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.adminList(s, message.actor, message.input),
@@ -97,6 +115,12 @@ export class CustomerMyBookingSummaryQueryHandler implements IQueryHandler<Custo
     private readonly useCases: CustomerUseCases,
   ) {}
 
+  /**
+   * Run the query that summarizes the current customer’s bookings.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: CustomerMyBookingSummaryQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.myBookingSummary(s, message.actor, message.input),
@@ -122,6 +146,12 @@ export class CustomerRecommendQueryHandler implements IQueryHandler<CustomerReco
     private readonly useCases: CustomerUseCases,
   ) {}
 
+  /**
+   * Run the query that finds photographers matching the customer’s needs.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: CustomerRecommendQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.recommend(s, message.actor, message.input),

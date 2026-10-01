@@ -14,6 +14,14 @@ export class KeycloakHttpService {
     private readonly axiosService: AxiosService,
   ) {}
 
+  /**
+   * Send an HTTP request to Keycloak using the current client and configuration.
+   *
+   * @param config Service configuration.
+   * @returns Result returned by `request`.
+   * @throws {BadGatewayException} Thrown when the operation cannot be completed.
+   * @throws {ServiceUnavailableException} Thrown when an external service is not configured or is unavailable.
+   */
   async request<T>(config: AxiosRequestConfig): Promise<AxiosResponse<T>> {
     try {
       return await this.client().request<T>(config);
@@ -27,6 +35,12 @@ export class KeycloakHttpService {
     }
   }
 
+  /**
+   * Get the configured HTTP client for Keycloak requests.
+   *
+   * @returns Result returned by `create`.
+   * @throws {ServiceUnavailableException} Thrown when an external service is not configured or is unavailable.
+   */
   private client() {
     const baseURL = this.config.get<string>('auth.keycloakAuthServerUrl');
     if (!baseURL) {

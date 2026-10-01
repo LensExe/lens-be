@@ -1,8 +1,8 @@
--- Lúc thợ nhận booking, để tính hạn thanh toán: khách phải trả cọc trước mốc tới trước
--- (24 giờ sau khi nhận, hoặc lúc bắt đầu chụp); quá hạn thì system huỷ và nhả lịch.
+-- When a photographer accepts a booking, calculate the payment deadline: the customer must pay the deposit by the earlier of
+-- 24 hours after acceptance or the shoot start time; on expiry, the system cancels the booking and releases the slot.
 ALTER TABLE bookings ADD COLUMN accepted_at timestamptz;
 
--- Booking đã nhận từ trước: lấy lúc chuyển sang accepted trong lịch sử, không có thì updated_at.
+-- For previously accepted bookings, use the time they entered `accepted` in the history, or `updated_at` if unavailable.
 UPDATE bookings b
 SET accepted_at = COALESCE(
     (SELECT max(h.created_at) FROM booking_status_history h

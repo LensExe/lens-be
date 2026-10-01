@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import { Booking } from '../src/modules/booking/core/booking.domain';
 
-/** 2030-01-01 là thứ Ba; 09:00–10:00 giờ VN = 02:00–03:00 UTC. */
+/** 2030-01-01 is a Tuesday; 09:00–10:00 Vietnam time is 02:00–03:00 UTC. */
 const facts = {
   customerId: 'customer',
   customerUserId: 'customer-user',

@@ -1,4 +1,4 @@
-/** Trạng thái xét duyệt / xác minh hồ sơ photographer. */
+/** Photographer profile approval or verification status. */
 export const VerificationStatus = {
   UNVERIFIED: 'unverified',
   PENDING: 'pending',

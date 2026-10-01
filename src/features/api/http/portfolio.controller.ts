@@ -47,6 +47,14 @@ export class PortfolioController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  /**
+   * Create a portfolio after validating the input and business rules.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('photographers/me/portfolios')
   @ApiOperation({
     operationId: 'PORT-001',
@@ -89,6 +97,14 @@ export class PortfolioController {
     );
   }
 
+  /**
+   * Update the display order using the supplied list of IDs.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('portfolios/:id/items/reorder')
   @ApiOperation({
     operationId: 'PORT-008',
@@ -133,6 +149,14 @@ export class PortfolioController {
     );
   }
 
+  /**
+   * List portfolios using the supplied query filters.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('photographers/:id/portfolios')
   @ApiOperation({
     operationId: 'PORT-002',
@@ -181,6 +205,14 @@ export class PortfolioController {
     );
   }
 
+  /**
+   * Add media to a portfolio after checking ownership and media status.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('portfolios/:id/items')
   @ApiOperation({
     operationId: 'PORT-006',
@@ -226,6 +258,13 @@ export class PortfolioController {
     );
   }
 
+  /**
+   * Get portfolio details by ID after checking access permissions.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('portfolios/:id')
   @ApiOperation({
     operationId: 'PORT-003',
@@ -258,6 +297,14 @@ export class PortfolioController {
     );
   }
 
+  /**
+   * Update portfolio details after checking ownership.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('portfolios/:id')
   @ApiOperation({
     operationId: 'PORT-004',
@@ -302,6 +349,13 @@ export class PortfolioController {
     );
   }
 
+  /**
+   * Delete a portfolio or portfolio item after checking ownership.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Delete('portfolios/:id')
   @ApiOperation({
     operationId: 'PORT-005',
@@ -341,6 +395,14 @@ export class PortfolioController {
     );
   }
 
+  /**
+   * Remove media from a portfolio after checking ownership.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param itemId Item ID to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Delete('portfolios/:id/items/:itemId')
   @ApiOperation({
     operationId: 'PORT-007',

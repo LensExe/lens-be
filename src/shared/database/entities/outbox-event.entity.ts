@@ -3,41 +3,41 @@ import { BaseEntity } from './base.entity';
 import { timestampTransformer } from './utils/column-transformers';
 
 /**
- * Entity đại diện cho bảng `outbox_events`.
- * Cốt lõi của kiến trúc Transactional Outbox Pattern:
- * Lưu các sự kiện cần gửi (thông báo realtime, socket, webhook...) trong cùng database transaction với nghiệp vụ chính,
- * đảm bảo dữ liệu không bao giờ bị mất (Guaranteed Delivery) trước khi OutboxWorker quét và gửi đi.
+ * Entity representing the `outbox_events` table.
+ * Core of the Transactional Outbox Pattern:
+ * Save events to dispatch (real-time notifications, sockets, webhooks, etc.) in the same database transaction as the primary operation,
+ * ensuring they are not lost before OutboxWorker retrieves and dispatches them (guaranteed delivery).
  */
 @Entity('outbox_events')
 export class OutboxEventEntity extends BaseEntity {
-  /** Tên chủ đề / sự kiện (ví dụ: 'booking.created', 'payment.success') */
+  /** Event topic or name (for example, 'booking.created' or 'payment.success'). */
   @Column()
   topic!: string;
 
-  /** Danh sách ID người dùng nhận sự kiện (user_id) */
+  /** IDs of users who receive the event (`user_id`). */
   @Column('jsonb')
   recipient_ids!: string[];
 
-  /** Dữ liệu chi tiết của sự kiện đi kèm */
+  /** Event payload. */
   @Column('jsonb')
   payload!: Record<string, unknown>;
 
-  /** Thời điểm worker đã xử lý phát sự kiện thành công (null nghĩa là chưa xử lý) */
+  /** Time when a worker successfully dispatched the event (`null` means it has not been processed). */
   @Column('timestamptz', {
     nullable: true,
     transformer: timestampTransformer,
   })
   processed_at!: string | null;
 
-  /** Số lần worker đã thử publish mà thất bại */
+  /** Number of failed publish attempts by workers. */
   @Column('integer', { default: 0 })
   attempts!: number;
 
-  /** Thông báo lỗi của lần publish thất bại gần nhất */
+  /** Error from the most recent failed publish attempt. */
   @Column('text', { nullable: true })
   last_error!: string | null;
 
-  /** Thời điểm bỏ cuộc sau khi thất bại quá số lần cho phép (dead-letter); worker không lấy lại nữa */
+  /** Time when the event was abandoned after exceeding the retry limit (dead letter); workers will not pick it up again. */
   @Column('timestamptz', {
     nullable: true,
     transformer: timestampTransformer,

@@ -1,5 +1,13 @@
 import axios from 'axios';
 
+/**
+ * Read a required configuration value and report an error if it is missing.
+ *
+ * @param value Value used by the operation: value.
+ * @param name Value used by the operation: name.
+ * @returns Result returned by `trim`.
+ * @throws {Error} Thrown when the operation cannot be completed.
+ */
 const required = (value, name) => {
   if (!value?.trim()) throw new Error(`${name} is required`);
   return value.trim();

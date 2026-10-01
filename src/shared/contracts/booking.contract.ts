@@ -50,7 +50,7 @@ export interface BookingCollaboratorListQueryInput {
   id: string;
 }
 
-/** Danh sách lời mời của chính thợ đang đăng nhập, phân trang. */
+/** Paginated list of invitations for the signed-in photographer. */
 export interface BookingCollaboratorMeQueryInput {
   limit?: number;
   offset?: number;
@@ -68,13 +68,13 @@ export interface BookingCollaboratorRevokeCommandInput {
   id: string;
 }
 
-/** Job huỷ booking chưa trả cọc không nhận tham số. */
+/** The job that cancels a booking without a deposit takes no arguments. */
 export type BookingCancelUnpaidCommandInput = Record<string, never>;
 
-/** Job hết hạn yêu cầu pending không nhận tham số. */
+/** The job that expires pending requests takes no arguments. */
 export type BookingExpirePendingCommandInput = Record<string, never>;
 
-/** Job tự hoàn tất không nhận tham số. */
+/** The job that automatically completes bookings takes no arguments. */
 export type BookingAutoCompleteCommandInput = Record<string, never>;
 
 export interface BookingConfirmReceiptCommandInput {

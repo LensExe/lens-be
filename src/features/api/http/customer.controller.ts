@@ -48,6 +48,12 @@ export class CustomerController {
     private readonly queries: QueryBus,
   ) {}
 
+  /**
+   * Get the current user information from the authenticated identity.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('customers/me')
   @Access([])
   @ApiBearerAuth()
@@ -75,6 +81,13 @@ export class CustomerController {
     );
   }
 
+  /**
+   * Update a customer profile after checking ownership and validating the input.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('customers/me')
   @Access([])
   @ApiBearerAuth()
@@ -117,6 +130,13 @@ export class CustomerController {
     );
   }
 
+  /**
+   * Get a record’s details with administrator access.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('admin/customers/:id')
   @Access(['admin'])
   @ApiBearerAuth()
@@ -150,6 +170,13 @@ export class CustomerController {
     );
   }
 
+  /**
+   * List records for the admin view.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('admin/customers')
   @Access(['admin'])
   @ApiBearerAuth()
@@ -179,6 +206,12 @@ export class CustomerController {
     );
   }
 
+  /**
+   * Summarize bookings for the current customer.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('customers/me/summary')
   @Access(['customer'])
   @ApiBearerAuth()
@@ -208,6 +241,13 @@ export class CustomerController {
     );
   }
 
+  /**
+   * Find photographers that match the customer’s supplied filters.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('customers/me/recommendations')
   @Access(['customer'])
   @ApiBearerAuth()

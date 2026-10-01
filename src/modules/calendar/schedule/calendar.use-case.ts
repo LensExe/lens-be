@@ -15,13 +15,13 @@ import { WorkSchedule } from '@shared/domain/rules/work-schedule.rules';
 import { DEFAULT_WORKING_HOURS } from '@shared/domain/values/work-schedule.values';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 
-/** Lý do ghi cho yêu cầu pending bị từ chối vì thợ chặn đúng giờ đó. */
+/** Reason recorded when a pending request is rejected because the photographer blocked that time. */
 const BLOCKED_REASON = 'Photographer blocked this time';
 
-/** Lý do ghi cho yêu cầu pending bị từ chối vì nằm ngoài giờ làm mới của thợ. */
+/** Reason recorded when a pending request falls outside the photographer’s updated working hours. */
 const HOURS_CHANGED_REASON = 'Photographer changed working hours';
 
-/** Nghiệp vụ lịch của thợ: giờ làm, chặn lịch, lịch của tôi, lịch trống cho khách. */
+/** Photographer calendar operations: working hours, blocks, my calendar, and customer availability. */
 @Injectable()
 export class CalendarUseCases {
   constructor(
@@ -30,13 +30,13 @@ export class CalendarUseCases {
   ) {}
 
   /**
-   * Khách xem lịch trống của thợ (public): ca làm theo giờ Việt Nam trừ khoảng chặn và booking.
-   * Chỉ thợ đã duyệt, tài khoản active; thợ tắt nhận lịch (`is_available = false`) thì rỗng.
+   * Public photographer availability: subtract blocked ranges and bookings from working shifts in Vietnam time.
+   * Only approved photographers with active accounts; return no availability when `is_available = false`.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param _a Người đang gọi API (không dùng; API public)
-   * @param input ID hồ sơ thợ; `from`/`to` mặc định từ bây giờ tới 30 ngày sau
-   * @returns `{ items }`: các khoảng `{ from, to }` còn trống; 404 nếu thợ không public
+   * @param s EntityManager for the current transaction.
+   * @param _a Caller provided for interface compatibility; unused because this API is public.
+   * @param input Photographer profile ID; `from` and `to` default to now and 30 days from now.
+   * @returns `{ items }` containing available `{ from, to }` ranges; throws HTTP 404 if the photographer is not public.
    */
   async availability(
     s: EntityManager,
@@ -61,12 +61,12 @@ export class CalendarUseCases {
   }
 
   /**
-   * Ca làm dài nhất của thợ, tính bằng phút. Module photographer gọi qua port để không cho tạo gói
-   * chụp dài hơn mọi ca (gói như vậy không bao giờ đặt được).
+   * Photographer’s longest shift in minutes. The Photographer module calls through this port to prevent creating a plan
+   * longer than every shift (such a plan could never be booked).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @returns Số phút của ca dài nhất (chưa khai ⇒ 720, tức 08:00–20:00)
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @returns Longest shift in minutes; defaults to 720 (08:00–20:00) if no schedule is defined.
    */
   async longestShiftMinutes(s: EntityManager, photographerId: string) {
     return WorkSchedule.longestShiftMinutes(
@@ -77,11 +77,11 @@ export class CalendarUseCases {
   }
 
   /**
-   * Thợ xem lịch làm việc theo tuần của mình.
+   * Photographer views their weekly working schedule.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (thợ)
-   * @returns `{ items, is_default }`; chưa khai thì `items` là giờ mặc định 08:00–20:00 và `is_default = true`
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer making the API request.
+   * @returns `{ items, is_default }`; if no schedule is defined, `items` contains the default 08:00–20:00 hours and `is_default` is `true`.
    */
   async workingHours(s: EntityManager, a: Actor) {
     const p = await photographer(s, a);
@@ -102,14 +102,14 @@ export class CalendarUseCases {
   }
 
   /**
-   * Thợ thay toàn bộ lịch làm việc theo tuần. Danh sách rỗng ⇒ quay về giờ mặc định 08:00–20:00.
-   * Yêu cầu đang chờ nằm ngoài giờ làm mới thì thợ phải gửi `decline_pending: true` (xem trước bằng
-   * `workingHoursPreview`); khi đó các yêu cầu này bị từ chối kèm lý do. Booking đã nhận giữ nguyên.
+   * Photographer replaces their entire weekly schedule. An empty list restores the default 08:00–20:00 hours.
+   * If pending requests fall outside the new working hours, the photographer must send `decline_pending: true` (preview with
+   * `workingHoursPreview`); those requests will then be rejected with a reason. Accepted bookings remain unchanged.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (thợ)
-   * @param input Các ca làm mới (thứ 1–7, giờ `HH:MM` theo giờ Việt Nam)
-   * @returns Lịch làm việc sau khi lưu; 400 nếu giờ sai hoặc các ca cùng thứ chồng nhau
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer making the API request.
+   * @param input New shifts (days 1–7, `HH:MM` in Vietnam time).
+   * @returns Saved work schedule; throws HTTP 400 for invalid times or overlapping shifts on the same day.
    */
   async setWorkingHours(
     s: EntityManager,
@@ -139,12 +139,12 @@ export class CalendarUseCases {
   }
 
   /**
-   * Xem trước: các yêu cầu đang chờ sẽ bị từ chối nếu thợ lưu lịch tuần này.
+   * Preview the pending requests that would be rejected if the photographer saves this weekly schedule.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (thợ)
-   * @param input Lịch tuần định lưu
-   * @returns `{ items }` các yêu cầu bị ảnh hưởng; 400 nếu lịch sai
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer making the API request.
+   * @param input Weekly schedule to save.
+   * @returns `{ items }` containing affected requests; throws HTTP 400 if the schedule is invalid.
    */
   async workingHoursPreview(
     s: EntityManager,
@@ -159,12 +159,12 @@ export class CalendarUseCases {
   }
 
   /**
-   * Thợ xem lịch của mình: các khoảng đã chặn và booking, lọc theo khoảng thời gian nếu có.
+   * Photographer views their calendar: blocked ranges and bookings, optionally filtered by time range.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (thợ)
-   * @param input `from` / `to`: khung xem; mặc định từ bây giờ 30 ngày, tối đa 93 ngày, được xem lại quá khứ
-   * @returns `{ blocked, bookings }` chồng lên khung xem, xếp theo thời gian bắt đầu; 400 nếu khung quá 93 ngày
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer making the API request.
+   * @param input Viewing range in `from` and `to`; defaults to the next 30 days, up to 93 days, and may include the past.
+   * @returns `{ blocked, bookings }` overlapping the viewing range, ordered by start time; throws HTTP 400 if the range exceeds 93 days.
    */
   async me(s: EntityManager, a: Actor, input: Inputs.CalendarMeQueryInput) {
     const p = await photographer(s, a);
@@ -180,17 +180,17 @@ export class CalendarUseCases {
   }
 
   /**
-   * Thợ chặn một khoảng bận: nguyên ngày theo giờ Việt Nam hoặc khoảng `from`–`to` (có thể qua nhiều ngày).
-   * Khoá dòng hồ sơ thợ để không chạy song song với tạo booking (booking cũng khoá dòng này).
+   * Photographer blocks a busy time: a full Vietnam-time day or a `from`–`to` range that may span multiple days.
+   * Lock the photographer profile row to avoid racing with booking creation (booking creation also locks this row).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (thợ)
-   * Có yêu cầu đang chờ chồng giờ thì thợ phải gửi `decline_pending: true` (xem trước bằng `blockPreview`);
-   * khi đó các yêu cầu này bị từ chối kèm lý do.
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer making the API request.
+   * If pending requests overlap the range, the photographer must send `decline_pending: true` (preview with `blockPreview`);
+   * those requests will then be rejected with a reason.
    *
-   * @param input `date`, hoặc `from` + `to`; kèm `reason`, `decline_pending` tuỳ chọn
-   * @returns Khoảng chặn vừa lưu; 400 nếu sai kiểu hoặc đã qua, 409 nếu đè booking, chồng khoảng chặn khác,
-   *   hoặc có yêu cầu đang chờ mà chưa đồng ý từ chối
+   * @param input `date` or `from` plus `to`, with an optional `reason` and `decline_pending` flag.
+   * @returns Blocked range just saved; throws HTTP 400 for an invalid or past range, or HTTP 409 if it overlaps a booking or another block.
+   * or pending requests remain that the photographer has not agreed to reject.
    */
   async block(
     s: EntityManager,
@@ -228,12 +228,12 @@ export class CalendarUseCases {
   }
 
   /**
-   * Xem trước: các yêu cầu đang chờ sẽ bị từ chối nếu thợ chặn khoảng này.
+   * Preview the pending requests that would be rejected if the photographer blocks this range.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (thợ)
-   * @param input `date`, hoặc `from` + `to` (giống khi chặn)
-   * @returns `{ items }` các yêu cầu bị ảnh hưởng; 400 nếu khoảng sai
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer making the API request.
+   * @param input `date` or `from` plus `to`, as for blocking a range.
+   * @returns `{ items }` containing affected requests; throws HTTP 400 for an invalid range.
    */
   async blockPreview(
     s: EntityManager,
@@ -251,12 +251,12 @@ export class CalendarUseCases {
   }
 
   /**
-   * Hồ sơ thợ đang đăng nhập, khoá dòng để không chạy song song với tạo/nhận booking
-   * (bên booking cũng khoá dòng này).
+   * The signed-in photographer profile; lock the row to avoid racing with booking creation or acceptance
+   * (the Booking module also locks this row).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (thợ)
-   * @returns Hồ sơ thợ
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer making the API request.
+   * @returns Photographer profile.
    */
   private async lockedPhotographer(s: EntityManager, a: Actor) {
     const p = await photographer(s, a);
@@ -268,11 +268,12 @@ export class CalendarUseCases {
   }
 
   /**
-   * Thợ phải đồng ý trước khi thay đổi lịch làm từ chối yêu cầu đang chờ của khách.
+   * The photographer must agree to reject pending customer requests before changing the working schedule.
    *
-   * @param affected Số yêu cầu đang chờ bị ảnh hưởng
-   * @param declinePending Thợ đã gửi `decline_pending: true` chưa
-   * @returns Không trả gì; 409 nếu có yêu cầu bị ảnh hưởng mà thợ chưa đồng ý
+   * @param affected Number of affected pending requests.
+   * @param declinePending Whether the photographer supplied `decline_pending: true`.
+   * @returns Returns no value; throws HTTP 409 if requests are affected and the photographer has not agreed to reject them.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   private assertConsent(affected: number, declinePending: boolean | undefined) {
     ensure(
@@ -283,12 +284,13 @@ export class CalendarUseCases {
   }
 
   /**
-   * Thợ bỏ một khoảng đã chặn của mình.
+   * Photographer removes one of their own blocked ranges.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (thợ)
-   * @param input ID khoảng chặn
-   * @returns `{ deleted: true }`; 403 nếu khoảng chặn của thợ khác, 404 nếu không có
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer making the API request.
+   * @param input Blocked range ID.
+   * @returns `{ deleted: true }`; throws HTTP 403 if the block belongs to another photographer, or HTTP 404 if it does not exist.
+   * @throws {DomainError} Thrown when the actor is not authorized.
    */
   async unblock(
     s: EntityManager,

@@ -6,7 +6,7 @@ import { BookingUseCases } from '../src/modules/booking/core/booking.use-case';
 import type { RatingUpdaterPort } from '../src/modules/booking/ports/rating-updater.port';
 import type { PaidAmountsPort } from '../src/modules/booking/ports/paid-amounts.port';
 
-/** Bên payment giả: chưa ai trả đồng nào. */
+/** Fake payment service: no payments have been made. */
 const noPayments = {
   paidAmounts: async (_s: unknown, ids: string[]) =>
     Object.fromEntries(ids.map((id) => [id, 0])),
@@ -15,7 +15,12 @@ const noPayments = {
 const useCases = new BookingUseCases({} as RatingUpdaterPort, noPayments);
 const user = { id: 'u1', keycloak_id: 'kc-u1', status: 'active' };
 
-/** EntityManager giả: trả hàng theo bảng, ghi lại tham số của findAndCount / findBy. */
+/**
+ * Fake EntityManager: returns rows by table and records the arguments to `findAndCount` and `findBy`.
+ *
+ * @param rows List of rows to process.
+ * @returns Processed s value.
+ */
 function manager(rows: Map<unknown, object[]>) {
   const calls: { method: string; entity: unknown; options: any }[] = [];
   const s = {

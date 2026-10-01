@@ -15,6 +15,13 @@ export class BookingAdminQueryHandler implements IQueryHandler<BookingAdminQuery
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Run the query for the admin booking list in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingAdminQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.admin(s, message.actor, message.input),
@@ -34,6 +41,13 @@ export class BookingListQueryHandler implements IQueryHandler<BookingListQuery> 
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Run the query for the current booking list in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingListQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.list(s, message.actor, message.input),
@@ -53,6 +67,13 @@ export class BookingTimelineQueryHandler implements IQueryHandler<BookingTimelin
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Run the query for booking history in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingTimelineQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.timeline(s, message.actor, message.input),
@@ -72,6 +93,13 @@ export class BookingGetQueryHandler implements IQueryHandler<BookingGetQuery> {
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Run the query for a booking in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingGetQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.get(s, message.actor, message.input),

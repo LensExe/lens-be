@@ -17,6 +17,12 @@ export class IdentityCustomerRegisterCommandHandler implements ICommandHandler<I
     private readonly useCases: IdentityUseCases,
   ) {}
 
+  /**
+   * Route the customer account registration command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentityCustomerRegisterCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.register(s, message.actor, message.input),
@@ -36,6 +42,13 @@ export class IdentityUpdateMeCommandHandler implements ICommandHandler<IdentityU
     private readonly dataSource: DataSource,
     private readonly useCases: IdentityUseCases,
   ) {}
+
+  /**
+   * Route the account update command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentityUpdateMeCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.updateMe(s, message.actor, message.input),
@@ -55,6 +68,13 @@ export class IdentityStatusCommandHandler implements ICommandHandler<IdentitySta
     private readonly dataSource: DataSource,
     private readonly useCases: IdentityUseCases,
   ) {}
+
+  /**
+   * Route the account status change command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentityStatusCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.status(s, message.actor, message.input),
@@ -74,6 +94,13 @@ export class IdentitySuspendCommandHandler implements ICommandHandler<IdentitySu
     private readonly dataSource: DataSource,
     private readonly useCases: IdentityUseCases,
   ) {}
+
+  /**
+   * Route the account suspension command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentitySuspendCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.suspend(s, message.actor, message.input),
@@ -93,6 +120,13 @@ export class IdentityUnsuspendCommandHandler implements ICommandHandler<Identity
     private readonly dataSource: DataSource,
     private readonly useCases: IdentityUseCases,
   ) {}
+
+  /**
+   * Route the account unsuspension command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentityUnsuspendCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.unsuspend(s, message.actor, message.input),
@@ -112,6 +146,13 @@ export class IdentityAdminBanCommandHandler implements ICommandHandler<IdentityA
     private readonly dataSource: DataSource,
     private readonly useCases: IdentityUseCases,
   ) {}
+
+  /**
+   * Route the account ban command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentityAdminBanCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.ban(s, message.actor, message.input),
@@ -137,6 +178,12 @@ export class IdentityAssignRoleCommandHandler implements ICommandHandler<Identit
     private readonly useCases: IdentityUseCases,
   ) {}
 
+  /**
+   * Route the user role assignment command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentityAssignRoleCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.assignRole(s, message.actor, message.input),
@@ -158,6 +205,12 @@ export class IdentityRevokeRoleCommandHandler implements ICommandHandler<Identit
     private readonly useCases: IdentityUseCases,
   ) {}
 
+  /**
+   * Route the account role revocation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentityRevokeRoleCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.revokeRole(s, message.actor, message.input),
@@ -183,6 +236,12 @@ export class IdentityVerifyEmailCommandHandler implements ICommandHandler<Identi
     private readonly useCases: IdentityUseCases,
   ) {}
 
+  /**
+   * Route the account email verification command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentityVerifyEmailCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.verifyEmail(s, message.actor, message.input),
@@ -204,6 +263,12 @@ export class IdentityForcePasswordResetCommandHandler implements ICommandHandler
     private readonly useCases: IdentityUseCases,
   ) {}
 
+  /**
+   * Route the forced account password reset command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentityForcePasswordResetCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.forcePasswordReset(s, message.actor, message.input),
@@ -225,6 +290,12 @@ export class IdentityLogoutCommandHandler implements ICommandHandler<IdentityLog
     private readonly useCases: IdentityUseCases,
   ) {}
 
+  /**
+   * Route the account logout command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentityLogoutCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.logout(s, message.actor, message.input),

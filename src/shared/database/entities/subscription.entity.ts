@@ -8,40 +8,40 @@ import { SubscriptionStatus } from '@shared/domain/values/subscription.values';
 import type { SubscriptionStatus as SubscriptionStatusType } from '@shared/domain/values/subscription.values';
 
 /**
- * Entity đại diện cho bảng `subscriptions`.
- * Quản lý gói hội viên / thuê bao (gói PRO, VIP) của Nhiếp ảnh gia trên nền tảng.
+ * Entity representing the `subscriptions` table.
+ * Manages photographer memberships or subscriptions (PRO, VIP plans) on the platform.
  */
 @Entity('subscriptions')
 export class SubscriptionEntity extends BaseEntity {
-  /** ID của nhiếp ảnh gia sở hữu gói thuê bao (khóa ngoại liên kết `photographers.id`) */
+  /** ID of the photographer who owns the subscription (foreign key referencing `photographers.id`). */
   @Column('uuid')
   photographer_id!: string;
 
-  /** ID của gói cước hội viên đăng ký (khóa ngoại liên kết `photographer_plans.id`) */
+  /** ID of the subscribed membership plan (foreign key referencing `photographer_plans.id`). */
   @Column('uuid')
   plan_id!: string;
 
-  /** Thời điểm gói thuê bao bắt đầu có hiệu lực (ISO timestamptz string) */
+  /** Time when the subscription takes effect (ISO timestamptz string). */
   @Column('timestamptz', {
     transformer: timestampTransformer,
   })
   start_at!: string;
 
-  /** Thời điểm gói thuê bao hết hạn (ISO timestamptz string) */
+  /** Time when the subscription expires (ISO timestamptz string). */
   @Column('timestamptz', {
     transformer: timestampTransformer,
   })
   end_at!: string;
 
-  /** Trạng thái gói cước ('pending' | 'active' | 'expired' | 'cancelled') */
+  /** Subscription status ('pending' | 'active' | 'expired' | 'cancelled'). */
   @Column({ default: SubscriptionStatus.PENDING })
   status!: SubscriptionStatusType;
 
-  /** Cho phép tự động gia hạn khi đến hạn kết thúc chu kỳ */
+  /** Whether to renew automatically when the current billing cycle ends. */
   @Column({ default: true })
   auto_renew!: boolean;
 
-  /** Số tiền cước phí thực tế thanh toán cho chu kỳ này (VND) */
+  /** Amount actually paid for this billing cycle (VND). */
   @Column(bigintColumn)
   price!: number;
 }

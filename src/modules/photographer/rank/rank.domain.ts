@@ -1,25 +1,26 @@
 import { ensure } from '@shared/domain/domain.error';
 
-/** Một hạng trong danh mục `ranks`. */
+/** A rank in the `ranks` catalog. */
 export interface RankRule {
-  /** Mã hạng (ví dụ: 'gold') */
+  /** Rank code (for example, 'gold'). */
   code: string;
-  /** Tên hiển thị (ví dụ: 'Vàng') */
+  /** Display name (for example, 'Gold'). */
   name: string;
-  /** Số buổi hoàn tất tối thiểu để đạt hạng */
+  /** Minimum number of completed sessions required to attain the rank. */
   min_completed: number;
-  /** % commission sàn thu ở hạng này */
+  /** Platform commission percentage for this rank. */
   commission_percent: number;
 }
 
-/** Quy tắc xếp hạng thợ và mức commission tương ứng; con số lấy từ danh mục `ranks`. */
+/** Photographer ranking rules and corresponding commission rates; values come from the `ranks` catalog. */
 export class Rank {
   /**
-   * Tìm hạng của thợ: hạng có mốc cao nhất mà số buổi hoàn tất đạt tới.
+   * Find the photographer's rank: the highest threshold not exceeding their number of completed sessions.
    *
-   * @param completedBookings Số booking `completed` của thợ (`photographer_ratings.total_bookings`)
-   * @param rules Danh mục hạng (thứ tự bất kỳ), phải có hạng mốc 0
-   * @returns Hạng đạt được; ném `invalid` (400) nếu số buổi âm / không nguyên hoặc danh mục thiếu mốc 0
+   * @param completedBookings Number of completed bookings for the photographer (`photographer_ratings.total_bookings`).
+   * @param rules Rank catalog in any order; it must include the rank with a zero-booking threshold.
+   * @returns Rank achieved; throws `invalid` (HTTP 400) if the booking count is negative or non-integer, or if the catalog lacks the zero-threshold rank.
+   * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
    */
   static of(completedBookings: number, rules: readonly RankRule[]): RankRule {
     ensure(
@@ -33,10 +34,11 @@ export class Rank {
   }
 
   /**
-   * Danh mục hạng phải có hạng mốc 0 buổi, để thợ nào cũng có hạng.
+   * The rank catalog must include a rank with a zero-session threshold so every photographer has a rank.
    *
-   * @param rules Danh mục hạng
-   * @returns Không trả gì; ném `invalid` (400) nếu thiếu hạng mốc 0
+   * @param rules Rank catalog.
+   * @returns Returns no value; throws `invalid` (HTTP 400) if the catalog lacks the zero-threshold rank.
+   * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
    */
   static assertCatalog(rules: readonly RankRule[]) {
     ensure(

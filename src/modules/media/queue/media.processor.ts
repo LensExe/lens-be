@@ -22,6 +22,13 @@ export class MediaVariantsProcessor extends WorkerHost {
     super();
   }
 
+  /**
+   * Process a job from the media queue and save the processing result.
+   *
+   * @param job job data of type Job<MediaVariantsJob>.
+   * @returns No value is returned.
+   * @throws {Error} Thrown when the operation cannot be completed.
+   */
   async process(job: Job<MediaVariantsJob>): Promise<void> {
     if (job.name !== MEDIA_VARIANTS_JOB) return;
 
@@ -29,11 +36,11 @@ export class MediaVariantsProcessor extends WorkerHost {
       id: job.data.media_id,
     });
 
-    // media không tồn tại
+    // Media does not exist.
     if (!media || media.status === MediaStatus.DELETED) return;
-    // media đã xử lý xong
+    // Media processing is already complete.
     if (media.status === MediaStatus.READY) return;
-    // media không phải là UPLOADED, FAILED, PROCESSING -> return
+    // The media status is not UPLOADED, FAILED, or PROCESSING; return.
     if (
       media.status !== MediaStatus.UPLOADED &&
       media.status !== MediaStatus.FAILED &&

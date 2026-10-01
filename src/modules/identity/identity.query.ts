@@ -17,6 +17,12 @@ export class IdentityAdminUsersQueryHandler implements IQueryHandler<IdentityAdm
     private readonly useCases: IdentityUseCases,
   ) {}
 
+  /**
+   * Run the query for the admin user account list in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentityAdminUsersQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.adminUsers(s, message.actor, message.input),
@@ -36,6 +42,13 @@ export class IdentityMeQueryHandler implements IQueryHandler<IdentityMeQuery> {
     private readonly dataSource: DataSource,
     private readonly useCases: IdentityUseCases,
   ) {}
+
+  /**
+   * Run the query for the current user account in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentityMeQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.me(s, message.actor),
@@ -55,6 +68,13 @@ export class IdentityAdminUserQueryHandler implements IQueryHandler<IdentityAdmi
     private readonly dataSource: DataSource,
     private readonly useCases: IdentityUseCases,
   ) {}
+
+  /**
+   * Run the query for the admin user account list in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentityAdminUserQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.adminUser(s, message.actor, message.input),
@@ -74,6 +94,13 @@ export class IdentityGetUserQueryHandler implements IQueryHandler<IdentityGetUse
     private readonly dataSource: DataSource,
     private readonly useCases: IdentityUseCases,
   ) {}
+
+  /**
+   * Run the query for a user account in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: IdentityGetUserQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.getUser(s, message.actor, message.input),

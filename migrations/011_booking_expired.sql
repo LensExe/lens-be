@@ -1,5 +1,5 @@
--- Booking pending mà thợ không trả lời thì hết hạn: thêm trạng thái `expired`
--- (khác `rejected` là thợ chủ động từ chối). Index một phần cho job hết hạn chỉ đọc các dòng pending.
+-- A pending booking expires if the photographer does not respond: add the `expired` status
+-- (unlike `rejected`, which means the photographer actively declined it). A partial index lets the expiry job scan only pending rows.
 ALTER TABLE bookings DROP CONSTRAINT bookings_status_check;
 ALTER TABLE bookings ADD CONSTRAINT bookings_status_check
     CHECK(status IN ('pending','accepted','rejected','cancelled','expired','in_progress','shot','completed'));

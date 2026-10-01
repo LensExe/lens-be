@@ -1,5 +1,5 @@
--- Thợ liên kết của booking: thợ chính mời thợ khác chụp cùng, chia % phần thợ nhận.
--- Mỗi thợ chỉ có 1 lời mời còn hiệu lực trong 1 booking; đã từ chối thì không mời lại, bị rút thì mời lại được.
+-- Booking collaborators: the primary photographer invites others to shoot together and splits the photographer's share.
+-- Each photographer may have only one active invitation per booking. Declined invitations cannot be resent; revoked invitations may be sent again.
 CREATE TABLE booking_collaborators (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     booking_id uuid NOT NULL REFERENCES bookings(id),

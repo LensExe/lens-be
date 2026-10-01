@@ -4,7 +4,10 @@ import type { DatabaseConfig, MongoConfig } from '@shared/platform/env/types';
 import { databaseEntities } from './entities';
 
 /**
- * Cấu hình TypeORM kết nối PostgreSQL (Write Model trong kiến trúc CQRS)
+ * TypeORM configuration for the PostgreSQL connection (CQRS write model).
+ *
+ * @param configService config service data of type ConfigService.
+ * @returns Result object containing the fields `type`, `host`, `port`, `username`, `password`.
  */
 export const getTypeOrmConfig = (
   configService: ConfigService,
@@ -30,7 +33,7 @@ export const getTypeOrmConfig = (
 };
 
 /**
- * Cấu hình Redis (In-Memory Database / Cache / PubSub trong kiến trúc CQRS)
+ * Redis configuration (in-memory database, cache, and Pub/Sub in the CQRS architecture).
  */
 export interface RedisConfigOptions {
   host: string;
@@ -39,6 +42,12 @@ export interface RedisConfigOptions {
   url: string;
 }
 
+/**
+ * Build the Redis connection configuration from environment settings.
+ *
+ * @param configService config service data of type ConfigService.
+ * @returns Result object containing the fields `host`, `port`, `password`, `url`.
+ */
 export const getRedisConfig = (
   configService?: ConfigService,
 ): RedisConfigOptions => {
@@ -66,13 +75,19 @@ export const getRedisConfig = (
 };
 
 /**
- * Cấu hình MongoDB (Read Model trong kiến trúc CQRS)
+ * MongoDB configuration (CQRS read model).
  */
 export interface MongoConfigOptions {
   uri: string;
   dbName: string;
 }
 
+/**
+ * Build the MongoDB connection configuration from environment settings.
+ *
+ * @param configService config service data of type ConfigService.
+ * @returns Result object containing the fields `uri`, `dbName`.
+ */
 export const getMongoConfig = (
   configService?: ConfigService,
 ): MongoConfigOptions => {

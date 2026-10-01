@@ -28,6 +28,12 @@ export class AuthController {
     private readonly query: QueryBus,
   ) {}
 
+  /**
+   * Register a user in the system using the supplied data and current permissions.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `user`.
+   */
   @Post('auth/register')
   @Public()
   @ApiOperation({
@@ -53,11 +59,11 @@ export class AuthController {
   })
   @HttpCode(200)
   async register(@Body() body: authDto.AuthRegisterCommandBodyDto) {
-    // Đăng ký tài khoản trên Keycloak và lấy TokenSet
+    // Register the account in Keycloak and retrieve the TokenSet.
     const { tokenSet, actor } =
       await this.authService.registerWithPassword(body);
 
-    // Tạo hồ sơ người dùng (User, Customer, Wallet) trong Database Lens
+    // Create the user's User, Customer, and Wallet records in the Lens database.
     const user = await this.commands.execute(
       new IdentityCustomerRegisterCommand(actor, {
         fullname: body.fullname,
@@ -67,6 +73,12 @@ export class AuthController {
     return { ...tokenSet, user };
   }
 
+  /**
+   * Authenticate with an email and password, then return the tokens and session information.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `user`.
+   */
   @Post('auth/login')
   @Public()
   @ApiOperation({
@@ -99,6 +111,12 @@ export class AuthController {
     return { ...tokenSet, user };
   }
 
+  /**
+   * Exchange a refresh token for a new token set; reject the request if the token is invalid.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result returned by `refresh`.
+   */
   @Post('auth/refresh')
   @Public()
   @ApiOperation({
@@ -126,6 +144,12 @@ export class AuthController {
     return this.authService.refresh(body);
   }
 
+  /**
+   * Revoke the refresh token if present and complete logout idempotently.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result returned by `logout`.
+   */
   @Post('auth/logout')
   @Public()
   @ApiOperation({
@@ -150,6 +174,13 @@ export class AuthController {
     return this.authService.logout(body);
   }
 
+  /**
+   * Change the password after verifying the current password and applying the security policy.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result returned by `changePassword`.
+   */
   @Post('auth/change-password')
   @Access([])
   @ApiBearerAuth()
@@ -180,6 +211,12 @@ export class AuthController {
     return this.authService.changePassword(req.actor!, body);
   }
 
+  /**
+   * Send an OTP to verify a password reset request.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result returned by `sendOTP`.
+   */
   @Post('auth/forgot-password/send-otp')
   @Public()
   @ApiOperation({
@@ -208,6 +245,12 @@ export class AuthController {
     });
   }
 
+  /**
+   * Verify the OTP used in the password recovery flow.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result returned by `verifyForgotPasswordOtp`.
+   */
   @Post('auth/forgot-password/verify')
   @Public()
   @ApiOperation({
@@ -235,6 +278,12 @@ export class AuthController {
     return this.authService.verifyForgotPasswordOtp(body);
   }
 
+  /**
+   * Reset the password after verifying the OTP and password reset token.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result returned by `resetPassword`.
+   */
   @Post('auth/forgot-password/reset')
   @Public()
   @ApiOperation({
@@ -260,6 +309,12 @@ export class AuthController {
     return this.authService.resetPassword(body);
   }
 
+  /**
+   * Send an email verification OTP to the current user.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result returned by `sendOTP`.
+   */
   @Post('auth/email/send-otp')
   @Access([])
   @ApiBearerAuth()
@@ -287,6 +342,13 @@ export class AuthController {
     });
   }
 
+  /**
+   * Verify the user email using the supplied OTP.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result returned by `verifyEmail`.
+   */
   @Post('auth/email/verify')
   @Access([])
   @ApiBearerAuth()

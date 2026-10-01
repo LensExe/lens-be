@@ -4,6 +4,8 @@ import { envConfig } from '../env/env.config';
 
 /**
  * Creates standard CORS options based on application configuration.
+ *
+ * @returns Result object containing the fields `origin`, `credentials`, `methods`, `allowedHeaders`.
  */
 export const createCorsOptions = (): CorsOptions => {
   const { origins } = envConfig().cors;
@@ -23,6 +25,9 @@ export const createCorsOptions = (): CorsOptions => {
 
 /**
  * Sets up CORS middleware on the NestJS application instance.
+ *
+ * @param app app data of type INestApplication.
+ * @returns No value is returned.
  */
 export const setupCors = (app: INestApplication): void => {
   app.enableCors(createCorsOptions());

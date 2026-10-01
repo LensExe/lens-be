@@ -18,6 +18,12 @@ export class BookingCollaboratorInviteCommandHandler implements ICommandHandler<
     private readonly useCases: BookingUseCases,
   ) {}
 
+  /**
+   * Route the booking collaborator invitation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingCollaboratorInviteCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.inviteCollaborator(s, message.actor, message.input),
@@ -39,6 +45,12 @@ export class BookingCollaboratorAcceptCommandHandler implements ICommandHandler<
     private readonly useCases: BookingUseCases,
   ) {}
 
+  /**
+   * Route the booking collaboration acceptance command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingCollaboratorAcceptCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.acceptCollaboration(s, message.actor, message.input),
@@ -60,6 +72,12 @@ export class BookingCollaboratorDeclineCommandHandler implements ICommandHandler
     private readonly useCases: BookingUseCases,
   ) {}
 
+  /**
+   * Route the booking collaboration rejection command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingCollaboratorDeclineCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.declineCollaboration(s, message.actor, message.input),
@@ -81,6 +99,12 @@ export class BookingCollaboratorRevokeCommandHandler implements ICommandHandler<
     private readonly useCases: BookingUseCases,
   ) {}
 
+  /**
+   * Route the booking collaboration revocation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingCollaboratorRevokeCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.revokeCollaboration(s, message.actor, message.input),

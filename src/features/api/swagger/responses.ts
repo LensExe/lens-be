@@ -10,15 +10,39 @@ const str: SchemaObject = { type: 'string' },
     enum: Object.values(PhotographyStyle),
   };
 
+/**
+ * Create an OpenAPI object schema from a list of properties.
+ *
+ * @param properties properties data of type Record<string, SchemaObject>.
+ * @returns Result object containing the fields `type`, `properties`.
+ */
 const obj = (properties: Record<string, SchemaObject>): SchemaObject => ({
   type: 'object',
   properties,
 });
 
+/**
+ * Create an OpenAPI schema for an array with the specified item type.
+ *
+ * @param items items data of type SchemaObject.
+ * @returns Result object containing the fields `type`, `items`.
+ */
 const array = (items: SchemaObject): SchemaObject => ({ type: 'array', items });
 
+/**
+ * Create a response schema containing a list of records.
+ *
+ * @param record record data of type SchemaObject.
+ * @returns Result returned by `obj`.
+ */
 const items = (record: SchemaObject) => obj({ items: array(record) });
 
+/**
+ * Create a paginated list response schema with the total count and pagination details.
+ *
+ * @param record record data of type SchemaObject.
+ * @returns Result returned by `obj`.
+ */
 const paged = (record: SchemaObject) =>
   obj({ items: array(record), total: num, limit: num, offset: num });
 
@@ -345,6 +369,14 @@ const schemas: Record<string, SchemaObject> = {
   }),
   'CUST-006': paged(photographer),
 };
+
+/**
+ * Create an OpenAPI schema for the specified response structure.
+ *
+ * @param id ID of the record to process.
+ * @returns Processed schema value.
+ * @throws {Error} Thrown when the operation cannot be completed.
+ */
 export function responseSchema(id: string): SchemaObject {
   const schema = schemas[id];
   if (!schema) throw new Error(`Missing response schema: ${id}`);

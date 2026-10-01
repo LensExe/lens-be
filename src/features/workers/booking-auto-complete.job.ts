@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 import { BookingAutoCompleteCommand } from '@modules/booking/core/bookings.command';
 import { runExclusive, SYSTEM_ACTOR } from './scheduled-job';
 
-/** Job tự hoàn tất booking 7 ngày sau khi publish gallery nếu khách chưa xác nhận, chạy đầu mỗi giờ. */
+/** Hourly job that auto-completes bookings 7 days after the gallery is published if the customer has not confirmed receipt. */
 @Injectable()
 export class BookingAutoCompleteJob {
   constructor(
@@ -14,9 +14,9 @@ export class BookingAutoCompleteJob {
   ) {}
 
   /**
-   * Hoàn tất các booking đã tới hạn; chỉ một instance chạy mỗi lần.
+   * Complete due bookings; only one instance runs at a time.
    *
-   * @returns `true` nếu đã chạy, `false` nếu instance khác đang chạy nên bỏ qua
+   * @returns `true` if started; `false` if another instance is already running and this run is skipped.
    */
   @Cron('0 * * * *', {
     name: 'booking.auto-complete',

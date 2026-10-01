@@ -3,7 +3,7 @@ import { AxiosModule } from '../axios/axios.module';
 import { HttpNotificationService } from './http-notification.service';
 import { NotificationPort } from './notification.port';
 
-/** Cung cấp `NotificationPort` cho toàn ứng dụng (adapter HTTP). */
+/** Provide `NotificationPort` to the whole application (HTTP adapter). */
 @Global()
 @Module({
   imports: [AxiosModule],

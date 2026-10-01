@@ -21,12 +21,13 @@ export class PortfolioUseCases {
   ) {}
 
   /**
-   * Portfolio của thợ đang đăng nhập, khoá dòng để các thao tác sửa ảnh không ghi đè nhau.
+   * The signed-in photographer's portfolio; lock its row so concurrent image edits do not overwrite each other.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (thợ)
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer making the API request.
    * @param id ID portfolio
-   * @returns Portfolio; 404 nếu không có, 403 nếu của thợ khác
+   * @returns Portfolio; throws HTTP 404 if it does not exist or HTTP 403 if it belongs to another photographer.
+   * @throws {DomainError} Thrown when required data or a resource is missing or the actor is not authorized.
    */
   private async own(s: EntityManager, a: Actor, id: string) {
     const p = await photographer(s, a),
@@ -44,12 +45,12 @@ export class PortfolioUseCases {
   }
 
   /**
-   * Thợ tạo portfolio (album) mới, ảnh bìa phải là media của chính thợ.
+   * A photographer creates a portfolio (album); the cover image must belong to that photographer.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (thợ)
-   * @param i Tên, mô tả, ảnh bìa
-   * @returns Portfolio vừa tạo
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer making the API request.
+   * @param i Name, description, and cover image.
+   * @returns Portfolio just created.
    */
   async create(
     s: EntityManager,
@@ -62,12 +63,12 @@ export class PortfolioUseCases {
   }
 
   /**
-   * Khách xem danh sách portfolio của một thợ (public), phân trang trong DB.
+   * Customers view a photographer's public portfolio list, paginated in the database.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param _a Người đang gọi API (không dùng; API public)
-   * @param i ID hồ sơ thợ và phân trang `limit` (mặc định 20) / `offset` (mặc định 0)
-   * @returns `{ items, total, offset, limit }`, portfolio cũ nhất trước; 404 nếu thợ không public
+   * @param s EntityManager for the current transaction.
+   * @param _a Caller provided for interface compatibility; unused because this API is public.
+   * @param i Photographer profile ID, `limit` (default 20), and `offset` (default 0).
+   * @returns `{ items, total, offset, limit }`, oldest portfolios first; throws HTTP 404 if the photographer is not public.
    */
   async list(s: EntityManager, _a: Actor, i: Inputs.PortfolioListQueryInput) {
     await publicPhotographer(s, i.id);
@@ -83,12 +84,13 @@ export class PortfolioUseCases {
   }
 
   /**
-   * Xem một portfolio (public): danh sách ảnh theo thứ tự kèm link tải có hạn.
+   * View a public portfolio: ordered image list with time-limited download links.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param _a Người đang gọi API (không dùng; API public)
+   * @param s EntityManager for the current transaction.
+   * @param _a Caller provided for interface compatibility; unused because this API is public.
    * @param i ID portfolio
-   * @returns Portfolio kèm `items`, `cover_url`, `expires_in` (giây); 404 nếu thợ không public
+   * @returns Portfolio with `items`, `cover_url`, and `expires_in` (seconds); throws HTTP 404 if the photographer is not public.
+   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   async get(s: EntityManager, _a: Actor, i: Inputs.PortfolioGetQueryInput) {
     const album = await required(s, 'portfolios', i.id);
@@ -128,12 +130,12 @@ export class PortfolioUseCases {
   }
 
   /**
-   * Thợ sửa thông tin portfolio (tên, mô tả, ảnh bìa).
+   * A photographer edits portfolio details (name, description, and cover image).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (chủ portfolio)
-   * @param i ID portfolio và các trường cần đổi
-   * @returns Portfolio sau khi sửa
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the API request; must own the portfolio.
+   * @param i Portfolio ID and fields to update.
+   * @returns Updated portfolio.
    */
   async update(
     s: EntityManager,
@@ -148,10 +150,10 @@ export class PortfolioUseCases {
   }
 
   /**
-   * Thợ xoá portfolio.
+   * A photographer deletes a portfolio.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (chủ portfolio)
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the API request; must own the portfolio.
    * @param i ID portfolio
    * @returns `{ deleted: true }`
    */
@@ -166,12 +168,12 @@ export class PortfolioUseCases {
   }
 
   /**
-   * Thợ thêm một ảnh (media của chính mình) vào cuối portfolio.
+   * A photographer adds one of their own media files to the end of a portfolio.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (chủ portfolio)
-   * @param i ID portfolio và ID media
-   * @returns Mục vừa thêm kèm vị trí
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the API request; must own the portfolio.
+   * @param i Portfolio ID and media ID.
+   * @returns Item just added, including its position.
    */
   async add(s: EntityManager, a: Actor, i: Inputs.PortfolioAddCommandInput) {
     const album = await this.own(s, a, i.id);
@@ -188,11 +190,11 @@ export class PortfolioUseCases {
   }
 
   /**
-   * Thợ bỏ một ảnh khỏi portfolio.
+   * A photographer removes an image from a portfolio.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (chủ portfolio)
-   * @param i ID portfolio và ID ảnh
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the API request; must own the portfolio.
+   * @param i Portfolio ID and image ID.
    * @returns `{ deleted: true }`
    */
   async removeItem(
@@ -208,12 +210,12 @@ export class PortfolioUseCases {
   }
 
   /**
-   * Thợ sắp xếp lại thứ tự ảnh trong portfolio.
+   * A photographer reorders the images in a portfolio.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (chủ portfolio)
-   * @param i ID portfolio và danh sách ID ảnh theo thứ tự mới
-   * @returns Portfolio sau khi sắp xếp
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the API request; must own the portfolio.
+   * @param i Portfolio ID and image IDs in the new order.
+   * @returns Portfolio after reordering.
    */
   async reorder(
     s: EntityManager,

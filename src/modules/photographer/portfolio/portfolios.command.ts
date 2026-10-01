@@ -16,6 +16,13 @@ export class PortfolioCreateCommandHandler implements ICommandHandler<PortfolioC
     private readonly dataSource: DataSource,
     private readonly useCases: PortfolioUseCases,
   ) {}
+
+  /**
+   * Route the portfolio creation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PortfolioCreateCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.create(s, message.actor, message.input),
@@ -35,6 +42,13 @@ export class PortfolioReorderCommandHandler implements ICommandHandler<Portfolio
     private readonly dataSource: DataSource,
     private readonly useCases: PortfolioUseCases,
   ) {}
+
+  /**
+   * Route the portfolio reorder command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PortfolioReorderCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.reorder(s, message.actor, message.input),
@@ -54,6 +68,13 @@ export class PortfolioAddCommandHandler implements ICommandHandler<PortfolioAddC
     private readonly dataSource: DataSource,
     private readonly useCases: PortfolioUseCases,
   ) {}
+
+  /**
+   * Route the portfolio item addition command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PortfolioAddCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.add(s, message.actor, message.input),
@@ -73,6 +94,13 @@ export class PortfolioUpdateCommandHandler implements ICommandHandler<PortfolioU
     private readonly dataSource: DataSource,
     private readonly useCases: PortfolioUseCases,
   ) {}
+
+  /**
+   * Route the portfolio update command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PortfolioUpdateCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.update(s, message.actor, message.input),
@@ -92,6 +120,13 @@ export class PortfolioRemoveCommandHandler implements ICommandHandler<PortfolioR
     private readonly dataSource: DataSource,
     private readonly useCases: PortfolioUseCases,
   ) {}
+
+  /**
+   * Route the portfolio deletion command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PortfolioRemoveCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.remove(s, message.actor, message.input),
@@ -111,6 +146,13 @@ export class PortfolioRemoveItemCommandHandler implements ICommandHandler<Portfo
     private readonly dataSource: DataSource,
     private readonly useCases: PortfolioUseCases,
   ) {}
+
+  /**
+   * Route the portfolio item deletion command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PortfolioRemoveItemCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.removeItem(s, message.actor, message.input),

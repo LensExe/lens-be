@@ -6,14 +6,15 @@ import {
 } from '@shared/domain/values/photography-style.values';
 
 /**
- * Quy tắc duyệt hồ sơ thợ: customer gửi hồ sơ → `pending` → admin duyệt `verified` hoặc từ chối `rejected`.
+ * Photographer profile review flow: a customer submits a profile, which enters `pending`; an admin approves it as `verified` or rejects it as `rejected`.
  */
 export class PhotographerApplication {
   /**
-   * Kiểm tra customer có được gửi (hoặc gửi lại) hồ sơ làm thợ không.
+   * Check whether a customer may submit or resubmit an application to become a photographer.
    *
-   * @param current Trạng thái hồ sơ hiện có của user; `undefined` nếu chưa từng gửi
-   * @returns Không trả gì; ném `conflict` (409) nếu hồ sơ đang chờ duyệt hoặc đã được duyệt
+   * @param current Existing user profile status; `undefined` if no application has been submitted.
+   * @returns Returns no value; throws `conflict` (HTTP 409) if the profile is pending review or already approved.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   static assertCanSubmit(current: VerificationStatus | undefined) {
     ensure(
@@ -29,11 +30,12 @@ export class PhotographerApplication {
   }
 
   /**
-   * Admin không tự duyệt / từ chối hồ sơ thợ của chính mình.
+   * An admin cannot approve or reject their own photographer application.
    *
-   * @param applicantUserId User đã gửi hồ sơ
-   * @param reviewerUserId User admin đang duyệt
-   * @returns Không trả gì; 403 nếu là cùng một người
+   * @param applicantUserId User ID of the applicant.
+   * @param reviewerUserId User ID of the admin reviewer.
+   * @returns Returns no value; throws HTTP 403 if the applicant and reviewer are the same person.
+   * @throws {DomainError} Thrown when the actor is not authorized.
    */
   static assertNotOwnApplication(
     applicantUserId: string,
@@ -47,10 +49,11 @@ export class PhotographerApplication {
   }
 
   /**
-   * Kiểm tra admin có được duyệt / từ chối hồ sơ không. Chỉ hồ sơ `pending` mới xử lý được.
+   * Check whether an admin may review an application. Only `pending` applications can be processed.
    *
-   * @param current Trạng thái hồ sơ hiện tại
-   * @returns Không trả gì; ném `conflict` (409) nếu hồ sơ không ở `pending`
+   * @param current Current profile status.
+   * @returns Returns no value; throws `conflict` (HTTP 409) if the profile is not pending.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   static assertReviewable(current: VerificationStatus) {
     ensure(
@@ -61,11 +64,17 @@ export class PhotographerApplication {
   }
 }
 
-/** Quy tắc sửa hồ sơ thợ sau khi đã gửi. */
+/** Rules for editing a photographer profile after submission. */
 export class PhotographerProfile {
   static readonly MAX_STYLES = 200;
 
-  /** Chuẩn hoá và kiểm tra style trước khi ghi vào hồ sơ photographer. */
+  /**
+   * Normalize and validate styles before saving them to the photographer profile.
+   *
+   * @param styles Photography styles to process.
+   * @returns Processed normalized value.
+   * @throws {DomainError} Thrown when input is invalid, a business condition is not met, or the current state or data conflicts with the operation.
+   */
   static normalizeStyles(styles: string[]): PhotographyStyle[] {
     ensure(
       styles.length <= PhotographerProfile.MAX_STYLES,
@@ -94,13 +103,14 @@ export class PhotographerProfile {
   }
 
   /**
-   * Mã số thuế khoá sau khi hồ sơ được duyệt (liên quan thuế và tiền trả cho thợ); đổi phải qua admin.
-   * Mô tả, phong cách, khu vực vẫn sửa tự do.
+   * The tax ID is locked after profile approval because it affects taxes and photographer payouts; changes must go through an admin.
+   * Descriptions, styles, and service areas remain editable.
    *
-   * @param status Trạng thái duyệt hiện tại
-   * @param current Mã số thuế đang lưu
-   * @param next Mã số thuế gửi lên; `undefined` nếu không đổi
-   * @returns Không trả gì; 400 nếu hồ sơ đã duyệt mà mã số thuế khác
+   * @param status Current verification status.
+   * @param current Tax ID currently stored.
+   * @param next Submitted tax ID; `undefined` if unchanged.
+   * @returns Returns no value; throws HTTP 400 if the tax ID changes after approval.
+   * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
    */
   static assertTaxCodeEditable(
     status: VerificationStatus,

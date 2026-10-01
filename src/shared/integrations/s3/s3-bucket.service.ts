@@ -18,12 +18,16 @@ export class S3BucketService {
   constructor(private readonly resolver: S3ClientResolverService) {}
 
   /**
-   * Kiểm tra xem một Bucket có tồn tại trên storage và tài khoản có quyền truy cập hay không.
+   * Check whether a bucket exists in storage and whether the account can access it.
    *
-   * - Sử dụng lệnh HeadBucketCommand để kiểm tra nhanh metadata của bucket.
-   * - Nếu không chỉ định params.bucket thì kiểm tra bucket mặc định trong cấu hình (config.bucket).
-   * - Trả về `true` nếu bucket tồn tại, `false` nếu bucket chưa được tạo (404).
-   * - Ném lại lỗi nếu gặp lỗi 403 Forbidden (bucket có tồn tại nhưng tài khoản không có quyền).
+   * - Use `HeadBucketCommand` to quickly check bucket metadata.
+   * - If `params.bucket` is not specified, check the default bucket in the configuration (`config.bucket`).
+   * - Return `true` if the bucket exists and `false` if it has not been created (404).
+   * - Rethrow 403 Forbidden errors (the bucket exists, but the account lacks permission).
+   *
+   * @param params params data of type S3BucketParams.
+   * @returns Boolean indicating the result of the check or operation.
+   * @throws {Error} Thrown when the operation cannot be completed.
    */
   async checkExists(params: S3BucketParams): Promise<boolean> {
     const { client, config } = this.resolver.resolve();
@@ -39,11 +43,14 @@ export class S3BucketService {
   }
 
   /**
-   * Tạo mới một Bucket trên storage (S3 / MinIO).
+   * Create a bucket in storage (S3/MinIO).
    *
-   * - Sử dụng lệnh CreateBucketCommand.
-   * - Ném lỗi DomainError('unavailable') nếu quá trình tạo bucket thất bại.
-   * - Thường dùng khi khởi tạo dự án lần đầu, seed dữ liệu hoặc trong các kịch bản test integration.
+   * - Use `CreateBucketCommand`.
+   * - Throw `DomainError('unavailable')` if bucket creation fails.
+   * - Typically used when initializing a project, seeding data, or running integration tests.
+   *
+   * @param params params data of type S3BucketParams.
+   * @returns No value is returned.
    */
   async create(params: S3BucketParams): Promise<void> {
     const { client, config } = this.resolver.resolve();
@@ -65,12 +72,15 @@ export class S3BucketService {
   }
 
   /**
-   * Thiết lập Bucket Policy cho phép công khai đọc (Public Read) các thư mục/tiền tố chỉ định.
+   * Set a bucket policy to allow public read access for specified folders or prefixes.
    *
-   * - Tự động tạo danh sách tài nguyên định dạng ARN (arn:aws:s3:::bucket/prefix/*).
-   * - Gán quyền `s3:GetObject` cho mọi người (`Principal: '*'`) trên các prefix này qua lệnh PutBucketPolicyCommand.
-   * - Giúp các file nằm trong các thư mục này (vd: avatar, thumbnail...) có thể truy cập công khai
-   *   mà không cần cấu hình ACL cho từng file riêng lẻ (đặc biệt quan trọng với MinIO).
+   * - Automatically build ARN resources (`arn:aws:s3:::bucket/prefix/*`).
+   * - Grant `s3:GetObject` to everyone (`Principal: '*'`) for these prefixes with `PutBucketPolicyCommand`.
+   * - Files in these folders (for example, avatars and thumbnails) can then be accessed publicly
+   * without configuring an ACL for every individual file (especially important for MinIO).
+   *
+   * @param params params data of type S3PublicReadParams.
+   * @returns No value is returned.
    */
   async ensurePublicReadPrefixes(params: S3PublicReadParams): Promise<void> {
     const { client, config } = this.resolver.resolve();

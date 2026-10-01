@@ -1,7 +1,7 @@
 import type { EntityManager } from 'typeorm';
 import type { WorkingShift } from '@shared/domain/types/work-schedule.types';
 
-/** Yêu cầu booking đang chờ của thợ, để calendar xem trước và từ chối khi thợ chặn lịch / đổi giờ làm. */
+/** Photographer pending booking requests, used by Calendar to preview and reject requests when blocking time or changing working hours. */
 export interface PendingRequest {
   id: string;
   customer_id: string;
@@ -9,15 +9,15 @@ export interface PendingRequest {
   to: string;
 }
 
-/** Tra và từ chối yêu cầu booking đang chờ, trong transaction của bên gọi. */
+/** Query and reject pending booking requests in the caller’s transaction. */
 export abstract class PendingBookingsPort {
   /**
-   * Yêu cầu `pending` của thợ chồng lên khoảng giờ.
+   * Photographer pending requests that overlap a time range.
    *
-   * @param manager EntityManager của transaction bên gọi
-   * @param photographerId ID hồ sơ thợ
-   * @param range Khoảng giờ sắp bị chặn
-   * @returns Các yêu cầu bị ảnh hưởng, xếp theo giờ bắt đầu
+   * @param manager EntityManager from the caller’s transaction.
+   * @param photographerId Photographer profile ID.
+   * @param range Time range about to be blocked.
+   * @returns Affected requests, ordered by start time.
    */
   abstract pendingOverlapping(
     manager: EntityManager,
@@ -26,12 +26,12 @@ export abstract class PendingBookingsPort {
   ): Promise<PendingRequest[]>;
 
   /**
-   * Yêu cầu `pending` của thợ không còn nằm trọn một ca theo lịch tuần mới.
+   * Photographer pending requests that no longer fit entirely within a shift in the new weekly schedule.
    *
-   * @param manager EntityManager của transaction bên gọi
-   * @param photographerId ID hồ sơ thợ
-   * @param schedule Lịch tuần mới (rỗng ⇒ giờ mặc định)
-   * @returns Các yêu cầu bị ảnh hưởng, xếp theo giờ bắt đầu
+   * @param manager EntityManager from the caller’s transaction.
+   * @param photographerId Photographer profile ID.
+   * @param schedule New weekly schedule; an empty schedule uses the default hours.
+   * @returns Affected requests, ordered by start time.
    */
   abstract pendingOutside(
     manager: EntityManager,
@@ -40,13 +40,13 @@ export abstract class PendingBookingsPort {
   ): Promise<PendingRequest[]>;
 
   /**
-   * Từ chối các yêu cầu còn `pending` (system làm, kèm lý do, ghi lịch sử, bắn realtime).
-   * Yêu cầu đã đổi trạng thái trong lúc đó thì bỏ qua.
+   * Reject all remaining `pending` requests as a system action, with a reason, history entry, and real-time notification.
+   * Skip a request if its status changed in the meantime.
    *
-   * @param manager EntityManager của transaction bên gọi
-   * @param bookingIds ID các yêu cầu cần từ chối
-   * @param reason Lý do ghi vào lịch sử
-   * @returns Số yêu cầu đã từ chối
+   * @param manager EntityManager from the caller’s transaction.
+   * @param bookingIds IDs of requests to reject.
+   * @param reason Reason to record in the history.
+   * @returns Number of requests rejected.
    */
   abstract decline(
     manager: EntityManager,

@@ -16,6 +16,13 @@ export class PhotographerAdminQueryHandler implements IQueryHandler<Photographer
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Run the query for the admin photographer list in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerAdminQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.admin(s, message.actor, message.input),
@@ -35,6 +42,13 @@ export class PhotographerMeQueryHandler implements IQueryHandler<PhotographerMeQ
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Run the query for the current user’s photographer profile in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerMeQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.me(s, message.actor),
@@ -54,6 +68,13 @@ export class PhotographerTopQueryHandler implements IQueryHandler<PhotographerTo
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Run the query for featured photographers by rank.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerTopQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.top(s, message.actor, message.input),
@@ -73,6 +94,13 @@ export class PhotographerSearchQueryHandler implements IQueryHandler<Photographe
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Run the photographer search query in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerSearchQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.search(s, message.actor, message.input),
@@ -92,6 +120,13 @@ export class PhotographerGetQueryHandler implements IQueryHandler<PhotographerGe
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Run the query for a photographer in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerGetQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.get(s, message.actor, message.input),

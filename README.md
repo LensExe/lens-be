@@ -218,23 +218,23 @@ _(Tùy chọn: Nếu muốn chạy cả Keycloak và Kong cục bộ, sử dụn
 ### 5. Áp dụng Database Migration & Seed dữ liệu
 
 ```bash
-# Áp dụng cấu trúc bảng mới nhất vào PostgreSQL
+# Apply the latest database schema to PostgreSQL.
 pnpm db:migrate
 
-# Nạp dữ liệu mẫu ban đầu (nếu cần)
+# Load the initial sample data (if needed).
 pnpm db:seed
 ```
 
 ### 6. Khởi chạy ứng dụng Backend
 
 ```bash
-# Chế độ phát triển (hot-reload)
+# Start in development mode with hot reload.
 pnpm start:dev
 
-# Chế độ kiểm tra debug
+# Start in debug mode.
 pnpm start:debug
 
-# Build và chạy production
+# Build and run in production.
 pnpm build
 pnpm start:prod
 ```
@@ -272,19 +272,19 @@ FEATURE_MODERATION_ENABLED=true
 ## 🧪 Kiểm thử & Đảm bảo chất lượng (Testing & Quality Assurance)
 
 ```bash
-# 1. Kiểm tra kiểu dữ liệu tĩnh (Type Checking)
+# 1. Run static type checking.
 pnpm typecheck
 
-# 2. Kiểm thử hợp đồng OpenAPI (Đảm bảo 100% route có schema Swagger hợp lệ)
+# 2. Check the OpenAPI contract (ensure every route has a valid Swagger schema).
 pnpm test:openapi
 
-# 3. Kiểm thử đơn vị & ranh giới Domain
+# 3. Run unit tests and domain-boundary checks.
 pnpm test
 
-# 4. Kiểm thử tích hợp (Yêu cầu DB 'lens_test' riêng biệt)
+# 4. Run integration tests (requires a separate `lens_test` database).
 LENS_TEST_DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/lens_test pnpm test:integration
 
-# 5. Kiểm tra và tự động sửa lỗi định dạng code / linter
+# 5. Check and automatically fix formatting and lint issues.
 pnpm lint
 pnpm format
 ```
@@ -309,7 +309,7 @@ Toàn bộ tài liệu kiến trúc và hướng dẫn vận hành chi tiết đ
 
 ## 🚀 Triển khai (Deployment)
 
-<!-- PHẦN NÀY ĐANG ĐỂ TRỐNG ĐỂ BỔ SUNG SAU -->
+<!-- This section is currently empty and reserved for future additions. -->
 
 > _Phần này sẽ được cập nhật quy trình triển khai chi tiết bao gồm: Cấu hình CI/CD Pipelines, Đóng gói Container Production, Cấu hình Gateway/Reverse Proxy (Kong/Nginx), Quản trị hạ tầng Cloud (AWS/DigitalOcean/Kubernetes) và Giám sát vận hành (Prometheus, Grafana, Logging)._
 

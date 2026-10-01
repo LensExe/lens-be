@@ -3,31 +3,31 @@ import { BaseEntity } from './base.entity';
 import { bigintColumn } from './utils/column-transformers';
 
 /**
- * Entity đại diện cho bảng `photographer_ratings`.
- * Tổng hợp các chỉ số đánh giá, uy tín và năng suất làm việc của Nhiếp ảnh gia.
+ * Entity representing the `photographer_ratings` table.
+ * Aggregates a photographer's ratings, reputation, and work performance metrics.
  */
 @Entity('photographer_ratings')
 export class PhotographerRatingEntity extends BaseEntity {
-  /** ID của nhiếp ảnh gia (khóa ngoại duy nhất liên kết `photographers.id`) */
+  /** Photographer ID (unique foreign key referencing `photographers.id`). */
   @Column('uuid', { unique: true })
   photographer_id!: string;
 
-  /** Điểm đánh giá trung bình (thang điểm từ 1.0 đến 5.0) */
+  /** Average rating (from 1.0 to 5.0). */
   @Column('numeric', {
     default: 0,
     transformer: bigintColumn.transformer,
   })
   average_rating!: number;
 
-  /** Tổng số lượt đánh giá / phản hồi đã nhận từ khách hàng */
+  /** Total number of customer reviews received. */
   @Column({ default: 0 })
   total_feedbacks!: number;
 
-  /** Tổng số đơn đặt lịch chụp đã hoàn thành */
+  /** Total number of completed bookings. */
   @Column({ default: 0 })
   total_bookings!: number;
 
-  /** Số lượng khách hàng quay lại đặt lịch nhiều lần (tỷ lệ giữ chân khách) */
+  /** Number of returning customers who have booked multiple times (customer retention). */
   @Column({ default: 0 })
   return_customers!: number;
 }

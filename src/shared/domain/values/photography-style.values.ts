@@ -1,8 +1,8 @@
 /**
- * Vocabulary dùng chung cho phong cách chụp của customer và photographer.
+ * Shared vocabulary for customer and photographer photography styles.
  *
- * Các giá trị được giữ ở dạng lowercase để có thể dùng trực tiếp trong
- * recommendation và các bộ lọc tìm kiếm.
+ * Values are kept lowercase so they can be used directly in
+ * recommendations and search filters.
  */
 export const PhotographyStyle = {
   PORTRAIT: 'portrait',
@@ -32,6 +32,12 @@ const photographyStyleValues = Object.values(
   PhotographyStyle,
 ) as PhotographyStyle[];
 
+/**
+ * Check whether a value is one of the supported photography styles.
+ *
+ * @param value String value used by the operation: value.
+ * @returns Result returned by `includes`.
+ */
 export function isPhotographyStyle(value: string): value is PhotographyStyle {
   return photographyStyleValues.includes(value as PhotographyStyle);
 }

@@ -29,6 +29,12 @@ export class RankController {
     private readonly queries: QueryBus,
   ) {}
 
+  /**
+   * List ranks using the supplied query filters.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('ranks')
   @ApiOperation({
     operationId: 'PHO-014',
@@ -58,6 +64,14 @@ export class RankController {
     );
   }
 
+  /**
+   * Update rank criteria and rank details.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param code Business or configuration code to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('admin/ranks/:code')
   @ApiOperation({
     operationId: 'ADM-011',

@@ -14,7 +14,7 @@ import { WorkingHoursPort } from '../ports/working-hours.port';
 import { PlanBookingsPort } from '../ports/plan-bookings.port';
 
 /**
- * Nghiệp vụ gói chụp (booking plan): thợ tự tạo, sửa, bật/tắt, xoá gói; khách xem gói đang bán.
+ * Booking plan operations: photographers create, edit, activate/deactivate, and delete plans; customers view plans currently on sale.
  */
 @Injectable()
 export class BookingPlanUseCases {
@@ -24,12 +24,13 @@ export class BookingPlanUseCases {
   ) {}
 
   /**
-   * Lấy gói chụp và đảm bảo gói thuộc hồ sơ thợ của người đang gọi.
+   * Get a booking plan and ensure it belongs to the current caller's photographer profile.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (lấy từ token)
-   * @param id ID gói chụp (`booking_plans.id`)
-   * @returns Bản ghi gói chụp; 404 nếu không có gói, 403 nếu gói của thợ khác
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the request, from the token.
+   * @param id Booking plan ID (`booking_plans.id`).
+   * @returns Booking plan record; throws HTTP 404 if it does not exist or HTTP 403 if it belongs to another photographer.
+   * @throws {DomainError} Thrown when the actor is not authorized.
    */
   private async own(s: EntityManager, a: Actor, id: string) {
     const p = await photographer(s, a),
@@ -43,12 +44,12 @@ export class BookingPlanUseCases {
   }
 
   /**
-   * Thợ tạo gói chụp mới cho hồ sơ của mình.
+   * Create a new booking plan for the photographer's own profile.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (phải có hồ sơ thợ)
-   * @param i Thông tin gói: tên, giá (VND), thời lượng, số ảnh, số ảnh retouch, quyền lợi
-   * @returns Gói chụp vừa tạo; 400 nếu số ảnh retouch lớn hơn số ảnh giao, hoặc gói dài hơn ca làm dài nhất
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the request; must have a photographer profile.
+   * @param i Plan details: name, price in VND, duration, photo count, retouched photo count, and benefits.
+   * @returns New booking plan; throws HTTP 400 if the retouched photo count exceeds the delivery count or the plan exceeds the longest shift.
    */
   async create(
     s: EntityManager,
@@ -69,13 +70,13 @@ export class BookingPlanUseCases {
   }
 
   /**
-   * Thợ sửa gói của mình; bật/tắt gói bằng `is_active`.
-   * Trường không gửi thì giữ giá trị cũ (kể cả khi kiểm số ảnh retouch).
+   * Edit the photographer's own plan; activate or deactivate it with `is_active`.
+   * If a field is omitted, keep its existing value, including when validating the retouch count.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (phải là chủ gói)
-   * @param i ID gói và các trường cần đổi
-   * @returns Gói chụp sau khi sửa; 400 nếu gói còn bán mà dài hơn ca làm dài nhất
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the request; must own the plan.
+   * @param i Plan ID and fields to update.
+   * @returns Updated plan; throws HTTP 400 if an active plan exceeds the longest shift.
    */
   async update(
     s: EntityManager,
@@ -88,7 +89,7 @@ export class BookingPlanUseCases {
       fields.photo_count ?? plan.photo_count,
       fields.retouched_photo_count ?? plan.retouched_photo_count,
     );
-    // chỉ gói còn bán mới cần đặt được; gói đã tắt thì cho sửa tự do
+    // Only active plans can be booked; deactivated plans can still be edited freely.
     if (fields.is_active ?? plan.is_active)
       BookingPlan.assertFitsShift(
         fields.duration_minutes ?? plan.duration_minutes,
@@ -98,11 +99,11 @@ export class BookingPlanUseCases {
   }
 
   /**
-   * Thợ xoá gói chưa có booking nào. Gói đã có booking chỉ được tắt (409).
+   * A photographer may delete a plan only if it has no bookings. A plan with bookings can only be deactivated (409).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (phải là chủ gói)
-   * @param i ID gói cần xoá
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the request; must own the plan.
+   * @param i Plan ID to delete.
    * @returns `{ deleted: true }`
    */
   async remove(
@@ -119,12 +120,12 @@ export class BookingPlanUseCases {
   }
 
   /**
-   * Thợ xem mọi gói của mình, kể cả gói đã tắt.
+   * A photographer views all of their plans, including deactivated ones.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (phải có hồ sơ thợ)
-   * @returns `{ items }`: danh sách gói, cũ nhất trước; mỗi gói có `fits_working_hours` = gói còn nằm vừa
-   *   ca làm dài nhất (thợ thu ngắn giờ làm thì gói dài hơn sẽ `false`, tức khách không đặt được)
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the request; must have a photographer profile.
+   * @returns `{ items }` containing plans, oldest first; each plan has `fits_working_hours` indicating whether it fits the schedule.
+   * The longest working shift (if the photographer shortens their hours, a longer plan becomes `false` and customers cannot book it).
    */
   async me(s: EntityManager, a: Actor) {
     const p = await photographer(s, a);
@@ -145,12 +146,12 @@ export class BookingPlanUseCases {
   }
 
   /**
-   * Khách xem các gói đang bán của một thợ (public, không cần đăng nhập).
+   * Customers view a photographer's plans that are currently on sale (public; authentication is not required).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param _a Người đang gọi API (không dùng; API public)
-   * @param i ID hồ sơ thợ (`photographers.id`)
-   * @returns `{ items }`: gói đang bật, giá thấp trước; 404 nếu thợ không tồn tại hoặc bị khoá
+   * @param s EntityManager for the current transaction.
+   * @param _a Caller provided for interface compatibility; unused because this API is public.
+   * @param i Photographer profile ID (`photographers.id`).
+   * @returns `{ items }` containing active plans, lowest price first; throws HTTP 404 if the photographer does not exist or is suspended.
    */
   async list(s: EntityManager, _a: Actor, i: Inputs.BookingPlanListQueryInput) {
     const { photographer: p } = await publicPhotographer(s, i.id);

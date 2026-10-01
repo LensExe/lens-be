@@ -3,24 +3,24 @@ import { BaseEntity } from './base.entity';
 import { timestampTransformer } from './utils/column-transformers';
 
 /**
- * Entity quản lý các khung giờ bận cá nhân của Nhiếp ảnh gia (Block / Busy Time).
- * Thợ rảnh trong giờ làm (`working_hours`), trừ các khoảng chặn trong bảng này và các đơn booking đã nhận.
+ * Entity managing photographers' personal blocked or busy time slots.
+ * Photographers are available during `working_hours` except for intervals in this table and accepted bookings.
  */
-@Entity('offline_slots') // hoặc 'busy_slots'
+@Entity('offline_slots') // or 'busy_slots'.
 export class OfflineSlotEntity extends BaseEntity {
-  /** ID của thợ ảnh (khóa ngoại liên kết `photographers.id`) */
+  /** Photographer ID (foreign key referencing `photographers.id`). */
   @Column('uuid')
   photographer_id!: string;
 
-  /** Bắt đầu khoảng bận (ISO timestamptz string, tính cả điểm này) */
+  /** Start of the busy interval (ISO timestamptz string, inclusive). */
   @Column('timestamptz', { transformer: timestampTransformer })
   from!: string;
 
-  /** Kết thúc khoảng bận (ISO timestamptz string, không tính điểm này) */
+  /** End of the busy interval (ISO timestamptz string, exclusive). */
   @Column('timestamptz', { transformer: timestampTransformer })
   to!: string;
 
-  /** Lý do bận (tùy chọn, ví dụ: 'Bận việc gia đình', 'Kèo chụp ngoài sàn') */
+  /** Optional reason for being busy (for example, 'Family commitment' or 'External booking'). */
   @Column('text', { nullable: true })
   reason!: string | null;
 }

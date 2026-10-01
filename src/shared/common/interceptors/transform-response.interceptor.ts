@@ -8,7 +8,7 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 /**
- * Cấu trúc Response chuẩn hóa toàn hệ thống
+ * Standard response structure used throughout the system.
  */
 export interface ApiResponse<T> {
   success: boolean;
@@ -18,7 +18,7 @@ export interface ApiResponse<T> {
 }
 
 /**
- * Interceptor bọc mọi kết quả trả về từ Controller vào format chuẩn:
+ * Wrap every Controller result in the standard response format:
  * {
  *   success: true,
  *   statusCode: 200,
@@ -31,6 +31,13 @@ export class TransformResponseInterceptor<T> implements NestInterceptor<
   T,
   ApiResponse<T>
 > {
+  /**
+   * Forward the request to the handler and normalize the response shape.
+   *
+   * @param context context data of type ExecutionContext.
+   * @param next next data of type CallHandler.
+   * @returns Result returned by `pipe`.
+   */
   intercept(
     context: ExecutionContext,
     next: CallHandler,

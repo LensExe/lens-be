@@ -1,4 +1,4 @@
-/** Các định dạng MIME của tập tin media được hỗ trợ. */
+/** Supported MIME types for media files. */
 export const MediaContentType = {
   JPEG: 'image/jpeg',
   PNG: 'image/png',
@@ -23,7 +23,7 @@ export const ALLOWED_MEDIA_CONTENT_TYPES = [
 export type AllowedMediaContentType =
   (typeof ALLOWED_MEDIA_CONTENT_TYPES)[number];
 
-/** Phạm vi truy cập của object media trên object storage. */
+/** Access scope for a media object in object storage. */
 export const MediaVisibility = {
   PUBLIC: 'public',
   PRIVATE: 'private',
@@ -32,7 +32,7 @@ export const MediaVisibility = {
 export type MediaVisibility =
   (typeof MediaVisibility)[keyof typeof MediaVisibility];
 
-/** Trạng thái xử lý của tệp tin media. */
+/** Processing status of a media file. */
 export const MediaStatus = {
   PENDING: 'pending',
   UPLOADED: 'uploaded',

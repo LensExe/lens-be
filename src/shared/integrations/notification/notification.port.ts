@@ -1,22 +1,27 @@
-/** Nội dung email OTP gửi qua notification service. */
+/** OTP email content sent through the notification service. */
 export interface OtpEmail {
-  /** Email người nhận */
+  /** Recipient email address. */
   to: string;
-  /** Mã OTP */
+  /** One-time password (OTP). */
   otp: string;
-  /** Sự kiện để notification service chọn template, ví dụ `FORGOT_PASSWORD`, `VERIFY_EMAIL` */
+  /** Event used by the notification service to select a template, for example `FORGOT_PASSWORD` or `VERIFY_EMAIL`. */
   event: string;
-  /** Số phút OTP còn hiệu lực, hiển thị trong email */
+  /** Number of minutes the OTP remains valid, shown in the email. */
   expiresInMinutes: number;
 }
 
 /**
- * Cổng gửi thông báo ra service bên ngoài (email, sau này thêm push/SMS).
+ * Port for sending notifications to external services (email; push and SMS may be added later).
  *
- * Module nghiệp vụ inject `NotificationPort`, không gọi HTTP trực tiếp.
- * Adapter hiện tại: `HttpNotificationService`.
+ * Business modules inject `NotificationPort` instead of making HTTP calls directly.
+ * Current adapter: `HttpNotificationService`.
  */
 export abstract class NotificationPort {
-  /** Gửi email OTP. Ném `ServiceUnavailableException` khi chưa cấu hình hoặc service không phản hồi. */
+  /**
+   * Send an OTP email. Throw `ServiceUnavailableException` if no service is configured or the service does not respond.
+   *
+   * @param email Email address associated with the operation.
+   * @returns Result of the operation described above.
+   */
   abstract sendOtpEmail(email: OtpEmail): Promise<void>;
 }

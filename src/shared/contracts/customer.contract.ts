@@ -1,46 +1,46 @@
 import type { PhotographyStyle } from '@shared/domain/values/photography-style.values';
 
 /**
- * Input cho truy vấn lấy thông tin customer profile của người dùng hiện tại.
- * Không cần tham số đầu vào vì thông tin xác thực được lấy từ Actor (Token).
+ * Input for querying the current user's customer profile.
+ * No input parameters are needed because authentication details come from the Actor (token).
  */
 export type CustomerMeQueryInput = Record<string, never>;
 
 /**
- * Input cho lệnh cập nhật customer profile của người dùng đang đăng nhập.
- * Tất cả các trường đều là tuỳ chọn.
+ * Input for updating the signed-in user's customer profile.
+ * All fields are optional.
  */
 export interface CustomerUpdateCommandInput {
-  /** Giới thiệu ngắn hoặc nhu cầu chụp ảnh của khách hàng */
+  /** A short introduction or the customer's photography needs. */
   description?: string | null;
-  /** Danh sách phong cách chụp ảnh yêu thích (ví dụ: portrait, wedding, event...) */
+  /** Preferred photography styles (for example, portrait, wedding, event, etc.). */
   preferred_styles?: PhotographyStyle[];
-  /** Khu vực / địa điểm hoạt động hoặc nơi cư trú của khách hàng */
+  /** The customer's service area, location, or place of residence. */
   location?: string | null;
 }
 
 /**
- * Input cho truy vấn lấy customer profile của một khách hàng bất kỳ (dành cho Admin).
+ * Input for querying any customer's profile (for admins).
  */
 export interface CustomerAdminGetQueryInput {
-  /** ID (UUID) của customer cần xem */
+  /** UUID of the customer to retrieve. */
   customer_id: string;
 }
 
 /**
- * Input cho truy vấn lấy danh sách customer (dành cho Admin).
+ * Input for querying the customer list (for admins).
  */
 export interface CustomerAdminListQueryInput {
-  /** Tìm theo tên, email */
+  /** Search by name or email. */
   keyword?: string;
-  /** Lọc theo khu vực hoạt động */
+  /** Filter by service area. */
   location?: string;
   limit?: number;
   offset?: number;
 }
 
 /**
- * Input cho truy vấn lấy danh sách thợ gợi ý cho customer
+ * Input for querying photographer recommendations for a customer.
  */
 export interface CustomerRecommendQueryInput {
   limit?: number;
@@ -48,6 +48,6 @@ export interface CustomerRecommendQueryInput {
 }
 
 /**
- * Input cho truy vấn thống kê booking của customer (thực tế không cần filter)
+ * Input for querying a customer's booking statistics (no filter is currently needed).
  */
 export type CustomerMyBookingSummaryQueryInput = Record<string, never>;

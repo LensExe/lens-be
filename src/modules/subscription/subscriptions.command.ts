@@ -16,6 +16,13 @@ export class SubscriptionCreateCommandHandler implements ICommandHandler<Subscri
     private readonly dataSource: DataSource,
     private readonly useCases: SubscriptionUseCases,
   ) {}
+
+  /**
+   * Route the subscription creation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result returned by `then`.
+   */
   execute(message: SubscriptionCreateCommand) {
     return this.dataSource
       .transaction((s) => this.useCases.create(s, message.actor, message.input))
@@ -35,6 +42,13 @@ export class SubscriptionCancelCommandHandler implements ICommandHandler<Subscri
     private readonly dataSource: DataSource,
     private readonly useCases: SubscriptionUseCases,
   ) {}
+
+  /**
+   * Route the subscription cancellation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: SubscriptionCancelCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.cancel(s, message.actor, message.input),
@@ -54,6 +68,13 @@ export class SubscriptionWebhookCommandHandler implements ICommandHandler<Subscr
     private readonly dataSource: DataSource,
     private readonly useCases: SubscriptionUseCases,
   ) {}
+
+  /**
+   * Route the subscription webhook command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: SubscriptionWebhookCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.webhook(s, message.actor, message.input),

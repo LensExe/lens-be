@@ -1,6 +1,6 @@
--- Review có trạng thái riêng thay cho cờ is_visible: khách tự xoá và admin ẩn là hai việc khác nhau
--- (admin chỉ hiện lại được review mình đã ẩn). Review đã ẩn từ trước không biết ai ẩn nên coi là
--- admin ẩn, để admin còn tự quyết hiện lại. hidden_reason là lý do admin ẩn (null với dòng cũ).
+-- Reviews have their own status instead of an `is_visible` flag: customer deletion and admin hiding are different actions
+-- (an admin can restore only a review they hid). For older hidden reviews, the hider is unknown, so treat them as
+-- admin-hidden to let an admin decide whether to restore them. `hidden_reason` records the admin's reason (`null` for old rows).
 ALTER TABLE feedbacks ADD COLUMN status text NOT NULL DEFAULT 'visible'
     CHECK(status IN ('visible','deleted_by_author','hidden_by_admin'));
 ALTER TABLE feedbacks ADD COLUMN hidden_reason text;

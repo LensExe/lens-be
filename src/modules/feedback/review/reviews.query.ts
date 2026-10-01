@@ -16,6 +16,13 @@ export class ReviewSummaryQueryHandler implements IQueryHandler<ReviewSummaryQue
     private readonly dataSource: DataSource,
     private readonly useCases: ReviewUseCases,
   ) {}
+
+  /**
+   * Run the review summary query in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ReviewSummaryQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.summary(s, message.actor, message.input),
@@ -35,6 +42,13 @@ export class ReviewListQueryHandler implements IQueryHandler<ReviewListQuery> {
     private readonly dataSource: DataSource,
     private readonly useCases: ReviewUseCases,
   ) {}
+
+  /**
+   * Run the review list query in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ReviewListQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.list(s, message.actor, message.input),
@@ -54,6 +68,13 @@ export class ReviewAdminListQueryHandler implements IQueryHandler<ReviewAdminLis
     private readonly dataSource: DataSource,
     private readonly useCases: ReviewUseCases,
   ) {}
+
+  /**
+   * Run the admin review list query in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ReviewAdminListQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.adminList(s, message.actor, message.input),

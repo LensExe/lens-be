@@ -1,15 +1,15 @@
 import type { EntityManager } from 'typeorm';
 import type { BookingEntity } from '@shared/database/entities/booking.entity';
 
-/** Booking của thợ (module booking), để calendar dựng lịch trống, lịch của thợ và kiểm chặn lịch. */
+/** Photographer bookings (from the Booking module), used by Calendar to build availability and calendars and check blocks. */
 export abstract class PhotographerBookingsPort {
   /**
-   * Booking của thợ (mọi trạng thái) chồng lên khung giờ, xếp theo giờ bắt đầu.
+   * Photographer bookings in every status that overlap a time range, ordered by start time.
    *
-   * @param manager EntityManager của transaction bên gọi
-   * @param photographerId ID hồ sơ thợ
-   * @param window `from` / `to` ISO, đều tuỳ chọn
-   * @returns Các booking chồng lên khung giờ
+   * @param manager EntityManager from the caller’s transaction.
+   * @param photographerId Photographer profile ID.
+   * @param window Optional ISO `from` and `to` values; either may be supplied independently.
+   * @returns Bookings that overlap the time range.
    */
   abstract bookingsOverlapping(
     manager: EntityManager,

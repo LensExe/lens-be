@@ -3,15 +3,18 @@ import { interval } from './time-range.rules';
 import { DEFAULT_WORKING_HOURS } from '@shared/domain/values/work-schedule.values';
 import type { WorkingShift } from '@shared/domain/types/work-schedule.types';
 
-/** Việt Nam dùng UTC+7 cố định (không có giờ mùa hè). */
+/** Vietnam uses a fixed UTC+7 offset (no daylight saving time). */
 const VN_OFFSET_MS = 7 * 3600 * 1000;
 const DAY_MS = 864e5;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
-/** Giờ kết thúc ca: như `TIME`, thêm `24:00` (nửa đêm, hết ngày). */
+/** Shift end time: like `TIME`, with `24:00` allowed to represent the end of the day. */
 const END_TIME = /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/;
 
 /**
- * Khoảng thời gian của một ngày theo giờ Việt Nam: [00:00, 24:00) +07:00, trả về ISO UTC.
+ * A Vietnam-time calendar day as [00:00, 24:00) +07:00, returned as ISO UTC timestamps.
+ *
+ * @param date Date to process.
+ * @returns Result returned by `interval`.
  */
 export function vnDayInterval(date: string) {
   const from = Date.parse(`${date}T00:00:00.000Z`) - VN_OFFSET_MS;
@@ -21,24 +24,47 @@ export function vnDayInterval(date: string) {
   );
 }
 
-/** Ngày theo giờ Việt Nam của một thời điểm. */
+/**
+ * Vietnam-local date for a given instant.
+ *
+ * @param iso String value used by the operation: iso.
+ * @returns Result returned by `slice`.
+ */
 export function vnDate(iso: string) {
   return new Date(Date.parse(iso) + VN_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-/** Thứ trong tuần của một ngày theo giờ Việt Nam. */
+/**
+ * Day of the week for a Vietnam-local date.
+ *
+ * @param date Date to process.
+ * @returns Result of the operation described above.
+ */
 export function vnWeekday(date: string) {
   const day = new Date(`${date}T00:00:00.000Z`).getUTCDay();
   return day === 0 ? 7 : day;
 }
 
-/** Thời điểm ISO UTC của một giờ HH:MM trong ngày theo giờ Việt Nam. */
+/**
+ * ISO UTC timestamp for an HH:MM time on a Vietnam-local day.
+ *
+ * @param date Date to process.
+ * @param time Time value used by the operation.
+ * @returns Result returned by `toISOString`.
+ */
 function vnTime(date: string, time: string) {
   return new Date(Date.parse(`${date}T${time}:00+07:00`)).toISOString();
 }
 
-/** Quy tắc giờ làm việc của photographer. */
+/** Photographer working-hours rules. */
 export class WorkSchedule {
+  /**
+   * Calculate the working shifts that apply to the specified date.
+   *
+   * @param date Date to process.
+   * @param schedule List of schedule to process.
+   * @returns Result returned by `sort`.
+   */
   static shifts(date: string, schedule: readonly WorkingShift[]) {
     const weekday = vnWeekday(date);
     return (schedule.length ? schedule : DEFAULT_WORKING_HOURS)
@@ -50,6 +76,13 @@ export class WorkSchedule {
       .sort((x, y) => x.from.localeCompare(y.from));
   }
 
+  /**
+   * Check whether a time range fits entirely within the working schedule.
+   *
+   * @param range Value used by the operation: range.
+   * @param schedule List of schedule to process.
+   * @returns Result returned by `some`.
+   */
   static fits(
     range: { from: string; to: string },
     schedule: readonly WorkingShift[],
@@ -61,6 +94,12 @@ export class WorkSchedule {
     );
   }
 
+  /**
+   * Calculate the length of the longest working shift in the schedule.
+   *
+   * @param schedule List of schedule to process.
+   * @returns Result returned by `max`.
+   */
   static longestShiftMinutes(schedule: readonly WorkingShift[]) {
     const minutes = (time: string) =>
       Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
@@ -71,6 +110,13 @@ export class WorkSchedule {
     );
   }
 
+  /**
+   * Check a condition and throw if it is invalid.
+   *
+   * @param schedule List of schedule to process.
+   * @returns No value is returned.
+   * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
+   */
   static assertValid(schedule: readonly WorkingShift[]) {
     for (const shift of schedule) {
       ensure(

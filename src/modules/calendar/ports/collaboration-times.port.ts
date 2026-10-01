@@ -3,12 +3,12 @@ import type { EntityManager } from 'typeorm';
 /** Legacy collaboration contract, currently not bound to Calendar while the feature is disabled. */
 export abstract class CollaborationTimesPort {
   /**
-   * Buổi liên kết (lời mời đã nhận, booking còn giữ lịch) của thợ chồng lên khoảng giờ.
+   * Accepted collaboration sessions (invitation accepted and booking still occupies the schedule) that overlap a time range.
    *
-   * @param manager EntityManager của transaction bên gọi
-   * @param photographerId ID hồ sơ thợ liên kết
-   * @param range Khoảng giờ cần xét
-   * @returns Các khoảng `{ from, to, status }` của booking mà thợ tham gia
+   * @param manager EntityManager from the caller’s transaction.
+   * @param photographerId Photographer profile ID of the linked photographer.
+   * @param range Time range to check.
+   * @returns `{ from, to, status }` ranges for bookings the photographer is participating in.
    */
   abstract collaborationTimes(
     manager: EntityManager,

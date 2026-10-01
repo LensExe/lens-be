@@ -7,6 +7,12 @@ import type { KeycloakTokenIntrospectResponse } from './types/tokens';
 export class KeycloakJwksService {
   constructor(private readonly keycloak: KeycloakService) {}
 
+  /**
+   * Validate the Keycloak access token signature, issuer, and expiration.
+   *
+   * @param token Token to validate, exchange, or revoke.
+   * @returns Result object containing the fields `active`, `username`, `token_type`.
+   */
   async verifyAccessToken(
     token: string,
   ): Promise<KeycloakTokenIntrospectResponse> {

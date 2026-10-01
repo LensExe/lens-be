@@ -45,6 +45,14 @@ export class MediaController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  /**
+   * Confirm that the media upload completed and queue the file for processing.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('media/complete-upload')
   @ApiOperation({
     operationId: 'MEDIA-002',
@@ -88,6 +96,13 @@ export class MediaController {
     );
   }
 
+  /**
+   * Upload media.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('media/upload-url')
   @ApiOperation({
     operationId: 'MEDIA-001',
@@ -129,6 +144,13 @@ export class MediaController {
     );
   }
 
+  /**
+   * Download media.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('bookings/:id/gallery/download')
   @ApiOperation({
     operationId: 'MEDIA-009',
@@ -171,6 +193,14 @@ export class MediaController {
     );
   }
 
+  /**
+   * Add an image to a booking gallery after checking media ownership.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('bookings/:id/gallery/items')
   @ApiOperation({
     operationId: 'MEDIA-006',
@@ -216,6 +246,13 @@ export class MediaController {
     );
   }
 
+  /**
+   * Emit a real-time event to the specified users.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('bookings/:id/gallery/publish')
   @ApiOperation({
     operationId: 'MEDIA-008',
@@ -258,6 +295,13 @@ export class MediaController {
     );
   }
 
+  /**
+   * Create a photo gallery for the specified booking.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('bookings/:id/gallery')
   @ApiOperation({
     operationId: 'MEDIA-005',
@@ -300,6 +344,13 @@ export class MediaController {
     );
   }
 
+  /**
+   * Get the published photo gallery for the specified booking.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('bookings/:id/gallery')
   @ApiOperation({
     operationId: 'MEDIA-007',
@@ -342,6 +393,13 @@ export class MediaController {
     );
   }
 
+  /**
+   * Get media details by ID after checking access permissions.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('media/:id')
   @ApiOperation({
     operationId: 'MEDIA-003',
@@ -383,6 +441,13 @@ export class MediaController {
     );
   }
 
+  /**
+   * Delete media by ID after checking ownership.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Delete('media/:id')
   @ApiOperation({
     operationId: 'MEDIA-004',

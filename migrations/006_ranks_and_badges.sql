@@ -1,5 +1,5 @@
--- Danh mục hạng thợ và huy hiệu (L7): admin chỉnh được tên, ngưỡng, % commission không cần deploy.
--- Cách tính vẫn nằm trong code; bảng chỉ giữ con số và nội dung hiển thị.
+-- Photographer rank and badge catalog (L7): admins can edit names, thresholds, and commission rates without a deployment.
+-- Calculation logic remains in code; the table stores only values and display content.
 CREATE TABLE ranks (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     code text NOT NULL UNIQUE,
@@ -35,7 +35,7 @@ INSERT INTO badges (code, name, description, metric, min_value, min_reviews) VAL
     ('punctual', 'Đúng giờ tuyệt đối', 'Điểm đúng giờ trung bình từ 4.8 trên ít nhất 10 review', 'average_punctuality', 4.8, 10),
     ('loyal', 'Khách quay lại', 'Ít nhất 5 khách đã đặt lịch lại', 'return_customers', 5, 0);
 
--- Huy hiệu đã cấp giờ trỏ vào danh mục thay vì danh sách mã cố định.
+-- Earned badges now reference the catalog instead of a fixed list of codes.
 ALTER TABLE photographer_badges DROP CONSTRAINT photographer_badges_code_check;
 ALTER TABLE photographer_badges
     ADD CONSTRAINT photographer_badges_code_fkey FOREIGN KEY (code) REFERENCES badges(code);

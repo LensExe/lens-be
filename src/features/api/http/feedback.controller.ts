@@ -53,6 +53,15 @@ export class ReviewController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  /**
+   * Create a review for a completed booking after checking permissions and status.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('bookings/:id/reviews')
   @ApiOperation({
     operationId: 'REV-001',
@@ -99,6 +108,13 @@ export class ReviewController {
     );
   }
 
+  /**
+   * Summarize the requested subject’s review score and review count.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('photographers/:id/rating-summary')
   @ApiOperation({
     operationId: 'REV-003',
@@ -131,6 +147,14 @@ export class ReviewController {
     );
   }
 
+  /**
+   * List reviews for the specified subject using the supplied pagination filters.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('photographers/:id/reviews')
   @ApiOperation({
     operationId: 'REV-002',
@@ -180,6 +204,14 @@ export class ReviewController {
     );
   }
 
+  /**
+   * Update a customer review after checking ownership.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('reviews/:id')
   @ApiOperation({
     operationId: 'REV-004',
@@ -225,6 +257,13 @@ export class ReviewController {
     );
   }
 
+  /**
+   * Delete a review by ID after checking the caller’s permissions.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Delete('reviews/:id')
   @ApiOperation({
     operationId: 'REV-005',
@@ -265,6 +304,14 @@ export class ReviewController {
     );
   }
 
+  /**
+   * Add or update the photographer’s reply to the specified review.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Put('reviews/:id/reply')
   @ApiOperation({
     operationId: 'REV-006',
@@ -310,6 +357,13 @@ export class ReviewController {
     );
   }
 
+  /**
+   * Restore a hidden review if the caller has permission.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('admin/reviews/:id/restore')
   @ApiOperation({
     operationId: 'REV-007',
@@ -351,6 +405,14 @@ export class ReviewController {
     );
   }
 
+  /**
+   * Hide a review after checking permissions and the moderation reason.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('admin/reviews/:id/hide')
   @ApiOperation({
     operationId: 'REV-009',
@@ -397,6 +459,13 @@ export class ReviewController {
     );
   }
 
+  /**
+   * List records for the admin view.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('admin/reviews')
   @ApiOperation({
     operationId: 'REV-008',

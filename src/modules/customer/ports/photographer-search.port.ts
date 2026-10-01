@@ -16,6 +16,13 @@ export interface PhotographerSearchResult {
 }
 
 export abstract class PhotographerSearchPort {
+  /**
+   * Find photographers that match the customer’s supplied filters.
+   *
+   * @param manager EntityManager for the current transaction.
+   * @param filter filter data of type PhotographerSearchFilter.
+   * @returns Result of the operation described above.
+   */
   abstract searchPhotographersForCustomer(
     manager: EntityManager,
     filter: PhotographerSearchFilter,

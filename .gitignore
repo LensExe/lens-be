@@ -43,7 +43,7 @@ lerna-debug.log*
 key.txt
 !*.env.example
 
-# Cho phép commit các file đã mã hóa
+# Allow encrypted files to be committed.
 !*.env.enc
 !*.key.enc
 

@@ -1,7 +1,7 @@
 name: lens-backend
 
 services:
-  # ── PostgreSQL (primary datasource; tự động tạo lens, kong, keycloak qua init.sql) ──
+  # ── PostgreSQL (primary data source; automatically creates lens, kong, and keycloak via init.sql) ──
   postgres:
     image: postgres:16-alpine
     container_name: lens-postgres
@@ -23,7 +23,7 @@ services:
       - lens-network
     restart: unless-stopped
 
-  # ── 2. MongoDB (Read DB / Query Side - Lưu Denormalized Read Views cho CQRS) ──
+  # ── 2. MongoDB (read database / query side - stores denormalized read views for CQRS) ──
   mongodb:
     image: mongo:7-jammy
     container_name: lens-mongodb
@@ -79,7 +79,7 @@ services:
       - lens-network
     restart: unless-stopped
 
-  # ── MinIO Init (one-shot: tạo bucket `lens`, chỉ public prefix `public/`) ──
+  # ── MinIO initialization (one-shot: create the `lens` bucket and expose only the `public/` prefix) ──
   minio-init:
     image: minio/mc:RELEASE.2024-06-12T14-34-03Z
     container_name: lens-minio-init
@@ -102,7 +102,7 @@ services:
       - lens-network
     restart: 'no'
 
-  # ── Keycloak (Identity & Access Management; lưu dữ liệu vào Postgres DB keycloak) ──
+  # ── Keycloak (identity and access management; stores data in the Postgres `keycloak` database) ──
   keycloak:
     profiles: ['full']
     image: quay.io/keycloak/keycloak:24.0
@@ -126,7 +126,7 @@ services:
       - lens-network
     restart: unless-stopped
 
-  # ── Kong Migrations (Khởi tạo database schema cho Kong Gateway) ──
+  # ── Kong migrations (initialize the Kong Gateway database schema) ──
   kong-migrations:
     profiles: ['full']
     image: kong:3.6

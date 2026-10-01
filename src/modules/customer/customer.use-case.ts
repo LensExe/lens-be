@@ -17,12 +17,13 @@ export class CustomerUseCases {
   ) {}
 
   /**
-   * Khách hàng xem profile của chính mình.
-   * Trả về customer record kèm thông tin user (fullname, avatar_url).
+   * Customer views their own profile.
+   * Return the customer record with user details (`fullname`, `avatar_url`).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param actor Người đang gọi API (phải đã đăng ký)
-   * @returns Customer profile kèm fullname và avatar_url từ bảng users
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor making the request; must be registered.
+   * @returns Customer profile with `fullname` and `avatar_url` from the `users` table.
+   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   async me(s: EntityManager, actor: Actor) {
     const user = await currentUser(s, actor);
@@ -38,12 +39,13 @@ export class CustomerUseCases {
   }
 
   /**
-   * Khách hàng cập nhật description, preferred_styles và location của mình.
+   * Customer updates their own `description`, `preferred_styles`, and `location`.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param actor Người đang gọi API (phải đã đăng ký)
-   * @param input Các trường cần đổi: description, preferred_styles, location
-   * @returns Customer profile sau khi cập nhật
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor making the request; must be registered.
+   * @param input Fields to update: `description`, `preferred_styles`, and `location`.
+   * @returns Updated customer profile.
+   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   async update(
     s: EntityManager,
@@ -80,12 +82,12 @@ export class CustomerUseCases {
   }
 
   /**
-   * Admin xem customer profile của bất kỳ khách hàng nào theo customer_id.
+   * Admin views any customer profile by `customer_id`.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param actor Người đang gọi API (phải có role admin)
-   * @param input Chứa customer_id cần xem
-   * @returns Customer profile kèm fullname và avatar_url từ bảng users
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor making the request; must have the admin role.
+   * @param input Customer ID to look up.
+   * @returns Customer profile with `fullname` and `avatar_url` from the `users` table.
    */
   async adminGet(
     s: EntityManager,
@@ -104,7 +106,12 @@ export class CustomerUseCases {
   }
 
   /**
-   * Admin xem danh sách customer, có lọc theo keyword (tên, email) và location.
+   * Admin views the customer list, optionally filtered by keyword (name or email) and location.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns Result object containing the fields `items`, `total`, `offset`, `limit`.
    */
   async adminList(
     s: EntityManager,
@@ -153,7 +160,13 @@ export class CustomerUseCases {
   }
 
   /**
-   * Khách hàng xem thống kê booking của chính mình.
+   * Customer views their own booking statistics.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns Result returned by `statsForCustomer`.
+   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   async myBookingSummary(
     s: EntityManager,
@@ -170,7 +183,13 @@ export class CustomerUseCases {
   }
 
   /**
-   * Gợi ý thợ ảnh cho customer dựa trên preferred_styles và location.
+   * Recommend photographers to a customer based on `preferred_styles` and location.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns Result returned by `searchPhotographersForCustomer`.
+   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   async recommend(
     s: EntityManager,

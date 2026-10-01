@@ -16,6 +16,13 @@ export class ReviewCreateCommandHandler implements ICommandHandler<ReviewCreateC
     private readonly dataSource: DataSource,
     private readonly useCases: ReviewUseCases,
   ) {}
+
+  /**
+   * Route the review creation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ReviewCreateCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.create(s, message.actor, message.input),
@@ -35,6 +42,13 @@ export class ReviewUpdateCommandHandler implements ICommandHandler<ReviewUpdateC
     private readonly dataSource: DataSource,
     private readonly useCases: ReviewUseCases,
   ) {}
+
+  /**
+   * Route the review update command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ReviewUpdateCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.update(s, message.actor, message.input),
@@ -54,6 +68,13 @@ export class ReviewRemoveCommandHandler implements ICommandHandler<ReviewRemoveC
     private readonly dataSource: DataSource,
     private readonly useCases: ReviewUseCases,
   ) {}
+
+  /**
+   * Route the review deletion command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ReviewRemoveCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.remove(s, message.actor, message.input),
@@ -73,6 +94,13 @@ export class ReviewReplyCommandHandler implements ICommandHandler<ReviewReplyCom
     private readonly dataSource: DataSource,
     private readonly useCases: ReviewUseCases,
   ) {}
+
+  /**
+   * Route the review reply command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ReviewReplyCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.reply(s, message.actor, message.input),
@@ -92,6 +120,13 @@ export class ReviewRestoreCommandHandler implements ICommandHandler<ReviewRestor
     private readonly dataSource: DataSource,
     private readonly useCases: ReviewUseCases,
   ) {}
+
+  /**
+   * Route the review restoration command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ReviewRestoreCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.restore(s, message.actor, message.input),
@@ -111,6 +146,13 @@ export class ReviewHideCommandHandler implements ICommandHandler<ReviewHideComma
     private readonly dataSource: DataSource,
     private readonly useCases: ReviewUseCases,
   ) {}
+
+  /**
+   * Route the review hiding command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: ReviewHideCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.hide(s, message.actor, message.input),

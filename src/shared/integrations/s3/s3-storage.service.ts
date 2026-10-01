@@ -24,8 +24,13 @@ export class S3ObjectStorage extends ObjectStorage {
   }
 
   /**
-   * Tạo Presigned URL để client (FE/Mobile) tự upload file trực tiếp lên S3 (PUT).
-   * Ràng buộc sẵn Content-Type, Content-Length và thời gian hết hạn (TTL).
+   * Create a presigned URL so the client (web or mobile) can upload a file directly to S3 using PUT.
+   * Bind the Content-Type, Content-Length, and expiration time (TTL) in advance.
+   *
+   * @param key Key used by the operation.
+   * @param type Type of object or operation.
+   * @param size File size.
+   * @returns Result object containing the fields `url`, `expiresIn`.
    */
   async uploadUrl(
     key: string,
@@ -47,9 +52,15 @@ export class S3ObjectStorage extends ObjectStorage {
   }
 
   /**
-   * Xác thực file sau khi client upload lên S3:
-   * - Kiểm tra file có thực sự tồn tại trên S3 không (HeadObjectCommand).
-   * - Kiểm tra size và type có đúng với thông tin đã cam kết lúc xin URL upload không.
+   * Verify a file after the client uploads it to S3:
+   * - Check that the file actually exists in S3 (`HeadObjectCommand`).
+   * - Check that its size and type match the details provided when requesting the upload URL.
+   *
+   * @param key Key used by the operation.
+   * @param type Type of object or operation.
+   * @param size File size.
+   * @returns No value is returned.
+   * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
    */
   async verify(key: string, type: string, size: number): Promise<void> {
     const { config, client } = this.resolver.resolve();
@@ -75,8 +86,12 @@ export class S3ObjectStorage extends ObjectStorage {
   }
 
   /**
-   * Chọn cách truy cập object theo visibility đã được backend lưu trong database.
-   * Public dùng URL cố định; private dùng Presigned GET URL.
+   * Choose how to access an object based on the visibility saved by the backend in the database.
+   * Use a fixed URL for public objects and a presigned GET URL for private objects.
+   *
+   * @param key Key used by the operation.
+   * @param visibility Value used by the operation: visibility.
+   * @returns Result of the operation described above.
    */
   async getUrl(key: string, visibility: 'public' | 'private'): Promise<string> {
     return visibility === 'public'
@@ -85,7 +100,10 @@ export class S3ObjectStorage extends ObjectStorage {
   }
 
   /**
-   * Tạo Presigned URL để tải hoặc xem file private từ S3 (GET) kèm thời gian hết hạn.
+   * Create a presigned URL to download or view a private file from S3 (GET), with an expiration time.
+   *
+   * @param key Key used by the operation.
+   * @returns Result returned by `getSignedUrl`.
    */
   async downloadUrl(key: string): Promise<string> {
     const { config, client: presignClient } = this.resolver.resolve(true);
@@ -97,8 +115,11 @@ export class S3ObjectStorage extends ObjectStorage {
   }
 
   /**
-   * Tạo URL public cố định cho object.
-   * Chỉ dùng cho bucket/prefix đã được cấu hình public.
+   * Create a fixed public URL for an object.
+   * Use only for buckets or prefixes configured as public.
+   *
+   * @param key Key used by the operation.
+   * @returns Result of the operation described above.
    */
   buildPublicObjectUrl(key: string): string {
     const provider = getActiveS3Provider();
@@ -120,7 +141,10 @@ export class S3ObjectStorage extends ObjectStorage {
   }
 
   /**
-   * Xóa file khỏi S3/MinIO bằng key định danh.
+   * Delete a file from S3/MinIO by its key.
+   *
+   * @param key Key used by the operation.
+   * @returns No value is returned.
    */
   async delete(key: string): Promise<void> {
     const { config, client } = this.resolver.resolve();
@@ -134,8 +158,12 @@ export class S3ObjectStorage extends ObjectStorage {
   }
 
   /**
-   * Xóa nhiều object trong một hoặc nhiều batch DeleteObjects.
-   * S3ObjectService tự chia batch tối đa theo giới hạn của S3.
+   * Delete multiple objects in one or more `DeleteObjects` batches.
+   * S3ObjectService splits requests into batches within S3 limits.
+   *
+   * @param keys List of keys to process.
+   * @returns No value is returned.
+   * @throws {Error} Thrown when the operation cannot be completed.
    */
   async deleteMany(keys: string[]): Promise<void> {
     if (keys.length === 0) return;

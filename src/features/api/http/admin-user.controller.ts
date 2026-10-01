@@ -49,6 +49,13 @@ export class AdminUserController {
     private readonly queries: QueryBus,
   ) {}
 
+  /**
+   * List users for the admin view.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('admin/users')
   @ApiOperation({
     operationId: 'ADM-002',
@@ -113,6 +120,13 @@ export class AdminUserController {
     );
   }
 
+  /**
+   * Get user details with administrator access.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('admin/users/:id')
   @ApiOperation({
     operationId: 'ADM-003',
@@ -152,6 +166,14 @@ export class AdminUserController {
     );
   }
 
+  /**
+   * Get the current user status with administrator access.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('admin/users/:id/status')
   @ApiOperation({
     operationId: 'ADM-004',
@@ -196,6 +218,13 @@ export class AdminUserController {
     );
   }
 
+  /**
+   * Temporarily suspend a user and update the identity provider status.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('admin/users/:id/suspend')
   @ApiOperation({
     operationId: 'MOD-006',
@@ -236,6 +265,13 @@ export class AdminUserController {
     );
   }
 
+  /**
+   * Remove a user’s temporary suspension.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('admin/users/:id/unsuspend')
   @ApiOperation({
     operationId: 'MOD-007',
@@ -276,6 +312,13 @@ export class AdminUserController {
     );
   }
 
+  /**
+   * Ban a user and revoke access according to the admin policy.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('admin/users/:id/ban')
   @ApiOperation({
     operationId: 'ADM-008',

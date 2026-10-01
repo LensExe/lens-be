@@ -16,6 +16,13 @@ export class BadgeUpdateCommandHandler implements ICommandHandler<BadgeUpdateCom
     private readonly dataSource: DataSource,
     private readonly useCases: BadgeUseCases,
   ) {}
+
+  /**
+   * Route the badge update command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BadgeUpdateCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.update(s, message.actor, message.input),

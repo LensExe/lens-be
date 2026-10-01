@@ -11,6 +11,15 @@ import { ensure } from '@shared/platform/exceptions/domain.error';
 
 @Injectable()
 export class ModerationUseCases {
+  /**
+   * Create a moderation report for the target and reason supplied by the user.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result returned by `save`.
+   * @throws {DomainError} Thrown when the actor is not authorized.
+   */
   async create(
     s: EntityManager,
     a: Actor,
@@ -41,11 +50,27 @@ export class ModerationUseCases {
     });
   }
 
+  /**
+   * List reports created by the current user.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result returned by `page`.
+   */
   async mine(s: EntityManager, a: Actor, i: Inputs.ModerationMineQueryInput) {
     const u = await currentUser(s, a);
     return page(await s.findBy(EntitySchemas.reports, { user_id: u.id }), i);
   }
 
+  /**
+   * List moderation records using the supplied query filters.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result returned by `page`.
+   */
   async list(s: EntityManager, a: Actor, i: Inputs.ModerationListQueryInput) {
     role(a, 'admin');
     await currentUser(s, a);
@@ -59,12 +84,28 @@ export class ModerationUseCases {
     );
   }
 
+  /**
+   * Get moderation details by ID after checking access permissions.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result returned by `required`.
+   */
   async get(s: EntityManager, a: Actor, i: Inputs.ModerationGetQueryInput) {
     role(a, 'admin');
     await currentUser(s, a);
     return required(s, 'reports', i.id);
   }
 
+  /**
+   * Resolve the target entity using the current data.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result returned by `updateEntity`.
+   */
   async resolve(
     s: EntityManager,
     a: Actor,
@@ -81,6 +122,13 @@ export class ModerationUseCases {
     });
   }
 
+  /**
+   * Summarize moderation metrics for the admin dashboard.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @returns Result object containing the fields `users`, `bookings`, `photographers`, `open_reports`, `paid_volume_vnd`.
+   */
   async dashboard(s: EntityManager, a: Actor) {
     role(a, 'admin');
     await currentUser(s, a);

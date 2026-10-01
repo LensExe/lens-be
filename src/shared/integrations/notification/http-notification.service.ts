@@ -7,10 +7,10 @@ import { ConfigService } from '@nestjs/config';
 import { AxiosService } from '../axios/axios.service';
 import { NotificationPort, type OtpEmail } from './notification.port';
 
-/** Thời gian chờ tối đa một lần gọi notification service (ms). */
+/** Maximum wait time for a single notification service request (ms). */
 const NOTIFICATION_TIMEOUT_MS = 5000;
 
-/** Gọi notification service qua HTTP (`notification.serviceUrl`). */
+/** Call the notification service over HTTP (`notification.serviceUrl`). */
 @Injectable()
 export class HttpNotificationService extends NotificationPort {
   private readonly logger = new Logger(HttpNotificationService.name);
@@ -22,6 +22,13 @@ export class HttpNotificationService extends NotificationPort {
     super();
   }
 
+  /**
+   * Send an email containing an OTP to the supplied address.
+   *
+   * @param email Email address associated with the operation.
+   * @returns No value is returned.
+   * @throws {ServiceUnavailableException} Thrown when an external service is not configured or is unavailable.
+   */
   async sendOtpEmail(email: OtpEmail): Promise<void> {
     const client = this.client();
     try {
@@ -41,6 +48,12 @@ export class HttpNotificationService extends NotificationPort {
     }
   }
 
+  /**
+   * Get the configured HTTP client for the notification service.
+   *
+   * @returns Result returned by `create`.
+   * @throws {ServiceUnavailableException} Thrown when an external service is not configured or is unavailable.
+   */
   private client() {
     const baseURL = this.config.get<string>('notification.serviceUrl');
     if (!baseURL) {

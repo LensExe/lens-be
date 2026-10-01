@@ -54,12 +54,25 @@ export class BookingController {
     private readonly queries: QueryBus,
   ) {}
 
-  /** Collaboration is temporarily disabled: a booking has exactly one photographer. */
+  /**
+   * Collaboration is temporarily disabled: a booking has exactly one photographer.
+   *
+   * @returns No value is returned.
+   * @throws {NotFoundException} Thrown when the requested resource does not exist.
+   */
   private collaborationDisabled(): never {
     throw new NotFoundException(
       'Booking collaboration is temporarily disabled',
     );
   }
+
+  /**
+   * List bookings for the admin view using the supplied filters.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('admin/bookings')
   @ApiOperation({
     operationId: 'ADM-005',
@@ -116,6 +129,13 @@ export class BookingController {
     );
   }
 
+  /**
+   * Create a booking after validating the input and business rules.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('bookings')
   @ApiOperation({
     operationId: 'BOOK-001',
@@ -159,6 +179,13 @@ export class BookingController {
     );
   }
 
+  /**
+   * List bookings using the supplied query filters.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('bookings')
   @ApiOperation({
     operationId: 'BOOK-003',
@@ -223,6 +250,13 @@ export class BookingController {
     );
   }
 
+  /**
+   * Accept a booking after checking its status and business rules.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('bookings/:id/accept')
   @ApiOperation({
     operationId: 'BOOK-004',
@@ -263,6 +297,14 @@ export class BookingController {
     );
   }
 
+  /**
+   * Cancel a booking and apply the related business rules.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('bookings/:id/cancel')
   @ApiOperation({
     operationId: 'BOOK-006',
@@ -309,6 +351,13 @@ export class BookingController {
     );
   }
 
+  /**
+   * Complete a booking after checking its status and business rules.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('bookings/:id/complete')
   @ApiOperation({
     operationId: 'BOOK-009',
@@ -350,6 +399,13 @@ export class BookingController {
     );
   }
 
+  /**
+   * Confirm that the customer received the photos and complete the handoff.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('bookings/:id/confirm-receipt')
   @ApiOperation({
     operationId: 'BOOK-012',
@@ -393,6 +449,13 @@ export class BookingController {
     );
   }
 
+  /**
+   * Mark the photo shoot as complete to enable photo delivery.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('bookings/:id/complete-shoot')
   @ApiOperation({
     operationId: 'BOOK-008',
@@ -436,6 +499,14 @@ export class BookingController {
     );
   }
 
+  /**
+   * Record a customer dispute for a booking.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('bookings/:id/dispute')
   @ApiOperation({
     operationId: 'BOOK-011',
@@ -482,6 +553,14 @@ export class BookingController {
     );
   }
 
+  /**
+   * Reject a booking and record the reason when provided.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('bookings/:id/reject')
   @ApiOperation({
     operationId: 'BOOK-005',
@@ -527,6 +606,13 @@ export class BookingController {
     );
   }
 
+  /**
+   * Start a booking when its status and access permissions allow it.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('bookings/:id/start')
   @ApiOperation({
     operationId: 'BOOK-007',
@@ -568,6 +654,13 @@ export class BookingController {
     );
   }
 
+  /**
+   * Get the status transition history for the specified booking.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('bookings/:id/timeline')
   @ApiOperation({
     operationId: 'BOOK-010',
@@ -608,6 +701,13 @@ export class BookingController {
     );
   }
 
+  /**
+   * Get booking details by ID after checking access permissions.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('bookings/:id')
   @ApiOperation({
     operationId: 'BOOK-002',
@@ -648,6 +748,11 @@ export class BookingController {
     );
   }
 
+  /**
+   * Invite another photographer to collaborate on the booking.
+   *
+   * @returns Result returned by `collaborationDisabled`.
+   */
   @Post('bookings/:id/collaborators')
   @ApiExcludeEndpoint()
   @ApiOperation({
@@ -686,6 +791,11 @@ export class BookingController {
     return this.collaborationDisabled();
   }
 
+  /**
+   * List booking collaborators and their participation status.
+   *
+   * @returns Result returned by `collaborationDisabled`.
+   */
   @Get('bookings/:id/collaborators')
   @ApiExcludeEndpoint()
   @ApiOperation({
@@ -722,6 +832,11 @@ export class BookingController {
     return this.collaborationDisabled();
   }
 
+  /**
+   * List the current user’s collaboration invitations and bookings.
+   *
+   * @returns Result returned by `collaborationDisabled`.
+   */
   @Get('booking-collaborators/me')
   @ApiExcludeEndpoint()
   @ApiOperation({
@@ -757,6 +872,11 @@ export class BookingController {
     return this.collaborationDisabled();
   }
 
+  /**
+   * Accept a booking collaboration invitation.
+   *
+   * @returns Result returned by `collaborationDisabled`.
+   */
   @Post('booking-collaborators/:id/accept')
   @ApiExcludeEndpoint()
   @ApiOperation({
@@ -793,6 +913,11 @@ export class BookingController {
     return this.collaborationDisabled();
   }
 
+  /**
+   * Decline a booking collaboration invitation.
+   *
+   * @returns Result returned by `collaborationDisabled`.
+   */
   @Post('booking-collaborators/:id/decline')
   @ApiExcludeEndpoint()
   @ApiOperation({
@@ -830,6 +955,11 @@ export class BookingController {
     return this.collaborationDisabled();
   }
 
+  /**
+   * Revoke collaboration access to the booking.
+   *
+   * @returns Result returned by `collaborationDisabled`.
+   */
   @Post('booking-collaborators/:id/revoke')
   @ApiExcludeEndpoint()
   @ApiOperation({
@@ -867,6 +997,14 @@ export class BookingController {
     return this.collaborationDisabled();
   }
 
+  /**
+   * Cancel a booking as an administrator and apply the corresponding refund rules.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('admin/bookings/:id/cancel')
   @ApiOperation({
     operationId: 'BOOK-019',

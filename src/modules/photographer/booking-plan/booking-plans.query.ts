@@ -16,6 +16,13 @@ export class BookingPlanMeQueryHandler implements IQueryHandler<BookingPlanMeQue
     private readonly dataSource: DataSource,
     private readonly useCases: BookingPlanUseCases,
   ) {}
+
+  /**
+   * Run the query for booking plans by user or filter in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingPlanMeQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.me(s, message.actor),
@@ -35,6 +42,13 @@ export class BookingPlanListQueryHandler implements IQueryHandler<BookingPlanLis
     private readonly dataSource: DataSource,
     private readonly useCases: BookingPlanUseCases,
   ) {}
+
+  /**
+   * Run the query for booking plans by user or filter in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingPlanListQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.list(s, message.actor, message.input),

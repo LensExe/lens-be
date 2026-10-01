@@ -1,6 +1,12 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
+/**
+ * Register the middleware, documentation, and configuration required by the API.
+ *
+ * @param app app data of type INestApplication.
+ * @returns Processed document value.
+ */
 export function setupApi(app: INestApplication) {
   app.useGlobalPipes(
     new ValidationPipe({

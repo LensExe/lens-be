@@ -9,13 +9,13 @@ import { getS3ProviderConfig } from './s3.config';
 import type { S3ProviderConfig } from './types/config';
 
 /**
- * Khởi tạo đối tượng S3Client từ AWS SDK v3 dựa theo cấu hình.
+ * Create an AWS SDK v3 `S3Client` from the configuration.
  *
- * @param config - Cấu hình S3 của provider (endpoint, credentials, region, forcePathStyle...)
- * @param presign - Cờ xác định loại client:
- *   - true: Dùng publicEndpoint (nếu có) để ký Presigned URL cho trình duyệt/client ngoài truy cập.
- *   - false: Dùng endpoint nội bộ để backend gọi trực tiếp tới storage.
- * @returns Instance S3Client đã được cấu hình hoàn chỉnh
+ * @param config S3 provider configuration (endpoint, credentials, region, `forcePathStyle`, and related settings).
+ * @param presign Flag selecting the client type:
+ * - `true`: Use `publicEndpoint` (if available) to sign presigned URLs for browsers and external clients.
+ * - `false`: Use the internal endpoint for backend access to storage.
+ * @returns Fully configured `S3Client` instance.
  */
 const createClient = (config: S3ProviderConfig, presign: boolean): S3Client => {
   const endpoint = presign
@@ -37,12 +37,12 @@ const createClient = (config: S3ProviderConfig, presign: boolean): S3Client => {
 };
 
 /**
- * Helper tạo một custom Provider cho NestJS Dependency Injection.
- * Chỉ khởi tạo client cho provider active của process hiện tại.
+ * Helper that creates a custom provider for NestJS dependency injection.
+ * Initialize a client only for the provider active in the current process.
  *
- * @param token - Chuỗi token định danh trong DI container
- * @param presign - Có phải là client chuyên dùng để tạo presigned URL hay không (mặc định: false)
- * @returns Provider<S3Client> đăng ký vào Module của NestJS
+ * @param token Token identifying the provider in the dependency injection container.
+ * @param presign Whether this client is dedicated to generating presigned URLs (defaults to `false`).
+ * @returns `Provider<S3Client>` registered with the NestJS module.
  */
 const clientProvider = (
   token: string,

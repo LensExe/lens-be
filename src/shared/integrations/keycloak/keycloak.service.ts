@@ -45,7 +45,11 @@ export class KeycloakService {
   }
 
   /**
-   * Xác thực access token từ Keycloak
+   * Validate an access token from Keycloak.
+   *
+   * @param token Token to validate, exchange, or revoke.
+   * @returns Result of the operation described above.
+   * @throws {UnauthorizedException} Thrown when the credentials are invalid or have expired.
    */
   async verifyToken(token: string): Promise<KeycloakUser> {
     // Fail closed: never trust jwt.decode() as authentication.

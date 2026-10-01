@@ -12,6 +12,16 @@ import { Identity } from './identity.domain';
 @Injectable()
 export class IdentityUseCases {
   constructor(private readonly keycloakUsers: KeycloakUserService) {}
+
+  /**
+   * Register a user in the system using the supplied data and current permissions.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns Result of the operation described above.
+   * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
+   */
   async register(
     s: EntityManager,
     actor: Actor,
@@ -38,10 +48,25 @@ export class IdentityUseCases {
     return user;
   }
 
+  /**
+   * Get the current user information from the authenticated identity.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @returns Result returned by `currentUser`.
+   */
   me(s: EntityManager, actor: Actor) {
     return currentUser(s, actor);
   }
 
+  /**
+   * Update an account after checking permissions and validating the data.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns Result returned by `updateEntity`.
+   */
   async updateMe(
     s: EntityManager,
     actor: Actor,
@@ -51,6 +76,14 @@ export class IdentityUseCases {
     return updateEntity(s, EntitySchemas.users, user.id, input);
   }
 
+  /**
+   * Get user details by ID after checking the caller’s permissions.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns Result object containing the fields `id`, `fullname`, `avatar_url`.
+   */
   async getUser(
     s: EntityManager,
     actor: Actor,
@@ -65,6 +98,14 @@ export class IdentityUseCases {
     };
   }
 
+  /**
+   * List users for the admin view.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns Result object containing the fields `items`, `total`, `offset`, `limit`.
+   */
   async adminUsers(
     s: EntityManager,
     actor: Actor,
@@ -99,6 +140,14 @@ export class IdentityUseCases {
     };
   }
 
+  /**
+   * Get user details with administrator access.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns Result returned by `required`.
+   */
   async adminUser(
     s: EntityManager,
     actor: Actor,
@@ -109,6 +158,14 @@ export class IdentityUseCases {
     return required(s, 'users', input.id);
   }
 
+  /**
+   * Get the current user status with administrator access.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns Result returned by `updateEntity`.
+   */
   async status(
     s: EntityManager,
     actor: Actor,
@@ -136,6 +193,14 @@ export class IdentityUseCases {
     });
   }
 
+  /**
+   * Ban a user and revoke access according to the admin policy.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns Result returned by `updateEntity`.
+   */
   async ban(
     s: EntityManager,
     actor: Actor,
@@ -160,6 +225,14 @@ export class IdentityUseCases {
     });
   }
 
+  /**
+   * Temporarily suspend a user and update the identity provider status.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns Result returned by `status`.
+   */
   suspend(
     s: EntityManager,
     actor: Actor,
@@ -168,6 +241,14 @@ export class IdentityUseCases {
     return this.status(s, actor, { ...input, status: UserStatus.SUSPENDED });
   }
 
+  /**
+   * Remove a user’s temporary suspension.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns Result returned by `status`.
+   */
   unsuspend(
     s: EntityManager,
     actor: Actor,
@@ -176,6 +257,14 @@ export class IdentityUseCases {
     return this.status(s, actor, { ...input, status: UserStatus.ACTIVE });
   }
 
+  /**
+   * Assign a role to a user after checking administrator permissions.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns No value is returned.
+   */
   async assignRole(
     s: EntityManager,
     actor: Actor,
@@ -189,6 +278,14 @@ export class IdentityUseCases {
     );
   }
 
+  /**
+   * Revoke a role.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns No value is returned.
+   */
   async revokeRole(
     s: EntityManager,
     actor: Actor,
@@ -202,6 +299,14 @@ export class IdentityUseCases {
     );
   }
 
+  /**
+   * Verify the user email using the supplied OTP.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns No value is returned.
+   */
   async verifyEmail(
     s: EntityManager,
     actor: Actor,
@@ -212,6 +317,14 @@ export class IdentityUseCases {
     await this.keycloakUsers.setUserEmailVerified(target.keycloak_id);
   }
 
+  /**
+   * Require the user to reset their password at the next sign-in.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns No value is returned.
+   */
   async forcePasswordReset(
     s: EntityManager,
     actor: Actor,
@@ -224,6 +337,14 @@ export class IdentityUseCases {
     ]);
   }
 
+  /**
+   * Revoke the refresh token if present and complete logout idempotently.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param input Input data for the operation.
+   * @returns No value is returned.
+   */
   async logout(
     s: EntityManager,
     actor: Actor,

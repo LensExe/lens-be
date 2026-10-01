@@ -1,14 +1,18 @@
 /**
- * scripts/credentials.mjs -- Danh mục bảng định nghĩa thông tin xác thực cho lens-backend
+ * `scripts/credentials.mjs` — credential catalog defining secrets for lens-backend.
  *
- * Chuẩn hóa theo format mảng [CREDENTIALS, DERIVED_CREDENTIALS, REDIS_LANE_ALIASES, APP_CREDENTIALS]
- * để tương thích với các script quản lý hạ tầng (sync, secrets-gen, stack-secret).
+ * Normalized to the array format `[CREDENTIALS, DERIVED_CREDENTIALS, REDIS_LANE_ALIASES, APP_CREDENTIALS]`,
+ * for compatibility with infrastructure-management scripts (sync, secrets-gen, stack-secret).
  */
 
 import { randomBytes } from 'node:crypto';
 
 /**
- * Sinh chuỗi ngẫu nhiên an toàn theo độ dài và định dạng
+ * Generate a cryptographically secure random string with the requested length and format.
+ *
+ * @param length Value used by the operation: length.
+ * @param type Type of object or operation.
+ * @returns Result returned by `slice`.
  */
 export const generateSecret = (length = 32, type = 'hex') => {
   if (type === 'hex') {
@@ -18,7 +22,7 @@ export const generateSecret = (length = 32, type = 'hex') => {
     return randomBytes(length).toString('base64url').slice(0, length);
   }
 
-  // Alphanumeric + ký tự đặc biệt an toàn (tránh dấu nháy và dấu # gây lỗi parse .env)
+  // Safe alphanumeric and special characters (avoid quotes and `#`, which can break `.env` parsing).
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@%^&*()_+~=';
   const bytes = randomBytes(length);
   let result = '';
@@ -28,10 +32,16 @@ export const generateSecret = (length = 32, type = 'hex') => {
   return result;
 };
 
+/**
+ * Generate a random password that meets the required length and character group rules.
+ *
+ * @param length Value used by the operation: length.
+ * @returns Result returned by `generateSecret`.
+ */
 export const generatePassword = (length = 24) => generateSecret(length, 'alphanumeric');
 
 /**
- * Các bí mật / mật khẩu dịch vụ cốt lõi (Database, Cache, MinIO, Keycloak, JWT)
+ * Core service secrets and passwords (database, cache, MinIO, Keycloak, JWT).
  */
 export const CREDENTIALS = [
   // ── Database (PostgreSQL) ──
@@ -106,7 +116,7 @@ export const CREDENTIALS = [
 ];
 
 /**
- * Danh sách bí mật suy dẫn (Derived credentials)
+ * List of derived credentials.
  */
 export const DERIVED_CREDENTIALS = [
   {
@@ -122,7 +132,7 @@ export const DERIVED_CREDENTIALS = [
 ];
 
 /**
- * Các alias dùng chung mật khẩu Redis cho các tác vụ
+ * Aliases that share the Redis password across services.
  */
 export const REDIS_LANE_ALIASES = [
   'REDIS_CACHE_PASSWORD',
@@ -132,7 +142,7 @@ export const REDIS_LANE_ALIASES = [
 ];
 
 /**
- * Cấu hình tham số môi trường chung của ứng dụng
+ * Shared application environment settings.
  */
 export const APP_CREDENTIALS = [
   // ── App & Server ──
@@ -174,7 +184,7 @@ export const APP_CREDENTIALS = [
 ];
 
 /**
- * Adapter Object Schema (phục vụ tương thích ngược nếu script nào gọi qua key)
+ * Adapter object schema (backward compatibility for scripts that access values by key).
  */
 export const CREDENTIALS_SCHEMA = Object.fromEntries(
   [...CREDENTIALS, ...APP_CREDENTIALS].map((item) => [

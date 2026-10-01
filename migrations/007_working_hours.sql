@@ -1,5 +1,5 @@
--- Giờ làm việc theo tuần của thợ (D12). Giờ theo giờ Việt Nam; thứ 1 = thứ Hai … 7 = Chủ nhật.
--- Thợ chưa có dòng nào ⇒ mặc định 08:00–20:00 mọi ngày (D14, tính trong code).
+-- Photographer weekly working hours (D12), in Vietnam time; day 1 is Monday through day 7, Sunday.
+-- If a photographer has no working-hours rows, default to 08:00–20:00 every day (D14; applied in code).
 CREATE TABLE working_hours (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     photographer_id uuid NOT NULL REFERENCES photographers(id),
