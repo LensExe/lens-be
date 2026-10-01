@@ -1,29 +1,54 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PayOS } from '@payos/node';
-import { PaymentGateway } from './payment.port';
+import type {
+  PaymentProviderAdapter,
+  PaymentWebhookHeaders,
+} from './payment-provider.adapter';
 import { DomainError, ensure } from '../../platform/exceptions/domain.error';
+import { ExternalPaymentProvider } from '@shared/domain/values/payment.values';
 
 @Injectable()
-export class PayOsGateway extends PaymentGateway {
+export class PayOsGateway implements PaymentProviderAdapter {
+  readonly provider = ExternalPaymentProvider.PAYOS;
+
+  constructor(private readonly config: ConfigService) {}
+
   private client?: PayOS;
+
+  /**
+   * Get the configured payment gateway client.
+   *
+   * @returns Result of the operation described above.
+   */
   private getClient() {
-    // TODO: INSERT_PAYOS_CLIENT_ID, INSERT_PAYOS_API_KEY, INSERT_PAYOS_CHECKSUM_KEY.
-    const clientId = process.env.PAYOS_CLIENT_ID,
-      apiKey = process.env.PAYOS_API_KEY,
-      checksumKey = process.env.PAYOS_CHECKSUM_KEY;
+    const clientId = this.config.get<string>('payos.clientId'),
+      apiKey = this.config.get<string>('payos.apiKey'),
+      checksumKey = this.config.get<string>('payos.checksumKey');
     if (!clientId || !apiKey || !checksumKey)
       throw new DomainError('unavailable', 'PayOS is not configured');
     return (this.client ??= new PayOS({ clientId, apiKey, checksumKey }));
   }
+
+  /**
+   * Create a PayOS payment link for the supplied order code and amount.
+   *
+   * @param orderCode Order code.
+   * @param amount Transaction amount in the system’s currency.
+   * @returns Result object containing the fields `checkout_url`, `qr_code`.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
+   */
   async create(orderCode: number, amount: number) {
     const client = this.getClient(),
-      returnUrl = process.env.PAYOS_RETURN_URL,
-      cancelUrl = process.env.PAYOS_CANCEL_URL;
+      returnUrl = this.config.get<string>('payos.returnUrl'),
+      cancelUrl = this.config.get<string>('payos.cancelUrl');
     if (!returnUrl || !cancelUrl)
       throw new DomainError(
         'unavailable',
         'PayOS return/cancel URLs are missing',
       );
+
+    // Create a PayOS payment link with the order details:
     try {
       const link = await client.paymentRequests.create({
         orderCode,
@@ -61,7 +86,15 @@ export class PayOsGateway extends PaymentGateway {
       }
     }
   }
-  async verify(body: unknown) {
+
+  /**
+   * Validate the payment callback and normalize the provider result.
+   *
+   * @param body Request body validated against the DTO.
+   * @param _headers HTTP headers to validate.
+   * @returns Result object containing the fields `reference`, `orderCode`, `amount`, `success`.
+   */
+  async verify(body: unknown, _headers?: PaymentWebhookHeaders) {
     const client = this.getClient();
     try {
       const data = await client.webhooks.verify(
