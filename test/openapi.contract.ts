@@ -12,6 +12,12 @@ import { ObjectStorage } from '../src/shared/integrations/s3/storage.port';
 import { PaymentGateway } from '../src/shared/integrations/payment/port/payment.port';
 import { KeycloakService } from '../src/shared/integrations/keycloak/keycloak.service';
 
+/**
+ * Build an OpenAPI document from the supplied API modules.
+ *
+ * @param imports Value used by the operation: imports.
+ * @returns Result returned by `compile`.
+ */
 function compileApi(
   imports: Parameters<typeof Test.createTestingModule>[0]['imports'],
 ) {

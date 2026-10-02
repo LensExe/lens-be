@@ -79,6 +79,16 @@ const actors: Record<string, Actor> = {
   },
 };
 let failGateway = false;
+
+/**
+ * Send an HTTP request to the API using the supplied method, path, and credentials.
+ *
+ * @param method String value used by the operation: method.
+ * @param path String value used by the operation: path.
+ * @param token Token to validate, exchange, or revoke.
+ * @param body Request body validated against the DTO.
+ * @returns Result object containing the fields `status`, `body`.
+ */
 async function api(
   method: string,
   path: string,
@@ -95,6 +105,16 @@ async function api(
   });
   return { status: res.status, body: await res.json() };
 }
+
+/**
+ * Send an HTTP request and check whether the response succeeded.
+ *
+ * @param method String value used by the operation: method.
+ * @param path String value used by the operation: path.
+ * @param token Token to validate, exchange, or revoke.
+ * @param body Request body validated against the DTO.
+ * @returns Result of the operation described above.
+ */
 async function ok(
   method: string,
   path: string,

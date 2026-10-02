@@ -43,6 +43,23 @@ export class MediaUploadCommand {
     public readonly input: Inputs.MediaUploadCommandInput,
   ) {}
 }
+
+export class MediaExpirePendingUploadsCommand {
+  constructor(public readonly actor: Actor) {}
+}
+
+@CommandHandler(MediaExpirePendingUploadsCommand)
+export class MediaExpirePendingUploadsCommandHandler implements ICommandHandler<MediaExpirePendingUploadsCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: MediaUseCases,
+  ) {}
+
+  /** Route scheduled upload cleanup through the Media use case. */
+  execute(message: MediaExpirePendingUploadsCommand) {
+    return this.useCases.expirePendingUploads(this.dataSource, message.actor);
+  }
+}
 @CommandHandler(MediaUploadCommand)
 export class MediaUploadCommandHandler implements ICommandHandler<MediaUploadCommand> {
   constructor(

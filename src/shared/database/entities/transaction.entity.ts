@@ -92,6 +92,37 @@ export class TransactionEntity extends BaseEntity {
   })
   checkout_review_required_at!: string | null;
 
+  /** Number of provider inspections attempted after the local checkout deadline. */
+  @Column({ type: 'integer', default: 0 })
+  checkout_reconciliation_attempts!: number;
+
+  /** Next scheduled provider inspection; null means manual review is required. */
+  @Column('timestamptz', {
+    nullable: true,
+    transformer: timestampTransformer,
+  })
+  checkout_reconciliation_next_at!: string | null;
+
+  /** Admin/system resolution outcome for a checkout that required manual review. */
+  @Column('text', { nullable: true })
+  checkout_review_resolution!:
+    'paid_activated' | 'paid_refund' | 'unpaid' | null;
+
+  @Column('uuid', { nullable: true })
+  checkout_review_resolved_by!: string | null;
+
+  @Column('timestamptz', {
+    nullable: true,
+    transformer: timestampTransformer,
+  })
+  checkout_review_resolved_at!: string | null;
+
+  @Column('text', { nullable: true })
+  checkout_review_resolution_reference!: string | null;
+
+  @Column('text', { nullable: true })
+  checkout_review_resolution_note!: string | null;
+
   /** Idempotency key to prevent duplicate transactions when a request is submitted multiple times. */
   @Column()
   idempotency_key!: string;

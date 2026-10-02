@@ -392,22 +392,22 @@ Database chính là PostgreSQL. Schema khởi tạo nằm tại migrations/001_l
 
 ### 9.1. Nhóm bảng chính
 
-| Nhóm                | Bảng                                                            |
-| ------------------- | --------------------------------------------------------------- |
-| Tài khoản           | users, customers, admins, photographers, photographer_ratings   |
-| Gói và lịch         | booking_plans, photographer_plans, subscriptions, offline_slots |
-| Booking và nội dung | bookings, booking_deliveries, media, portfolios, feedbacks      |
-| Tài chính           | wallets, transactions, payment_webhooks, refund_requests        |
-| Quản trị và hạ tầng | reports, report_evidences, report_status_history, outbox_events              |
+| Nhóm                | Bảng                                                                                         |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| Tài khoản           | users, customers, admins, photographers, photographer_ratings                                |
+| Gói và lịch         | booking_plans, photographer_plans, subscriptions, subscription_status_history, offline_slots |
+| Booking và nội dung | bookings, booking_deliveries, media, portfolios, feedbacks                                   |
+| Tài chính           | wallets, transactions, payment_webhooks, refund_requests                                     |
+| Quản trị và hạ tầng | reports, outbox_events                                                                       |
 
-Tổng cộng hiện có 22 bảng nghiệp vụ và hạ tầng sau khi chuẩn hóa report evidence và status history.
+Tổng cộng hiện có 31 entity/bảng nghiệp vụ và hạ tầng theo registry và các migration.
 
 ### 9.2. Quy ước dữ liệu
 
 - ID dùng UUID.
 - Timestamp dùng timestamptz.
 - Tiền VND lưu dạng bigint, sau đó transformer thành number trong application.
-- Một số trường có cấu trúc JSONB như portfolio items, plan features và gallery media IDs.
+- Một số trường có cấu trúc JSONB như portfolio items, plan features, gallery media IDs và report evidence IDs.
 - Request/response API dùng snake_case.
 - Thời gian truyền qua API nên ở định dạng ISO 8601 có timezone.
 
@@ -519,6 +519,7 @@ API hiện được theo dõi trong docs/api-tracker.json với **80 operations*
 - GET /subscriptions/me
 - POST /subscriptions/:id/cancel
 - GET /subscriptions/me/usage
+- GET /subscriptions/me/history
 - POST /subscriptions/webhooks/:provider
 
 ### Trust & Safety

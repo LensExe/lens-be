@@ -21,6 +21,7 @@ import { CalendarUseCases } from '@modules/calendar/schedule/calendar.use-case';
 import { CustomerUseCases } from '@modules/customer/customer.use-case';
 import { ReviewUseCases } from '@modules/feedback/review/review.use-case';
 import { MediaUseCases } from '@modules/media/media.use-case';
+import { MediaStorageUsageService } from '@modules/media/media-storage-usage.service';
 import { MediaImageProcessingService } from '@modules/media/media-image-processing.service';
 import { ModerationDashboardUseCases } from '@modules/moderation/dashboard/dashboard.use-case';
 import { ModerationReportUseCases } from '@modules/moderation/report/report.use-case';
@@ -46,6 +47,8 @@ import { PhotographerBookingsPort } from '@modules/calendar/ports/photographer-b
 import { MediaOwnershipPort } from '@modules/photographer/ports/media-ownership.port';
 import { ReportEvidenceMediaPort } from '@modules/moderation/ports/report-evidence-media.port';
 import { SubscriptionPaymentsPort } from '@modules/subscription/ports/subscription-payments.port';
+import { SubscriptionStorageQuotaPort } from '@modules/media/ports/subscription-storage-quota.port';
+import { SubscriptionStorageUsagePort } from '@modules/subscription/ports/subscription-storage-usage.port';
 import { PhotographerRolePort } from '@modules/photographer/ports/photographer-role.port';
 import { WorkingHoursPort } from '@modules/photographer/ports/working-hours.port';
 import { PhotographerRatingsPort } from '@modules/photographer/ports/photographer-ratings.port';
@@ -57,13 +60,14 @@ import { DomainErrorFilter } from '@shared/platform/exceptions/domain-error.filt
 import { TypeOrmErrorFilter } from '@shared/platform/exceptions/typeorm-error.filter';
 import { EnvModule } from '@shared/platform/env';
 
-// Dùng cho các lệnh (commands) và truy vấn (queries)
+// Used for commands and queries.
 const applicationServices = [
   BookingUseCases,
   CalendarUseCases,
   CustomerUseCases,
   ReviewUseCases,
   MediaUseCases,
+  MediaStorageUsageService,
   MediaImageProcessingService,
   ModerationDashboardUseCases,
   ModerationReportUseCases,
@@ -99,8 +103,8 @@ const applicationServices = [
         };
       },
     }),
-    CqrsModule.forRoot(), // Dùng cho các lệnh (commands) và truy vấn (queries)
-    ScheduleModule.forRoot(), // Dùng cho các tác vụ định kỳ như cleanup
+    CqrsModule.forRoot(), // Used for commands and queries.
+    ScheduleModule.forRoot(), // Used for scheduled tasks such as cleanup.
     DatabaseModule,
     RedisModule,
     LensCacheModule,
@@ -167,8 +171,16 @@ const applicationServices = [
       provide: SubscriptionPaymentsPort,
       useExisting: PaymentUseCases,
     },
-    // TODO(identity): thay bằng provider thật của identity (docs/IDENTITY_TODO.md, việc 7).
-    // Tạm thời duyệt hồ sơ không gán role Keycloak.
+    {
+      provide: SubscriptionStorageQuotaPort,
+      useExisting: SubscriptionUseCases,
+    },
+    {
+      provide: SubscriptionStorageUsagePort,
+      useExisting: MediaStorageUsageService,
+    },
+    // TODO(identity): replace this with the real identity provider (`docs/IDENTITY_TODO.md`, item 7).
+    // Temporarily approve photographer profiles without assigning a Keycloak role.
     {
       provide: PhotographerRolePort,
       useValue: {

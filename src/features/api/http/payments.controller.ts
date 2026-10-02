@@ -473,6 +473,12 @@ export class PaymentController {
     type: 'string',
     description: 'status',
   })
+  @ApiQuery({
+    name: 'review_required',
+    required: false,
+    enum: ['true', 'false'],
+    description: 'Lọc transaction cần admin đối soát checkout.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -743,23 +749,23 @@ export class PaymentController {
   }
 
   /**
-   * Create a customer refund request for an eligible transaction.
+   * Create one customer refund request for all refundable payments on a booking.
    *
    * @param req HTTP request containing authentication information and request data.
    * @param id ID of the record to process.
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('payments/:id/refund-requests')
+  @Post('bookings/:id/refund-requests')
   @ApiOperation({
     operationId: 'PAY-014',
     summary: 'Customer gửi yêu cầu hoàn tiền booking',
     description:
-      'Yêu cầu gửi sau khi booking hoàn tất phải được tạo trong 72 giờ. Yêu cầu sẽ chờ admin duyệt; đây chưa phải xác nhận đã chuyển tiền.',
+      'Tạo một yêu cầu refund cho booking; hệ thống phân bổ yêu cầu vào các transaction cọc/thanh toán đã trả. Yêu cầu gửi sau khi booking hoàn tất phải được tạo trong 72 giờ.',
   })
   @Access(['customer'])
   @ApiBearerAuth()
-  @ApiParam({ name: 'id', type: String, description: 'Transaction UUID' })
+  @ApiParam({ name: 'id', type: String, description: 'Booking UUID' })
   @ApiBody({ type: Dto.PaymentRefundCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -774,7 +780,7 @@ export class PaymentController {
     return this.commands.execute(
       new PaymentCustomerRefundCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        booking_id: id,
       }),
     );
   }

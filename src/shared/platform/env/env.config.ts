@@ -1,5 +1,10 @@
 import type { EnvConfig } from './types';
 
+/**
+ * Read, transform, and validate the application environment variables.
+ *
+ * @returns Result object containing the fields `app`, `cors`, `database`, `mongodb`, `redis`.
+ */
 export const envConfig = (): EnvConfig => {
   const nodeEnv = process.env.NODE_ENV ?? 'development';
   const isProduction = nodeEnv === 'production';
@@ -56,18 +61,13 @@ export const envConfig = (): EnvConfig => {
     cookie: {
       domain: process.env.COOKIE_DOMAIN,
     },
+    payment: {
+      provider: process.env.PAYMENT_PROVIDER ?? 'payos',
+    },
     payos: {
       clientId: process.env.PAYOS_CLIENT_ID,
       apiKey: process.env.PAYOS_API_KEY,
       checksumKey: process.env.PAYOS_CHECKSUM_KEY,
-    },
-    payment: {
-      provider: process.env.PAYMENT_PROVIDER ?? 'payos',
-    },
-    notification: {
-      serviceUrl: process.env.NOTIFICATION_SERVICE_URL,
-    },
-    axios: {
       returnUrl: process.env.PAYOS_RETURN_URL,
       cancelUrl: process.env.PAYOS_CANCEL_URL,
     },
@@ -76,6 +76,11 @@ export const envConfig = (): EnvConfig => {
       accountName: process.env.SEPAY_ACCOUNT_NAME,
       bankCode: process.env.SEPAY_BANK_CODE,
       webhookApiKey: process.env.SEPAY_WEBHOOK_API_KEY,
+    },
+    notification: {
+      serviceUrl: process.env.NOTIFICATION_SERVICE_URL,
+    },
+    axios: {
       timeoutMs: Number.parseInt(process.env.AXIOS_TIMEOUT_MS ?? '10000', 10),
       retry: {
         retries: Number.parseInt(process.env.AXIOS_RETRY_COUNT ?? '3', 10),

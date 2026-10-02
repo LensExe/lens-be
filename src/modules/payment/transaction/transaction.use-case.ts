@@ -60,7 +60,7 @@ export class TransactionUseCases implements PaidAmountsPort {
     input: Inputs.PaymentGetQueryInput,
   ) {
     const transaction = await this.access(manager, actor, input.id);
-    return this.presentTransaction(transaction);
+    return this.presentTransaction(transaction, actor.roles.includes('admin'));
   }
 
   /**
@@ -77,7 +77,10 @@ export class TransactionUseCases implements PaidAmountsPort {
     input: Inputs.PaymentQrQueryInput,
   ) {
     const transaction = await this.access(manager, actor, input.id);
-    const presented = this.presentTransaction(transaction);
+    const presented = this.presentTransaction(
+      transaction,
+      actor.roles.includes('admin'),
+    );
     return {
       id: transaction.id,
       status: transaction.status,
@@ -126,7 +129,20 @@ export class TransactionUseCases implements PaidAmountsPort {
    * @param transaction Transaction to present to an API caller.
    * @returns Transaction with expired checkout credentials hidden and an expiration indicator.
    */
-  private presentTransaction(transaction: TransactionEntity) {
+  private presentTransaction(
+    transaction: TransactionEntity,
+    includeReviewDetails = false,
+  ) {
+    const {
+      checkout_reconciliation_attempts,
+      checkout_reconciliation_next_at,
+      checkout_review_resolution,
+      checkout_review_resolved_by,
+      checkout_review_resolved_at,
+      checkout_review_resolution_reference,
+      checkout_review_resolution_note,
+      ...safeTransaction
+    } = transaction;
     const checkoutExpired =
       transaction.checkout_expired_at !== null ||
       (transaction.checkout_expires_at !== null &&
@@ -134,7 +150,18 @@ export class TransactionUseCases implements PaidAmountsPort {
     const checkoutUnavailable =
       transaction.status !== 'pending' || checkoutExpired;
     return {
-      ...transaction,
+      ...safeTransaction,
+      ...(includeReviewDetails
+        ? {
+            checkout_reconciliation_attempts,
+            checkout_reconciliation_next_at,
+            checkout_review_resolution,
+            checkout_review_resolved_by,
+            checkout_review_resolved_at,
+            checkout_review_resolution_reference,
+            checkout_review_resolution_note,
+          }
+        : {}),
       checkout_expired: checkoutExpired,
       checkout_url: checkoutUnavailable ? null : transaction.checkout_url,
       qr_code: checkoutUnavailable ? null : transaction.qr_code,
@@ -165,6 +192,10 @@ export class TransactionUseCases implements PaidAmountsPort {
       builder.andWhere('transaction.status = :status', {
         status: query.status,
       });
+    if (query.review_required === 'true')
+      builder.andWhere('transaction.checkout_review_required_at IS NOT NULL');
+    if (query.review_required === 'false')
+      builder.andWhere('transaction.checkout_review_required_at IS NULL');
     const [items, total] = await builder
       .orderBy('transaction.created_at', 'DESC')
       .addOrderBy('transaction.id', 'DESC')
@@ -190,10 +221,23 @@ export class TransactionUseCases implements PaidAmountsPort {
     });
     if (!transactions.length)
       return PaymentTransaction.paidAmounts(bookingIds, [], []);
-    const refunds = await manager.findBy(EntitySchemas.refund_requests, {
-      transaction_id: In(transactions.map((transaction) => transaction.id)),
-      status: RefundStatus.COMPLETED,
-    });
+    const refunds = await manager
+      .createQueryBuilder(
+        EntitySchemas.refund_request_allocations,
+        'allocation',
+      )
+      .innerJoin(
+        EntitySchemas.refund_requests,
+        'request',
+        'request.id = allocation.refund_request_id',
+      )
+      .where('allocation.transaction_id IN (:...transactionIds)', {
+        transactionIds: transactions.map((transaction) => transaction.id),
+      })
+      .andWhere('request.status = :status', {
+        status: RefundStatus.COMPLETED,
+      })
+      .getMany();
     return PaymentTransaction.paidAmounts(bookingIds, transactions, refunds);
   }
 }

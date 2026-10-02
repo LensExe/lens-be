@@ -24,9 +24,11 @@ import {
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import {
   ExternalPaymentProvider,
+  RefundRequestType,
   TransactionPaymentGateway,
 } from '@shared/domain/values/payment.values';
 import { Payment } from './payment.domain';
+import { SubscriptionHistoryEvent } from '@shared/domain/values/subscription.values';
 import { WalletUseCases } from './wallet/wallet.use-case';
 import { RefundUseCases } from './refund/refund.use-case';
 import type { SubscriptionPaymentsPort } from '@modules/subscription/ports/subscription-payments.port';
@@ -35,6 +37,15 @@ import type { BookingPaymentSettlementPort } from '@modules/booking/ports/bookin
 
 type PaymentInput =
   Inputs.PaymentDepositCommandInput | Inputs.PaymentRemainingCommandInput;
+
+const CHECKOUT_RECONCILIATION_BACKOFF_MS = [
+  5 * 60_000,
+  15 * 60_000,
+  60 * 60_000,
+  6 * 60 * 60_000,
+] as const;
+const CHECKOUT_RECONCILIATION_MAX_ATTEMPTS =
+  CHECKOUT_RECONCILIATION_BACKOFF_MS.length + 1;
 
 @Injectable()
 export class PaymentUseCases
@@ -484,6 +495,17 @@ export class PaymentUseCases
       return { received: true, duplicate: true };
     await updateEntity(manager, EntitySchemas.transactions, transaction.id, {
       status: 'paid',
+      checkout_review_required_at: null,
+      checkout_reconciliation_next_at: null,
+      ...(transaction.checkout_review_resolution === 'unpaid'
+        ? {
+            checkout_review_resolution: null,
+            checkout_review_resolved_by: null,
+            checkout_review_resolved_at: null,
+            checkout_review_resolution_reference: null,
+            checkout_review_resolution_note: null,
+          }
+        : {}),
     });
 
     if (transaction.type === 'wallet_topup') {
@@ -505,18 +527,53 @@ export class PaymentUseCases
         lock: { mode: 'pessimistic_write' },
       });
       ensure(subscription, 'Subscription not found', 'missing');
+      if (subscription.status !== 'pending') {
+        const now = new Date().toISOString();
+        await updateEntity(
+          manager,
+          EntitySchemas.transactions,
+          transaction.id,
+          {
+            checkout_review_required_at: now,
+          },
+        );
+        await manager.save(EntitySchemas.subscription_status_history, {
+          subscription_id: subscription.id,
+          event_type: SubscriptionHistoryEvent.PAYMENT_LATE_REVIEW,
+          from_status: subscription.status,
+          to_status: subscription.status,
+          actor_user_id: null,
+          actor_role: 'system',
+          transaction_id: transaction.id,
+          note: 'Verified payment arrived after the subscription checkout had closed; manual review is required.',
+        });
+        const admins = await manager.findBy(EntitySchemas.admins, {
+          is_active: true,
+        });
+        await emit(
+          manager,
+          'subscription.payment_late_review',
+          [transaction.user_id, ...admins.map((admin) => admin.user_id)],
+          {
+            subscription_id: subscription.id,
+            transaction_id: transaction.id,
+            amount: Number(transaction.amount),
+          },
+        );
+        return { received: true, duplicate: false };
+      }
       const periodLengthMs =
         Date.parse(subscription.end_at) - Date.parse(subscription.start_at);
+      const billingCycleDays =
+        subscription.plan_snapshot?.billing_cycle ?? periodLengthMs / 864e5;
       ensure(
-        Number.isSafeInteger(periodLengthMs) &&
-          periodLengthMs > 0 &&
-          periodLengthMs % 864e5 === 0,
+        Number.isSafeInteger(billingCycleDays) && billingCycleDays > 0,
         'Subscription billing period is invalid',
         'conflict',
       );
       const activePeriod = Subscription.period(
         new Date().toISOString(),
-        periodLengthMs / 864e5,
+        billingCycleDays,
       );
       await updateEntity(
         manager,
@@ -524,6 +581,16 @@ export class PaymentUseCases
         subscription.id,
         { ...activePeriod, status: 'active' },
       );
+      await manager.save(EntitySchemas.subscription_status_history, {
+        subscription_id: subscription.id,
+        event_type: SubscriptionHistoryEvent.PAYMENT_ACTIVATED,
+        from_status: 'pending',
+        to_status: 'active',
+        actor_user_id: null,
+        actor_role: 'system',
+        transaction_id: transaction.id,
+        note: 'Activated after provider payment verification.',
+      });
       await emit(manager, 'payment.subscription', [transaction.user_id], {
         subscription_id: subscription.id,
         transaction_id: transaction.id,
@@ -583,11 +650,12 @@ export class PaymentUseCases
         'booking.id = transaction.reference_id',
       )
       .where('transaction.status = :status', { status: 'pending' })
-      .andWhere('transaction.checkout_expired_at IS NULL')
-      .andWhere("transaction.type <> 'subscription'")
       .andWhere(
-        `((transaction.checkout_expires_at IS NOT NULL AND transaction.checkout_expires_at <= :now)
-          OR (transaction.type IN (:...bookingTypes) AND booking.status IN (:...terminalStatuses)))`,
+        `((transaction.checkout_expired_at IS NULL
+            AND ((transaction.checkout_expires_at IS NOT NULL AND transaction.checkout_expires_at <= :now)
+              OR (transaction.type IN (:...bookingTypes) AND booking.status IN (:...terminalStatuses))))
+          OR (transaction.checkout_review_required_at IS NOT NULL
+            AND transaction.checkout_reconciliation_next_at <= :now))`,
         {
           now: nowIso,
           bookingTypes: ['deposit', 'remaining'],
@@ -628,12 +696,16 @@ export class PaymentUseCases
         const snapshot = await manager.findOneBy(EntitySchemas.transactions, {
           id: candidate.id,
         });
-        if (
-          !snapshot ||
-          snapshot.status !== 'pending' ||
-          snapshot.checkout_expired_at
-        )
-          return;
+        if (!snapshot || snapshot.status !== 'pending') return;
+        const isReconciliationRetry =
+          snapshot.checkout_review_required_at !== null;
+        if (isReconciliationRetry) {
+          if (
+            !snapshot.checkout_reconciliation_next_at ||
+            Date.parse(snapshot.checkout_reconciliation_next_at) > now
+          )
+            return;
+        } else if (snapshot.checkout_expired_at) return;
 
         // Provider callbacks lock booking before transaction; preserve that order to avoid deadlocks.
         if (
@@ -649,12 +721,15 @@ export class PaymentUseCases
           where: { id: candidate.id },
           lock: { mode: 'pessimistic_write' },
         });
-        if (
-          !transaction ||
-          transaction.status !== 'pending' ||
-          transaction.checkout_expired_at
-        )
-          return;
+        if (!transaction || transaction.status !== 'pending') return;
+        const retryingReview = transaction.checkout_review_required_at !== null;
+        if (retryingReview) {
+          if (
+            !transaction.checkout_reconciliation_next_at ||
+            Date.parse(transaction.checkout_reconciliation_next_at) > now
+          )
+            return;
+        } else if (transaction.checkout_expired_at) return;
 
         if (
           providerState?.status === 'paid' &&
@@ -681,9 +756,31 @@ export class PaymentUseCases
           providerState !== null &&
           ['expired', 'cancelled', 'failed'].includes(providerState.status) &&
           providerState.amount_paid === 0;
+        const wasAlreadyExpired = transaction.checkout_expired_at !== null;
+        const firstReviewAttempt =
+          transaction.checkout_review_required_at === null;
+        const attemptCount = transaction.checkout_reconciliation_attempts + 1;
+        const canRetryProviderInspection =
+          transaction.provider_order_code !== null &&
+          (transaction.payment_gateway === ExternalPaymentProvider.PAYOS ||
+            transaction.payment_gateway === ExternalPaymentProvider.SEPAY);
+        const retryDelay =
+          attemptCount <= CHECKOUT_RECONCILIATION_BACKOFF_MS.length
+            ? CHECKOUT_RECONCILIATION_BACKOFF_MS[attemptCount - 1]
+            : null;
         const update: Partial<TransactionEntity> = {
-          checkout_expired_at: nowIso,
-          checkout_review_required_at: providerConfirmedUnpaid ? null : nowIso,
+          checkout_expired_at: transaction.checkout_expired_at ?? nowIso,
+          checkout_review_required_at: providerConfirmedUnpaid
+            ? null
+            : (transaction.checkout_review_required_at ?? nowIso),
+          checkout_reconciliation_attempts: attemptCount,
+          checkout_reconciliation_next_at:
+            providerConfirmedUnpaid ||
+            !canRetryProviderInspection ||
+            attemptCount >= CHECKOUT_RECONCILIATION_MAX_ATTEMPTS ||
+            retryDelay === null
+              ? null
+              : new Date(now + retryDelay).toISOString(),
           checkout_url: null,
           qr_code: null,
           ...(providerConfirmedUnpaid ? { status: 'failed' } : {}),
@@ -694,12 +791,60 @@ export class PaymentUseCases
           transaction.id,
           update,
         );
-        await emit(manager, 'payment.checkout_expired', [transaction.user_id], {
-          transaction_id: transaction.id,
-          transaction_type: transaction.type,
-          review_required: !providerConfirmedUnpaid,
-        });
-        if (!providerConfirmedUnpaid) {
+        if (
+          providerConfirmedUnpaid &&
+          transaction.type === 'subscription' &&
+          transaction.reference_id
+        ) {
+          const subscription = await manager.findOne(
+            EntitySchemas.subscriptions,
+            {
+              where: { id: transaction.reference_id },
+              lock: { mode: 'pessimistic_write' },
+            },
+          );
+          if (subscription?.status === 'pending') {
+            await updateEntity(
+              manager,
+              EntitySchemas.subscriptions,
+              subscription.id,
+              {
+                status: 'cancelled',
+                auto_renew: false,
+                cancel_at_period_end: false,
+              },
+            );
+            await manager.save(EntitySchemas.subscription_status_history, {
+              subscription_id: subscription.id,
+              event_type: SubscriptionHistoryEvent.PAYMENT_TIMEOUT,
+              from_status: 'pending',
+              to_status: 'cancelled',
+              actor_user_id: null,
+              actor_role: 'system',
+              transaction_id: transaction.id,
+              note: 'Provider confirmed that the checkout expired without payment.',
+            });
+          }
+        }
+        if (!wasAlreadyExpired)
+          await emit(
+            manager,
+            'payment.checkout_expired',
+            [transaction.user_id],
+            {
+              transaction_id: transaction.id,
+              transaction_type: transaction.type,
+              review_required: !providerConfirmedUnpaid,
+            },
+          );
+        if (providerConfirmedUnpaid && wasAlreadyExpired)
+          await emit(
+            manager,
+            'payment.checkout_reconciled_unpaid',
+            [transaction.user_id],
+            { transaction_id: transaction.id },
+          );
+        if (!providerConfirmedUnpaid && firstReviewAttempt) {
           const admins = await manager.findBy(EntitySchemas.admins, {
             is_active: true,
           });
@@ -720,6 +865,157 @@ export class PaymentUseCases
       });
     }
     return { processed };
+  }
+
+  /** Record the payment side of a subscription checkout review decision. */
+  async resolveSubscriptionReview(
+    manager: EntityManager,
+    actor: Actor,
+    input: Inputs.SubscriptionPaymentReviewResolutionInput,
+  ) {
+    role(actor, 'admin');
+    const admin = await currentUser(manager, actor);
+    const candidate = await manager.findOneBy(EntitySchemas.transactions, {
+      id: input.id,
+    });
+    ensure(candidate, 'Transaction not found', 'missing');
+    ensure(
+      candidate.type === 'subscription' && candidate.reference_id,
+      'Only subscription checkouts can be reconciled here',
+      'conflict',
+    );
+    const resolution =
+      input.outcome === 'activate'
+        ? 'paid_activated'
+        : input.outcome === 'refund'
+          ? 'paid_refund'
+          : 'unpaid';
+    const providerReference = input.provider_reference?.trim() ?? null;
+    ensure(
+      ['activate', 'refund', 'unpaid'].includes(input.outcome),
+      'Unsupported subscription payment review outcome',
+      'conflict',
+    );
+    let rejectedPriorRefundCanBeReconciled = false;
+    if (candidate.checkout_review_resolution) {
+      const priorRefund = await manager.findOne(EntitySchemas.refund_requests, {
+        where: {
+          transaction_id: candidate.id,
+          request_type: RefundRequestType.SUBSCRIPTION_PAYMENT,
+        },
+        order: { created_at: 'DESC', id: 'DESC' },
+      });
+      rejectedPriorRefundCanBeReconciled =
+        candidate.checkout_review_resolution === 'paid_refund' &&
+        candidate.checkout_review_required_at !== null &&
+        priorRefund?.status === 'rejected';
+      if (!rejectedPriorRefundCanBeReconciled) {
+        ensure(
+          candidate.checkout_review_resolution === resolution &&
+            candidate.checkout_review_resolution_note === input.note.trim() &&
+            candidate.checkout_review_resolution_reference ===
+              providerReference,
+          'Checkout review was already resolved differently',
+          'conflict',
+        );
+        if (input.outcome === 'refund')
+          return {
+            transaction: candidate,
+            refund: await this.refunds.refund(manager, actor, {
+              id: candidate.id,
+              amount: Number(candidate.amount),
+              reason: input.note.trim(),
+              idempotency_key: `subscription-review-refund:${candidate.id}:${candidate.checkout_review_resolved_at}`,
+            }),
+          };
+        return { transaction: candidate, refund: null };
+      }
+    }
+    ensure(
+      candidate.checkout_review_required_at,
+      'Transaction is not awaiting checkout review',
+      'conflict',
+    );
+    ensure(input.note.trim().length > 0, 'A resolution note is required');
+    if (input.outcome !== 'unpaid')
+      ensure(
+        providerReference,
+        'Provider reference is required when confirming a payment',
+      );
+
+    const transaction = await this.lockTransaction(manager, candidate.id);
+    const priorRefundAfterLock =
+      transaction.checkout_review_resolution === 'paid_refund'
+        ? await manager.findOne(EntitySchemas.refund_requests, {
+            where: {
+              transaction_id: transaction.id,
+              request_type: RefundRequestType.SUBSCRIPTION_PAYMENT,
+            },
+            order: { created_at: 'DESC', id: 'DESC' },
+          })
+        : null;
+    const canSupersedeRejectedRefund =
+      rejectedPriorRefundCanBeReconciled &&
+      priorRefundAfterLock?.status === 'rejected';
+    ensure(
+      transaction.checkout_review_required_at &&
+        (!transaction.checkout_review_resolution || canSupersedeRejectedRefund),
+      'Transaction is not awaiting checkout review',
+      'conflict',
+    );
+    const now = new Date().toISOString();
+    if (input.outcome === 'unpaid') {
+      ensure(
+        transaction.status === 'pending',
+        'A paid or failed transaction cannot be resolved as unpaid',
+        'conflict',
+      );
+      await updateEntity(manager, EntitySchemas.transactions, transaction.id, {
+        status: 'failed',
+        checkout_expired_at: transaction.checkout_expired_at ?? now,
+        checkout_review_required_at: null,
+        checkout_reconciliation_next_at: null,
+        checkout_url: null,
+        qr_code: null,
+        checkout_review_resolution: resolution,
+        checkout_review_resolved_by: admin.id,
+        checkout_review_resolved_at: now,
+        checkout_review_resolution_reference: null,
+        checkout_review_resolution_note: input.note.trim(),
+      });
+    } else {
+      ensure(
+        transaction.status === 'pending' || transaction.status === 'paid',
+        'Failed transactions cannot be resolved as paid',
+        'conflict',
+      );
+      await updateEntity(manager, EntitySchemas.transactions, transaction.id, {
+        status: 'paid',
+        checkout_review_required_at: null,
+        checkout_reconciliation_next_at: null,
+        checkout_url: null,
+        qr_code: null,
+        checkout_review_resolution: resolution,
+        checkout_review_resolved_by: admin.id,
+        checkout_review_resolved_at: now,
+        checkout_review_resolution_reference: providerReference,
+        checkout_review_resolution_note: input.note.trim(),
+      });
+    }
+
+    const refund =
+      input.outcome === 'refund'
+        ? await this.refunds.refund(manager, actor, {
+            id: transaction.id,
+            amount: Number(transaction.amount),
+            reason: input.note.trim(),
+            idempotency_key: `subscription-review-refund:${transaction.id}:${now}`,
+          })
+        : null;
+    return {
+      transaction: await required(manager, 'transactions', transaction.id),
+      refund,
+    };
   }
 
   /**
@@ -761,6 +1057,7 @@ export class PaymentUseCases
       amount: price,
       idempotency_key: idempotencyKey,
       payment_gateway: this.gateway.activeProvider,
+      checkout_expires_at: Payment.checkoutExpiresAt(),
     });
   }
 

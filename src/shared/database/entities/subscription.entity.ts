@@ -6,6 +6,7 @@ import {
 } from './utils/column-transformers';
 import { SubscriptionStatus } from '@shared/domain/values/subscription.values';
 import type { SubscriptionStatus as SubscriptionStatusType } from '@shared/domain/values/subscription.values';
+import type { PhotographerPlanSnapshot } from '@shared/domain/types/plan.types';
 
 /**
  * Entity representing the `subscriptions` table.
@@ -20,6 +21,10 @@ export class SubscriptionEntity extends BaseEntity {
   /** ID of the subscribed membership plan (foreign key referencing `photographer_plans.id`). */
   @Column('uuid')
   plan_id!: string;
+
+  /** Purchase-time snapshot of the plan name, price, cycle, and entitlements. */
+  @Column('jsonb', { default: () => "'{}'::jsonb" })
+  plan_snapshot!: PhotographerPlanSnapshot;
 
   /** Time when the subscription takes effect (ISO timestamptz string). */
   @Column('timestamptz', {
@@ -37,9 +42,13 @@ export class SubscriptionEntity extends BaseEntity {
   @Column({ default: SubscriptionStatus.PENDING })
   status!: SubscriptionStatusType;
 
-  /** Whether to renew automatically when the current billing cycle ends. */
+  /** Renewal preference retained for the future recurring-billing flow. */
   @Column({ default: true })
   auto_renew!: boolean;
+
+  /** Customer requested renewal to stop after the already-paid period. */
+  @Column({ default: false })
+  cancel_at_period_end!: boolean;
 
   /** Amount actually paid for this billing cycle (VND). */
   @Column(bigintColumn)

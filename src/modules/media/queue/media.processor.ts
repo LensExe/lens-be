@@ -2,7 +2,8 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { DataSource } from 'typeorm';
-import { EntitySchemas, MediaStatus, updateEntity } from '@shared/database';
+import { EntitySchemas, updateEntity } from '@shared/database';
+import { MediaStatus } from '@shared/domain/values/media.values';
 import { MediaImageProcessingService } from '../media-image-processing.service';
 import {
   MEDIA_PROCESSING_QUEUE,

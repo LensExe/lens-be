@@ -29,10 +29,12 @@ import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
 import { SubscriptionUsageQuery } from '@modules/subscription/subscriptions.query';
 import { SubscriptionMeQuery } from '@modules/subscription/subscriptions.query';
+import { SubscriptionHistoryQuery } from '@modules/subscription/subscriptions.query';
 import { SubscriptionPlansQuery } from '@modules/subscription/subscriptions.query';
 import { SubscriptionCreateCommand } from '@modules/subscription/subscriptions.command';
 import { SubscriptionCancelCommand } from '@modules/subscription/subscriptions.command';
 import { SubscriptionWebhookCommand } from '@modules/subscription/subscriptions.command';
+import { SubscriptionResolvePaymentReviewCommand } from '@modules/subscription/subscriptions.command';
 
 @ApiTags('Subscription')
 @Controller()
@@ -122,6 +124,32 @@ export class SubscriptionController {
   me(@Req() req: { actor?: Actor }) {
     return this.queries.execute(
       new SubscriptionMeQuery(req.actor ?? { sub: '', roles: [] }, {}),
+    );
+  }
+
+  /** List the authenticated photographer's subscription lifecycle events. */
+  @Get('subscriptions/me/history')
+  @ApiOperation({
+    operationId: 'SUB-007',
+    summary: 'Lịch sử subscription',
+    description: 'Xem các lần đăng ký, kích hoạt, hủy gia hạn và hết hạn.',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('SUB-007'),
+  })
+  history(@Req() req: { actor?: Actor }) {
+    return this.queries.execute(
+      new SubscriptionHistoryQuery(req.actor ?? { sub: '', roles: [] }, {}),
     );
   }
 
@@ -219,7 +247,8 @@ export class SubscriptionController {
   @ApiOperation({
     operationId: 'SUB-004',
     summary: 'Hủy gia hạn subscription',
-    description: 'Dừng auto-renew theo chính sách. Role: Photographer',
+    description:
+      'Ngừng gia hạn sau kỳ đã thanh toán; quyền lợi còn đến end_at. Role: Photographer',
   })
   @Access(['photographer'])
   @ApiBearerAuth()
@@ -254,6 +283,37 @@ export class SubscriptionController {
       new SubscriptionCancelCommand(req.actor ?? { sub: '', roles: [] }, {
         id,
       }),
+    );
+  }
+
+  /** Resolve a subscription payment after automatic provider reconciliation. */
+  @Post('admin/subscriptions/payments/:id/reconcile')
+  @HttpCode(200)
+  @ApiOperation({
+    operationId: 'SUB-008',
+    summary: 'Đối soát payment subscription',
+    description:
+      'Admin xác nhận payment để kích hoạt subscription hoặc tạo yêu cầu refund, hoặc xác nhận chưa thu tiền để đóng checkout.',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiParam({ name: 'id', type: String, description: 'Transaction UUID' })
+  @ApiBody({ type: Dto.SubscriptionPaymentReviewResolutionBodyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Subscription payment review resolved and recorded.',
+    schema: responseSchema('SUB-008'),
+  })
+  resolvePaymentReview(
+    @Req() req: { actor?: Actor },
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: Dto.SubscriptionPaymentReviewResolutionBodyDto,
+  ) {
+    return this.commands.execute(
+      new SubscriptionResolvePaymentReviewCommand(
+        req.actor ?? { sub: '', roles: [] },
+        { ...body, id },
+      ),
     );
   }
 

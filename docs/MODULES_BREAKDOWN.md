@@ -372,18 +372,20 @@ src/modules/<consumer>/ports/<capability>.port.ts
 
 Ví dụ hiện có:
 
-| Context tiêu thụ       | Port                       | Context cung cấp |
-| ---------------------- | -------------------------- | ---------------- |
-| Booking                | `RatingUpdaterPort`        | Feedback/Review  |
-| Booking                | `PaidAmountsPort`          | Payment          |
-| Calendar               | `PendingBookingsPort`      | Booking          |
-| Calendar               | `CollaborationTimesPort`   | Booking          |
-| Calendar               | `PhotographerBookingsPort` | Booking          |
-| Photographer           | `WorkingHoursPort`         | Calendar         |
-| Photographer           | `PhotographerRatingsPort`  | Feedback/Review  |
-| Photographer           | `PlanBookingsPort`         | Booking          |
-| Photographer/Portfolio | `MediaOwnershipPort`       | Media            |
-| Subscription           | `SubscriptionPaymentsPort` | Payment          |
+| Context tiêu thụ       | Port                           | Context cung cấp |
+| ---------------------- | ------------------------------ | ---------------- |
+| Booking                | `RatingUpdaterPort`            | Feedback/Review  |
+| Booking                | `PaidAmountsPort`              | Payment          |
+| Calendar               | `PendingBookingsPort`          | Booking          |
+| Calendar               | `CollaborationTimesPort`       | Booking          |
+| Calendar               | `PhotographerBookingsPort`     | Booking          |
+| Photographer           | `WorkingHoursPort`             | Calendar         |
+| Photographer           | `PhotographerRatingsPort`      | Feedback/Review  |
+| Photographer           | `PlanBookingsPort`             | Booking          |
+| Photographer/Portfolio | `MediaOwnershipPort`           | Media            |
+| Subscription           | `SubscriptionPaymentsPort`     | Payment          |
+| Media                  | `SubscriptionStorageQuotaPort` | Subscription     |
+| Subscription           | `SubscriptionStorageUsagePort` | Media            |
 
 Use case inject port, không inject trực tiếp use case của context khác. Mapping runtime dùng `useExisting` trong `api-runtime.module.ts`.
 

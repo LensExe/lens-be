@@ -67,7 +67,7 @@ export interface PaymentConfig {
 }
 
 export interface NotificationConfig {
-  /** Base URL của notification service (gửi email/thông báo), ví dụ `http://localhost:3001` */
+  /** Base URL of the notification service for email and other notifications (for example, `http://localhost:3001`). */
   serviceUrl?: string;
 }
 

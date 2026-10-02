@@ -2,6 +2,7 @@ export interface PaymentAdminQueryInput {
   limit?: number;
   offset?: number;
   status?: string;
+  review_required?: 'true' | 'false';
 }
 
 export interface PaymentDepositCommandInput {
@@ -46,6 +47,13 @@ export interface PaymentHistoryQueryInput {
 
 export interface PaymentRefundCommandInput {
   id: string;
+  amount: number;
+  reason: string;
+  idempotency_key?: string;
+}
+
+export interface PaymentCustomerRefundCommandInput {
+  booking_id: string;
   amount: number;
   reason: string;
   idempotency_key?: string;

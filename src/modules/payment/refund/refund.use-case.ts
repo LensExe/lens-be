@@ -5,6 +5,7 @@ import {
   updateEntity,
   type TransactionEntity,
   type RefundRequestEntity,
+  type RefundRequestAllocationEntity,
 } from '@shared/database';
 import type * as Inputs from '@shared/contracts/contracts';
 import type { Actor } from '@shared/platform/auth/actor';
@@ -23,6 +24,7 @@ import {
   RefundStatus,
   TransactionPaymentGateway,
 } from '@shared/domain/values/payment.values';
+import { SubscriptionHistoryEvent } from '@shared/domain/values/subscription.values';
 import { Payment, PAYMENT_REQUEST_ESCALATION_HOURS } from '../payment.domain';
 import { Refund } from './refund.domain';
 import { WalletUseCases } from '../wallet/wallet.use-case';
@@ -31,34 +33,29 @@ import {
   decryptPayoutDestination,
 } from '../payout-destination.crypto';
 
-/** Booking and wallet refund request operations. */
+/** Booking, subscription-payment, and wallet refund request operations. */
 @Injectable()
 export class RefundUseCases {
   constructor(private readonly wallets: WalletUseCases) {}
 
   /**
-   * Create a customer refund request for an eligible transaction.
+   * Create one customer refund request for the eligible booking payments.
    *
    * @param manager EntityManager for the current transaction.
    * @param actor Actor performing the operation; used for role and access checks.
    * @param input Input data for the operation.
-   * @returns Result returned by `createRefundRequest`.
+   * @returns Result returned by `createBookingRefundRequest`.
    * @throws {DomainError} Thrown when the actor is not authorized or the current state or data conflicts with the operation.
    */
   async customerRefund(
     manager: EntityManager,
     actor: Actor,
-    input: Inputs.PaymentRefundCommandInput,
+    input: Inputs.PaymentCustomerRefundCommandInput,
   ) {
-    const candidate = await manager.findOneBy(EntitySchemas.transactions, {
-      id: input.id,
-    });
-    ensure(candidate, 'Transaction not found', 'missing');
-    ensure(candidate.reference_id, 'Booking reference is missing', 'conflict');
     const { booking: accessibleBooking, user } = await bookingAccess(
       manager,
       actor,
-      candidate.reference_id,
+      input.booking_id,
       'customer',
     );
     const booking = await manager.findOne(EntitySchemas.bookings, {
@@ -83,20 +80,25 @@ export class RefundUseCases {
         settlement.refund_request_deadline_at,
       );
     }
-    const transaction = await this.lockTransaction(manager, input.id);
+    const transactions = await this.lockPaidBookingTransactions(
+      manager,
+      booking.id,
+    );
     ensure(
-      transaction.user_id === user.id &&
-        transaction.reference_id === booking.id &&
-        ['deposit', 'remaining'].includes(transaction.type),
+      transactions.length > 0 &&
+        transactions.every((transaction) => transaction.user_id === user.id),
       'Refund is only available to the customer who paid for a booking',
       'forbidden',
     );
-    return this.createRefundRequest(
+    return this.createBookingRefundRequest(
       manager,
-      transaction,
+      booking.id,
+      transactions,
       user.id,
-      input,
       RefundRequestType.CUSTOMER_REQUEST,
+      input.amount,
+      input.reason,
+      input.idempotency_key ?? null,
     );
   }
 
@@ -115,24 +117,293 @@ export class RefundUseCases {
   ) {
     role(actor, 'admin', 'system');
     const user = await currentUser(manager, actor);
-    const transaction = await this.lockTransaction(manager, input.id);
-    return this.createRefundRequest(
+    const candidate = await required(manager, 'transactions', input.id);
+    if (candidate.type === 'subscription') {
+      const transaction = await this.lockTransaction(manager, candidate.id);
+      ensure(
+        transaction.status === 'paid' &&
+          transaction.reference_id &&
+          (transaction.checkout_review_required_at !== null ||
+            transaction.checkout_review_resolution === 'paid_refund'),
+        'Only a paid subscription payment under reconciliation review may be refunded',
+        'conflict',
+      );
+      ensure(
+        transaction.payment_gateway !==
+          TransactionPaymentGateway.WALLET_INTERNAL,
+        'Subscription payment refunds require an external payment source',
+        'conflict',
+      );
+      const subscription = await required(
+        manager,
+        'subscriptions',
+        transaction.reference_id,
+      );
+      ensure(
+        !['pending', 'active'].includes(subscription.status) ||
+          transaction.checkout_review_resolution === 'paid_refund',
+        'Resolve the subscription checkout before requesting its refund',
+        'conflict',
+      );
+      Payment.assertAmount(input.amount);
+      ensure(
+        input.amount === Number(transaction.amount),
+        'A late subscription payment must be refunded in full',
+        'conflict',
+      );
+      return this.createRefundRequest(
+        manager,
+        transaction,
+        user.id,
+        {
+          ...input,
+          idempotency_key:
+            input.idempotency_key ??
+            `subscription-review-refund:${transaction.id}:${
+              transaction.checkout_review_required_at ??
+              transaction.checkout_review_resolved_at ??
+              transaction.id
+            }`,
+        },
+        subscription.id,
+      );
+    }
+    ensure(
+      candidate.reference_id &&
+        ['deposit', 'remaining'].includes(candidate.type),
+      'Only booking payments may be refunded through this workflow',
+      'conflict',
+    );
+    const booking = await manager.findOne(EntitySchemas.bookings, {
+      where: { id: candidate.reference_id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    ensure(booking, 'Booking not found', 'missing');
+    const sources = await this.lockPaidBookingTransactions(manager, booking.id);
+    ensure(
+      sources.some((source) => source.id === candidate.id),
+      'Only paid booking payments may be refunded',
+      'conflict',
+    );
+    return this.createBookingRefundRequest(
       manager,
-      transaction,
+      booking.id,
+      sources,
       user.id,
-      input,
       RefundRequestType.CUSTOMER_REQUEST,
+      input.amount,
+      input.reason,
+      input.idempotency_key ?? null,
     );
   }
 
+  /** Create one booking refund request and distribute it across paid source transactions. */
+  private async createBookingRefundRequest(
+    manager: EntityManager,
+    bookingId: string,
+    transactions: readonly TransactionEntity[],
+    requestedBy: string | null,
+    requestType:
+      | typeof RefundRequestType.CUSTOMER_REQUEST
+      | typeof RefundRequestType.BOOKING_CANCELLATION,
+    amount: number,
+    reason: string,
+    idempotencyKey: string | null,
+  ) {
+    ensure(
+      transactions.length > 0,
+      'Booking has no paid transactions',
+      'conflict',
+    );
+    const booking = await manager.findOne(EntitySchemas.bookings, {
+      where: { id: bookingId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    ensure(booking, 'Booking not found', 'missing');
+    const userId = transactions[0].user_id;
+    ensure(
+      transactions.every(
+        (transaction) =>
+          transaction.reference_id === bookingId &&
+          transaction.user_id === userId &&
+          transaction.status === 'paid' &&
+          ['deposit', 'remaining'].includes(transaction.type),
+      ),
+      'Refund sources do not belong to the same paid booking',
+      'conflict',
+    );
+
+    if (idempotencyKey) {
+      const existing = await manager.findOneBy(EntitySchemas.refund_requests, {
+        user_id: userId,
+        idempotency_key: idempotencyKey,
+      });
+      if (existing) {
+        ensure(
+          existing.booking_id === bookingId &&
+            existing.request_type === requestType &&
+            Number(existing.amount) === amount &&
+            existing.reason === reason,
+          'Idempotency key was already used for another refund',
+          'conflict',
+        );
+        return this.presentRefund(manager, existing);
+      }
+    }
+
+    const existingCancellation =
+      requestType === RefundRequestType.BOOKING_CANCELLATION
+        ? await manager.findOneBy(EntitySchemas.refund_requests, {
+            booking_id: bookingId,
+            request_type: RefundRequestType.BOOKING_CANCELLATION,
+          })
+        : null;
+    if (existingCancellation)
+      return this.presentRefund(manager, existingCancellation);
+
+    const sourceIds = transactions.map(({ id }) => id);
+    const allocations = await manager.find(
+      EntitySchemas.refund_request_allocations,
+      { where: { transaction_id: In(sourceIds) } },
+    );
+    const refundIds = [
+      ...new Set(allocations.map(({ refund_request_id }) => refund_request_id)),
+    ];
+    const requests = refundIds.length
+      ? await manager.find(EntitySchemas.refund_requests, {
+          where: { id: In(refundIds) },
+        })
+      : [];
+    const statusByRequestId = new Map(
+      requests.map((request) => [request.id, request.status]),
+    );
+    const reservedByTransaction = new Map<string, number>();
+    for (const allocation of allocations) {
+      if (
+        statusByRequestId.get(allocation.refund_request_id) ===
+        RefundStatus.REJECTED
+      )
+        continue;
+      reservedByTransaction.set(
+        allocation.transaction_id,
+        (reservedByTransaction.get(allocation.transaction_id) ?? 0) +
+          Number(allocation.amount),
+      );
+    }
+    const availableByTransaction = transactions.map((transaction) => ({
+      transaction,
+      amount: Math.max(
+        0,
+        Number(transaction.amount) -
+          (reservedByTransaction.get(transaction.id) ?? 0),
+      ),
+    }));
+    const totalAvailable = availableByTransaction.reduce(
+      (sum, item) => sum + item.amount,
+      0,
+    );
+    ensure(totalAvailable > 0, 'No refundable balance remains', 'conflict');
+    new Refund(totalAvailable, 'paid').assertRequest(amount, 0);
+
+    const request = await manager.save(EntitySchemas.refund_requests, {
+      request_type: requestType,
+      transaction_id: null,
+      booking_id: bookingId,
+      subscription_id: null,
+      wallet_id: null,
+      user_id: userId,
+      requested_by: requestedBy,
+      amount,
+      reserved_amount: 0,
+      reason,
+      status: RefundStatus.REQUESTED,
+      idempotency_key: idempotencyKey,
+      processing_due_at: Payment.requestProcessingDueAt(),
+      sla_reminded_at: null,
+      sla_escalated_at: null,
+    });
+
+    let amountToAllocate = amount;
+    const requestAllocations: Array<
+      Pick<RefundRequestAllocationEntity, 'transaction_id' | 'amount'> & {
+        refund_request_id: string;
+      }
+    > = [];
+    for (const item of availableByTransaction) {
+      if (amountToAllocate <= 0) break;
+      const allocationAmount = Math.min(item.amount, amountToAllocate);
+      if (allocationAmount <= 0) continue;
+      requestAllocations.push({
+        refund_request_id: request.id,
+        transaction_id: item.transaction.id,
+        amount: allocationAmount,
+      });
+      amountToAllocate -= allocationAmount;
+    }
+    ensure(
+      amountToAllocate === 0,
+      'Refund could not be allocated to payments',
+      'conflict',
+    );
+    await manager.save(
+      EntitySchemas.refund_request_allocations,
+      requestAllocations,
+    );
+    await emit(manager, 'payment.refund_requested', [userId], {
+      refund_id: request.id,
+      booking_id: bookingId,
+      transaction_ids: requestAllocations.map(
+        ({ transaction_id }) => transaction_id,
+      ),
+      amount: Number(request.amount),
+    });
+    return this.presentRefund(manager, request);
+  }
+
+  private async lockPaidBookingTransactions(
+    manager: EntityManager,
+    bookingId: string,
+  ) {
+    const candidates = await manager.find(EntitySchemas.transactions, {
+      where: {
+        reference_id: bookingId,
+        status: 'paid',
+        type: In(['deposit', 'remaining']),
+      },
+      order: { created_at: 'ASC', id: 'ASC' },
+    });
+    const locked: TransactionEntity[] = [];
+    for (const candidate of candidates) {
+      const transaction = await this.lockTransaction(manager, candidate.id);
+      if (transaction.status === 'paid') locked.push(transaction);
+    }
+    return locked;
+  }
+
+  private bookingRefundAllocations(manager: EntityManager, requestId: string) {
+    return manager
+      .createQueryBuilder(
+        EntitySchemas.refund_request_allocations,
+        'allocation',
+      )
+      .innerJoin(
+        EntitySchemas.transactions,
+        'source',
+        'source.id = allocation.transaction_id',
+      )
+      .where('allocation.refund_request_id = :requestId', { requestId })
+      .orderBy('source.created_at', 'ASC')
+      .addOrderBy('source.id', 'ASC')
+      .getMany();
+  }
+
   /**
-   * Create a refund request linked to the transaction and requester.
+   * Create a subscription refund request linked to its payment transaction.
    *
    * @param manager EntityManager for the current transaction.
    * @param transaction Transaction, of type `TransactionEntity`.
    * @param requestedBy Requester.
    * @param input Input data for the operation.
-   * @param requestType Request type.
    * @returns Result returned by `presentRefund`.
    * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
@@ -141,13 +412,13 @@ export class RefundUseCases {
     transaction: TransactionEntity,
     requestedBy: string,
     input: Inputs.PaymentRefundCommandInput,
-    requestType: typeof RefundRequestType.CUSTOMER_REQUEST,
+    subscriptionId: string,
   ) {
     ensure(
       transaction.status === 'paid' &&
-        ['deposit', 'remaining'].includes(transaction.type) &&
-        transaction.reference_id,
-      'Only paid booking transactions may be refunded',
+        transaction.type === 'subscription' &&
+        transaction.reference_id === subscriptionId,
+      'Only a paid subscription transaction can be refunded',
       'conflict',
     );
     Payment.assertAmount(input.amount);
@@ -160,12 +431,14 @@ export class RefundUseCases {
     if (existing) {
       ensure(
         existing.transaction_id === transaction.id &&
+          existing.request_type === RefundRequestType.SUBSCRIPTION_PAYMENT &&
+          existing.subscription_id === subscriptionId &&
           Number(existing.amount) === input.amount &&
           existing.reason === input.reason,
         'Idempotency key was already used for another refund',
         'conflict',
       );
-      return this.presentRefund(existing);
+      return this.presentRefund(manager, existing);
     }
     const requests = await manager.findBy(EntitySchemas.refund_requests, {
       transaction_id: transaction.id,
@@ -178,9 +451,10 @@ export class RefundUseCases {
       reserved,
     );
     const request = await manager.save(EntitySchemas.refund_requests, {
-      request_type: requestType,
+      request_type: RefundRequestType.SUBSCRIPTION_PAYMENT,
       transaction_id: transaction.id,
-      booking_id: transaction.reference_id,
+      booking_id: null,
+      subscription_id: subscriptionId,
       wallet_id: null,
       user_id: transaction.user_id,
       requested_by: requestedBy,
@@ -198,7 +472,7 @@ export class RefundUseCases {
       transaction_id: transaction.id,
       amount: Number(request.amount),
     });
-    return this.presentRefund(request);
+    return this.presentRefund(manager, request);
   }
 
   /**
@@ -217,55 +491,66 @@ export class RefundUseCases {
     requestedBy: string | null,
     reason: string | null,
   ) {
-    const [booking] = await manager.findBy(EntitySchemas.bookings, {
-      id: bookingId,
+    const booking = await manager.findOne(EntitySchemas.bookings, {
+      where: { id: bookingId },
+      lock: { mode: 'pessimistic_write' },
     });
     ensure(booking, 'Booking not found', 'missing');
-    const transactions = await manager.findBy(EntitySchemas.transactions, {
-      reference_id: bookingId,
-      status: 'paid',
-      type: In(['deposit', 'remaining']),
-    });
-    for (const row of transactions) {
-      const transaction = await this.lockTransaction(manager, row.id);
-      const existingCancellation = await manager.findOneBy(
-        EntitySchemas.refund_requests,
-        {
-          request_type: RefundRequestType.BOOKING_CANCELLATION,
-          transaction_id: transaction.id,
-          booking_id: bookingId,
-        },
-      );
-      if (existingCancellation) continue;
-      const requests = await manager.findBy(EntitySchemas.refund_requests, {
-        transaction_id: transaction.id,
-      });
-      const reserved = requests
-        .filter((request) => request.status !== RefundStatus.REJECTED)
-        .reduce((sum, request) => sum + Number(request.amount), 0);
-      const amount = Number(transaction.amount) - reserved;
-      if (amount <= 0) continue;
-      const request = await manager.save(EntitySchemas.refund_requests, {
-        request_type: RefundRequestType.BOOKING_CANCELLATION,
-        transaction_id: transaction.id,
+    const existingCancellation = await manager.findOneBy(
+      EntitySchemas.refund_requests,
+      {
         booking_id: bookingId,
-        wallet_id: null,
-        user_id: transaction.user_id,
-        requested_by: requestedBy,
-        amount,
-        reserved_amount: 0,
-        reason: reason || 'Booking cancelled; refund requires review',
-        status: RefundStatus.REQUESTED,
-        processing_due_at: Payment.requestProcessingDueAt(),
-        sla_reminded_at: null,
-        sla_escalated_at: null,
-      });
-      await emit(manager, 'payment.refund_requested', [transaction.user_id], {
-        refund_id: request.id,
-        transaction_id: transaction.id,
-        amount,
-      });
-    }
+        request_type: RefundRequestType.BOOKING_CANCELLATION,
+      },
+    );
+    if (existingCancellation) return;
+
+    const transactions = await this.lockPaidBookingTransactions(
+      manager,
+      bookingId,
+    );
+    if (!transactions.length) return;
+    const sourceIds = transactions.map(({ id }) => id);
+    const allocations = await manager.find(
+      EntitySchemas.refund_request_allocations,
+      { where: { transaction_id: In(sourceIds) } },
+    );
+    const requestIds = [
+      ...new Set(allocations.map(({ refund_request_id }) => refund_request_id)),
+    ];
+    const requests = requestIds.length
+      ? await manager.find(EntitySchemas.refund_requests, {
+          where: { id: In(requestIds) },
+        })
+      : [];
+    const statusByRequestId = new Map(
+      requests.map((request) => [request.id, request.status]),
+    );
+    const reserved = allocations.reduce((sum, allocation) => {
+      return statusByRequestId.get(allocation.refund_request_id) ===
+        RefundStatus.REJECTED
+        ? sum
+        : sum + Number(allocation.amount);
+    }, 0);
+    const amount = Math.max(
+      0,
+      transactions.reduce(
+        (sum, transaction) => sum + Number(transaction.amount),
+        0,
+      ) - reserved,
+    );
+    if (amount <= 0) return;
+
+    await this.createBookingRefundRequest(
+      manager,
+      bookingId,
+      transactions,
+      requestedBy,
+      RefundRequestType.BOOKING_CANCELLATION,
+      amount,
+      reason || 'Booking cancelled; refund requires review',
+      `booking-cancellation:${bookingId}`,
+    );
   }
 
   /**
@@ -286,7 +571,7 @@ export class RefundUseCases {
     const reviewer = await currentUser(manager, actor);
     const request = await this.lockRefundRequest(manager, input.id);
     if (request.status === RefundStatus.APPROVED)
-      return this.presentRefund(request);
+      return this.presentRefund(manager, request);
     ensure(
       request.status === RefundStatus.REQUESTED,
       'Only requested refunds can be approved',
@@ -307,10 +592,12 @@ export class RefundUseCases {
         sla_reminded_at: null,
         sla_escalated_at: null,
       });
-    } else {
+    } else if (
+      request.request_type === RefundRequestType.SUBSCRIPTION_PAYMENT
+    ) {
       ensure(
-        request.booking_id,
-        'Only booking refunds can be approved by this workflow',
+        request.subscription_id,
+        'Subscription reference is missing from refund request',
         'conflict',
       );
       const transaction = await this.lockTransaction(
@@ -318,11 +605,44 @@ export class RefundUseCases {
         request.transaction_id!,
       );
       ensure(
-        transaction.status === 'paid',
-        'Refund source transaction is no longer paid',
+        transaction.status === 'paid' &&
+          transaction.type === 'subscription' &&
+          transaction.reference_id === request.subscription_id &&
+          transaction.payment_gateway !==
+            TransactionPaymentGateway.WALLET_INTERNAL,
+        'Refund source is not a paid subscription transaction',
         'conflict',
       );
-      const booking = await required(manager, 'bookings', request.booking_id);
+      await required(manager, 'subscriptions', request.subscription_id);
+      let payoutDestination = request.payout_destination_encrypted;
+      if (input.payout_destination)
+        payoutDestination = encryptPayoutDestination(input.payout_destination);
+      ensure(
+        payoutDestination,
+        'Add a payout destination before approving an external refund',
+        'conflict',
+      );
+      await updateEntity(manager, EntitySchemas.refund_requests, request.id, {
+        status: RefundStatus.APPROVED,
+        reviewed_by: reviewer.id,
+        reviewed_at: new Date().toISOString(),
+        reserved_amount: 0,
+        payout_destination_encrypted: payoutDestination,
+        processing_due_at: Payment.requestProcessingDueAt(),
+        sla_reminded_at: null,
+        sla_escalated_at: null,
+      });
+    } else {
+      ensure(
+        request.booking_id,
+        'Only booking refunds can be approved by this workflow',
+        'conflict',
+      );
+      const booking = await manager.findOne(EntitySchemas.bookings, {
+        where: { id: request.booking_id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      ensure(booking, 'Booking not found', 'missing');
       if (request.request_type === RefundRequestType.BOOKING_CANCELLATION)
         ensure(
           ['cancelled', 'rejected', 'expired'].includes(booking.status),
@@ -337,16 +657,45 @@ export class RefundUseCases {
           'Booking must be ended before a customer refund is approved',
           'conflict',
         );
+      const allocations = await this.bookingRefundAllocations(
+        manager,
+        request.id,
+      );
+      ensure(
+        allocations.length > 0,
+        'Booking refund allocations are missing',
+        'conflict',
+      );
+      const sources: Array<{
+        allocation: RefundRequestAllocationEntity;
+        transaction: TransactionEntity;
+      }> = [];
+      for (const allocation of allocations) {
+        const transaction = await this.lockTransaction(
+          manager,
+          allocation.transaction_id,
+        );
+        ensure(
+          transaction.status === 'paid' &&
+            ['deposit', 'remaining'].includes(transaction.type) &&
+            transaction.reference_id === booking.id,
+          'Refund source transaction is no longer a paid payment for this booking',
+          'conflict',
+        );
+        sources.push({ allocation, transaction });
+      }
       const photographer = await required(
         manager,
         'photographers',
         booking.photographer_id,
       );
       let payoutDestination = request.payout_destination_encrypted;
-      if (
-        transaction.payment_gateway !==
-        TransactionPaymentGateway.WALLET_INTERNAL
-      ) {
+      const hasExternalSource = sources.some(
+        ({ transaction }) =>
+          transaction.payment_gateway !==
+          TransactionPaymentGateway.WALLET_INTERNAL,
+      );
+      if (hasExternalSource) {
         if (input.payout_destination)
           payoutDestination = encryptPayoutDestination(
             input.payout_destination,
@@ -357,13 +706,23 @@ export class RefundUseCases {
           'conflict',
         );
       }
-      const reservedAmount = await this.wallets.reserveRefund(
-        manager,
-        request.id,
-        transaction,
-        photographer.user_id,
-        Number(request.amount),
-      );
+      let reservedAmount = 0;
+      for (const { allocation, transaction } of sources) {
+        const allocationReserved = await this.wallets.reserveRefund(
+          manager,
+          request.id,
+          transaction,
+          photographer.user_id,
+          Number(allocation.amount),
+        );
+        await updateEntity(
+          manager,
+          EntitySchemas.refund_request_allocations,
+          allocation.id,
+          { reserved_amount: allocationReserved },
+        );
+        reservedAmount += allocationReserved;
+      }
       await updateEntity(manager, EntitySchemas.refund_requests, request.id, {
         status: RefundStatus.APPROVED,
         reviewed_by: reviewer.id,
@@ -380,7 +739,7 @@ export class RefundUseCases {
       refund_id: request.id,
       amount: Number(request.amount),
     });
-    return this.presentRefund(updated);
+    return this.presentRefund(manager, updated);
   }
 
   /**
@@ -401,7 +760,7 @@ export class RefundUseCases {
     const reviewer = await currentUser(manager, actor);
     const request = await this.lockRefundRequest(manager, input.id);
     if (request.status === RefundStatus.REJECTED)
-      return this.presentRefund(request);
+      return this.presentRefund(manager, request);
     ensure(
       request.status === RefundStatus.REQUESTED,
       'Only requested refunds can be rejected',
@@ -426,10 +785,11 @@ export class RefundUseCases {
       },
     );
     if (
-      request.transaction_id &&
-      request.request_type !== RefundRequestType.WALLET_WITHDRAWAL
+      request.booking_id &&
+      (request.request_type === RefundRequestType.BOOKING_CANCELLATION ||
+        request.request_type === RefundRequestType.CUSTOMER_REQUEST)
     ) {
-      const booking = await required(manager, 'bookings', request.booking_id!);
+      const booking = await required(manager, 'bookings', request.booking_id);
       if (
         ['cancelled', 'rejected', 'expired', 'completed'].includes(
           booking.status,
@@ -441,11 +801,46 @@ export class RefundUseCases {
           `refund-rejected:${request.id}`,
         );
     }
+    if (
+      request.request_type === RefundRequestType.SUBSCRIPTION_PAYMENT &&
+      request.transaction_id &&
+      request.subscription_id
+    ) {
+      const source = await this.lockTransaction(
+        manager,
+        request.transaction_id,
+      );
+      if (
+        source.status === 'paid' &&
+        source.checkout_review_resolution === 'paid_refund'
+      ) {
+        const now = new Date().toISOString();
+        await updateEntity(manager, EntitySchemas.transactions, source.id, {
+          checkout_review_required_at: now,
+          checkout_reconciliation_next_at: null,
+        });
+        const subscription = await required(
+          manager,
+          'subscriptions',
+          request.subscription_id,
+        );
+        await manager.save(EntitySchemas.subscription_status_history, {
+          subscription_id: subscription.id,
+          event_type: SubscriptionHistoryEvent.PAYMENT_RECONCILED,
+          from_status: subscription.status,
+          to_status: subscription.status,
+          actor_user_id: reviewer.id,
+          actor_role: 'admin',
+          transaction_id: source.id,
+          note: 'Refund request was rejected; the payment requires another administrator decision.',
+        });
+      }
+    }
     await emit(manager, 'payment.refund_rejected', [request.user_id], {
       refund_id: request.id,
       reason: updated.rejection_reason,
     });
-    return this.presentRefund(updated);
+    return this.presentRefund(manager, updated);
   }
 
   /**
@@ -466,14 +861,15 @@ export class RefundUseCases {
     const operator = await currentUser(manager, actor);
     const request = await this.lockRefundRequest(manager, input.id);
     if (request.status === RefundStatus.COMPLETED)
-      return this.presentRefund(request);
+      return this.presentRefund(manager, request);
     ensure(
       request.status === RefundStatus.APPROVED,
       'Only approved requests can be completed',
       'conflict',
     );
 
-    let transaction: TransactionEntity;
+    let transaction: TransactionEntity | null = null;
+    const completedTransactions: TransactionEntity[] = [];
     if (request.request_type === RefundRequestType.WALLET_WITHDRAWAL) {
       ensure(
         input.payout_reference,
@@ -500,20 +896,111 @@ export class RefundUseCases {
         Number(request.amount),
         transaction.id,
       );
-    } else {
+    } else if (
+      request.request_type === RefundRequestType.SUBSCRIPTION_PAYMENT
+    ) {
+      ensure(
+        request.subscription_id,
+        'Subscription reference is missing from refund request',
+        'conflict',
+      );
       const source = await this.lockTransaction(
         manager,
         request.transaction_id!,
       );
-      const booking = await required(manager, 'bookings', request.booking_id!);
+      ensure(
+        source.status === 'paid' &&
+          source.type === 'subscription' &&
+          source.reference_id === request.subscription_id &&
+          source.payment_gateway !== TransactionPaymentGateway.WALLET_INTERNAL,
+        'Refund source is not a paid subscription transaction',
+        'conflict',
+      );
+      ensure(
+        input.payout_reference,
+        'Payout reference is required for an external subscription refund',
+      );
+      ensure(
+        request.payout_destination_encrypted,
+        'Refund payout destination is missing',
+        'conflict',
+      );
+      const subscription = await required(
+        manager,
+        'subscriptions',
+        request.subscription_id,
+      );
+      transaction = await manager.save(EntitySchemas.transactions, {
+        user_id: request.user_id,
+        transaction_code: `refund:${request.id}`,
+        type: 'refund',
+        reference_id: subscription.id,
+        direction: 'out',
+        amount: Number(request.amount),
+        payment_gateway: TransactionPaymentGateway.BANK_TRANSFER,
+        provider_order_code: null,
+        status: 'paid',
+        idempotency_key: `refund:${request.id}`,
+        description: `Refund for subscription payment ${source.transaction_code}`,
+      });
+      await manager.save(EntitySchemas.subscription_status_history, {
+        subscription_id: subscription.id,
+        event_type: SubscriptionHistoryEvent.PAYMENT_REFUNDED,
+        from_status: subscription.status,
+        to_status: subscription.status,
+        actor_user_id: operator.id,
+        actor_role: 'admin',
+        transaction_id: source.id,
+        note: 'Late subscription payment refund completed.',
+      });
+    } else {
+      ensure(request.booking_id, 'Booking reference is missing', 'conflict');
+      const booking = await required(manager, 'bookings', request.booking_id);
       const photographer = await required(
         manager,
         'photographers',
         booking.photographer_id,
       );
-      const internal =
-        source.payment_gateway === TransactionPaymentGateway.WALLET_INTERNAL;
-      if (!internal) {
+      const allocations = await this.bookingRefundAllocations(
+        manager,
+        request.id,
+      );
+      ensure(
+        allocations.length > 0,
+        'Booking refund allocations are missing',
+        'conflict',
+      );
+      ensure(
+        allocations.reduce(
+          (sum, allocation) => sum + Number(allocation.amount),
+          0,
+        ) === Number(request.amount),
+        'Booking refund allocation total does not match the request amount',
+        'conflict',
+      );
+      const sources: Array<{
+        allocation: RefundRequestAllocationEntity;
+        transaction: TransactionEntity;
+      }> = [];
+      for (const allocation of allocations) {
+        const source = await this.lockTransaction(
+          manager,
+          allocation.transaction_id,
+        );
+        ensure(
+          source.status === 'paid' &&
+            ['deposit', 'remaining'].includes(source.type) &&
+            source.reference_id === booking.id,
+          'Refund source transaction is no longer a paid payment for this booking',
+          'conflict',
+        );
+        sources.push({ allocation, transaction: source });
+      }
+      const hasExternalSource = sources.some(
+        ({ transaction: source }) =>
+          source.payment_gateway !== TransactionPaymentGateway.WALLET_INTERNAL,
+      );
+      if (hasExternalSource) {
         ensure(
           input.payout_reference,
           'Payout reference is required for an external refund',
@@ -524,30 +1011,44 @@ export class RefundUseCases {
           'conflict',
         );
       }
-      await this.wallets.completeRefund(
-        manager,
-        request.id,
-        source,
-        request.user_id,
-        photographer.user_id,
-        Number(request.amount),
-        internal,
-      );
-      transaction = await manager.save(EntitySchemas.transactions, {
-        user_id: request.user_id,
-        transaction_code: `refund:${request.id}`,
-        type: 'refund',
-        reference_id: booking.id,
-        direction: 'out',
-        amount: Number(request.amount),
-        payment_gateway: internal
-          ? TransactionPaymentGateway.WALLET_INTERNAL
-          : TransactionPaymentGateway.BANK_TRANSFER,
-        provider_order_code: null,
-        status: 'paid',
-        idempotency_key: `refund:${request.id}`,
-        description: `Refund for payment ${source.transaction_code}`,
-      });
+      for (const { allocation, transaction: source } of sources) {
+        const internal =
+          source.payment_gateway === TransactionPaymentGateway.WALLET_INTERNAL;
+        await this.wallets.completeRefund(
+          manager,
+          request.id,
+          source,
+          request.user_id,
+          photographer.user_id,
+          Number(allocation.amount),
+          internal,
+        );
+        const refundTransaction = await manager.save(
+          EntitySchemas.transactions,
+          {
+            user_id: request.user_id,
+            transaction_code: `refund:${request.id}:${allocation.id}`,
+            type: 'refund',
+            reference_id: booking.id,
+            direction: 'out',
+            amount: Number(allocation.amount),
+            payment_gateway: internal
+              ? TransactionPaymentGateway.WALLET_INTERNAL
+              : TransactionPaymentGateway.BANK_TRANSFER,
+            provider_order_code: null,
+            status: 'paid',
+            idempotency_key: `refund:${request.id}:${allocation.id}`,
+            description: `Refund for payment ${source.transaction_code}`,
+          },
+        );
+        await updateEntity(
+          manager,
+          EntitySchemas.refund_request_allocations,
+          allocation.id,
+          { completed_transaction_id: refundTransaction.id },
+        );
+        completedTransactions.push(refundTransaction);
+      }
     }
 
     const updated = await updateEntity(
@@ -559,15 +1060,20 @@ export class RefundUseCases {
         completed_by: operator.id,
         completed_at: new Date().toISOString(),
         payout_reference: input.payout_reference ?? null,
-        completed_transaction_id: transaction.id,
+        completed_transaction_id:
+          transaction?.id ??
+          (completedTransactions.length === 1
+            ? completedTransactions[0].id
+            : null),
       },
     );
     await emit(manager, 'payment.refund_completed', [request.user_id], {
       refund_id: request.id,
-      transaction_id: transaction.id,
+      transaction_id: transaction?.id ?? null,
+      transaction_ids: completedTransactions.map(({ id }) => id),
       amount: Number(request.amount),
     });
-    return this.presentRefund(updated);
+    return this.presentRefund(manager, updated);
   }
 
   /**
@@ -640,7 +1146,7 @@ export class RefundUseCases {
         reason: input.reason.trim(),
       },
     );
-    return this.presentRefund(updated);
+    return this.presentRefund(manager, updated);
   }
 
   /**
@@ -740,7 +1246,7 @@ export class RefundUseCases {
       .take(limit)
       .getManyAndCount();
     return paged(
-      items.map((item) => this.presentRefund(item)),
+      await Promise.all(items.map((item) => this.presentRefund(manager, item))),
       total,
       query,
     );
@@ -783,7 +1289,7 @@ export class RefundUseCases {
       .take(limit)
       .getManyAndCount();
     return paged(
-      items.map((item) => this.presentRefund(item)),
+      await Promise.all(items.map((item) => this.presentRefund(manager, item))),
       total,
       query,
     );
@@ -795,10 +1301,17 @@ export class RefundUseCases {
    * @param request Request to send or process.
    * @returns Result object containing the fields `payout_destination`.
    */
-  private presentRefund(request: RefundRequestEntity) {
+  private async presentRefund(
+    manager: EntityManager,
+    request: RefundRequestEntity,
+  ) {
     const { payout_destination_encrypted, ...publicRequest } = request;
+    const allocations = request.booking_id
+      ? await this.bookingRefundAllocations(manager, request.id)
+      : [];
     return {
       ...publicRequest,
+      allocations,
       payout_destination: decryptPayoutDestination(
         payout_destination_encrypted,
       ),
@@ -850,11 +1363,37 @@ export class RefundUseCases {
       'Refund access denied',
       'forbidden',
     );
-    const items = await manager.find(EntitySchemas.refund_requests, {
+    const directRequests = await manager.find(EntitySchemas.refund_requests, {
       where: { transaction_id: input.id },
-      order: { created_at: 'ASC', id: 'ASC' },
     });
-    return { items: items.map((item) => this.presentRefund(item)) };
+    const allocations = await manager.find(
+      EntitySchemas.refund_request_allocations,
+      { where: { transaction_id: input.id } },
+    );
+    const allocationRequestIds = allocations.map(
+      ({ refund_request_id }) => refund_request_id,
+    );
+    const allocatedRequests = allocationRequestIds.length
+      ? await manager.find(EntitySchemas.refund_requests, {
+          where: { id: In(allocationRequestIds) },
+        })
+      : [];
+    const byId = new Map(
+      [...directRequests, ...allocatedRequests].map((request) => [
+        request.id,
+        request,
+      ]),
+    );
+    const items = [...byId.values()].sort(
+      (left, right) =>
+        left.created_at.localeCompare(right.created_at) ||
+        left.id.localeCompare(right.id),
+    );
+    return {
+      items: await Promise.all(
+        items.map((item) => this.presentRefund(manager, item)),
+      ),
+    };
   }
 
   /**

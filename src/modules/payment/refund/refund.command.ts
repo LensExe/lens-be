@@ -34,7 +34,7 @@ export class PaymentRefundCommandHandler implements ICommandHandler<PaymentRefun
 export class PaymentCustomerRefundCommand {
   constructor(
     public readonly actor: Actor,
-    public readonly input: Inputs.PaymentRefundCommandInput,
+    public readonly input: Inputs.PaymentCustomerRefundCommandInput,
   ) {}
 }
 

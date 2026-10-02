@@ -1,4 +1,9 @@
-import { In, type EntityManager } from 'typeorm';
+import {
+  In,
+  LessThanOrEqual,
+  type DataSource,
+  type EntityManager,
+} from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import {
   MediaStatus,
@@ -18,6 +23,7 @@ import {
   required,
   bookingAccess,
   emit,
+  role,
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { Media } from './media.domain';
@@ -26,12 +32,18 @@ import type {
   ModerationEvidenceMedia,
   ReportEvidenceMediaPort,
 } from '@modules/moderation/ports/report-evidence-media.port';
+import { SubscriptionStorageQuotaPort } from './ports/subscription-storage-quota.port';
+import { MediaStorageUsageService } from './media-storage-usage.service';
 
 @Injectable()
 export class MediaUseCases
   implements MediaOwnershipPort, ReportEvidenceMediaPort
 {
-  constructor(private readonly storage: ObjectStorage) {}
+  constructor(
+    private readonly storage: ObjectStorage,
+    private readonly subscriptionQuota: SubscriptionStorageQuotaPort,
+    private readonly storageUsage: MediaStorageUsageService,
+  ) {}
 
   /**
    * Initialize an upload for new media.
@@ -51,8 +63,20 @@ export class MediaUseCases
     Media.assertAllowedContentType(i.content_type);
     // Validate file size.
     Media.assertFileSize(i.file_size);
-    const u = await currentUser(s, a),
-      visibility = i.visibility ?? MediaVisibility.PRIVATE,
+    const u = await currentUser(s, a);
+    // Serialize reservations per user so concurrent presigned uploads cannot bypass the quota.
+    await s.findOne(EntitySchemas.users, {
+      where: { id: u.id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    const existing = await this.storageUsage.usage(s, u.id);
+    await this.subscriptionQuota.assertUploadAllowed(
+      s,
+      u.id,
+      existing.total_bytes,
+      Number(i.file_size),
+    );
+    const visibility = i.visibility ?? MediaVisibility.PRIVATE,
       key = `${visibility}/${u.id}/${randomUUID()}`;
     // Create the presigned upload URL.
     const { url: upload_url, expiresIn: expires_in } =
@@ -62,6 +86,7 @@ export class MediaUseCases
       visibility,
       user_id: u.id,
       file_key: key,
+      upload_expires_at: new Date(Date.now() + expires_in * 1000).toISOString(),
     });
     return { media, upload_url, expires_in };
   }
@@ -107,14 +132,70 @@ export class MediaUseCases
     a: Actor,
     i: Inputs.MediaCompleteCommandInput,
   ) {
-    const m = await this.owned(s, a, i.media_id, false);
+    const u = await currentUser(s, a);
+    const m = await s.findOne(EntitySchemas.media, {
+      where: { id: i.media_id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    ensure(m, 'media not found', 'missing');
+    ensure(m.user_id === u.id, 'Media access denied', 'forbidden');
+    Media.assertNotDeleted(m.status);
     if (m.status === MediaStatus.READY || m.status === MediaStatus.UPLOADED)
       return m;
+    ensure(
+      m.upload_expires_at !== null &&
+        Date.parse(m.upload_expires_at) > Date.now(),
+      'Media upload reservation expired; start a new upload',
+      'conflict',
+    );
     // verify file on s3
     await this.storage.verify(m.file_key, m.content_type, Number(m.file_size));
     return updateEntity(s, EntitySchemas.media, m.id, {
       status: MediaStatus.UPLOADED,
+      upload_expires_at: null,
     });
+  }
+
+  /** Delete abandoned objects and release expired pending-upload quota reservations. */
+  async expirePendingUploads(
+    dataSource: DataSource,
+    a: Actor,
+    now = Date.now(),
+  ) {
+    role(a, 'system');
+    const nowIso = new Date(now).toISOString();
+    const due = await dataSource.manager.find(EntitySchemas.media, {
+      where: {
+        status: MediaStatus.PENDING,
+        upload_expires_at: LessThanOrEqual(nowIso),
+      },
+      order: { upload_expires_at: 'ASC', id: 'ASC' },
+      take: 100,
+    });
+    let processed = 0;
+    for (const candidate of due) {
+      const expired = await dataSource.transaction(async (manager) => {
+        const media = await manager.findOne(EntitySchemas.media, {
+          where: { id: candidate.id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (
+          !media ||
+          media.status !== MediaStatus.PENDING ||
+          !media.upload_expires_at ||
+          Date.parse(media.upload_expires_at) > now
+        )
+          return false;
+        await this.storage.deleteMany([media.file_key]);
+        await updateEntity(manager, EntitySchemas.media, media.id, {
+          status: MediaStatus.DELETED,
+          upload_expires_at: null,
+        });
+        return true;
+      });
+      if (expired) processed++;
+    }
+    return { processed };
   }
 
   /**
@@ -315,6 +396,7 @@ export class MediaUseCases
     await s.delete(EntitySchemas.media_variants, { media_id: m.id });
     await updateEntity(s, EntitySchemas.media, m.id, {
       status: MediaStatus.DELETED,
+      upload_expires_at: null,
     });
     return { deleted: true };
   }

@@ -13,7 +13,8 @@ import type {
 
 /**
  * Entity representing the `refund_requests` table.
- * Manages outgoing payments that require approval: booking refunds, customer refund requests, and wallet withdrawals.
+ * Manages outgoing payments that require approval: booking and subscription refunds,
+ * customer requests, and wallet withdrawals.
  */
 @Entity('refund_requests')
 export class RefundRequestEntity extends BaseEntity {
@@ -21,13 +22,17 @@ export class RefundRequestEntity extends BaseEntity {
   @Column({ default: RefundRequestType.CUSTOMER_REQUEST })
   request_type!: RefundRequestTypeValue;
 
-  /** Transaction that collected the funds; `null` for a wallet withdrawal request. */
+  /** Single source transaction for legacy and subscription refunds; null for booking-level requests and withdrawals. */
   @Column('uuid', { nullable: true })
   transaction_id!: string | null;
 
-  /** Booking associated with a refund due to cancellation or a dispute. */
+  /** Booking covered by an aggregated booking refund request. */
   @Column('uuid', { nullable: true })
   booking_id!: string | null;
+
+  /** Subscription associated with a late-payment refund request. */
+  @Column('uuid', { nullable: true })
+  subscription_id!: string | null;
 
   /** Source wallet for a withdrawal request. */
   @Column('uuid', { nullable: true })

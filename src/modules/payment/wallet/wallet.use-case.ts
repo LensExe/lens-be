@@ -346,9 +346,17 @@ export class WalletUseCases {
         })
         .getRawMany<{ frozen: string | number }>();
       const [{ reserved = 0 } = {}] = await s
-        .createQueryBuilder(EntitySchemas.refund_requests, 'request')
-        .select('COALESCE(SUM(request.amount), 0)', 'reserved')
-        .where('request.transaction_id = :transactionId', {
+        .createQueryBuilder(
+          EntitySchemas.refund_request_allocations,
+          'allocation',
+        )
+        .innerJoin(
+          EntitySchemas.refund_requests,
+          'request',
+          'request.id = allocation.refund_request_id',
+        )
+        .select('COALESCE(SUM(allocation.amount), 0)', 'reserved')
+        .where('allocation.transaction_id = :transactionId', {
           transactionId: transaction.id,
         })
         .andWhere('request.status IN (:...statuses)', {
@@ -397,9 +405,17 @@ export class WalletUseCases {
       })
       .getRawMany<{ frozen: string | number }>();
     const [{ approved = 0 } = {}] = await s
-      .createQueryBuilder(EntitySchemas.refund_requests, 'request')
-      .select('COALESCE(SUM(request.amount), 0)', 'approved')
-      .where('request.transaction_id = :transactionId', {
+      .createQueryBuilder(
+        EntitySchemas.refund_request_allocations,
+        'allocation',
+      )
+      .innerJoin(
+        EntitySchemas.refund_requests,
+        'request',
+        'request.id = allocation.refund_request_id',
+      )
+      .select('COALESCE(SUM(allocation.amount), 0)', 'approved')
+      .where('allocation.transaction_id = :transactionId', {
         transactionId: transaction.id,
       })
       .andWhere('request.status = :status', { status: 'approved' })
@@ -421,7 +437,7 @@ export class WalletUseCases {
         frozen_delta: unfunded,
         transaction_id: transaction.id,
         refund_request_id: requestId,
-        idempotency_key: `refund-reserve:${requestId}`,
+        idempotency_key: `refund-reserve:${requestId}:${transaction.id}`,
         description: 'Funds reserved for an approved booking refund',
       });
     return unfunded;
@@ -467,7 +483,7 @@ export class WalletUseCases {
         frozen_delta: 0,
         transaction_id: transaction.id,
         refund_request_id: requestId,
-        idempotency_key: `refund-credit:${requestId}`,
+        idempotency_key: `refund-credit:${requestId}:${transaction.id}`,
         description: 'Approved booking refund credited to wallet',
       });
     }
@@ -477,7 +493,7 @@ export class WalletUseCases {
       frozen_delta: -amount,
       transaction_id: transaction.id,
       refund_request_id: requestId,
-      idempotency_key: `refund-debit:${requestId}`,
+      idempotency_key: `refund-debit:${requestId}:${transaction.id}`,
       description: 'Approved refund paid from booking escrow',
     });
   }

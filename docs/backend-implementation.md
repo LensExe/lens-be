@@ -65,7 +65,7 @@ API dùng Keycloak access token. Guard kiểm tra token và quyền; `POST /auth
 
 `POST /bookings/:id/payments/deposit` và `/remaining` tạo hoặc lấy lại transaction intent theo loại thanh toán. Intent được commit trước khi gọi PayOS; nếu bước gọi nhà cung cấp thất bại, transaction/order code vẫn còn để retry. PayOS adapter thử tra order hiện hữu sau lỗi tạo link; đường dẫn checkout phục hồi có thể không kèm QR gốc. Chỉ webhook đã xác minh chữ ký và số tiền mới đánh dấu transaction `paid`. Các URL redirect của frontend không xác nhận thanh toán.
 
-Webhook PayOS nhận JSON gốc ở `POST /payments/webhooks/payos` hoặc `POST /subscriptions/webhooks/payos`. `payment_webhooks` ghi `(provider, reference)` để xử lý callback lặp; callback subscription cập nhật subscription tương ứng. `POST /payments/:id/refund` tạo yêu cầu hoàn tiền, không thực hiện chuyển tiền cho người dùng. Subscription chụp giá và kỳ hạn khi tạo; payment dùng port do Subscription sở hữu. Chi tiết route/request/response xem Swagger.
+Webhook PayOS nhận JSON gốc ở `POST /payments/webhooks/payos` hoặc `POST /subscriptions/webhooks/payos`. `payment_webhooks` ghi `(provider, reference)` để xử lý callback lặp; callback subscription cập nhật subscription tương ứng và ghi timeline. Checkout subscription hết hạn chỉ đóng pending khi provider xác nhận chưa thu tiền; kết quả chưa rõ được giữ để admin đối soát. Subscription lưu snapshot điều khoản plan khi đăng ký và tự đánh dấu kỳ đã hết hạn. `POST /payments/:id/refund` tạo yêu cầu hoàn tiền, không thực hiện chuyển tiền cho người dùng. Subscription gọi Payment qua port. Chi tiết route/request/response xem Swagger.
 
 ## Media và realtime
 

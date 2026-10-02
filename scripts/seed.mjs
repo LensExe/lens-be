@@ -4,11 +4,8 @@
  *
  * This file reads and executes the SQL file `migrations/seed_lens-dev.sql`:
  * - All primary and foreign keys use UUID v4 (RFC 4122).
- * - Seeds 20 database tables, including users, admins, customers, and photographers.
- *     photographer_ratings, booking_plans, photographer_plans, subscriptions,
- *     offline_slots, wallets, media, portfolios, bookings, transactions,
- *     payment_webhooks, refund_requests, booking_deliveries, feedbacks,
- *     reports, outbox_events.
+ * - Seeds 24 database tables, including users, admins, customers, photographers,
+ *   bookings, wallets and their ledger, media, feedbacks, reports and report evidence/history.
  * - `ON CONFLICT (id) DO NOTHING` makes repeated runs safe (idempotent).
  */
 
@@ -53,7 +50,7 @@ async function seed() {
     console.log(`📦 Đang đọc dữ liệu từ tệp: ${seedSqlPath}`);
     const seedSql = readFileSync(seedSqlPath, 'utf8');
 
-    console.log('🚀 Đang nạp dữ liệu mẫu vào 20 bảng với chuẩn UUID v4...');
+    console.log('🚀 Đang nạp dữ liệu mẫu vào 24 bảng với chuẩn UUID v4...');
     await client.query(seedSql);
 
     console.log('\n🎉 Hoàn tất nạp dữ liệu mẫu Lens thành công!');

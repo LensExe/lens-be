@@ -78,3 +78,25 @@ export class SubscriptionPlansQueryHandler implements IQueryHandler<Subscription
     return this.dataSource.transaction((s) => this.useCases.plans(s));
   }
 }
+
+export class SubscriptionHistoryQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.SubscriptionHistoryQueryInput,
+  ) {}
+}
+
+@QueryHandler(SubscriptionHistoryQuery)
+export class SubscriptionHistoryQueryHandler implements IQueryHandler<SubscriptionHistoryQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: SubscriptionUseCases,
+  ) {}
+
+  /** Run the current photographer's subscription timeline query. */
+  execute(message: SubscriptionHistoryQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.history(s, message.actor),
+    );
+  }
+}

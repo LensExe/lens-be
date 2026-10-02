@@ -1012,7 +1012,7 @@
     "module": "Payment",
     "service": "Core Backend",
     "method": "POST",
-    "path": "/payments/:id/refund-requests",
+    "path": "/bookings/:id/refund-requests",
     "summary": "Customer gửi yêu cầu hoàn tiền booking",
     "description": "Tạo yêu cầu hoàn tiền theo chính sách booking và cửa sổ refund hiện hành.",
     "role": "Customer",
@@ -1350,7 +1350,7 @@
     "method": "POST",
     "path": "/subscriptions/:id/cancel",
     "summary": "Hủy gia hạn subscription",
-    "description": "Dừng auto-renew theo chính sách.",
+    "description": "Ngừng gia hạn sau kỳ đã thanh toán; quyền lợi còn đến end_at.",
     "role": "Photographer",
     "priority": "Could",
     "kind": "Command"
@@ -1378,6 +1378,30 @@
     "role": "Payment Provider",
     "priority": "Should",
     "kind": "Event/Webhook"
+  },
+  {
+    "id": "SUB-007",
+    "module": "Subscription & VIP",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/subscriptions/me/history",
+    "summary": "Lịch sử subscription",
+    "description": "Xem các lần đăng ký, kích hoạt, hủy gia hạn và hết hạn.",
+    "role": "Photographer",
+    "priority": "Should",
+    "kind": "Query"
+  },
+  {
+    "id": "SUB-008",
+    "module": "Subscription & VIP",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/admin/subscriptions/payments/:id/reconcile",
+    "summary": "Đối soát payment subscription",
+    "description": "Admin xác nhận payment để kích hoạt subscription hoặc tạo yêu cầu refund, hoặc xác nhận chưa thu tiền để đóng checkout.",
+    "role": "Admin",
+    "priority": "Should",
+    "kind": "Command"
   },
   {
     "id": "MOD-001",
@@ -1530,7 +1554,7 @@
     "method": "GET",
     "path": "/admin/payments",
     "summary": "Theo dõi payment",
-    "description": "Admin xem transaction/payment toàn hệ thống.",
+    "description": "Admin xem transaction/payment toàn hệ thống và lọc các checkout cần đối soát.",
     "role": "Admin",
     "priority": "Could",
     "kind": "Query"

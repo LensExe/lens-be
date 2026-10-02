@@ -50,6 +50,7 @@ export type RefundStatus = (typeof RefundStatus)[keyof typeof RefundStatus];
 export const RefundRequestType = {
   BOOKING_CANCELLATION: 'booking_cancellation',
   CUSTOMER_REQUEST: 'customer_request',
+  SUBSCRIPTION_PAYMENT: 'subscription_payment',
   WALLET_WITHDRAWAL: 'wallet_withdrawal',
 } as const;
 

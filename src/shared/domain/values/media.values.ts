@@ -36,7 +36,9 @@ export type MediaVisibility =
 export const MediaStatus = {
   PENDING: 'pending',
   UPLOADED: 'uploaded',
+  PROCESSING: 'processing',
   READY: 'ready',
+  FAILED: 'failed',
   DELETED: 'deleted',
 } as const;
 

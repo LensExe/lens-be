@@ -10,6 +10,7 @@ import type {
   MediaStatus as MediaStatusType,
   MediaVisibility as MediaVisibilityType,
 } from '@shared/domain/values/media.values';
+import { timestampTransformer } from './utils/column-transformers';
 
 /**
  * Entity representing the `media` table.
@@ -40,4 +41,11 @@ export class MediaEntity extends BaseEntity {
   /** Processing status of the file. */
   @Column({ default: MediaStatus.PENDING })
   status!: MediaStatusType;
+
+  /** Deadline of the current presigned upload reservation; null after completion. */
+  @Column('timestamptz', {
+    nullable: true,
+    transformer: timestampTransformer,
+  })
+  upload_expires_at!: string | null;
 }

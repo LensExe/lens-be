@@ -23,10 +23,12 @@ import { BadgeEntity } from './badge.entity';
 import { PortfolioEntity } from './portfolio.entity';
 import { PhotographerRatingEntity } from './photographer-rating.entity';
 import { RefundRequestEntity } from './refund-request.entity';
+import { RefundRequestAllocationEntity } from './refund-request-allocation.entity';
 import { ReportEvidenceEntity } from './report-evidence.entity';
 import { ReportEntity } from './report.entity';
 import { ReportStatusHistoryEntity } from './report-status-history.entity';
 import { SubscriptionEntity } from './subscription.entity';
+import { SubscriptionStatusHistoryEntity } from './subscription-status-history.entity';
 import { TransactionEntity } from './transaction.entity';
 import { UserEntity } from './user.entity';
 import { WalletEntity } from './wallet.entity';
@@ -44,6 +46,7 @@ export const databaseEntities = [
   BookingPlanEntity,
   PhotographerPlanEntity,
   SubscriptionEntity,
+  SubscriptionStatusHistoryEntity,
   OfflineSlotEntity,
   WorkingHourEntity,
   BookingStatusHistoryEntity,
@@ -57,6 +60,7 @@ export const databaseEntities = [
   PaymentEscrowExtensionEntity,
   PaymentRequestDeadlineExtensionEntity,
   RefundRequestEntity,
+  RefundRequestAllocationEntity,
   MediaEntity,
   MediaVariantEntity,
   PortfolioEntity,
@@ -80,6 +84,7 @@ export const EntitySchemas = {
   booking_plans: BookingPlanEntity,
   photographer_plans: PhotographerPlanEntity,
   subscriptions: SubscriptionEntity,
+  subscription_status_history: SubscriptionStatusHistoryEntity,
   offline_slots: OfflineSlotEntity,
   working_hours: WorkingHourEntity,
   bookings: BookingEntity,
@@ -93,6 +98,7 @@ export const EntitySchemas = {
   payment_escrow_extensions: PaymentEscrowExtensionEntity,
   payment_request_deadline_extensions: PaymentRequestDeadlineExtensionEntity,
   refund_requests: RefundRequestEntity,
+  refund_request_allocations: RefundRequestAllocationEntity,
   media: MediaEntity,
   media_variants: MediaVariantEntity,
   portfolios: PortfolioEntity,

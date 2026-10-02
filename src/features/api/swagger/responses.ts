@@ -48,7 +48,9 @@ const paged = (record: SchemaObject) =>
 
 const deleted = obj({ deleted: bool });
 
-const planFeature = obj({ code: str, name: str, value: str });
+const planFeature = {
+  oneOf: [obj({ code: str, name: str, value: str }), str],
+};
 
 const portfolioItem = obj({
   id: str,
@@ -203,6 +205,10 @@ const portfolio = obj({
 const subscription = obj({
   subscription: { ...records.subscriptions, nullable: true },
   features: array(planFeature),
+});
+
+const subscriptionHistory = obj({
+  items: array(records.subscription_status_history),
 });
 
 const webhook = obj({ received: bool, duplicate: bool });
@@ -380,7 +386,6 @@ const schemas: Record<string, SchemaObject> = {
         features: array(planFeature),
       }),
     ),
-    booking_plans: array(records.booking_plans),
   }),
   'SUB-002': obj({
     subscription: records.subscriptions,
@@ -388,8 +393,21 @@ const schemas: Record<string, SchemaObject> = {
   }),
   'SUB-003': subscription,
   'SUB-004': records.subscriptions,
-  'SUB-005': obj({ ...subscription.properties, storage_bytes: num }),
+  'SUB-005': obj({
+    ...subscription.properties,
+    storage_bytes: num,
+    reserved_storage_bytes: num,
+    storage_limit_bytes: { ...num, nullable: true },
+    storage_remaining_bytes: { ...num, nullable: true },
+    storage_over_limit: bool,
+  }),
   'SUB-006': webhook,
+  'SUB-007': subscriptionHistory,
+  'SUB-008': obj({
+    transaction: records.transactions,
+    subscription: records.subscriptions,
+    refund: { oneOf: [records.refund_requests, { type: 'null' }] },
+  }),
   'MOD-001': records.reports,
   'MOD-002': paged(reportMine),
   'MOD-003': paged(records.reports),

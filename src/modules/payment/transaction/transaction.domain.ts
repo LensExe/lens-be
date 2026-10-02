@@ -1,4 +1,3 @@
-import type { RefundRequestEntity } from '@shared/database/entities/refund-request.entity';
 import type { TransactionEntity } from '@shared/database/entities/transaction.entity';
 
 /** Accounting projections for payment transactions. */
@@ -14,7 +13,7 @@ export class PaymentTransaction {
   static paidAmounts(
     bookingIds: readonly string[],
     transactions: readonly TransactionEntity[],
-    refunds: readonly RefundRequestEntity[],
+    refunds: readonly { transaction_id: string; amount: number }[],
   ) {
     const paid: Record<string, number> = Object.fromEntries(
       bookingIds.map((id) => [id, 0]),

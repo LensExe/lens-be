@@ -49,6 +49,11 @@ export class PaymentAdminQueryQueryDto {
   @MinLength(1)
   @MaxLength(500)
   status?: string;
+
+  @ApiPropertyOptional({ enum: ['true', 'false'] })
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  review_required?: 'true' | 'false';
 }
 
 export class PaymentDepositCommandBodyDto {

@@ -48,23 +48,23 @@ import type {
   BookingEntity,
 } from '@shared/database/entities';
 
-/** Số booking mỗi trang khi job duyệt danh sách tới hạn, và số trang tối đa mỗi lần chạy. */
+/** Bookings per page and maximum pages to scan per run of the due-booking job. */
 const JOB_BATCH_SIZE = 100;
 const JOB_MAX_PAGES = 10;
 
-/** Lý do ghi khi booking bị huỷ vì khách không trả cọc kịp. */
+/** Reason recorded when a booking is cancelled because the customer did not pay the deposit in time. */
 const UNPAID_REASON = 'Deposit not paid in time';
 
-/** Lý do ghi khi yêu cầu pending hết hạn vì thợ không trả lời kịp. */
+/** Reason recorded when a pending request expires because the photographer did not respond in time. */
 const EXPIRED_REASON = 'Photographer did not respond in time';
 
-/** Lý do ghi cho các yêu cầu pending bị từ chối tự động khi thợ nhận một booking chồng giờ. */
+/** Reason recorded when a pending request is automatically rejected because the photographer accepted an overlapping booking. */
 const TURNED_DOWN_REASON = 'Photographer accepted another booking at this time';
 
-/** Bên thực hiện ghi vào lịch sử; `userId` là `null` khi job nền (`role = 'system'`). */
+/** Actor recorded in history; `userId` is `null` for a background job (`role = 'system'`). */
 type HistoryActor = { role: BookingActorRole; userId: string | null };
 
-/** Bên của booking được làm hành động (không có trong bảng ⇒ khách, thợ hoặc admin/system). */
+/** Booking side that performed the action (not stored in the table: customer, photographer, or admin/system). */
 const ACTION_SIDE: Partial<Record<BookingAction, 'customer' | 'photographer'>> =
   {
     reject: 'photographer',
@@ -89,13 +89,14 @@ export class BookingUseCases
   ) {}
 
   /**
-   * Khách đặt lịch với thợ theo một gói chụp. Khoá dòng thợ để không đua với lúc thợ nhận booking
-   * hoặc chặn lịch (hai việc đó đọc danh sách yêu cầu chồng giờ để từ chối).
+   * Customer books a photographer using a plan. Lock the photographer row to avoid a race with the photographer accepting a booking
+   * or blocking a time range (both operations read and reject overlapping pending requests).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (khách, phải có hồ sơ customer)
-   * @param input Thợ, gói, địa điểm, khoảng giờ `from`–`to`
-   * @returns Booking `pending`; 404 thợ chưa duyệt, 400 sai thời lượng, 409 ngoài ca làm / trùng lịch
+   * @param s EntityManager for the current transaction.
+   * @param a Customer actor; must have a customer profile.
+   * @param input Photographer, plan, location, and `from`–`to` time range.
+   * @returns Pending booking; throws 404 if the photographer is unapproved, 400 for an invalid duration, or 409 if outside working hours or overlapping.
+   * @throws {DomainError} Thrown when the actor is not authorized.
    */
   async create(
     s: EntityManager,
@@ -174,23 +175,23 @@ export class BookingUseCases
   }
 
   /**
-   * Chi tiết một booking; khách, photographer được gán và admin/system xem được.
+   * Booking details; visible to the customer, assigned photographer, and admin/system.
    *
-   * @param s EntityManager của transaction hiện tại
+   * @param s EntityManager for the current transaction.
    * @param a Actor
    * @param input ID booking
-   * @returns Booking; 403 nếu không liên quan, 404 nếu không có
+   * @returns Booking; throws 403 if the caller is unrelated, or 404 if it does not exist.
    */
   async get(s: EntityManager, a: Actor, input: Inputs.BookingGetQueryInput) {
     return this.viewable(s, a, input.id);
   }
 
   /**
-   * Booking của tôi: là khách hoặc là thợ chính, mới tạo trước. Lọc và phân trang bằng SQL.
+   * My bookings: bookings where the user is the customer or primary photographer, newest first. Filter and paginate in SQL.
    *
-   * @param s EntityManager của transaction hiện tại
+   * @param s EntityManager for the current transaction.
    * @param a Actor
-   * @param input Lọc `status`, `from` (bắt đầu từ), `to` (kết thúc trước), `limit`, `offset`
+   * @param input Filters: `status`, `from` (inclusive start), `to` (exclusive end), `limit`, and `offset`.
    * @returns `{ items, total, offset, limit }`
    */
   async list(s: EntityManager, a: Actor, input: Inputs.BookingListQueryInput) {
@@ -211,7 +212,11 @@ export class BookingUseCases
   }
 
   /**
-   * Thống kê booking cho 1 customer (Dành cho customer module)
+   * Booking statistics for a customer (used by the customer module).
+   *
+   * @param s EntityManager for the current transaction.
+   * @param customerId Customer ID associated with the operation.
+   * @returns Result object containing the fields `total`, `pending`, `completed`, `total_spent_vnd`.
    */
   async statsForCustomer(s: EntityManager, customerId: string) {
     const [total, pending, completed, bookings] = await Promise.all([
@@ -238,13 +243,14 @@ export class BookingUseCases
   }
 
   /**
-   * Chuyển trạng thái theo yêu cầu của người dùng: kiểm quyền trên booking rồi áp dụng.
+   * Apply a user-requested booking transition after checking the caller’s permissions.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor gửi request
-   * @param input ID booking và lý do (reject / cancel)
-   * @param action Tên hành động trong máy trạng thái
-   * @returns Booking sau khi đổi trạng thái
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the request.
+   * @param input Booking ID and reason for rejection or cancellation.
+   * @param action Action name in the state machine.
+   * @returns Booking after the status change.
+   * @throws {DomainError} Thrown when the actor is not authorized.
    */
   private async transition(
     s: EntityManager,
@@ -267,7 +273,7 @@ export class BookingUseCases
       photographer.user_id,
       a.roles,
     );
-    // huỷ thường chỉ dành cho khách hoặc thợ của booking; admin huỷ qua route admin riêng
+    // Regular cancellations are limited to the booking's customer or photographer; admins cancel through a separate admin route.
     if (action === 'cancel')
       ensure(
         actorRole === BookingActorRole.CUSTOMER ||
@@ -286,17 +292,18 @@ export class BookingUseCases
   }
 
   /**
-   * Áp dụng một hành động lên booking đã được kiểm quyền: kiểm luật, lưu trạng thái,
-   * ghi lịch sử, chạy hệ quả khi completed, bắn realtime. Dùng chung cho request và job nền.
-   * Ném 409 nếu booking đã bị người khác đổi trạng thái kể từ lúc đọc.
+   * Apply an action to an authorized booking: validate the rules, save the status,
+   * record history, run completion side effects, and emit real-time events. Shared by API requests and background jobs.
+   * Throw HTTP 409 if another actor changed the booking status after it was read.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param b Booking cần đổi (bản đã đọc)
-   * @param action Hành động trong máy trạng thái
-   * @param actor Bên thực hiện; `userId` là `null` khi job nền (`role = 'system'`)
-   * @param reason Lý do (reject / cancel / system), không có thì `null`
-   * @param recipients User nhận realtime (khách và thợ)
-   * @returns Booking sau khi đổi trạng thái
+   * @param s EntityManager for the current transaction.
+   * @param b Booking to transition (already loaded).
+   * @param action Action in the state machine.
+   * @param actor Actor performing the operation; `userId` is `null` for background jobs (`role = 'system'`).
+   * @param reason Reason for rejection, cancellation, or system action; `null` if none.
+   * @param recipients Real-time event recipients (customer and photographer).
+   * @returns Booking after the status change.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   private async apply(
     s: EntityManager,
@@ -316,17 +323,17 @@ export class BookingUseCases
   }
 
   /**
-   * Như `apply` nhưng trả `null` thay vì ném lỗi khi booking đã bị đổi trạng thái kể từ lúc đọc.
-   * Dùng cho việc hàng loạt (job, từ chối các pending chồng giờ) để bỏ qua dòng vừa đổi.
-   * Câu UPDATE kèm điều kiện trạng thái cũ nên hai thao tác đồng thời không ghi đè nhau.
+   * Like `apply`, but return `null` instead of throwing if the booking status changed after it was read.
+   * Used for bulk operations (jobs and rejecting overlapping pending requests) to skip a row that has just changed.
+   * The UPDATE includes the previous status in its condition so concurrent operations cannot overwrite each other.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param b Booking cần đổi (bản đã đọc)
-   * @param action Hành động trong máy trạng thái
-   * @param actor Bên thực hiện
-   * @param reason Lý do, không có thì `null`
-   * @param recipients User nhận realtime
-   * @returns Booking sau khi đổi, hoặc `null` nếu trạng thái đã khác lúc đọc
+   * @param s EntityManager for the current transaction.
+   * @param b Booking to transition (already loaded).
+   * @param action Action in the state machine.
+   * @param actor Actor performing the operation.
+   * @param reason Reason for the operation; `null` if none.
+   * @param recipients Real-time event recipients.
+   * @returns Booking after the status change, or `null` if its status changed since it was read.
    */
   private async tryApply(
     s: EntityManager,
@@ -389,14 +396,15 @@ export class BookingUseCases
   }
 
   /**
-   * Ghi 1 dòng lịch sử trạng thái booking.
+   * Write one booking status history row.
    *
-   * @param s EntityManager của transaction hiện tại
+   * @param s EntityManager for the current transaction.
    * @param bookingId ID booking
-   * @param from Trạng thái trước; `null` ở dòng tạo booking
-   * @param to Trạng thái sau
-   * @param actor Bên thực hiện; `userId` là `null` khi job nền
-   * @param reason Lý do (reject / cancel), không có thì `null`
+   * @param from Previous status; `null` when the booking is created.
+   * @param to Next status.
+   * @param actor Actor performing the operation; `userId` is `null` for a background job.
+   * @param reason Reason for rejection or cancellation; `null` if none.
+   * @returns No value is returned.
    */
   private async recordHistory(
     s: EntityManager,
@@ -417,13 +425,14 @@ export class BookingUseCases
   }
 
   /**
-   * Khoá dòng thợ đến hết transaction để các lệnh đổi lịch / số liệu của cùng một thợ chạy lần lượt.
-   * Dùng `FOR NO KEY UPDATE`: vẫn chặn nhau như `FOR UPDATE`, nhưng không chặn việc chèn dòng mới
-   * trỏ tới thợ (booking, review) của transaction khác, vì các lệnh này không đổi khoá của thợ.
+   * Lock the photographer row until the transaction ends so schedule and statistics updates for the same photographer run sequentially.
+   * Use `FOR NO KEY UPDATE`: it blocks concurrent updates like `FOR UPDATE` but allows other transactions to insert rows
+   * referencing the photographer (bookings and reviews), since those operations do not change the photographer key.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @returns Hồ sơ thợ đã khoá; 404 nếu không có
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @returns Locked photographer profile; throws 404 if it does not exist.
+   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   private async lockPhotographer(s: EntityManager, photographerId: string) {
     const p = await s.findOne(EntitySchemas.photographers, {
@@ -435,15 +444,16 @@ export class BookingUseCases
   }
 
   /**
-   * Các việc phải chạy cùng transaction khi booking vừa completed (admin chốt,
-   * khách xác nhận, job tự hoàn tất đều đi qua đây). Việc không cần cùng transaction
-   * thì nghe event outbox `booking.completed` thay vì thêm vào đây.
+   * Operations that must share a transaction when a booking completes (admin completion,
+   * customer confirmation, and auto-completion all run through this path). For work that does not need the same transaction,
+   * listen for the `booking.completed` outbox event instead of adding it here.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param b Booking vừa completed
+   * @param s EntityManager for the current transaction.
+   * @param b Booking that has just been completed.
+   * @returns No value is returned.
    */
   private async afterCompleted(s: EntityManager, b: BookingEntity) {
-    // khoá dòng thợ để hai booking của cùng thợ hoàn tất cùng lúc không đếm thiếu nhau
+    // Lock the photographer row so simultaneous completions of two bookings do not undercount.
     await this.lockPhotographer(s, b.photographer_id);
     await this.reviews.recordBookingStats(
       s,
@@ -453,10 +463,10 @@ export class BookingUseCases
   }
 
   /**
-   * Số booking đã hoàn tất của thợ và số khách đã hoàn tất từ 2 booking trở lên (khách quay lại).
+   * Number of completed photographer bookings and customers with at least two completed bookings (repeat customers).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
    * @returns `{ completedBookings, returnCustomers }`
    */
   private async completionStats(s: EntityManager, photographerId: string) {
@@ -485,13 +495,13 @@ export class BookingUseCases
   }
 
   /**
-   * Thợ chính nhận booking: `pending → accepted`. Kiểm lại giờ đó chưa có booking đã nhận
-   * hay khoảng chặn, rồi tự từ chối các yêu cầu `pending` khác chồng giờ (ghi lý do, bắn realtime).
+   * Primary photographer accepts a booking: `pending → accepted`. Recheck that no accepted booking
+   * or a blocked range occupies the time; then reject overlapping pending requests with a reason and send a real-time notification.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (thợ chính)
+   * @param s EntityManager for the current transaction.
+   * @param a Primary photographer actor.
    * @param i ID booking
-   * @returns Booking sau khi đổi; 409 nếu sai trạng thái hoặc giờ đó đã bị giữ
+   * @returns Booking after the status change; throws 409 if the status is invalid or the time is already held.
    */
   async accept(
     s: EntityManager,
@@ -499,7 +509,7 @@ export class BookingUseCases
     i: Inputs.BookingAcceptCommandInput,
   ) {
     const access = await bookingAccess(s, a, i.id, 'photographer');
-    // khoá thợ để hai lần nhận chồng giờ không cùng lọt; đọc lại booking sau khi khoá
+    // Lock the photographer so overlapping acceptances cannot both succeed; reread the booking after acquiring the lock.
     await this.lockPhotographer(s, access.photographer.id);
     const b = await required(s, 'bookings', i.id);
     if (b.status === BookingStatus.PENDING)
@@ -534,14 +544,14 @@ export class BookingUseCases
   }
 
   /**
-   * Từ chối mọi booking `pending` của thợ chồng lên khoảng giờ (system làm, kèm lý do).
-   * Dùng khi thợ nhận một booking.
+   * Reject all of the photographer’s pending bookings that overlap a time range (system action with a reason).
+   * Used when a photographer accepts a booking.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @param range Khoảng giờ vừa bị giữ
-   * @param reason Lý do ghi vào lịch sử
-   * @returns Số yêu cầu đã từ chối
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @param range Time range that was just held.
+   * @param reason Reason to record in the history.
+   * @returns Number of requests rejected.
    */
   private async turnDownOverlapping(
     s: EntityManager,
@@ -558,12 +568,12 @@ export class BookingUseCases
   }
 
   /**
-   * Yêu cầu `pending` của thợ chồng lên khoảng giờ (để thợ xem trước khi chặn lịch).
+   * Pending requests that overlap a time range (shown when the photographer previews a calendar block).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @param range Khoảng giờ sắp bị chặn
-   * @returns Các yêu cầu bị ảnh hưởng, xếp theo giờ bắt đầu
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @param range Time range about to be blocked.
+   * @returns Affected requests, ordered by start time.
    */
   pendingOverlapping(
     s: EntityManager,
@@ -580,13 +590,13 @@ export class BookingUseCases
   }
 
   /**
-   * Yêu cầu `pending` của thợ không còn nằm trọn một ca theo lịch tuần mới
-   * (để thợ xem trước khi đổi giờ làm).
+   * Pending requests that no longer fit within a shift in the new weekly schedule
+   * (shown when the photographer previews a schedule change).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @param schedule Lịch tuần mới (rỗng ⇒ giờ mặc định)
-   * @returns Các yêu cầu bị ảnh hưởng, xếp theo giờ bắt đầu
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @param schedule New weekly schedule; an empty schedule uses the default hours.
+   * @returns Affected requests, ordered by start time.
    */
   async pendingOutside(
     s: EntityManager,
@@ -605,13 +615,13 @@ export class BookingUseCases
   }
 
   /**
-   * Từ chối các yêu cầu còn `pending` (system làm, kèm lý do, ghi lịch sử, bắn realtime).
-   * Yêu cầu đã được trả lời trong lúc đó thì bỏ qua.
+   * Reject all remaining `pending` requests as a system action, with a reason, history entry, and real-time notification.
+   * Skip a request if it was answered in the meantime.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param bookingIds ID các yêu cầu cần từ chối
-   * @param reason Lý do ghi vào lịch sử
-   * @returns Số yêu cầu đã từ chối
+   * @param s EntityManager for the current transaction.
+   * @param bookingIds IDs of requests to reject.
+   * @param reason Reason to record in the history.
+   * @returns Number of requests rejected.
    */
   async decline(
     s: EntityManager,
@@ -640,48 +650,48 @@ export class BookingUseCases
   }
 
   /**
-   * Thợ chính từ chối booking kèm lý do: `pending → rejected`.
+   * Primary photographer rejects a booking with a reason: `pending → rejected`.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (thợ chính)
-   * @param i ID booking và lý do
-   * @returns Booking sau khi đổi; 409 nếu sai trạng thái
+   * @param s EntityManager for the current transaction.
+   * @param a Primary photographer actor.
+   * @param i Booking ID and reason.
+   * @returns Booking after the status change; throws 409 if the status is invalid.
    */
   reject(s: EntityManager, a: Actor, i: Inputs.BookingRejectCommandInput) {
     return this.transition(s, a, i, 'reject');
   }
 
   /**
-   * Khách hoặc thợ chính huỷ booking kèm lý do: `pending | accepted → cancelled`.
+   * Customer or primary photographer cancels a booking with a reason: `pending | accepted → cancelled`.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (khách hoặc thợ của booking)
-   * @param i ID booking và lý do
-   * @returns Booking sau khi đổi; 409 nếu sai trạng thái
+   * @param s EntityManager for the current transaction.
+   * @param a Customer or photographer actor for the booking.
+   * @param i Booking ID and reason.
+   * @returns Booking after the status change; throws 409 if the status is invalid.
    */
   cancel(s: EntityManager, a: Actor, i: Inputs.BookingCancelCommandInput) {
     return this.transition(s, a, i, 'cancel');
   }
 
   /**
-   * Thợ chính bắt đầu buổi chụp: `accepted → in_progress`, cần đã trả đủ cọc.
+   * Primary photographer starts a photo shoot: `accepted → in_progress`; the deposit must be fully paid.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (thợ chính)
+   * @param s EntityManager for the current transaction.
+   * @param a Primary photographer actor.
    * @param i ID booking
-   * @returns Booking sau khi đổi; 409 nếu sai trạng thái hoặc chưa trả cọc
+   * @returns Booking after the status change; throws 409 if the status is invalid or the deposit has not been paid.
    */
   start(s: EntityManager, a: Actor, i: Inputs.BookingStartCommandInput) {
     return this.transition(s, a, i, 'start');
   }
 
   /**
-   * Thợ chính báo đã chụp xong: `in_progress → shot`.
+   * Primary photographer marks the shoot as complete: `in_progress → shot`.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (thợ chính)
+   * @param s EntityManager for the current transaction.
+   * @param a Primary photographer actor.
    * @param i ID booking
-   * @returns Booking sau khi đổi; 409 nếu sai trạng thái
+   * @returns Booking after the status change; throws 409 if the status is invalid.
    */
   completeShoot(
     s: EntityManager,
@@ -692,25 +702,25 @@ export class BookingUseCases
   }
 
   /**
-   * Admin / system chốt hoàn tất: `shot → completed`, cần đã trả đủ và gallery đã publish.
+   * Admin/system completes the booking: `shot → completed`; full payment is required and the gallery must be published.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (admin hoặc system)
+   * @param s EntityManager for the current transaction.
+   * @param a Admin or system actor.
    * @param i ID booking
-   * @returns Booking sau khi đổi; 409 nếu sai trạng thái hoặc chưa đủ điều kiện
+   * @returns Booking after the status change; throws 409 if the status is invalid or its prerequisites are not met.
    */
   complete(s: EntityManager, a: Actor, i: Inputs.BookingCompleteCommandInput) {
     return this.transition(s, a, i, 'complete');
   }
 
   /**
-   * Khách của booking xác nhận đã nhận ảnh: `shot → completed`, cùng điều kiện với `complete`
-   * (đã trả đủ và gallery đã publish).
+   * Customer confirms receipt of the photos for the booking: `shot → completed`, subject to the same conditions as `complete`
+   * (full payment and a published gallery).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (khách của booking; người khác 403)
+   * @param s EntityManager for the current transaction.
+   * @param a Customer actor for the booking; other callers receive 403.
    * @param i ID booking
-   * @returns Booking sau khi completed; 409 nếu sai trạng thái hoặc chưa đủ điều kiện
+   * @returns Booking after completion; throws 409 if the status is invalid or its prerequisites are not met.
    */
   confirmReceipt(
     s: EntityManager,
@@ -721,13 +731,13 @@ export class BookingUseCases
   }
 
   /**
-   * Job nền (role `system`): tự hoàn tất booking `shot` đã publish gallery đủ 7 ngày mà khách
-   * chưa xác nhận. Booking chưa trả đủ thì bỏ qua (hỏi payment qua port), lần chạy sau xét lại.
-   * Idempotent: booking đã completed không còn ở `shot` nên chạy lại không đổi gì.
+   * Background job (`system` role) auto-completes `shot` bookings whose gallery has been published for at least 7 days and whose customer
+   * has not confirmed receipt. Skip bookings without full payment (query the payment port) and check them again on the next run.
+   * Idempotent: once completed, the booking is no longer `shot`, so rerunning the job has no effect.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người gọi (phải có role `system`)
-   * @returns `{ checked, completed }`: số booking tới hạn đã xét và số booking đã hoàn tất
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the request; must have the `system` role.
+   * @returns `{ checked, completed }`: number of due bookings checked and number completed.
    */
   async autoComplete(s: EntityManager, a: Actor) {
     role(a, 'system');
@@ -763,9 +773,9 @@ export class BookingUseCases
   }
 
   /**
-   * User của khách và thợ chính của booking (người nhận realtime).
+   * Customer and primary photographer user IDs (real-time event recipients).
    *
-   * @param s EntityManager của transaction hiện tại
+   * @param s EntityManager for the current transaction.
    * @param b Booking
    * @returns `[customerUserId, photographerUserId]`
    */
@@ -776,13 +786,13 @@ export class BookingUseCases
   }
 
   /**
-   * Job nền (role `system`): cho hết hạn các yêu cầu pending thợ chưa trả lời, ở mốc tới trước
-   * trong hai mốc: 24 giờ sau khi gửi, hoặc lúc bắt đầu buổi chụp. Idempotent: booking đã
-   * hết hạn không còn `pending` nên chạy lại không đổi gì.
+   * Background job (`system` role) expires pending requests the photographer has not answered, at the earlier of
+   * 24 hours after submission or the photo shoot start time. Idempotent: once expired, the booking is no longer
+   * `pending`, so rerunning the job has no effect.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người gọi (phải có role `system`)
-   * @returns `{ expired }`: số yêu cầu vừa hết hạn
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the request; must have the `system` role.
+   * @returns `{ expired }`: number of requests that just expired.
    */
   async expirePending(s: EntityManager, a: Actor) {
     role(a, 'system');
@@ -819,13 +829,13 @@ export class BookingUseCases
   }
 
   /**
-   * Job nền (role `system`): huỷ booking đã được nhận mà khách chưa trả đủ cọc, ở mốc tới trước
-   * trong hai mốc: 24 giờ sau khi thợ nhận, hoặc lúc bắt đầu buổi chụp. Nhả lịch cho thợ.
-   * Idempotent: booking đã huỷ không còn `accepted` nên chạy lại không đổi gì.
+   * Background job (`system` role) cancels accepted bookings whose customers have not paid the full deposit, at the earlier of
+   * 24 hours after acceptance or the photo shoot start time. Release the photographer’s schedule.
+   * Idempotent: once cancelled, the booking is no longer `accepted`, so rerunning the job has no effect.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người gọi (phải có role `system`)
-   * @returns `{ cancelled }`: số booking vừa huỷ
+   * @param s EntityManager for the current transaction.
+   * @param a Actor making the request; must have the `system` role.
+   * @returns `{ cancelled }`: number of bookings just cancelled.
    */
   async cancelUnpaid(s: EntityManager, a: Actor) {
     role(a, 'system');
@@ -862,14 +872,15 @@ export class BookingUseCases
   }
 
   /**
-   * Duyệt các booking tới hạn của job theo từng trang (khoá dòng, bỏ qua dòng đang bị khoá), hỏi
-   * payment số tiền đã trả cho cả trang một lần. Đi hết danh sách tới hạn chứ không chỉ trang đầu,
-   * nên booking chưa đủ tiền không chặn các booking phía sau; tối đa `JOB_MAX_PAGES` trang mỗi lần chạy.
+   * Process due bookings page by page, locking rows and skipping locked rows. Query the payment amount
+   * for the entire page in one call. Scan all due bookings, not just the first page,
+   * so an underpaid booking does not block later bookings; scan at most `JOB_MAX_PAGES` pages per run.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param filter Điều kiện tới hạn trên alias `b`
-   * @param orderField Cột thời gian để xếp và đi trang (kèm `id` cho ổn định)
-   * @param visit Xử lý một trang, kèm Map ID booking → số tiền đã trả
+   * @param s EntityManager for the current transaction.
+   * @param filter Due-time condition on alias `b`.
+   * @param orderField Time column used for ordering and pagination; include `id` for stable ordering.
+   * @param visit Process one page, with a map from booking ID to amount paid.
+   * @returns No value is returned.
    */
   private async inDuePages(
     s: EntityManager,
@@ -910,13 +921,13 @@ export class BookingUseCases
   /**
    * Legacy collaboration workflow, retained for a possible later re-enable.
    * It is currently disabled and its CQRS handlers are not registered.
-   * Thợ chính mời thợ khác làm thợ liên kết. Khoá booking trước để hai lời mời
-   * cùng lúc không vượt tổng 100%.
+   * Primary photographer invites another photographer to collaborate. Lock the booking first so concurrent invitations
+   * cannot exceed a combined 100% share.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (thợ chính của booking)
-   * @param input ID booking, thợ được mời, % chia
-   * @returns Lời mời vừa tạo
+   * @param s EntityManager for the current transaction.
+   * @param a Primary photographer for the booking.
+   * @param input Booking ID, invited photographer, and share percentage.
+   * @returns Invitation just created.
    */
   async inviteCollaborator(
     s: EntityManager,
@@ -933,7 +944,7 @@ export class BookingUseCases
       customer,
       photographer: owner,
     } = await bookingAccess(s, a, input.id, 'photographer');
-    // chỉ mời thợ đã duyệt, tài khoản active; không thì 404
+    // Invite only approved photographers with active accounts; otherwise return 404.
     const { photographer: invitee } = await publicPhotographer(
       s,
       input.photographer_id,
@@ -963,10 +974,10 @@ export class BookingUseCases
   }
 
   /**
-   * Danh sách thợ liên kết của booking (mọi trạng thái, theo thời gian mời).
-   * Xem được: khách, thợ chính, admin, và thợ có lời mời trong booking này.
+   * Booking collaborators in every status, ordered by invitation time.
+   * Visible to the customer, primary photographer, admin, and photographers invited to this booking.
    *
-   * @param s EntityManager của transaction hiện tại
+   * @param s EntityManager for the current transaction.
    * @param a Actor
    * @param input ID booking
    * @returns `{ items }`
@@ -986,12 +997,12 @@ export class BookingUseCases
   }
 
   /**
-   * Booking mà actor được xem: khách, thợ chính hoặc admin/system. Mỗi booking chỉ có một photographer.
+   * Booking visible to the actor: customer, primary photographer, or admin/system. Each booking has a single photographer.
    *
-   * @param s EntityManager của transaction hiện tại
+   * @param s EntityManager for the current transaction.
    * @param a Actor
    * @param id ID booking
-   * @returns Booking; 403 nếu không liên quan, 404 nếu không có
+   * @returns Booking; throws 403 if the caller is unrelated, or 404 if it does not exist.
    */
   private async viewable(s: EntityManager, a: Actor, id: string) {
     const { booking } = await bookingAccess(s, a, id);
@@ -999,10 +1010,10 @@ export class BookingUseCases
   }
 
   /**
-   * Các lời mời liên kết gửi tới thợ đang đăng nhập, mới nhất trước, phân trang bằng SQL.
+   * Invitations sent to the signed-in photographer, newest first, with SQL pagination.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (thợ)
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer actor.
    * @param input `limit`, `offset`
    * @returns `{ items, total, offset, limit }`
    */
@@ -1027,13 +1038,14 @@ export class BookingUseCases
   }
 
   /**
-   * Thợ được mời nhận hoặc từ chối lời mời còn chờ; báo cho thợ chính.
+   * Invitee accepts or declines a pending invitation; notify the primary photographer.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (thợ được mời)
-   * @param id ID lời mời
+   * @param s EntityManager for the current transaction.
+   * @param a Invited photographer actor.
+   * @param id Invitation ID.
    * @param action 'accept' | 'decline'
-   * @returns Lời mời sau khi đổi
+   * @returns Invitation after the status change.
+   * @throws {DomainError} Thrown when the actor is not authorized.
    */
   private async respondCollaboration(
     s: EntityManager,
@@ -1059,14 +1071,14 @@ export class BookingUseCases
   }
 
   /**
-   * Thợ liên kết chỉ nhận lời khi giờ chụp còn trống trên lịch của chính họ: không có khoảng
-   * chặn, booking đang giữ lịch, hay buổi liên kết khác đã nhận chồng giờ. Khoá dòng thợ để
-   * không đua với việc thợ đó nhận booking hoặc chặn lịch cùng lúc.
+   * A collaborating photographer can accept only if the shoot time is available in their own calendar: no blocked range,
+   * booking occupying the schedule, or other accepted collaboration may overlap it. Lock the photographer row
+   * to avoid a race with accepting another booking or blocking the same time.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ được mời
-   * @param booking Booking được mời tham gia
-   * @returns Không trả gì; 409 nếu trùng lịch
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Profile ID of the invited photographer.
+   * @param booking Booking for which the invitation was sent.
+   * @returns Returns no value; throws HTTP 409 if the time conflicts.
    */
   private async assertCanJoin(
     s: EntityManager,
@@ -1083,13 +1095,13 @@ export class BookingUseCases
   }
 
   /**
-   * Truy vấn lịch liên kết còn được giữ trong code legacy để có thể khôi phục collaboration.
-   * Hiện Calendar và các luồng booking chính không sử dụng kết quả này.
+   * Legacy collaboration calendar query retained in case collaboration is restored.
+   * The Calendar module and primary booking flows do not currently use this result.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @param range Khoảng giờ cần xét
-   * @returns Các khoảng `{ from, to, status }` của booking mà thợ tham gia
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @param range Time range to check.
+   * @returns `{ from, to, status }` ranges for bookings the photographer is participating in.
    */
   async collaborationTimes(
     s: EntityManager,
@@ -1110,12 +1122,13 @@ export class BookingUseCases
   }
 
   /**
-   * Thợ chính rút lời mời còn chờ (thợ được mời chưa trả lời); báo cho thợ được mời.
+   * Primary photographer withdraws a pending invitation (before the invitee responds); notify the invitee.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (thợ chính)
-   * @param i ID lời mời
-   * @returns Lời mời sau khi đổi
+   * @param s EntityManager for the current transaction.
+   * @param a Primary photographer actor.
+   * @param i Invitation ID.
+   * @returns Invitation after the status change.
+   * @throws {DomainError} Thrown when the actor is not authorized.
    */
   async revokeCollaboration(
     s: EntityManager,
@@ -1143,12 +1156,12 @@ export class BookingUseCases
   }
 
   /**
-   * Thợ được mời nhận lời mời còn chờ.
+   * Invitee accepts a pending invitation.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (thợ được mời; người khác 403)
-   * @param i ID lời mời
-   * @returns Lời mời với `status = 'accepted'`; 409 nếu lời mời hết chờ hoặc booking đã đóng
+   * @param s EntityManager for the current transaction.
+   * @param a Invited photographer actor; other callers receive 403.
+   * @param i Invitation ID.
+   * @returns Invitation with `status = 'accepted'`; throws 409 if the invitation is no longer pending or the booking is closed.
    */
   acceptCollaboration(
     s: EntityManager,
@@ -1159,12 +1172,12 @@ export class BookingUseCases
   }
 
   /**
-   * Thợ được mời từ chối lời mời còn chờ; sau đó thợ chính không mời lại thợ này được.
+   * Invitee declines a pending invitation; the primary photographer cannot invite this photographer again afterward.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (thợ được mời; người khác 403)
-   * @param i ID lời mời
-   * @returns Lời mời với `status = 'declined'`; 409 nếu lời mời hết chờ hoặc booking đã đóng
+   * @param s EntityManager for the current transaction.
+   * @param a Invited photographer actor; other callers receive 403.
+   * @param i Invitation ID.
+   * @returns Invitation with `status = 'declined'`; throws 409 if the invitation is no longer pending or the booking is closed.
    */
   declineCollaboration(
     s: EntityManager,
@@ -1175,13 +1188,14 @@ export class BookingUseCases
   }
 
   /**
-   * Lời mời, booking của nó và hồ sơ thợ đang đăng nhập; khoá booking rồi mới khoá lời mời
-   * (cùng thứ tự với lúc mời) để trả lời lời mời không đua với huỷ booking hay lời mời khác.
+   * The invitation, its booking, and the signed-in photographer profile. Lock the booking before the invitation
+   * (in the same order as the invite operation) so responding cannot race with booking cancellation or another invitation.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (thợ)
-   * @param id ID lời mời
+   * @param s EntityManager for the current transaction.
+   * @param a Photographer actor.
+   * @param id Invitation ID.
    * @returns `{ invitation, booking, me }`
+   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   private async invitation(s: EntityManager, a: Actor, id: string) {
     role(a, 'photographer');
@@ -1201,14 +1215,14 @@ export class BookingUseCases
   }
 
   /**
-   * Đổi trạng thái lời mời theo luật domain, lưu và bắn realtime.
+   * Apply the domain invitation transition, save it, and emit a real-time event.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param invitation Lời mời
-   * @param booking Booking của lời mời
+   * @param s EntityManager for the current transaction.
+   * @param invitation Invitation.
+   * @param booking Booking associated with the invitation.
    * @param action 'accept' | 'decline' | 'revoke'
-   * @param notifyUserId User nhận realtime
-   * @returns Lời mời sau khi đổi
+   * @param notifyUserId User to notify through a real-time event.
+   * @returns Invitation after the status change.
    */
   private async changeCollaboration(
     s: EntityManager,
@@ -1239,13 +1253,13 @@ export class BookingUseCases
   }
 
   /**
-   * Booking của thợ (mọi trạng thái) chồng lên khung giờ, xếp theo giờ bắt đầu. Module calendar gọi
-   * qua port để dựng lịch trống, lịch của thợ và kiểm chặn lịch, thay vì đọc thẳng bảng `bookings`.
+   * Photographer bookings in every status that overlap a time range, ordered by start time. The Calendar module calls
+   * through this port to build availability, the photographer calendar, and block checks instead of reading the `bookings` table directly.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param photographerId ID hồ sơ thợ
-   * @param window `from` / `to` ISO, đều tuỳ chọn
-   * @returns Các booking chồng lên khung giờ
+   * @param s EntityManager for the current transaction.
+   * @param photographerId Photographer profile ID.
+   * @param window Optional ISO `from` and `to` values; either may be supplied independently.
+   * @returns Bookings that overlap the time range.
    */
   bookingsOverlapping(
     s: EntityManager,
@@ -1259,25 +1273,25 @@ export class BookingUseCases
   }
 
   /**
-   * Số booking đang dùng một gói chụp (mọi trạng thái). Module photographer gọi qua port để không
-   * cho xoá gói đã có booking.
+   * Number of bookings using a plan, in any status. The Photographer module calls through this port to prevent
+   * deleting a plan that already has bookings.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param planId ID gói chụp
-   * @returns Số booking
+   * @param s EntityManager for the current transaction.
+   * @param planId Booking plan ID.
+   * @returns Number of bookings.
    */
   bookingCountForPlan(s: EntityManager, planId: string) {
     return s.countBy(EntitySchemas.bookings, { booking_plan_id: planId });
   }
 
   /**
-   * Admin huỷ booking ở mọi trạng thái chưa xong (chờ, đã nhận, đang chụp, đã chụp), bắt buộc lý do.
-   * Dùng khi phải can thiệp, ví dụ thợ bị khoá tài khoản giữa chừng. Việc hoàn tiền nối ở module payment.
+   * Admin cancels any unfinished booking (pending, accepted, in progress, or shot); a reason is required.
+   * Use for interventions such as when a photographer’s account is suspended mid-booking. Refund processing is handled by the Payment module.
    *
-   * @param s EntityManager của transaction hiện tại
+   * @param s EntityManager for the current transaction.
    * @param a Actor (admin)
-   * @param i ID booking và lý do
-   * @returns Booking sau khi huỷ; 409 nếu đã kết thúc (completed, rejected, cancelled, expired)
+   * @param i Booking ID and reason.
+   * @returns Cancelled booking; throws HTTP 409 if it has already ended (`completed`, `rejected`, `cancelled`, or `expired`).
    */
   async adminCancel(
     s: EntityManager,
@@ -1298,12 +1312,12 @@ export class BookingUseCases
   }
 
   /**
-   * Lịch sử trạng thái của booking theo thời gian.
+   * Booking status history ordered by time.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (khách, photographer được gán hoặc admin)
+   * @param s EntityManager for the current transaction.
+   * @param a Actor for the customer, assigned photographer, or administrator.
    * @param i ID booking
-   * @returns `{ items }` các dòng lịch sử, cũ trước
+   * @returns `{ items }` containing booking history rows, oldest first.
    */
   async timeline(
     s: EntityManager,
@@ -1320,12 +1334,12 @@ export class BookingUseCases
   }
 
   /**
-   * Khách hoặc thợ chính khiếu nại booking: tạo report `target_type = booking`.
+   * Customer or primary photographer reports a booking: create a report with `target_type = booking`.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Actor (bên liên quan tới booking)
-   * @param input ID booking và lý do
-   * @returns Report vừa tạo
+   * @param s EntityManager for the current transaction.
+   * @param a Actor associated with the booking.
+   * @param input Booking ID and reason.
+   * @returns Report just created.
    */
   async dispute(
     s: EntityManager,
@@ -1346,11 +1360,11 @@ export class BookingUseCases
   }
 
   /**
-   * Admin xem mọi booking, mới tạo trước, lọc theo trạng thái. Lọc và phân trang bằng SQL.
+   * Admin booking list, newest first, with status filters. Filter and paginate in SQL.
    *
-   * @param s EntityManager của transaction hiện tại
+   * @param s EntityManager for the current transaction.
    * @param a Actor (admin)
-   * @param input Lọc `status`, `limit`, `offset`
+   * @param input Filters: `status`, `limit`, and `offset`.
    * @returns `{ items, total, offset, limit }`
    */
   async admin(
@@ -1368,11 +1382,11 @@ export class BookingUseCases
   }
 
   /**
-   * Một trang booking theo điều kiện, mới tạo trước; DB chỉ trả đúng số dòng của trang.
+   * One page of bookings matching the filters, newest first; the database returns only the requested page size.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param where Điều kiện TypeORM (mảng = OR)
-   * @param query `limit` (mặc định 20), `offset` (mặc định 0)
+   * @param s EntityManager for the current transaction.
+   * @param where TypeORM `where` condition; an array represents OR.
+   * @param query `limit` and `offset` from the query; default to 20 and 0.
    * @returns `{ items, total, offset, limit }`
    */
   private async pageOfBookings(

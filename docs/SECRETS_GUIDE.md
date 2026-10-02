@@ -1,20 +1,25 @@
 # Secrets và biến môi trường
 
-`EnvModule` nạp `.env` qua NestJS `ConfigModule`. PostgreSQL, Redis và Keycloak dùng cấu hình ở [`env.config.ts`](../src/shared/platform/env/env.config.ts); PayOS và S3 còn đọc trực tiếp các biến môi trường trong adapter tương ứng. Cấu hình mặc định trong mã chỉ phục vụ phát triển: luôn cấp credentials riêng, đủ mạnh cho môi trường triển khai.
+`EnvModule` nạp `.env` qua NestJS `ConfigModule`. PostgreSQL, Redis, Keycloak và các cổng thanh toán dùng cấu hình ở [`env.config.ts`](../src/shared/platform/env/env.config.ts); S3 đọc cấu hình riêng trong adapter. Cấu hình mặc định trong mã chỉ phục vụ phát triển: luôn cấp credentials riêng, đủ mạnh cho môi trường triển khai.
 
-| Nhóm       | Biến chính                                                                                                            | Nơi sử dụng                        |
-| ---------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| Ứng dụng   | `PORT`, `CORS_ORIGINS`, `API_PUBLIC_URL`                                                                              | HTTP, Swagger, WebSocket           |
-| PostgreSQL | `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_NAME` hoặc `DATABASE_URL` cho migration                       | TypeORM và script migration        |
-| Redis      | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`                                                                          | Cache/trạng thái OIDC              |
-| Keycloak   | `KEYCLOAK_AUTH_SERVER_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_SECRET`, `KEYCLOAK_GOOGLE_REDIRECT_URI` | JWT, Google login                  |
-| PayOS      | `PAYOS_CLIENT_ID`, `PAYOS_API_KEY`, `PAYOS_CHECKSUM_KEY`, `PAYOS_RETURN_URL`, `PAYOS_CANCEL_URL`                      | Tạo thanh toán và xác minh webhook |
-| Thông báo  | `NOTIFICATION_SERVICE_URL`                                                                                            | Email OTP; thiếu thì trả 503       |
-| S3/MinIO   | `S3_PROVIDER` (`minio`/`cloud`), `S3_MINIO_*` hoặc `S3_CLOUD_*`                                                       | Object storage và presigned URL    |
+| Nhóm       | Biến chính                                                                                                            | Nơi sử dụng                          |
+| ---------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Ứng dụng   | `PORT`, `CORS_ORIGINS`, `API_PUBLIC_URL`                                                                              | HTTP, Swagger, WebSocket             |
+| PostgreSQL | `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_NAME` hoặc `DATABASE_URL` cho migration                       | TypeORM và script migration          |
+| Redis      | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`                                                                          | Cache/trạng thái OIDC                |
+| Keycloak   | `KEYCLOAK_AUTH_SERVER_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_SECRET`, `KEYCLOAK_GOOGLE_REDIRECT_URI` | JWT, Google login                    |
+| PayOS      | `PAYOS_CLIENT_ID`, `PAYOS_API_KEY`, `PAYOS_CHECKSUM_KEY`, `PAYOS_RETURN_URL`, `PAYOS_CANCEL_URL`                      | Tạo thanh toán và xác minh webhook   |
+| Payment    | `PAYMENT_PROVIDER` (`payos`/`sepay`, mặc định `payos`)                                                                | Chọn provider cho payment mới        |
+| SePay      | `SEPAY_ACCOUNT_NUMBER`, `SEPAY_BANK_CODE`, `SEPAY_WEBHOOK_API_KEY`; `SEPAY_ACCOUNT_NAME` tùy chọn                     | Tạo QR nhận tiền và xác minh webhook |
+| Payout     | `PAYOUT_DESTINATION_ENCRYPTION_KEY` (ít nhất 32 ký tự)                                                                | Mã hóa thông tin ngân hàng nhận tiền |
+| Thông báo  | `NOTIFICATION_SERVICE_URL`                                                                                            | Email OTP; thiếu thì trả 503         |
+| S3/MinIO   | `S3_PROVIDER` (`minio`/`cloud`), `S3_MINIO_*` hoặc `S3_CLOUD_*`                                                       | Object storage và presigned URL      |
 
 Google setup còn cần `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `KEYCLOAK_ADMIN_USERNAME`, `KEYCLOAK_ADMIN_PASSWORD`; xem [hướng dẫn Google login](keycloak-google-login.md). Danh sách biến S3 chính xác nằm tại [`s3.config.ts`](../src/shared/integrations/s3/s3.config.ts).
 
 `S3_PROVIDER=minio` dùng MinIO; `S3_PROVIDER=cloud` dùng S3-compatible cloud được cấu hình bằng `S3_CLOUD_*`. Nếu không khai báo `S3_PROVIDER`, ứng dụng mặc định chọn MinIO ở development và cloud ở production.
+
+`PAYMENT_PROVIDER` chọn gateway tạo payment intent. Webhook vẫn được route riêng theo URL `/payments/webhooks/:provider`. Với `sepay`, cấu hình đúng số tài khoản/mã ngân hàng nhận tiền và `SEPAY_WEBHOOK_API_KEY` để đối chiếu webhook. `PAYOUT_DESTINATION_ENCRYPTION_KEY` phải ổn định giữa các lần deploy; đổi khóa sẽ khiến thông tin payout đã lưu không giải mã được.
 
 `.env` là plaintext cục bộ và không được commit. Kho mã có file SOPS/Age mã hóa tại `.stacks/dev/runtime/env/app.env.enc` cùng các script `scripts/secrets-auto.mjs`, `scripts/stack-secret.mjs`, `scripts/sync.mjs`. Các script này có thể ghi `.env` hoặc file mã hóa; xem lệnh và file đích trước khi chạy. Hook `pre-commit` hiện chạy `npx lint-staged`, không tự động mã hóa secrets.
 

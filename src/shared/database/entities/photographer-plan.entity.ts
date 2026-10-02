@@ -1,7 +1,7 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { bigintColumn } from './utils/column-transformers';
-import type { PlanFeature } from '@shared/domain/types/plan.types';
+import type { PlanFeatureValue } from '@shared/domain/types/plan.types';
 
 /**
  * Entity representing the `photographer_plans` table.
@@ -37,5 +37,5 @@ export class PhotographerPlanEntity extends BaseEntity {
    * Membership features or privileges, stored directly as a JSONB array.
    */
   @Column('jsonb', { default: [] })
-  features!: PlanFeature[];
+  features!: PlanFeatureValue[];
 }
