@@ -195,13 +195,7 @@ pnpm install
 
 ### 3. Cấu hình biến môi trường
 
-Tạo file `.env` tại thư mục gốc từ mẫu tham khảo:
-
-```bash
-cp lens.env.example .env
-```
-
-Cập nhật các thông số kết nối Database, Redis, S3/MinIO, PayOS và Keycloak phù hợp với môi trường của bạn.
+Tạo file `.env` tại thư mục gốc và cấu hình các thông số kết nối Database, Redis, S3/MinIO, PayOS và Keycloak theo môi trường của bạn. Xem danh sách biến và hướng dẫn tại [docs/SECRETS_GUIDE.md](docs/SECRETS_GUIDE.md).
 
 > 💡 _Dự án hỗ trợ giải mã tự động qua SOPS nếu bạn có khóa Age Key: xem chi tiết tại [docs/SECRETS_GUIDE.md](docs/SECRETS_GUIDE.md)._
 

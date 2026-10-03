@@ -1,7 +1,7 @@
 /**
  * Ability to assign or remove the `photographer` role in Keycloak, as required by the photographer context when an admin approves an application.
  *
- * Provided by the identity module (see `docs/IDENTITY_TODO.md`, item 7). Until then, use no-op wiring.
+ * Provided by the API runtime through the Keycloak Admin API.
  * The user must refresh their token or sign in again to receive the new role in the token.
  */
 export abstract class PhotographerRolePort {

@@ -42,6 +42,39 @@ export class RedisService {
     }
   }
 
+  /** Increment a counter and set its expiry atomically on the first increment. */
+  public async incrementWithExpiry(
+    key: string,
+    ttlSeconds: number,
+  ): Promise<number> {
+    const result = await this.client.eval(
+      "local count = redis.call('INCR', KEYS[1]); if count == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]); end; return count",
+      { keys: [key], arguments: [String(ttlSeconds)] },
+    );
+    return Number(result);
+  }
+
+  /** Atomically delete a key only when its current value matches. */
+  public async consumeIfValueMatches(
+    key: string,
+    expectedValue: string,
+  ): Promise<boolean> {
+    const result = await this.client.eval(
+      "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]); end; return 0",
+      { keys: [key], arguments: [expectedValue] },
+    );
+    return Number(result) === 1;
+  }
+
+  /** Atomically read and delete a single-use value. */
+  public async getAndDelete(key: string): Promise<string | null> {
+    const result = await this.client.eval(
+      "local value = redis.call('GET', KEYS[1]); if value then redis.call('DEL', KEYS[1]); end; return value",
+      { keys: [key], arguments: [] },
+    );
+    return typeof result === 'string' ? result : null;
+  }
+
   /**
    * Get a string value by key.
    *

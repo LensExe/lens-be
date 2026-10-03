@@ -11,6 +11,7 @@ import {
   getRedisConfig,
 } from '@shared/database';
 import { KeycloakModule } from '@shared/integrations/keycloak/keycloak.module';
+import { KeycloakUserService } from '@shared/integrations/keycloak/user.service';
 import { NotificationModule } from '@shared/integrations/notification/notification.module';
 import { PaymentGateway } from '@shared/integrations/payment/port/payment.port';
 import { PaymentModule } from '@shared/integrations/payment/payment.module';
@@ -179,14 +180,15 @@ const applicationServices = [
       provide: SubscriptionStorageUsagePort,
       useExisting: MediaStorageUsageService,
     },
-    // TODO(identity): replace this with the real identity provider (`docs/IDENTITY_TODO.md`, item 7).
-    // Temporarily approve photographer profiles without assigning a Keycloak role.
     {
       provide: PhotographerRolePort,
-      useValue: {
-        grant: () => Promise.resolve(),
-        revoke: () => Promise.resolve(),
-      },
+      inject: [KeycloakUserService],
+      useFactory: (keycloakUsers: KeycloakUserService) => ({
+        grant: (keycloakUserId: string) =>
+          keycloakUsers.assignRealmRoleToUser(keycloakUserId, 'photographer'),
+        revoke: (keycloakUserId: string) =>
+          keycloakUsers.removeRealmRoleFromUser(keycloakUserId, 'photographer'),
+      }),
     },
     {
       provide: APP_GUARD,
@@ -215,6 +217,7 @@ const applicationServices = [
     S3Module,
     PaymentGateway,
     RealtimePublisher,
+    RedisModule,
   ],
 })
 export class ApiRuntimeModule {}

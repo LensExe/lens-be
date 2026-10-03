@@ -10,6 +10,8 @@ import {
   MediaVisibility,
 } from '@shared/domain/values/media.values';
 import type * as Inputs from '@shared/contracts/contracts';
+import { UserStatus } from '@shared/domain/values/user.values';
+import { VerificationStatus } from '@shared/domain/values/photographer.values';
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { ObjectStorage } from '@shared/integrations/s3/storage.port';
@@ -202,8 +204,8 @@ export class MediaUseCases
    * Get media details along with its URLs (thumbnail, preview, and download).
    * - Check access control at multiple levels:
    * 1. The requester owns the file.
-   * 2. Or the file is used as a cover image or portfolio item for an active photographer.
-   * 3. Or the file belongs to a booking delivery gallery that has been published and the user is its photographer or customer.
+   * 2. Or the file is used as a cover image or portfolio item for an active, verified photographer.
+   * 3. Or the file belongs to a delivery the requester owns as photographer, or to a published gallery they own as customer.
    * - Query the `THUMBNAIL` and `PREVIEW` image variants.
    * - Generate the corresponding URL for each variant (a public URL or a 15-minute presigned URL for private media).
    *
@@ -218,33 +220,64 @@ export class MediaUseCases
       m = await required(s, 'media', i.media_id);
     Media.assertNotDeleted(m.status);
     let allowed = m.user_id === u.id;
-    if (!allowed)
-      for (const album of await s.findBy(EntitySchemas.portfolios, {
-        cover_media_id: m.id,
-      })) {
-        const p = await required(s, 'photographers', album.photographer_id),
-          owner = await required(s, 'users', p.user_id);
-        if (owner.status === 'active') allowed = true;
-      }
-    if (!allowed)
-      for (const portfolio of await s.find(EntitySchemas.portfolios)) {
-        if (!portfolio.items.includes(m.id)) continue;
-        const p = await required(s, 'photographers', portfolio.photographer_id),
-          owner = await required(s, 'users', p.user_id);
-        if (owner.status === 'active') allowed = true;
-      }
-    if (!allowed)
-      for (const delivery of await s.find(EntitySchemas.booking_deliveries)) {
-        if (!delivery.media_ids.includes(m.id)) continue;
-        const b = await required(s, 'bookings', delivery.booking_id),
-          c = await required(s, 'customers', b.customer_id),
-          p = await required(s, 'photographers', b.photographer_id);
-        if (
-          p.user_id === u.id ||
-          (c.user_id === u.id && !!b.gallery_published_at)
+    if (!allowed) {
+      const portfolio = await s
+        .createQueryBuilder(EntitySchemas.portfolios, 'portfolio')
+        .innerJoin(
+          EntitySchemas.photographers,
+          'photographer',
+          'photographer.id = portfolio.photographer_id',
         )
-          allowed = true;
-      }
+        .innerJoin(
+          EntitySchemas.users,
+          'owner',
+          'owner.id = photographer.user_id',
+        )
+        .where(
+          '(portfolio.cover_media_id = :mediaId OR portfolio.items @> CAST(:mediaIds AS jsonb))',
+          { mediaId: m.id, mediaIds: JSON.stringify([m.id]) },
+        )
+        .andWhere('owner.status = :activeStatus', {
+          activeStatus: UserStatus.ACTIVE,
+        })
+        .andWhere('photographer.verification_status = :verifiedStatus', {
+          verifiedStatus: VerificationStatus.VERIFIED,
+        })
+        .select('portfolio.id')
+        .take(1)
+        .getOne();
+      allowed = Boolean(portfolio);
+    }
+    if (!allowed) {
+      const delivery = await s
+        .createQueryBuilder(EntitySchemas.booking_deliveries, 'delivery')
+        .innerJoin(
+          EntitySchemas.bookings,
+          'booking',
+          'booking.id = delivery.booking_id',
+        )
+        .leftJoin(
+          EntitySchemas.customers,
+          'customer',
+          'customer.id = booking.customer_id',
+        )
+        .innerJoin(
+          EntitySchemas.photographers,
+          'photographer',
+          'photographer.id = booking.photographer_id',
+        )
+        .where('delivery.media_ids @> CAST(:mediaIds AS jsonb)', {
+          mediaIds: JSON.stringify([m.id]),
+        })
+        .andWhere(
+          '(photographer.user_id = :userId OR (customer.user_id = :userId AND booking.gallery_published_at IS NOT NULL))',
+          { userId: u.id },
+        )
+        .select('delivery.id')
+        .take(1)
+        .getOne();
+      allowed = Boolean(delivery);
+    }
     ensure(allowed, 'Media access denied', 'forbidden');
     if (m.status !== MediaStatus.READY) {
       return {

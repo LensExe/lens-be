@@ -17,7 +17,7 @@
     "start:prod": "node dist/apps/core/apps/core/src/main",
     "start:cli": "nest start cli",
     "lint": "eslint \"{src,apps,test}/**/*.ts\" --fix",
-    "test": "jest",
+    "test": "node -r ts-node/register -r tsconfig-paths/register --test test/*.test.ts",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",

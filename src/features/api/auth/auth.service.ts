@@ -1,8 +1,6 @@
 import { randomBytes, randomInt } from 'node:crypto';
-import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import {
   BadRequestException,
-  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -11,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { RedisService } from '@shared/database/redis/redis.service';
 import {
   KeycloakService,
   KeycloakTokenService,
@@ -45,8 +44,7 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    @Inject(CACHE_MANAGER)
-    private readonly cacheManager: Cache,
+    private readonly redis: RedisService,
     private readonly config: ConfigService,
     private readonly keycloak: KeycloakService,
     private readonly keyCloakUser: KeycloakUserService,
@@ -207,18 +205,15 @@ export class AuthService {
       throw new NotFoundException('Không thể gửi OTP đến tài khoản mail này');
     }
 
-    const countSendTimesKey = `count:send-otp:${body.email}`;
-    const countSendTimes =
-      await this.cacheManager.get<number>(countSendTimesKey);
-    if (countSendTimes && countSendTimes >= MAX_SEND_OTP_TIMES) {
+    const normalizedEmail = body.email.trim().toLowerCase();
+    const countSendTimesKey = `count:send-otp:${normalizedEmail}`;
+    const countSendTimes = await this.redis.incrementWithExpiry(
+      countSendTimesKey,
+      MAX_SEND_OTP_EXPIRED_IN_MINUTES * 60,
+    );
+    if (countSendTimes > MAX_SEND_OTP_TIMES) {
       throw new BadRequestException(
         'Bạn đã gửi quá nhiều OTP, vui lòng thử lại sau',
-      );
-    } else {
-      await this.cacheManager.set(
-        countSendTimesKey,
-        (countSendTimes ?? 0) + 1,
-        MAX_SEND_OTP_EXPIRED_IN_MINUTES * 60,
       );
     }
 
@@ -226,11 +221,7 @@ export class AuthService {
     const otp = randomInt(100000, 999999).toString();
     // Cache the OTP by event with a five-minute TTL.
     const otpKey = this.getCacheKey(body.event, body.email);
-    await this.cacheManager.set(
-      otpKey,
-      otp,
-      OTP_EXPIRED_IN_MINUTES * 60 * 1000,
-    );
+    await this.redis.set(otpKey, otp, OTP_EXPIRED_IN_MINUTES * 60);
 
     // Get the Notification/Mail microservice URL from the configuration.
     const notificationServiceUrl =
@@ -280,7 +271,7 @@ export class AuthService {
    * @returns Result object containing the fields `success`, `message`, `reset_token`.
    */
   async verifyForgotPasswordOtp(body: AuthVerifyForgotPasswordOtpDto) {
-    // Verify the OTP from CacheManager and check the Keycloak user.
+    // Verify and consume the OTP from shared Redis storage.
     await this.verifyAndConsumeOtp(
       AuthOtpEvent.FORGOT_PASSWORD,
       body.email,
@@ -291,11 +282,11 @@ export class AuthService {
     const resetToken = randomBytes(32).toString('hex');
     const resetTokenKey = `reset_password_token:${resetToken}`;
 
-    // Cache the reset-token-to-email mapping with a 10-minute TTL.
-    await this.cacheManager.set(
+    // Store the reset-token-to-email mapping in Redis with a 10-minute TTL.
+    await this.redis.set(
       resetTokenKey,
       body.email.trim().toLowerCase(),
-      RESET_TOKEN_EXPIRED_IN_MINUTES * 60 * 1000,
+      RESET_TOKEN_EXPIRED_IN_MINUTES * 60,
     );
 
     return {
@@ -323,7 +314,7 @@ export class AuthService {
 
     // Get the email from Redis using the reset token.
     const resetTokenKey = `reset_password_token:${body.reset_token}`;
-    const email = await this.cacheManager.get<string>(resetTokenKey);
+    const email = await this.redis.getAndDelete(resetTokenKey);
     if (!email) {
       throw new BadRequestException(
         'Mã xác thực đổi mật khẩu đã hết hạn hoặc không hợp lệ. Vui lòng thực hiện lại.',
@@ -336,12 +327,7 @@ export class AuthService {
       throw new NotFoundException('Không tìm thấy tài khoản người dùng');
     }
 
-    await Promise.all([
-      // Update the password in Keycloak.
-      this.keyCloakUser.resetUserPassword(user.id, body.new_password),
-      // Delete the reset token after successful use (single use).
-      this.cacheManager.del(resetTokenKey),
-    ]);
+    await this.keyCloakUser.resetUserPassword(user.id, body.new_password);
 
     return {
       success: true,
@@ -358,7 +344,7 @@ export class AuthService {
    * @returns Result object containing the fields `success`, `message`.
    */
   async verifyEmail(actor: Actor, body: AuthVerifyEmailDto) {
-    // Verify the OTP from CacheManager.
+    // Verify and consume the OTP from shared Redis storage.
     const result = await this.verifyAndConsumeOtp(
       AuthOtpEvent.VERIFY_EMAIL,
       body.email,
@@ -377,7 +363,7 @@ export class AuthService {
   }
 
   /**
-   * Build and validate the CacheManager OTP key format with a regular expression.
+   * Build and validate the Redis OTP key format with a regular expression.
    *
    * @param event Event type or event information to process.
    * @param email Email address associated with the operation.
@@ -393,7 +379,7 @@ export class AuthService {
   }
 
   /**
-   * Shared private helper that verifies an OTP in CacheManager and deletes it after use.
+   * Atomically verify and consume an OTP from shared Redis storage.
    *
    * @param event Event type or event information to process.
    * @param email Email address associated with the operation.
@@ -406,24 +392,13 @@ export class AuthService {
     email: string,
     otp: string,
   ) {
-    // Get the OTP from CacheManager by event and email.
+    // Consume the OTP only when its stored value matches the submitted code.
     const otpKey = this.getCacheKey(event, email);
-    const [cachedOtp] = await Promise.all([
-      // Get OTP
-      this.cacheManager.get<string>(otpKey),
-      // Delete the OTP after successful use (single use).
-      this.cacheManager.del(otpKey),
-    ]);
-
-    if (!cachedOtp || cachedOtp !== otp) {
+    const consumed = await this.redis.consumeIfValueMatches(otpKey, otp);
+    if (!consumed)
       throw new BadRequestException(
-        'Mã OTP đã hết hạn hoặc không tồn tại. Vui lòng gửi lại mã OTP.',
+        'Mã OTP không chính xác hoặc đã hết hạn. Vui lòng gửi lại mã OTP.',
       );
-    }
-
-    if (cachedOtp !== otp) {
-      throw new BadRequestException('Mã OTP không chính xác');
-    }
-    return true;
+    return consumed;
   }
 }

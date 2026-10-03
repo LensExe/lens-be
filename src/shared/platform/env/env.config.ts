@@ -43,7 +43,7 @@ export const envConfig = (): EnvConfig => {
     },
     redis: {
       host: process.env.REDIS_HOST ?? 'localhost',
-      port: Number.parseInt(process.env.REDIS_PORT ?? '6379', 10),
+      port: Number.parseInt(process.env.REDIS_PORT ?? '6380', 10),
       password: process.env.REDIS_PASSWORD || undefined,
     },
     auth: {
