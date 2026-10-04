@@ -9,6 +9,13 @@ export const envConfig = (): EnvConfig => {
   const nodeEnv = process.env.NODE_ENV ?? 'development';
   const isProduction = nodeEnv === 'production';
   const isDevelopment = nodeEnv === 'development';
+  const readBoolean = (name: string, fallback: boolean): boolean => {
+    const value = process.env[name]?.trim().toLowerCase();
+    if (!value) return fallback;
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    throw new Error(`${name} must be true or false`);
+  };
 
   const corsOriginsRaw = process.env.CORS_ORIGINS ?? '*';
   const origins =
@@ -79,6 +86,19 @@ export const envConfig = (): EnvConfig => {
     },
     notification: {
       serviceUrl: process.env.NOTIFICATION_SERVICE_URL,
+    },
+    kafka: {
+      enabled: readBoolean('KAFKA_ENABLED', false),
+      brokers: (process.env.KAFKA_BROKERS ?? 'localhost:9092')
+        .split(',')
+        .map((broker) => broker.trim())
+        .filter(Boolean),
+      clientId: process.env.KAFKA_CLIENT_ID ?? 'lens-backend',
+      notificationEventsTopic:
+        process.env.KAFKA_NOTIFICATION_EVENTS_TOPIC ?? 'notification.events',
+      username: process.env.KAFKA_USERNAME || undefined,
+      password: process.env.KAFKA_PASSWORD || undefined,
+      ssl: readBoolean('KAFKA_SSL', false),
     },
     axios: {
       timeoutMs: Number.parseInt(process.env.AXIOS_TIMEOUT_MS ?? '10000', 10),

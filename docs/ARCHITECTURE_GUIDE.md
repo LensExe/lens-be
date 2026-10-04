@@ -50,7 +50,7 @@ POST /bookings
   → đọc dữ liệu bằng EntityManager
   → Booking.prepare(facts) trong booking.domain.ts
   → lưu booking và ghi outbox bằng cùng EntityManager/transaction
-  → commit → OutboxWorker phát realtime
+  → commit → OutboxWorker gửi notification qua Kafka hoặc Socket.IO dự phòng
 ```
 
 - `*.domain.ts`: hàm/quy tắc thuần; nhận facts/giá trị, trả kết quả hoặc lỗi nghiệp vụ. Không inject service, gọi DB/API, phát sự kiện hoặc biết controller. Ví dụ [`booking.domain.ts`](../src/modules/booking/core/booking.domain.ts) quyết định tạo booking hợp lệ và chuyển trạng thái; [`identity.domain.ts`](../src/modules/identity/identity.domain.ts) quyết định chuyển trạng thái tài khoản.
@@ -75,7 +75,7 @@ Port là hợp đồng cho một khả năng mà **module tiêu thụ** cần. �
 | Photographer/Portfolio | `MediaOwnershipPort`       | `MediaUseCases`               |
 | Subscription           | `SubscriptionPaymentsPort` | `PaymentUseCases`             |
 
-Wiring nằm tại [`api-runtime.module.ts`](../src/features/api/api-runtime.module.ts). Use case tiêu thụ inject port, không inject trực tiếp use case của module khác. Đây là lời gọi đồng bộ khi cần kết quả ngay hoặc phải dùng cùng `EntityManager`/transaction. Tác vụ realtime được ghi vào outbox trong transaction rồi worker phát sau commit. Worker hiện đánh dấu `processed_at` trước khi gọi publisher; nếu publisher thất bại sau bước đó, sự kiện không tự được retry. Không coi outbox hiện tại là cơ chế bảo đảm phát đúng một lần.
+Wiring nằm tại [`api-runtime.module.ts`](../src/features/api/api-runtime.module.ts). Use case tiêu thụ inject port, không inject trực tiếp use case của module khác. Đây là lời gọi đồng bộ khi cần kết quả ngay hoặc phải dùng cùng `EntityManager`/transaction. Notification được ghi vào outbox trong transaction rồi worker gửi sau commit: event có type được notification-service hỗ trợ đi Kafka; event khác dùng Socket.IO `/lens`. Worker chỉ ghi `processed_at` sau khi publisher thành công, retry tối đa năm lần rồi dead-letter. Đây là giao nhận at-least-once, nên có thể phát trùng nếu broker đã nhận message nhưng worker chưa kịp xác nhận.
 
 **Phụ thuộc giữa các module phải một chiều** (không có vòng). Trước khi thêm port, kiểm đồ thị "use case nào inject use case nào"; nếu port mới làm A cần B trong khi B đã cần A thì chọn lại thiết kế (bỏ chiều ngược, đưa thông tin lên module phía trên, hoặc dùng sự kiện), không dùng `forwardRef` hay class phụ chỉ để né vòng. NestJS docs: "Avoid circular dependencies where possible".
 

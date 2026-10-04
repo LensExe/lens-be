@@ -6,7 +6,7 @@
 [![TypeORM](https://img.shields.io/badge/TypeORM-0.3-FE0808?style=for-the-badge&logo=typeorm&logoColor=white)](https://typeorm.io/)
 [![Keycloak](https://img.shields.io/badge/Keycloak-IAM-4D798B?style=for-the-badge&logo=redhat&logoColor=white)](https://www.keycloak.org/)
 [![Redis](https://img.shields.io/badge/Redis-Cache%20%26%20Queue-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
-[![Socket.io](https://img.shields.io/badge/Socket.io-Realtime-010101?style=for-the-badge&logo=socketdotio&logoColor=white)](https://socket.io/)
+[![Kafka](https://img.shields.io/badge/Kafka-Notifications-231F20?style=for-the-badge&logo=apachekafka&logoColor=white)](https://kafka.apache.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 
 > **Lens Platform** — Nền tảng kết nối trực tiếp Nhiếp ảnh gia chuyên nghiệp (Photographers) và Khách hàng có nhu cầu chụp ảnh (Customers).
@@ -36,29 +36,29 @@
 
 - **Strict Type Safety**: Sử dụng TypeScript với cấu hình strict cao nhất, `nodenext` module resolution.
 - **ACID & Concurrency Safe**: Sử dụng PostgreSQL Explicit Transactions kết hợp Pessimistic Locking để loại trừ hoàn toàn rủi ro trùng lịch (double booking).
-- **Guaranteed Event Delivery**: Ứng dụng mô hình **Transactional Outbox Pattern** để phát thông báo Realtime mà không gặp lỗi Dual-Write.
+- **Reliable Event Publishing**: Ứng dụng **Transactional Outbox** để retry lỗi gửi notification; giao nhận là at-least-once.
 - **Zero-Trust Secrets**: Hỗ trợ quản lý và mã hóa secrets tự động với Mozilla SOPS & Age key.
 
 ---
 
 ## 🛠️ Công nghệ sử dụng (Tech Stack)
 
-| Phân tầng / Khía cạnh         | Công nghệ & Thư viện                                 | Mô tả vai trò                                                                               |
-| :---------------------------- | :--------------------------------------------------- | :------------------------------------------------------------------------------------------ |
-| **Framework nền tảng**        | **NestJS 12** (Node.js v20+)                         | Framework backend kiến trúc module, DI (Dependency Injection), Pipes, Interceptors, Guards. |
-| **Ngôn ngữ**                  | **TypeScript 5.9**                                   | Đảm bảo kiểu dữ liệu tĩnh nghiêm ngặt trên toàn bộ hệ thống.                                |
-| **Kiến trúc ứng dụng**        | **Pragmatic Clean Architecture + CQRS**              | Tách bạch Domain thuần, Application Use Cases, và Infrastructure qua `@nestjs/cqrs`.        |
-| **Cơ sở dữ liệu chính**       | **PostgreSQL 16**                                    | Lưu trữ dữ liệu quan hệ, đảm bảo tính toàn vẹn và giao dịch ACID.                           |
-| **ORM & Data Mapping**        | **TypeORM 0.3**                                      | Quản lý Entity, Repository, EntityManager và Pessimistic Locking.                           |
-| **Migration**                 | **Raw SQL Script** (`scripts/migrate-lens.cjs`)      | Áp dụng schema SQL chủ động, có kiểm soát, không bật auto-sync trên môi trường thật.        |
-| **Identity & Access (IAM)**   | **Keycloak 24**                                      | Quản lý định danh tập trung (OAuth2/OIDC, JWT Bearer Token, Google Identity Broker, RBAC).  |
-| **Cổng thanh toán**           | **PayOS (VietQR)**                                   | Tạo mã thanh toán QR động, liên kết thanh toán tức thời, xác thực chữ ký HMAC Webhook.      |
-| **Lưu trữ tệp (Storage)**     | **AWS S3 / MinIO** (`@aws-sdk/client-s3`)            | Lưu trữ ảnh gốc, ảnh portfolio, ảnh sản phẩm với cơ chế Presigned URL bảo mật có TTL.       |
-| **Realtime**                  | **Socket.IO** (`@nestjs/platform-socket.io`)         | Kênh thông báo trực tiếp hai chiều cho Web/App theo từng User Room qua namespace `/lens`.   |
-| **Background Worker**         | **Transactional Outbox Worker** + **BullMQ / Redis** | Quét sự kiện ngầm, điều phối hàng đợi tác vụ và tác vụ định kỳ.                             |
-| **API Docs & Contract**       | **OpenAPI 3.0 / Swagger** (`@nestjs/swagger`)        | Tự động sinh tài liệu API tương tác tại `/docs`, kiểm thử hợp đồng tự động.                 |
-| **Bảo mật biến môi trường**   | **Mozilla SOPS & Age**                               | Mã hóa an toàn các biến môi trường nhạy cảm ngay trên Git repo.                             |
-| **Quản lý gói & Chạy Docker** | **pnpm** & **Docker Compose**                        | Quản lý dependencies tối ưu dung lượng và đóng gói môi trường phát triển cục bộ.            |
+| Phân tầng / Khía cạnh         | Công nghệ & Thư viện                                 | Mô tả vai trò                                                                                                                                       |
+| :---------------------------- | :--------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Framework nền tảng**        | **NestJS 12** (Node.js v20+)                         | Framework backend kiến trúc module, DI (Dependency Injection), Pipes, Interceptors, Guards.                                                         |
+| **Ngôn ngữ**                  | **TypeScript 5.9**                                   | Đảm bảo kiểu dữ liệu tĩnh nghiêm ngặt trên toàn bộ hệ thống.                                                                                        |
+| **Kiến trúc ứng dụng**        | **Pragmatic Clean Architecture + CQRS**              | Tách bạch Domain thuần, Application Use Cases, và Infrastructure qua `@nestjs/cqrs`.                                                                |
+| **Cơ sở dữ liệu chính**       | **PostgreSQL 16**                                    | Lưu trữ dữ liệu quan hệ, đảm bảo tính toàn vẹn và giao dịch ACID.                                                                                   |
+| **ORM & Data Mapping**        | **TypeORM 0.3**                                      | Quản lý Entity, Repository, EntityManager và Pessimistic Locking.                                                                                   |
+| **Migration**                 | **Raw SQL Script** (`scripts/migrate-lens.cjs`)      | Áp dụng schema SQL chủ động, có kiểm soát, không bật auto-sync trên môi trường thật.                                                                |
+| **Identity & Access (IAM)**   | **Keycloak 24**                                      | Quản lý định danh tập trung (OAuth2/OIDC, JWT Bearer Token, Google Identity Broker, RBAC).                                                          |
+| **Cổng thanh toán**           | **PayOS (VietQR)**                                   | Tạo mã thanh toán QR động, liên kết thanh toán tức thời, xác thực chữ ký HMAC Webhook.                                                              |
+| **Lưu trữ tệp (Storage)**     | **AWS S3 / MinIO** (`@aws-sdk/client-s3`)            | Lưu trữ ảnh gốc, ảnh portfolio, ảnh sản phẩm với cơ chế Presigned URL bảo mật có TTL.                                                               |
+| **Thông báo**                 | **KafkaJS** + Transactional Outbox                   | Chuyển các notification type đã hỗ trợ tới notification-service qua topic `notification.events`; event chưa được ánh xạ vẫn dùng Socket.IO `/lens`. |
+| **Background Worker**         | **Transactional Outbox Worker** + **BullMQ / Redis** | Quét sự kiện ngầm, điều phối hàng đợi tác vụ và tác vụ định kỳ.                                                                                     |
+| **API Docs & Contract**       | **OpenAPI 3.0 / Swagger** (`@nestjs/swagger`)        | Tự động sinh tài liệu API tương tác tại `/docs`, kiểm thử hợp đồng tự động.                                                                         |
+| **Bảo mật biến môi trường**   | **Mozilla SOPS & Age**                               | Mã hóa an toàn các biến môi trường nhạy cảm ngay trên Git repo.                                                                                     |
+| **Quản lý gói & Chạy Docker** | **pnpm** & **Docker Compose**                        | Quản lý dependencies tối ưu dung lượng và đóng gói môi trường phát triển cục bộ.                                                                    |
 
 ---
 
@@ -90,7 +90,7 @@ Hệ thống tuân thủ chặt chẽ các nguyên lý thiết kế nâng cao:
 [Infrastructure & Persistence Layer]
    ├── TypeORM Entities & Database Repositories
    ├── Adapters: Keycloak, PayOS, S3/MinIO, Realtime Gateway
-   └── Transactional Outbox Worker (Quét outbox_events phát Realtime)
+   └── Transactional Outbox Worker (Gửi notification qua Kafka hoặc Socket.IO dự phòng)
 ```
 
 ### 1. Phân tách Command - Query (CQRS)
@@ -104,7 +104,7 @@ Khi có sự kiện quan trọng (ví dụ: `booking.created`, `payment.success`
 
 1. Nghiệp vụ lưu dữ liệu chính (bảng `bookings`) và ghi sự kiện vào bảng `outbox_events` **trong cùng một Database Transaction**.
 2. Khi transaction commit thành công, API trả ngay phản hồi `200 OK` cho người dùng mà không bị nghẽn mạng.
-3. [`OutboxWorker`](src/features/workers/outbox.worker.ts) chạy nền định kỳ quét các sự kiện chưa xử lý và phát qua Socket.IO tới đúng người nhận. Nếu Socket/mạng gián đoạn, sự kiện vẫn an toàn trong DB để retry.
+3. [`OutboxWorker`](src/features/workers/outbox.worker.ts) chạy nền định kỳ quét sự kiện chưa xử lý. Event có notification type được notification-service hỗ trợ sẽ được chuyển thành message Kafka; event chưa được ánh xạ vẫn phát qua Socket.IO `/lens`. Worker chỉ đánh dấu hoàn tất sau khi publisher xác nhận, và retry lỗi tối đa năm lần trước khi chuyển dead letter.
 
 ### 3. Hexagonal Architecture (Ports & Adapters)
 

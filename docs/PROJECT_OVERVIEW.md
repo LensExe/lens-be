@@ -22,7 +22,7 @@ Ngoài hành trình chính, hệ thống còn hỗ trợ:
 - Đánh giá, xếp hạng và thống kê photographer.
 - Report, dispute, refund và các công cụ quản trị.
 - Subscription/VIP dành cho photographer.
-- Thông báo realtime qua Socket.IO và Transactional Outbox.
+- Thông báo qua Kafka notification-service và Transactional Outbox; Socket.IO `/lens` tiếp tục phục vụ event chưa có type hỗ trợ.
 
 Repository này là **backend**, chưa bao gồm frontend web/mobile.
 
@@ -44,8 +44,8 @@ Repository này là **backend**, chưa bao gồm frontend web/mobile.
 - Keycloak làm Identity Provider và RBAC.
 - PayOS làm payment gateway chính.
 - S3/MinIO làm object storage.
-- Redis dùng cho cache, queue và Socket.IO adapter.
-- Socket.IO dùng cho thông báo realtime.
+- Redis dùng cho cache và BullMQ queues.
+- Kafka đưa các notification đã ánh xạ tới notification-service; Socket.IO `/lens` giữ vai trò fallback cho event còn lại.
 - CLI hỗ trợ seed, migration và các tác vụ vận hành.
 
 ## 3. Người dùng và vai trò
@@ -234,8 +234,8 @@ Photographer xem plans
 ```text
 Nghiệp vụ và outbox event commit cùng transaction
   → Outbox worker quét event chưa xử lý
-  → Socket.IO publisher phát tới user room
-  → Client cập nhật UI realtime
+  → notification type được hỗ trợ: Kafka → notification-service → user
+  → event chưa được ánh xạ: Socket.IO /lens → user room
 ```
 
 Các event tiêu biểu:
@@ -335,7 +335,7 @@ Nằm chủ yếu trong src/shared/:
 - Keycloak adapter.
 - PayOS adapter.
 - S3/MinIO adapter.
-- Redis và Socket.IO adapter.
+- Redis, BullMQ và Socket.IO gateway fallback.
 - Cookie, client context, config và error handling.
 
 ## 7. Bounded contexts và module
@@ -419,11 +419,11 @@ Khi một nghiệp vụ tạo event realtime:
 2. Lưu event vào outbox_events.
 3. Commit cả hai trong cùng transaction.
 4. Worker đọc event chưa xử lý.
-5. Publisher phát event tới Socket.IO user room.
+5. Publisher chuyển event có notification type được hỗ trợ tới Kafka; event chưa được ánh xạ được phát tới Socket.IO user room.
 
 Cơ chế này tránh tình trạng database đã commit nhưng notification bị mất do ghi database và gửi realtime ở hai thao tác độc lập.
 
-> Hạn chế hiện tại: worker đánh dấu event đã xử lý trước khi gọi publisher. Nếu publisher lỗi sau đó, event không tự retry. Khi triển khai nhiều replica hoặc yêu cầu delivery cao hơn, cần bổ sung cơ chế claim/lease, retry và dead-letter.
+Lens ánh xạ `booking.created` thành `order_placed` và một số event thanh toán thành `payment_success`, rồi gửi từng recipient qua `notification.events` với Keycloak `sub` làm user ID. Các event chưa có notification type tương ứng vẫn qua Socket.IO `/lens`. Worker chỉ đánh dấu event đã xử lý sau khi publisher thành công, retry tối đa năm lần rồi dead-letter. Giao nhận là at-least-once; notification-service dùng `eventId` làm BullMQ job ID để deduplicate khi job còn được giữ lại.
 
 ## 10. API overview
 
@@ -586,9 +586,8 @@ Các bước upload chuẩn:
 Redis được dùng cho:
 
 - Cache.
-- BullMQ/queue.
-- Socket.IO Redis adapter.
-- Chia sẻ realtime room khi có nhiều instance.
+- BullMQ queues.
+- Redis Socket.IO adapter có sẵn trong source nhưng chưa được gắn vào bootstrap; gateway `/lens` vẫn là fallback trong một instance.
 
 ## 12. Bảo mật và phân quyền
 
@@ -726,7 +725,7 @@ Integration test cần database riêng, ví dụ lens_test. Không dùng credent
 1. Bổ sung flow và endpoint Admin approve/reject photographer nếu cần verification bắt buộc.
 2. Xác nhận chính sách refund theo từng nguyên nhân hủy booking và thời điểm hủy.
 3. Bổ sung idempotency và concurrency test cho payment webhook, booking và refund.
-4. Cải thiện Outbox Worker để có retry, lease/claim và dead-letter.
+4. Cải thiện Outbox Worker với lease/claim để giảm thời gian giữ transaction trong lúc chờ publisher.
 5. Kiểm tra cơ chế hoàn tất booking tự động thay vì phụ thuộc System/Admin.
 6. Xác định rõ thời điểm bắt buộc thanh toán phần còn lại: trước khi publish gallery, sau khi publish hay trước khi complete.
 7. Bổ sung audit log cho thao tác Admin, refund, ban/suspend và moderation.
@@ -747,4 +746,4 @@ Integration test cần database riêng, ví dụ lens_test. Không dùng credent
 
 ## 19. Tóm tắt một câu
 
-Lens Backend là một **modular monolith NestJS** dùng PostgreSQL, Keycloak, PayOS, S3/MinIO, Redis và Socket.IO để quản lý trọn vẹn vòng đời kết nối khách hàng với photographer: từ khám phá, đặt lịch, thanh toán, chụp, giao ảnh đến đánh giá và xử lý tranh chấp.
+Lens Backend là một **modular monolith NestJS** dùng PostgreSQL, Keycloak, PayOS, S3/MinIO, Redis và Kafka notification-service để quản lý vòng đời kết nối khách hàng với photographer; Socket.IO `/lens` vẫn nhận các event chưa được notification-service hỗ trợ.

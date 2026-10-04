@@ -46,8 +46,8 @@ Kong chỉ khai báo các nhóm path thực sự có trong OpenAPI của từng 
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Core                             | `/api/v1/auth/**`, `/api/v1/users/**`, `/api/v1/bookings/**`, `/api/v1/payments/**`, `/api/v1/subscriptions/**` và các nhóm còn lại trong OpenAPI Core | Thêm global prefix `/api/v1` vào Core trước khi bật route; `strip_path: false`. Bảng path cuối cùng được sinh từ OpenAPI, không dùng danh sách ví dụ này thay cho hợp đồng thực tế. |
 | Notification                     | `GET /api/v1/notifications` và `POST /api/v1/notifications/mark-read`                                                                                  | Chỉ trả/đánh dấu notification thuộc user trong JWT. Không công khai route tạo notification cho `userId` tùy ý.                                                                      |
-| Chat REST                        | `/api/v1/chat/**`                                                                                                                                      | Chuẩn hóa router Chat sang prefix public này; service vẫn tự kiểm tra participant, tenant và quyền truy cập hội thoại.                                                              |
-| Chat WebSocket                   | Một path được chốt trong OpenAPI/realtime contract, dưới `/api/v1/chat/**`                                                                             | Giữ nguyên Upgrade/Connection headers; cho phép origin cụ thể; service xác thực token lúc handshake và đóng kết nối khi token hết hạn.                                              |
+| Chat REST                        | `/api/v1/chat/**`                                                                                                                                      | Chuẩn hóa router Chat sang prefix public này; service kiểm tra JWT subject là participant và có quyền truy cập hội thoại.                                                           |
+| Notification Socket.IO           | `/api/v1/socket.io` (namespace `/notification`)                                                                                                        | Giữ nguyên Upgrade/Connection headers; giới hạn origin; gateway xác thực token lúc handshake và đóng kết nối khi token hết hạn.                                                     |
 | Health/readiness                 | Endpoint phục vụ health check nội bộ                                                                                                                   | Không route ra Internet; dùng health/status listener hoặc kiểm tra nội bộ từ orchestrator.                                                                                          |
 | Notification mail/template/admin | Không có public route                                                                                                                                  | Chỉ gọi bằng service identity trên mạng riêng; nếu cần endpoint riêng, phải có role/scope machine-to-machine.                                                                       |
 
@@ -67,7 +67,8 @@ Các path phải phân quyền không giao nhau. Core sở hữu các resource p
 
 - **Core:** hoàn tất danh sách endpoint và OpenAPI; thống nhất `/api/v1`; kiểm tra audience/role/scope theo route; mọi thao tác đọc/ghi resource kiểm tra ownership hoặc quyền admin; webhook thanh toán tự xác minh chữ ký, timestamp và chống replay.
 - **Notification:** thêm authentication/authorization cho lệnh tạo notification và gửi mail/template; ràng buộc người nhận theo caller được phép; thêm DTO validation và giới hạn chống lạm dụng; chốt endpoint service-to-service. Endpoint `/api/v1/emails/send-otp` mà Core hiện gọi chưa khớp controller hiện có của Notification, nên phải sửa hợp đồng này trước khi định tuyến.
-- **Chat:** chuẩn hóa prefix route; xác thực JWT và tenant; kiểm tra người gọi là participant trước khi đọc/ghi; allowlist WebSocket origin; token hết hạn phải kết thúc session; không log bearer token hoặc token nằm trong `Sec-WebSocket-Protocol`.
+- **Chat:** chuẩn hóa prefix route; xác thực JWT subject; kiểm tra người gọi là participant trước khi đọc/ghi.
+- **Notification realtime:** xác thực JWT lúc Socket.IO handshake; cấu hình origin allowlist; token hết hạn phải kết thúc session; không log bearer token hoặc token nằm trong `Sec-WebSocket-Protocol`.
 - **Keycloak:** access token phải có audience đúng cho API; client web/mobile dùng PKCE; client credentials tách theo service và chỉ cấp role cần thiết. Nếu các service tiếp tục dùng public key tĩnh, quy trình xoay khóa phải được xác định; ưu tiên verifier có JWKS/cache/rotation đã cấu hình rõ.
 - **Frontend:** bỏ mock identity/header `X-User-ID`; gọi API public qua Kong và dùng token thật. Mobile thay URL placeholder/localhost bằng base URL theo môi trường.
 
@@ -186,8 +187,8 @@ Tại lúc tích hợp, xác nhận route prefix của Core đã được cấu 
 
 ### Gate 2 — Chuẩn hóa và harden Chat
 
-- Chuyển REST/WS sang public path `/api/v1/chat/...` và chốt WebSocket handshake contract.
-- Xác nhận JWT, tenant, participant, Origin allowlist và session expiry được thực thi trong Chat.
+- Chuyển REST sang public path `/api/v1/chat/...`; định tuyến Socket.IO của Notification qua `/api/v1/socket.io`.
+- Xác nhận Chat kiểm tra JWT subject và participant; Notification Gateway kiểm tra JWT, Origin allowlist và session expiry cho Socket.IO.
 - Dùng MongoDB có authentication và cấu hình replica set phù hợp deployment.
 
 **Hoàn tất khi:** không truy cập được hội thoại chỉ bằng cách đoán ID; token hết hạn không giữ kết nối sống; token không xuất hiện trong log.

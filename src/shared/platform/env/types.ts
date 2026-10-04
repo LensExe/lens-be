@@ -71,6 +71,16 @@ export interface NotificationConfig {
   serviceUrl?: string;
 }
 
+export interface KafkaConfig {
+  enabled: boolean;
+  brokers: string[];
+  clientId: string;
+  notificationEventsTopic: string;
+  username?: string;
+  password?: string;
+  ssl: boolean;
+}
+
 export interface AxiosConfig {
   timeoutMs: number;
   retry: {
@@ -92,5 +102,6 @@ export interface EnvConfig {
   payos: PayOSConfig;
   sepay: SePayConfig;
   notification: NotificationConfig;
+  kafka: KafkaConfig;
   axios: AxiosConfig;
 }

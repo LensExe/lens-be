@@ -71,7 +71,9 @@ Webhook PayOS nhận JSON gốc ở `POST /payments/webhooks/payos` hoặc `POST
 
 Object storage hỗ trợ MinIO và S3-compatible cloud. Presigned URL dùng TTL mặc định 900 giây, có thể cấu hình theo provider; `complete-upload` kiểm tra object với storage. Bucket và CORS phải cho phép upload theo cấu hình frontend. Xem [biến môi trường](SECRETS_GUIDE.md) và [`s3.config.ts`](../src/shared/integrations/s3/s3.config.ts).
 
-Sự kiện nghiệp vụ được ghi vào `outbox_events` trong transaction. Worker quét tối đa 50 event mỗi lượt, cách 2 giây, rồi phát qua Socket.IO namespace `/lens` tới room của user đã xác thực. Client gửi `auth: { token: accessToken }`. Worker hiện đánh dấu event đã xử lý **trước khi** gọi publisher; lỗi publisher xảy ra sau đó không được retry tự động. Không dựa vào outbox hiện tại để bảo đảm delivery đúng một lần hoặc nhiều replica cùng phát an toàn.
+Sự kiện nghiệp vụ được ghi vào `outbox_events` trong transaction. Worker quét tối đa 50 event mỗi lượt, cách 2 giây. Khi `KAFKA_ENABLED=true`, `booking.created` được ánh xạ thành `order_placed`; `payment.received`, `payment.wallet_topped_up` và `payment.subscription` được ánh xạ thành `payment_success`. Producer gửi từng recipient thành một Kafka message, ánh xạ `users.id` nội bộ sang Keycloak `sub`, và giữ `eventId` ổn định theo outbox event cùng recipient. Các event khác tiếp tục phát qua Socket.IO namespace `/lens` trong giai đoạn chuyển tiếp.
+
+Notification-service phát notification đã consume qua namespace `/notification`, Socket.IO path `/api/v1/socket.io`, event `notification`; frontend cần kết nối endpoint này cho các notification đi Kafka. Giao nhận là at-least-once; consumer dùng `eventId` làm BullMQ job ID để deduplicate khi job còn được giữ lại. Worker chỉ đánh dấu event đã xử lý sau khi publisher thành công, retry tối đa năm lần rồi chuyển outbox event sang dead letter.
 
 ## Kiểm thử
 
