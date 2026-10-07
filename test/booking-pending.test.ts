@@ -22,7 +22,6 @@ const facts = {
   planDurationMinutes: 60,
   location: 'Studio',
   ...range,
-  schedule: [],
   blockedTimes: [] as { from: string; to: string }[],
   bookings: [] as { from: string; to: string; status: string }[],
   openRequestsWithPhotographer: 0,
@@ -30,11 +29,14 @@ const facts = {
   now: Date.parse('2029-01-01T00:00:00.000Z'),
 };
 
-test('a pending booking does not hold the time, so others can request it too', () => {
-  assert.equal(
-    Booking.prepare({ ...facts, bookings: [{ ...range, status: 'pending' }] })
-      .status,
-    'pending',
+test('a pending booking reserves the time for every customer', () => {
+  assert.throws(
+    () =>
+      Booking.prepare({
+        ...facts,
+        bookings: [{ ...range, status: 'pending' }],
+      }),
+    /already has a booking/,
   );
   assert.throws(
     () =>
@@ -42,7 +44,7 @@ test('a pending booking does not hold the time, so others can request it too', (
         ...facts,
         bookings: [{ ...range, status: 'accepted' }],
       }),
-    /already booked/,
+    /already (has a booking|booked)/,
   );
 });
 
@@ -59,38 +61,19 @@ test('accepting checks the time is still free of accepted bookings and blocks', 
   );
 });
 
-test('free time and blocking ignore pending requests', () => {
+test('pending requests reserve availability but do not prevent a confirmed block flow', () => {
   const pending = [{ ...range, status: 'pending' }];
-  // default shift 08:00-20:00 Vietnam = 01:00-13:00 UTC
   assert.deepEqual(
-    Calendar.availability(
-      '2030-01-01T01:00:00.000Z',
-      '2030-01-01T13:00:00.000Z',
-      [],
-      [],
-      pending,
-    ),
-    [{ from: '2030-01-01T01:00:00.000Z', to: '2030-01-01T13:00:00.000Z' }],
+    Calendar.availability(range.from, range.to, [], pending),
+    [],
   );
   Calendar.assertCanBlock(range, pending, [], facts.now);
 });
 
-test('a customer cannot send two overlapping requests to the same photographer', () => {
-  assert.throws(
-    () =>
-      Booking.prepare({
-        ...facts,
-        bookings: [{ ...range, status: 'pending', customer_id: 'customer' }],
-      }),
-    /already requested this time/,
-  );
-  // another customer's request, or my own request that is no longer pending, does not count
-  for (const other of [
-    { status: 'pending', customer_id: 'someone-else' },
-    { status: 'rejected', customer_id: 'customer' },
-  ])
+test('rejected and expired requests release the time', () => {
+  for (const status of ['rejected', 'expired', 'cancelled'])
     assert.equal(
-      Booking.prepare({ ...facts, bookings: [{ ...range, ...other }] }).status,
+      Booking.prepare({ ...facts, bookings: [{ ...range, status }] }).status,
       'pending',
     );
 });

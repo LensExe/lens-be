@@ -2,25 +2,15 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import type { EntityManager } from 'typeorm';
 import { EntitySchemas } from '../src/shared/database';
-import { BookingPlan } from '../src/modules/photographer/booking-plan/booking-plan.domain';
 import {
   PhotographerApplication,
   PhotographerProfile,
 } from '../src/modules/photographer/photographer.domain';
 import { PortfolioUseCases } from '../src/modules/photographer/portfolio/portfolio.use-case';
 import { BookingPlanUseCases } from '../src/modules/photographer/booking-plan/booking-plan.use-case';
-import type { WorkingHoursPort } from '../src/modules/photographer/ports/working-hours.port';
 import type { PlanBookingsPort } from '../src/modules/photographer/ports/plan-bookings.port';
 import type { MediaOwnershipPort } from '../src/modules/photographer/ports/media-ownership.port';
 import type { ObjectStorage } from '../src/shared/integrations/s3/storage.port';
-
-test('a plan cannot be longer than the longest working shift', () => {
-  BookingPlan.assertFitsShift(720, 720);
-  assert.throws(
-    () => BookingPlan.assertFitsShift(780, 720),
-    /longer than your longest working shift/,
-  );
-});
 
 test('the tax code is locked once the profile is approved', () => {
   PhotographerProfile.assertTaxCodeEditable('pending', '0312', '9999');
@@ -72,12 +62,12 @@ test('changing portfolio items locks the portfolio row first', async () => {
   await new PortfolioUseCases(media, {} as ObjectStorage).add(
     s,
     { sub: 'kc', roles: ['photographer'] },
-    { id: 'album', media_id: 'm1' },
+    { portfolio_id: 'album', media_id: 'm1' },
   );
   assert.deepEqual(locks[0], { mode: 'pessimistic_write' });
 });
 
-test("the photographer's own plan list flags plans that no longer fit the working hours", async () => {
+test("the photographer's own plan list returns all plans", async () => {
   const s = {
     findBy: async () => [
       { id: 'p1', user_id: 'u1', keycloak_id: 'kc', status: 'active' },
@@ -87,20 +77,14 @@ test("the photographer's own plan list flags plans that no longer fit the workin
       { id: 'wedding', duration_minutes: 13 * 60 },
     ],
   } as unknown as EntityManager;
-  const useCases = new BookingPlanUseCases(
-    { longestShiftMinutes: async () => 12 * 60 } as WorkingHoursPort,
-    {} as PlanBookingsPort,
-  );
+  const useCases = new BookingPlanUseCases({} as PlanBookingsPort);
   const { items } = await useCases.me(s, {
     sub: 'kc',
     roles: ['photographer'],
   });
   assert.deepEqual(
-    items.map((plan) => [plan.id, plan.fits_working_hours]),
-    [
-      ['short', true],
-      ['wedding', false],
-    ],
+    items.map((plan) => plan.id),
+    ['short', 'wedding'],
   );
 });
 
@@ -135,7 +119,7 @@ test('viewing a portfolio costs the same number of queries for 1 or 3 photos', a
     const album = await new PortfolioUseCases(
       {} as MediaOwnershipPort,
       storage,
-    ).get(s, { sub: '', roles: [] }, { id: 'album' });
+    ).get(s, { sub: '', roles: [] }, { portfolio_id: 'album' });
     assert.deepEqual(
       album.items.map((i: { media_id: string; download_url: string }) => [
         i.media_id,
@@ -160,12 +144,15 @@ test('a plan with bookings cannot be deleted; booking is asked, its table is not
       },
       delete: async () => ({}),
     } as unknown as EntityManager;
-    return new BookingPlanUseCases(
-      {} as WorkingHoursPort,
+    return new BookingPlanUseCases({
+      bookingCountForPlan: async () => bookings,
+    } as unknown as PlanBookingsPort).remove(
+      s,
+      { sub: 'kc', roles: ['photographer'] },
       {
-        bookingCountForPlan: async () => bookings,
-      } as unknown as PlanBookingsPort,
-    ).remove(s, { sub: 'kc', roles: ['photographer'] }, { id: 'plan' });
+        booking_plan_id: 'plan',
+      },
+    );
   };
   await assert.rejects(run(2), /deactivate it instead/);
   assert.deepEqual(await run(0), { deleted: true });

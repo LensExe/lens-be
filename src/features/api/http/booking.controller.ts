@@ -7,7 +7,6 @@ import {
   Query,
   Req,
   HttpCode,
-  NotFoundException,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
@@ -25,7 +24,6 @@ import {
   ApiNotFoundResponse,
   ApiConflictResponse,
   ApiServiceUnavailableResponse,
-  ApiExcludeEndpoint,
 } from '@nestjs/swagger';
 import type { Actor } from '@shared/platform/auth/actor';
 import { Access } from '../auth/keycloak.guard';
@@ -53,18 +51,6 @@ export class BookingController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
-
-  /**
-   * Collaboration is temporarily disabled: a booking has exactly one photographer.
-   *
-   * @returns No value is returned.
-   * @throws {NotFoundException} Thrown when the requested resource does not exist.
-   */
-  private collaborationDisabled(): never {
-    throw new NotFoundException(
-      'Booking collaboration is temporarily disabled',
-    );
-  }
 
   /**
    * List bookings for the admin view using the supplied filters.
@@ -172,9 +158,11 @@ export class BookingController {
     @Req() req: { actor?: Actor },
     @Body() body: Dto.BookingCreateCommandBodyDto,
   ) {
+    const { booking_plan_id, ...bookingInput } = body;
     return this.commands.execute(
       new BookingCreateCommand(req.actor ?? { sub: '', roles: [] }, {
-        ...body,
+        ...bookingInput,
+        booking_plan_id,
       }),
     );
   }
@@ -257,7 +245,7 @@ export class BookingController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('bookings/:id/accept')
+  @Post('bookings/:booking_id/accept')
   @ApiOperation({
     operationId: 'BOOK-004',
     summary: 'Chấp nhận booking',
@@ -281,7 +269,7 @@ export class BookingController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -290,10 +278,12 @@ export class BookingController {
   @HttpCode(200)
   accept(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
   ) {
     return this.commands.execute(
-      new BookingAcceptCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new BookingAcceptCommand(req.actor ?? { sub: '', roles: [] }, {
+        booking_id,
+      }),
     );
   }
 
@@ -305,7 +295,7 @@ export class BookingController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('bookings/:id/cancel')
+  @Post('bookings/:booking_id/cancel')
   @ApiOperation({
     operationId: 'BOOK-006',
     summary: 'Hủy booking',
@@ -330,7 +320,7 @@ export class BookingController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiBody({ type: Dto.BookingCancelCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -340,13 +330,13 @@ export class BookingController {
   @HttpCode(200)
   cancel(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
     @Body() body: Dto.BookingCancelCommandBodyDto,
   ) {
     return this.commands.execute(
       new BookingCancelCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        booking_id,
       }),
     );
   }
@@ -358,7 +348,7 @@ export class BookingController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('bookings/:id/complete')
+  @Post('bookings/:booking_id/complete')
   @ApiOperation({
     operationId: 'BOOK-009',
     summary: 'Hoàn tất booking',
@@ -383,7 +373,7 @@ export class BookingController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -392,10 +382,12 @@ export class BookingController {
   @HttpCode(200)
   complete(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
   ) {
     return this.commands.execute(
-      new BookingCompleteCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new BookingCompleteCommand(req.actor ?? { sub: '', roles: [] }, {
+        booking_id: booking_id,
+      }),
     );
   }
 
@@ -406,7 +398,7 @@ export class BookingController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('bookings/:id/confirm-receipt')
+  @Post('bookings/:booking_id/confirm-receipt')
   @ApiOperation({
     operationId: 'BOOK-012',
     summary: 'Khách xác nhận đã nhận ảnh',
@@ -431,7 +423,7 @@ export class BookingController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -440,11 +432,11 @@ export class BookingController {
   @HttpCode(200)
   confirmReceipt(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
   ) {
     return this.commands.execute(
       new BookingConfirmReceiptCommand(req.actor ?? { sub: '', roles: [] }, {
-        id,
+        booking_id: booking_id,
       }),
     );
   }
@@ -456,7 +448,7 @@ export class BookingController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('bookings/:id/complete-shoot')
+  @Post('bookings/:booking_id/complete-shoot')
   @ApiOperation({
     operationId: 'BOOK-008',
     summary: 'Xác nhận chụp xong',
@@ -481,7 +473,7 @@ export class BookingController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -490,11 +482,11 @@ export class BookingController {
   @HttpCode(200)
   completeShoot(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
   ) {
     return this.commands.execute(
       new BookingCompleteShootCommand(req.actor ?? { sub: '', roles: [] }, {
-        id,
+        booking_id,
       }),
     );
   }
@@ -507,7 +499,7 @@ export class BookingController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('bookings/:id/dispute')
+  @Post('bookings/:booking_id/dispute')
   @ApiOperation({
     operationId: 'BOOK-011',
     summary: 'Tạo tranh chấp booking',
@@ -532,7 +524,7 @@ export class BookingController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiBody({ type: Dto.BookingDisputeCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -542,13 +534,13 @@ export class BookingController {
   @HttpCode(200)
   dispute(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
     @Body() body: Dto.BookingDisputeCommandBodyDto,
   ) {
     return this.commands.execute(
       new BookingDisputeCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        booking_id: booking_id,
       }),
     );
   }
@@ -561,7 +553,7 @@ export class BookingController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('bookings/:id/reject')
+  @Post('bookings/:booking_id/reject')
   @ApiOperation({
     operationId: 'BOOK-005',
     summary: 'Từ chối booking',
@@ -585,7 +577,7 @@ export class BookingController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiBody({ type: Dto.BookingRejectCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -595,13 +587,13 @@ export class BookingController {
   @HttpCode(200)
   reject(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
     @Body() body: Dto.BookingRejectCommandBodyDto,
   ) {
     return this.commands.execute(
       new BookingRejectCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        booking_id,
       }),
     );
   }
@@ -613,7 +605,7 @@ export class BookingController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('bookings/:id/start')
+  @Post('bookings/:booking_id/start')
   @ApiOperation({
     operationId: 'BOOK-007',
     summary: 'Bắt đầu buổi chụp',
@@ -638,7 +630,7 @@ export class BookingController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -647,10 +639,12 @@ export class BookingController {
   @HttpCode(200)
   start(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
   ) {
     return this.commands.execute(
-      new BookingStartCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new BookingStartCommand(req.actor ?? { sub: '', roles: [] }, {
+        booking_id: booking_id,
+      }),
     );
   }
 
@@ -661,7 +655,7 @@ export class BookingController {
    * @param id ID of the record to process.
    * @returns Result of the query dispatched to its handler.
    */
-  @Get('bookings/:id/timeline')
+  @Get('bookings/:booking_id/timeline')
   @ApiOperation({
     operationId: 'BOOK-010',
     summary: 'Lịch sử trạng thái booking',
@@ -686,7 +680,7 @@ export class BookingController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -694,10 +688,12 @@ export class BookingController {
   })
   timeline(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
   ) {
     return this.queries.execute(
-      new BookingTimelineQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new BookingTimelineQuery(req.actor ?? { sub: '', roles: [] }, {
+        booking_id,
+      }),
     );
   }
 
@@ -708,7 +704,7 @@ export class BookingController {
    * @param id ID of the record to process.
    * @returns Result of the query dispatched to its handler.
    */
-  @Get('bookings/:id')
+  @Get('bookings/:booking_id')
   @ApiOperation({
     operationId: 'BOOK-002',
     summary: 'Chi tiết booking',
@@ -733,7 +729,7 @@ export class BookingController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -741,260 +737,13 @@ export class BookingController {
   })
   get(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
   ) {
     return this.queries.execute(
-      new BookingGetQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new BookingGetQuery(req.actor ?? { sub: '', roles: [] }, {
+        booking_id: booking_id,
+      }),
     );
-  }
-
-  /**
-   * Invite another photographer to collaborate on the booking.
-   *
-   * @returns Result returned by `collaborationDisabled`.
-   */
-  @Post('bookings/:id/collaborators')
-  @ApiExcludeEndpoint()
-  @ApiOperation({
-    operationId: 'BOOK-013',
-    summary: 'Mời thợ liên kết',
-    description:
-      'Thợ chính mời thợ khác chụp cùng, chia % phần thợ nhận. Chỉ khi booking accepted/in_progress và gallery chưa publish; tổng % ≤ 100. Role: Photographer',
-  })
-  @Access(['photographer'])
-  @ApiBearerAuth()
-  @ApiUnauthorizedResponse({
-    description: 'Missing or invalid Keycloak access token',
-  })
-  @ApiForbiddenResponse({
-    description: 'Role, ownership or account status denied',
-  })
-  @ApiBadRequestResponse({
-    description: 'DTO validation or business constraint failed',
-  })
-  @ApiNotFoundResponse({ description: 'Resource not found' })
-  @ApiConflictResponse({
-    description: 'State transition or uniqueness conflict',
-  })
-  @ApiServiceUnavailableResponse({
-    description: 'External integration is not configured or unavailable',
-  })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
-  @ApiBody({ type: Dto.BookingCollaboratorInviteCommandBodyDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful result',
-    schema: responseSchema('BOOK-013'),
-  })
-  @HttpCode(200)
-  inviteCollaborator() {
-    return this.collaborationDisabled();
-  }
-
-  /**
-   * List booking collaborators and their participation status.
-   *
-   * @returns Result returned by `collaborationDisabled`.
-   */
-  @Get('bookings/:id/collaborators')
-  @ApiExcludeEndpoint()
-  @ApiOperation({
-    operationId: 'BOOK-014',
-    summary: 'Danh sách thợ liên kết',
-    description:
-      'Mọi lời mời của booking theo thời gian. Khách, thợ chính và thợ được mời xem được. Role: Customer/Photographer/Admin',
-  })
-  @Access(['customer', 'photographer', 'admin'])
-  @ApiBearerAuth()
-  @ApiUnauthorizedResponse({
-    description: 'Missing or invalid Keycloak access token',
-  })
-  @ApiForbiddenResponse({
-    description: 'Role, ownership or account status denied',
-  })
-  @ApiBadRequestResponse({
-    description: 'DTO validation or business constraint failed',
-  })
-  @ApiNotFoundResponse({ description: 'Resource not found' })
-  @ApiConflictResponse({
-    description: 'State transition or uniqueness conflict',
-  })
-  @ApiServiceUnavailableResponse({
-    description: 'External integration is not configured or unavailable',
-  })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful result',
-    schema: responseSchema('BOOK-014'),
-  })
-  collaborators() {
-    return this.collaborationDisabled();
-  }
-
-  /**
-   * List the current user’s collaboration invitations and bookings.
-   *
-   * @returns Result returned by `collaborationDisabled`.
-   */
-  @Get('booking-collaborators/me')
-  @ApiExcludeEndpoint()
-  @ApiOperation({
-    operationId: 'BOOK-015',
-    summary: 'Lời mời liên kết của tôi',
-    description:
-      'Các lời mời liên kết gửi tới thợ đang đăng nhập, mới nhất trước. Role: Photographer',
-  })
-  @Access(['photographer'])
-  @ApiBearerAuth()
-  @ApiUnauthorizedResponse({
-    description: 'Missing or invalid Keycloak access token',
-  })
-  @ApiForbiddenResponse({
-    description: 'Role, ownership or account status denied',
-  })
-  @ApiBadRequestResponse({
-    description: 'DTO validation or business constraint failed',
-  })
-  @ApiNotFoundResponse({ description: 'Resource not found' })
-  @ApiConflictResponse({
-    description: 'State transition or uniqueness conflict',
-  })
-  @ApiServiceUnavailableResponse({
-    description: 'External integration is not configured or unavailable',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful result',
-    schema: responseSchema('BOOK-015'),
-  })
-  myCollaborations() {
-    return this.collaborationDisabled();
-  }
-
-  /**
-   * Accept a booking collaboration invitation.
-   *
-   * @returns Result returned by `collaborationDisabled`.
-   */
-  @Post('booking-collaborators/:id/accept')
-  @ApiExcludeEndpoint()
-  @ApiOperation({
-    operationId: 'BOOK-016',
-    summary: 'Nhận lời mời liên kết',
-    description: 'Thợ được mời nhận lời mời còn chờ. Role: Photographer',
-  })
-  @Access(['photographer'])
-  @ApiBearerAuth()
-  @ApiUnauthorizedResponse({
-    description: 'Missing or invalid Keycloak access token',
-  })
-  @ApiForbiddenResponse({
-    description: 'Role, ownership or account status denied',
-  })
-  @ApiBadRequestResponse({
-    description: 'DTO validation or business constraint failed',
-  })
-  @ApiNotFoundResponse({ description: 'Resource not found' })
-  @ApiConflictResponse({
-    description: 'State transition or uniqueness conflict',
-  })
-  @ApiServiceUnavailableResponse({
-    description: 'External integration is not configured or unavailable',
-  })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful result',
-    schema: responseSchema('BOOK-016'),
-  })
-  @HttpCode(200)
-  acceptCollaboration() {
-    return this.collaborationDisabled();
-  }
-
-  /**
-   * Decline a booking collaboration invitation.
-   *
-   * @returns Result returned by `collaborationDisabled`.
-   */
-  @Post('booking-collaborators/:id/decline')
-  @ApiExcludeEndpoint()
-  @ApiOperation({
-    operationId: 'BOOK-017',
-    summary: 'Từ chối lời mời liên kết',
-    description:
-      'Thợ được mời từ chối lời mời còn chờ; sau đó thợ chính không mời lại thợ này được. Role: Photographer',
-  })
-  @Access(['photographer'])
-  @ApiBearerAuth()
-  @ApiUnauthorizedResponse({
-    description: 'Missing or invalid Keycloak access token',
-  })
-  @ApiForbiddenResponse({
-    description: 'Role, ownership or account status denied',
-  })
-  @ApiBadRequestResponse({
-    description: 'DTO validation or business constraint failed',
-  })
-  @ApiNotFoundResponse({ description: 'Resource not found' })
-  @ApiConflictResponse({
-    description: 'State transition or uniqueness conflict',
-  })
-  @ApiServiceUnavailableResponse({
-    description: 'External integration is not configured or unavailable',
-  })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful result',
-    schema: responseSchema('BOOK-017'),
-  })
-  @HttpCode(200)
-  declineCollaboration() {
-    return this.collaborationDisabled();
-  }
-
-  /**
-   * Revoke collaboration access to the booking.
-   *
-   * @returns Result returned by `collaborationDisabled`.
-   */
-  @Post('booking-collaborators/:id/revoke')
-  @ApiExcludeEndpoint()
-  @ApiOperation({
-    operationId: 'BOOK-018',
-    summary: 'Rút lời mời liên kết',
-    description:
-      'Thợ chính rút lời mời khi thợ được mời chưa trả lời. Role: Photographer',
-  })
-  @Access(['photographer'])
-  @ApiBearerAuth()
-  @ApiUnauthorizedResponse({
-    description: 'Missing or invalid Keycloak access token',
-  })
-  @ApiForbiddenResponse({
-    description: 'Role, ownership or account status denied',
-  })
-  @ApiBadRequestResponse({
-    description: 'DTO validation or business constraint failed',
-  })
-  @ApiNotFoundResponse({ description: 'Resource not found' })
-  @ApiConflictResponse({
-    description: 'State transition or uniqueness conflict',
-  })
-  @ApiServiceUnavailableResponse({
-    description: 'External integration is not configured or unavailable',
-  })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful result',
-    schema: responseSchema('BOOK-018'),
-  })
-  @HttpCode(200)
-  revokeCollaboration() {
-    return this.collaborationDisabled();
   }
 
   /**
@@ -1005,7 +754,7 @@ export class BookingController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('admin/bookings/:id/cancel')
+  @Post('admin/bookings/:booking_id/cancel')
   @ApiOperation({
     operationId: 'BOOK-019',
     summary: 'Admin huỷ booking',
@@ -1030,7 +779,7 @@ export class BookingController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiBody({ type: Dto.BookingCancelCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -1040,13 +789,13 @@ export class BookingController {
   @HttpCode(200)
   adminCancel(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
     @Body() body: Dto.BookingCancelCommandBodyDto,
   ) {
     return this.commands.execute(
       new BookingAdminCancelCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        booking_id: booking_id,
       }),
     );
   }

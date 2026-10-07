@@ -61,12 +61,12 @@ export class BookingCreateCommandBodyDto {
   photographer_id!: string;
 
   @ApiProperty({
-    description: 'plan id',
+    description: 'Booking plan identifier',
     format: 'uuid',
     example: '11111111-1111-4111-8111-111111111111',
   })
   @IsUUID()
-  plan_id!: string;
+  booking_plan_id!: string;
 
   @ApiProperty({ description: 'location', type: 'string' })
   @IsString()
@@ -171,53 +171,4 @@ export class BookingRejectCommandBodyDto {
   @MinLength(1)
   @MaxLength(10000)
   reason!: string;
-}
-
-export class BookingCollaboratorInviteCommandBodyDto {
-  @ApiProperty({
-    description: 'ID hồ sơ thợ được mời',
-    format: 'uuid',
-    example: '11111111-1111-4111-8111-111111111111',
-  })
-  @IsUUID()
-  photographer_id!: string;
-
-  @ApiProperty({
-    description: '% phần thợ nhận chia cho thợ này (số nguyên 1–100)',
-    minimum: 1,
-    maximum: 100,
-    example: 30,
-  })
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  share_percent!: number;
-}
-
-export class BookingCollaboratorMeQueryQueryDto {
-  @ApiPropertyOptional({
-    description: 'limit',
-    minimum: 1,
-    maximum: 100,
-    example: 20,
-  })
-  @ValidateIf((_object, value) => value !== undefined)
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  limit?: number;
-
-  @ApiPropertyOptional({
-    description: 'offset',
-    minimum: 0,
-    maximum: 1000000,
-    example: 0,
-  })
-  @ValidateIf((_object, value) => value !== undefined)
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  @Max(1000000)
-  offset?: number;
 }

@@ -1,7 +1,6 @@
 import type { EntityManager } from 'typeorm';
-import type { WorkingShift } from '@shared/domain/types/work-schedule.types';
 
-/** Photographer pending booking requests, used by Calendar to preview and reject requests when blocking time or changing working hours. */
+/** Photographer pending booking requests, used by Calendar to preview and reject requests when blocking time. */
 export interface PendingRequest {
   id: string;
   customer_id: string;
@@ -23,20 +22,6 @@ export abstract class PendingBookingsPort {
     manager: EntityManager,
     photographerId: string,
     range: { from: string; to: string },
-  ): Promise<PendingRequest[]>;
-
-  /**
-   * Photographer pending requests that no longer fit entirely within a shift in the new weekly schedule.
-   *
-   * @param manager EntityManager from the caller’s transaction.
-   * @param photographerId Photographer profile ID.
-   * @param schedule New weekly schedule; an empty schedule uses the default hours.
-   * @returns Affected requests, ordered by start time.
-   */
-  abstract pendingOutside(
-    manager: EntityManager,
-    photographerId: string,
-    schedule: readonly WorkingShift[],
   ): Promise<PendingRequest[]>;
 
   /**

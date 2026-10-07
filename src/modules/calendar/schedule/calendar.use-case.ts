@@ -11,17 +11,12 @@ import {
 import { Calendar } from './calendar.domain';
 import { PendingBookingsPort } from '../ports/pending-bookings.port';
 import { PhotographerBookingsPort } from '../ports/photographer-bookings.port';
-import { WorkSchedule } from '@shared/domain/rules/work-schedule.rules';
-import { DEFAULT_WORKING_HOURS } from '@shared/domain/values/work-schedule.values';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 
 /** Reason recorded when a pending request is rejected because the photographer blocked that time. */
 const BLOCKED_REASON = 'Photographer blocked this time';
 
-/** Reason recorded when a pending request falls outside the photographer’s updated working hours. */
-const HOURS_CHANGED_REASON = 'Photographer changed working hours';
-
-/** Photographer calendar operations: working hours, blocks, my calendar, and customer availability. */
+/** Photographer calendar operations: blocks, my calendar, and customer availability. */
 @Injectable()
 export class CalendarUseCases {
   constructor(
@@ -30,7 +25,7 @@ export class CalendarUseCases {
   ) {}
 
   /**
-   * Public photographer availability: subtract blocked ranges and bookings from working shifts in Vietnam time.
+   * Public photographer availability: all time is available except blocked ranges and bookings reserving the schedule.
    * Only approved photographers with active accounts; return no availability when `is_available = false`.
    *
    * @param s EntityManager for the current transaction.
@@ -43,14 +38,16 @@ export class CalendarUseCases {
     _a: Actor,
     input: Inputs.CalendarAvailabilityQueryInput,
   ) {
-    const { photographer: p } = await publicPhotographer(s, input.id);
+    const { photographer: p } = await publicPhotographer(
+      s,
+      input.photographer_id,
+    );
     if (!p.is_available) return { items: [] };
     const window = Calendar.availabilityWindow(input, Date.now());
     return {
       items: Calendar.availability(
         window.from,
         window.to,
-        await s.findBy(EntitySchemas.working_hours, { photographer_id: p.id }),
         await s.find(EntitySchemas.offline_slots, {
           where: overlapWhere(p.id, window),
           order: { from: 'ASC' as const },
@@ -61,100 +58,45 @@ export class CalendarUseCases {
   }
 
   /**
-   * Photographer’s longest shift in minutes. The Photographer module calls through this port to prevent creating a plan
-   * longer than every shift (such a plan could never be booked).
+   * Public future offline slots for customer booking flows. Only public photographers are exposed;
+   * the private reason is intentionally omitted from the response.
    *
    * @param s EntityManager for the current transaction.
-   * @param photographerId Photographer profile ID.
-   * @returns Longest shift in minutes; defaults to 720 (08:00–20:00) if no schedule is defined.
+   * @param _a Caller provided for interface compatibility; unused because this API is public.
+   * @param input Photographer ID and optional future time window.
+   * @returns `{ items }` containing future `{ id, from, to }` slots.
    */
-  async longestShiftMinutes(s: EntityManager, photographerId: string) {
-    return WorkSchedule.longestShiftMinutes(
-      await s.findBy(EntitySchemas.working_hours, {
-        photographer_id: photographerId,
-      }),
-    );
-  }
-
-  /**
-   * Photographer views their weekly working schedule.
-   *
-   * @param s EntityManager for the current transaction.
-   * @param a Photographer making the API request.
-   * @returns `{ items, is_default }`; if no schedule is defined, `items` contains the default 08:00–20:00 hours and `is_default` is `true`.
-   */
-  async workingHours(s: EntityManager, a: Actor) {
-    const p = await photographer(s, a);
-    const items = await s.find(EntitySchemas.working_hours, {
-      where: { photographer_id: p.id },
-      order: { weekday: 'ASC', start_time: 'ASC' },
-    });
-    return items.length
-      ? {
-          items: items.map(({ weekday, start_time, end_time }) => ({
-            weekday,
-            start_time,
-            end_time,
-          })),
-          is_default: false,
-        }
-      : { items: [...DEFAULT_WORKING_HOURS], is_default: true };
-  }
-
-  /**
-   * Photographer replaces their entire weekly schedule. An empty list restores the default 08:00–20:00 hours.
-   * If pending requests fall outside the new working hours, the photographer must send `decline_pending: true` (preview with
-   * `workingHoursPreview`); those requests will then be rejected with a reason. Accepted bookings remain unchanged.
-   *
-   * @param s EntityManager for the current transaction.
-   * @param a Photographer making the API request.
-   * @param input New shifts (days 1–7, `HH:MM` in Vietnam time).
-   * @returns Saved work schedule; throws HTTP 400 for invalid times or overlapping shifts on the same day.
-   */
-  async setWorkingHours(
+  async futureOfflineSlots(
     s: EntityManager,
-    a: Actor,
-    input: Inputs.CalendarSetWorkingHoursCommandInput,
+    _a: Actor,
+    input: Inputs.CalendarOfflineSlotsQueryInput,
   ) {
-    const p = await this.lockedPhotographer(s, a);
-    WorkSchedule.assertValid(input.items);
-    const affected = await this.pendingBookings.pendingOutside(
+    const { photographer: p } = await publicPhotographer(
       s,
-      p.id,
-      input.items,
+      input.photographer_id,
     );
-    this.assertConsent(affected.length, input.decline_pending);
-    await s.delete(EntitySchemas.working_hours, { photographer_id: p.id });
-    for (const shift of input.items)
-      await s.save(EntitySchemas.working_hours, {
-        ...shift,
-        photographer_id: p.id,
-      });
-    await this.pendingBookings.decline(
-      s,
-      affected.map((b) => b.id),
-      HOURS_CHANGED_REASON,
-    );
-    return this.workingHours(s, a);
-  }
+    if (!p.is_available) return { items: [] };
 
-  /**
-   * Preview the pending requests that would be rejected if the photographer saves this weekly schedule.
-   *
-   * @param s EntityManager for the current transaction.
-   * @param a Photographer making the API request.
-   * @param input Weekly schedule to save.
-   * @returns `{ items }` containing affected requests; throws HTTP 400 if the schedule is invalid.
-   */
-  async workingHoursPreview(
-    s: EntityManager,
-    a: Actor,
-    input: Inputs.CalendarWorkingHoursPreviewQueryInput,
-  ) {
-    const p = await photographer(s, a);
-    WorkSchedule.assertValid(input.items);
+    const window = Calendar.futureOfflineSlotsWindow(input, Date.now());
+    const slots = await s
+      .createQueryBuilder(EntitySchemas.offline_slots, 'slot')
+      .select('slot.id', 'id')
+      .addSelect('slot.from', 'from')
+      .addSelect('slot.to', 'to')
+      .where('slot.photographer_id = :photographerId', {
+        photographerId: p.id,
+      })
+      .andWhere('slot.from >= :from', { from: window.from })
+      .andWhere('slot.from < :to', { to: window.to })
+      .orderBy('slot.from', 'ASC')
+      .getRawMany<{ id: string; from: string | Date; to: string | Date }>();
+
     return {
-      items: await this.pendingBookings.pendingOutside(s, p.id, input.items),
+      items: slots.map(({ id, from, to }) => ({
+        id,
+        from: new Date(from).toISOString(),
+        to: new Date(to).toISOString(),
+      })),
     };
   }
 
@@ -268,7 +210,7 @@ export class CalendarUseCases {
   }
 
   /**
-   * The photographer must agree to reject pending customer requests before changing the working schedule.
+   * The photographer must agree to reject pending customer requests before blocking their time.
    *
    * @param affected Number of affected pending requests.
    * @param declinePending Whether the photographer supplied `decline_pending: true`.
@@ -298,7 +240,7 @@ export class CalendarUseCases {
     input: Inputs.CalendarUnblockCommandInput,
   ) {
     const p = await photographer(s, a),
-      slot = await required(s, 'offline_slots', input.id);
+      slot = await required(s, 'offline_slots', input.offline_slot_id);
     ensure(slot.photographer_id === p.id, 'Slot access denied', 'forbidden');
     await s.delete(EntitySchemas.offline_slots, slot.id);
     return { deleted: true };

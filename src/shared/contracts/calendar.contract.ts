@@ -21,25 +21,19 @@ export interface CalendarMeQueryInput {
   to?: string;
 }
 
-export type CalendarWorkingHoursQueryInput = Record<string, never>;
-
-export interface CalendarSetWorkingHoursCommandInput {
-  items: { weekday: number; start_time: string; end_time: string }[];
-  /** Confirm or reject pending requests outside the new working hours; if any are affected and none are specified, return 409. */
-  decline_pending?: boolean;
-}
-
-/** Preview pending requests that fall outside the new weekly schedule. */
-export interface CalendarWorkingHoursPreviewQueryInput {
-  items: { weekday: number; start_time: string; end_time: string }[];
-}
-
 export interface CalendarUnblockCommandInput {
-  id: string;
+  offline_slot_id: string;
 }
 
 export interface CalendarAvailabilityQueryInput {
-  id: string;
+  photographer_id: string;
+  from?: string;
+  to?: string;
+}
+
+/** Public future offline slots for one photographer; defaults to the next 30 days. */
+export interface CalendarOfflineSlotsQueryInput {
+  photographer_id: string;
   from?: string;
   to?: string;
 }

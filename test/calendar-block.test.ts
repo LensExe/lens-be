@@ -96,7 +96,7 @@ test('a block must not be over, overlap a booking or another block', () => {
   );
 });
 
-test('availability and booking only lose the blocked hours, not the whole day', () => {
+test('availability and booking only lose the blocked range', () => {
   const blocked = [
     { from: '2030-01-01T10:00:00.000Z', to: '2030-01-01T12:00:00.000Z' },
   ];
@@ -104,14 +104,12 @@ test('availability and booking only lose the blocked hours, not the whole day', 
     Calendar.availability(
       '2030-01-01T09:00:00.000Z',
       '2030-01-01T14:00:00.000Z',
-      [],
       blocked,
       [],
     ),
-    // the default shift ends at 20:00 Vietnam time = 13:00 UTC
     [
       { from: '2030-01-01T09:00:00.000Z', to: '2030-01-01T10:00:00.000Z' },
-      { from: '2030-01-01T12:00:00.000Z', to: '2030-01-01T13:00:00.000Z' },
+      { from: '2030-01-01T12:00:00.000Z', to: '2030-01-01T14:00:00.000Z' },
     ],
   );
   const draft = {
@@ -130,7 +128,6 @@ test('availability and booking only lose the blocked hours, not the whole day', 
     openRequestsWithPhotographer: 0,
     openRequests: 0,
     location: 'Studio',
-    schedule: [],
     blockedTimes: blocked,
     bookings: [],
     now,
@@ -153,18 +150,11 @@ test('availability and booking only lose the blocked hours, not the whole day', 
   );
 });
 
-test('availability follows the declared shifts per Vietnam day', () => {
-  // Monday 28/09 two shifts, Tuesday off, Wednesday one shift
-  const schedule = [
-    { weekday: 1, start_time: '08:00', end_time: '12:00' },
-    { weekday: 1, start_time: '14:00', end_time: '18:00' },
-    { weekday: 3, start_time: '09:00', end_time: '10:00' },
-  ];
+test('availability defaults to the whole range minus blocks and reserved bookings', () => {
   assert.deepEqual(
     Calendar.availability(
       '2026-09-28T00:00:00+07:00',
       '2026-10-01T00:00:00+07:00',
-      schedule,
       [{ from: '2026-09-28T09:00:00+07:00', to: '2026-09-28T10:00:00+07:00' }],
       [
         {
@@ -175,26 +165,22 @@ test('availability follows the declared shifts per Vietnam day', () => {
       ],
     ),
     [
-      { from: '2026-09-28T01:00:00.000Z', to: '2026-09-28T02:00:00.000Z' },
-      { from: '2026-09-28T03:00:00.000Z', to: '2026-09-28T05:00:00.000Z' },
-      { from: '2026-09-28T07:00:00.000Z', to: '2026-09-28T08:00:00.000Z' },
-      { from: '2026-09-28T09:00:00.000Z', to: '2026-09-28T11:00:00.000Z' },
-      { from: '2026-09-30T02:00:00.000Z', to: '2026-09-30T03:00:00.000Z' },
+      { from: '2026-09-27T17:00:00.000Z', to: '2026-09-28T02:00:00.000Z' },
+      { from: '2026-09-28T03:00:00.000Z', to: '2026-09-28T08:00:00.000Z' },
+      { from: '2026-09-28T09:00:00.000Z', to: '2026-09-30T17:00:00.000Z' },
     ],
   );
 });
 
-test('a window starting at 00:00 Vietnam time still sees that day', () => {
-  // 00:00 +07 is 17:00 UTC of the previous day; a UTC day loop would skip it
+test('availability retains the full window starting at 00:00 Vietnam time', () => {
   assert.deepEqual(
     Calendar.availability(
       '2026-10-01T00:00:00+07:00',
       '2026-10-02T00:00:00+07:00',
       [],
       [],
-      [],
     ),
-    [{ from: '2026-10-01T01:00:00.000Z', to: '2026-10-01T13:00:00.000Z' }],
+    [{ from: '2026-09-30T17:00:00.000Z', to: '2026-10-01T17:00:00.000Z' }],
   );
 });
 

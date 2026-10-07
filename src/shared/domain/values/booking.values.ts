@@ -12,12 +12,18 @@ export const BookingStatus = {
 
 export type BookingStatus = (typeof BookingStatus)[keyof typeof BookingStatus];
 
-/** Booking statuses that block a photographer's calendar. */
+/** Accepted and later booking statuses that occupy the calendar; pending is tracked separately as a reservation. */
 export const OCCUPIED_BOOKING_STATUSES = [
   BookingStatus.ACCEPTED,
   BookingStatus.IN_PROGRESS,
   BookingStatus.SHOT,
   BookingStatus.COMPLETED,
+] as const;
+
+/** Booking statuses that reserve a photographer's time; pending requests hold the slot until answered or expired. */
+export const RESERVING_BOOKING_STATUSES = [
+  BookingStatus.PENDING,
+  ...OCCUPIED_BOOKING_STATUSES,
 ] as const;
 
 /** Actor who changed a booking's status. */
@@ -30,14 +36,3 @@ export const BookingActorRole = {
 
 export type BookingActorRole =
   (typeof BookingActorRole)[keyof typeof BookingActorRole];
-
-/** Status of a collaboration invitation to a photographer. */
-export const BookingCollaboratorStatus = {
-  INVITED: 'invited',
-  ACCEPTED: 'accepted',
-  DECLINED: 'declined',
-  REVOKED: 'revoked',
-} as const;
-
-export type BookingCollaboratorStatus =
-  (typeof BookingCollaboratorStatus)[keyof typeof BookingCollaboratorStatus];

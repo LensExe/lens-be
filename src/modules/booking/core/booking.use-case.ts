@@ -1,21 +1,17 @@
 import {
   In,
   type SelectQueryBuilder,
-  LessThan,
   LessThanOrEqual,
-  MoreThan,
   MoreThanOrEqual,
   type EntityManager,
   type FindOptionsWhere,
 } from 'typeorm';
-import { EntitySchemas, overlapWhere, updateEntity } from '@shared/database';
+import { EntitySchemas, overlapWhere } from '@shared/database';
 import type * as Inputs from '@shared/contracts/contracts';
 import { Injectable, Optional } from '@nestjs/common';
 import type { Actor } from '@shared/platform/auth/actor';
 import {
   currentUser,
-  photographer as ownPhotographer,
-  publicPhotographer,
   required,
   bookingAccess,
   emit,
@@ -24,8 +20,6 @@ import {
   role,
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
-import { WorkSchedule } from '@shared/domain/rules/work-schedule.rules';
-import type { WorkingShift } from '@shared/domain/types/work-schedule.types';
 import { RatingUpdaterPort } from '../ports/rating-updater.port';
 import { PaidAmountsPort } from '../ports/paid-amounts.port';
 import { BookingPaymentSettlementPort } from '../ports/booking-payment-settlement.port';
@@ -35,18 +29,9 @@ import {
   Booking,
   BookingActorRole,
   BookingStatus,
-  OCCUPIED_BOOKING_STATUSES,
   type BookingAction,
 } from './booking.domain';
-import {
-  BookingCollaboratorStatus,
-  Collaboration,
-  type CollaborationAction,
-} from '../collaborator/collaborator.domain';
-import type {
-  BookingCollaboratorEntity,
-  BookingEntity,
-} from '@shared/database/entities';
+import type { BookingEntity } from '@shared/database/entities';
 
 /** Bookings per page and maximum pages to scan per run of the due-booking job. */
 const JOB_BATCH_SIZE = 100;
@@ -95,7 +80,7 @@ export class BookingUseCases
    * @param s EntityManager for the current transaction.
    * @param a Customer actor; must have a customer profile.
    * @param input Photographer, plan, location, and `from`–`to` time range.
-   * @returns Pending booking; throws 404 if the photographer is unapproved, 400 for an invalid duration, or 409 if outside working hours or overlapping.
+   * @returns Pending booking; throws 404 if the photographer is unapproved, 400 for an invalid duration, or 409 if the time is blocked or reserved.
    * @throws {DomainError} Thrown when the actor is not authorized.
    */
   async create(
@@ -111,11 +96,7 @@ export class BookingUseCases
     const p = await this.lockPhotographer(s, input.photographer_id);
 
     const pu = await required(s, 'users', p.user_id),
-      plan = await required(s, 'booking_plans', input.plan_id);
-
-    const schedule = await s.findBy(EntitySchemas.working_hours, {
-      photographer_id: p.id,
-    });
+      plan = await required(s, 'booking_plans', input.booking_plan_id);
 
     const blockedTimes = await s.findBy(
       EntitySchemas.offline_slots,
@@ -143,7 +124,6 @@ export class BookingUseCases
       location: input.location,
       from: input.from,
       to: input.to,
-      schedule,
       blockedTimes,
       bookings,
       openRequestsWithPhotographer: await s.countBy(EntitySchemas.bookings, {
@@ -183,7 +163,7 @@ export class BookingUseCases
    * @returns Booking; throws 403 if the caller is unrelated, or 404 if it does not exist.
    */
   async get(s: EntityManager, a: Actor, input: Inputs.BookingGetQueryInput) {
-    return this.viewable(s, a, input.id);
+    return this.viewable(s, a, input.booking_id);
   }
 
   /**
@@ -255,7 +235,7 @@ export class BookingUseCases
   private async transition(
     s: EntityManager,
     a: Actor,
-    input: { id: string; reason?: string },
+    input: { booking_id: string; reason?: string },
     action: BookingAction,
   ) {
     const side = ACTION_SIDE[action];
@@ -266,7 +246,7 @@ export class BookingUseCases
       customer,
       photographer,
       recipients,
-    } = await bookingAccess(s, a, input.id, side);
+    } = await bookingAccess(s, a, input.booking_id, side);
     const actorRole = Booking.actorRole(
       user.id,
       customer.user_id,
@@ -495,8 +475,9 @@ export class BookingUseCases
   }
 
   /**
-   * Primary photographer accepts a booking: `pending → accepted`. Recheck that no accepted booking
-   * or a blocked range occupies the time; then reject overlapping pending requests with a reason and send a real-time notification.
+   * Primary photographer accepts a booking: `pending → accepted`. The customer must have paid the
+   * deposit first. Recheck that no accepted booking or a blocked range occupies the time; then reject
+   * overlapping pending requests with a reason and send a real-time notification.
    *
    * @param s EntityManager for the current transaction.
    * @param a Primary photographer actor.
@@ -508,12 +489,20 @@ export class BookingUseCases
     a: Actor,
     i: Inputs.BookingAcceptCommandInput,
   ) {
-    const access = await bookingAccess(s, a, i.id, 'photographer');
+    const access = await bookingAccess(s, a, i.booking_id, 'photographer');
     // Lock the photographer so overlapping acceptances cannot both succeed; reread the booking after acquiring the lock.
     await this.lockPhotographer(s, access.photographer.id);
-    const b = await required(s, 'bookings', i.id);
-    if (b.status === BookingStatus.PENDING)
+    const b = await required(s, 'bookings', i.booking_id);
+    if (b.status === BookingStatus.PENDING) {
       Booking.assertStillPending(b, Date.now());
+      const paidAmount =
+        (await this.payments.paidAmounts(s, [b.id]))[b.id] ?? 0;
+      ensure(
+        paidAmount >= Number(b.deposit_amount),
+        'Deposit must be paid before photographer can confirm',
+        'conflict',
+      );
+    }
     const overlap = overlapWhere(b.photographer_id, b);
     const others = (await s.findBy(EntitySchemas.bookings, overlap)).filter(
       (o) => o.id !== b.id,
@@ -587,31 +576,6 @@ export class BookingUseCases
       },
       order: { from: 'ASC' },
     });
-  }
-
-  /**
-   * Pending requests that no longer fit within a shift in the new weekly schedule
-   * (shown when the photographer previews a schedule change).
-   *
-   * @param s EntityManager for the current transaction.
-   * @param photographerId Photographer profile ID.
-   * @param schedule New weekly schedule; an empty schedule uses the default hours.
-   * @returns Affected requests, ordered by start time.
-   */
-  async pendingOutside(
-    s: EntityManager,
-    photographerId: string,
-    schedule: readonly WorkingShift[],
-  ) {
-    return (
-      await s.find(EntitySchemas.bookings, {
-        where: {
-          photographer_id: photographerId,
-          status: BookingStatus.PENDING,
-        },
-        order: { from: 'ASC' },
-      })
-    ).filter((b) => !WorkSchedule.fits(b, schedule));
   }
 
   /**
@@ -919,84 +883,6 @@ export class BookingUseCases
   }
 
   /**
-   * Legacy collaboration workflow, retained for a possible later re-enable.
-   * It is currently disabled and its CQRS handlers are not registered.
-   * Primary photographer invites another photographer to collaborate. Lock the booking first so concurrent invitations
-   * cannot exceed a combined 100% share.
-   *
-   * @param s EntityManager for the current transaction.
-   * @param a Primary photographer for the booking.
-   * @param input Booking ID, invited photographer, and share percentage.
-   * @returns Invitation just created.
-   */
-  async inviteCollaborator(
-    s: EntityManager,
-    a: Actor,
-    input: Inputs.BookingCollaboratorInviteCommandInput,
-  ) {
-    role(a, 'photographer');
-    await s.findOne(EntitySchemas.bookings, {
-      where: { id: input.id },
-      lock: { mode: 'pessimistic_write' },
-    });
-    const {
-      booking: b,
-      customer,
-      photographer: owner,
-    } = await bookingAccess(s, a, input.id, 'photographer');
-    // Invite only approved photographers with active accounts; otherwise return 404.
-    const { photographer: invitee } = await publicPhotographer(
-      s,
-      input.photographer_id,
-    );
-    const draft = Collaboration.invite({
-      bookingStatus: b.status,
-      galleryPublished: !!b.gallery_published_at,
-      ownerPhotographerId: owner.id,
-      inviteePhotographerId: invitee.id,
-      sharePercent: input.share_percent,
-      inviteeIsCustomer: invitee.user_id === customer.user_id,
-      existing: await s.findBy(EntitySchemas.booking_collaborators, {
-        booking_id: b.id,
-      }),
-    });
-    const row = await s.save(EntitySchemas.booking_collaborators, {
-      booking_id: b.id,
-      ...draft,
-      responded_at: null,
-    });
-    await emit(s, 'booking.collaborator_invited', [invitee.user_id], {
-      booking_id: b.id,
-      collaborator_id: row.id,
-      share_percent: row.share_percent,
-    });
-    return row;
-  }
-
-  /**
-   * Booking collaborators in every status, ordered by invitation time.
-   * Visible to the customer, primary photographer, admin, and photographers invited to this booking.
-   *
-   * @param s EntityManager for the current transaction.
-   * @param a Actor
-   * @param input ID booking
-   * @returns `{ items }`
-   */
-  async collaborators(
-    s: EntityManager,
-    a: Actor,
-    input: Inputs.BookingCollaboratorListQueryInput,
-  ) {
-    const b = await this.viewable(s, a, input.id);
-    return {
-      items: await s.find(EntitySchemas.booking_collaborators, {
-        where: { booking_id: b.id },
-        order: { created_at: 'ASC' },
-      }),
-    };
-  }
-
-  /**
    * Booking visible to the actor: customer, primary photographer, or admin/system. Each booking has a single photographer.
    *
    * @param s EntityManager for the current transaction.
@@ -1007,249 +893,6 @@ export class BookingUseCases
   private async viewable(s: EntityManager, a: Actor, id: string) {
     const { booking } = await bookingAccess(s, a, id);
     return booking;
-  }
-
-  /**
-   * Invitations sent to the signed-in photographer, newest first, with SQL pagination.
-   *
-   * @param s EntityManager for the current transaction.
-   * @param a Photographer actor.
-   * @param input `limit`, `offset`
-   * @returns `{ items, total, offset, limit }`
-   */
-  async myCollaborations(
-    s: EntityManager,
-    a: Actor,
-    input: Inputs.BookingCollaboratorMeQueryInput,
-  ) {
-    role(a, 'photographer');
-    const p = await ownPhotographer(s, a);
-    const { offset, limit } = pageWindow(input);
-    const [items, total] = await s.findAndCount(
-      EntitySchemas.booking_collaborators,
-      {
-        where: { photographer_id: p.id },
-        order: { created_at: 'DESC', id: 'ASC' },
-        skip: offset,
-        take: limit,
-      },
-    );
-    return paged(items, total, input);
-  }
-
-  /**
-   * Invitee accepts or declines a pending invitation; notify the primary photographer.
-   *
-   * @param s EntityManager for the current transaction.
-   * @param a Invited photographer actor.
-   * @param id Invitation ID.
-   * @param action 'accept' | 'decline'
-   * @returns Invitation after the status change.
-   * @throws {DomainError} Thrown when the actor is not authorized.
-   */
-  private async respondCollaboration(
-    s: EntityManager,
-    a: Actor,
-    id: string,
-    action: 'accept' | 'decline',
-  ) {
-    const { invitation, booking, me } = await this.invitation(s, a, id);
-    ensure(
-      invitation.photographer_id === me.id,
-      'Invitation access denied',
-      'forbidden',
-    );
-    if (action === 'accept') await this.assertCanJoin(s, me.id, booking);
-    const owner = await required(s, 'photographers', booking.photographer_id);
-    return this.changeCollaboration(
-      s,
-      invitation,
-      booking,
-      action,
-      owner.user_id,
-    );
-  }
-
-  /**
-   * A collaborating photographer can accept only if the shoot time is available in their own calendar: no blocked range,
-   * booking occupying the schedule, or other accepted collaboration may overlap it. Lock the photographer row
-   * to avoid a race with accepting another booking or blocking the same time.
-   *
-   * @param s EntityManager for the current transaction.
-   * @param photographerId Profile ID of the invited photographer.
-   * @param booking Booking for which the invitation was sent.
-   * @returns Returns no value; throws HTTP 409 if the time conflicts.
-   */
-  private async assertCanJoin(
-    s: EntityManager,
-    photographerId: string,
-    booking: BookingEntity,
-  ) {
-    await this.lockPhotographer(s, photographerId);
-    const overlap = overlapWhere(photographerId, booking);
-    Booking.assertCanAccept(
-      booking,
-      await s.findBy(EntitySchemas.offline_slots, overlap),
-      await s.findBy(EntitySchemas.bookings, overlap),
-    );
-  }
-
-  /**
-   * Legacy collaboration calendar query retained in case collaboration is restored.
-   * The Calendar module and primary booking flows do not currently use this result.
-   *
-   * @param s EntityManager for the current transaction.
-   * @param photographerId Photographer profile ID.
-   * @param range Time range to check.
-   * @returns `{ from, to, status }` ranges for bookings the photographer is participating in.
-   */
-  async collaborationTimes(
-    s: EntityManager,
-    photographerId: string,
-    range: { from: string; to: string },
-  ) {
-    const joined = await s.findBy(EntitySchemas.booking_collaborators, {
-      photographer_id: photographerId,
-      status: BookingCollaboratorStatus.ACCEPTED,
-    });
-    if (!joined.length) return [];
-    return s.findBy(EntitySchemas.bookings, {
-      id: In(joined.map((c) => c.booking_id)),
-      status: In([...OCCUPIED_BOOKING_STATUSES]),
-      to: MoreThan(new Date(range.from).toISOString()),
-      from: LessThan(new Date(range.to).toISOString()),
-    });
-  }
-
-  /**
-   * Primary photographer withdraws a pending invitation (before the invitee responds); notify the invitee.
-   *
-   * @param s EntityManager for the current transaction.
-   * @param a Primary photographer actor.
-   * @param i Invitation ID.
-   * @returns Invitation after the status change.
-   * @throws {DomainError} Thrown when the actor is not authorized.
-   */
-  async revokeCollaboration(
-    s: EntityManager,
-    a: Actor,
-    i: Inputs.BookingCollaboratorRevokeCommandInput,
-  ) {
-    const { invitation, booking, me } = await this.invitation(s, a, i.id);
-    ensure(
-      booking.photographer_id === me.id,
-      'Invitation access denied',
-      'forbidden',
-    );
-    const invitee = await required(
-      s,
-      'photographers',
-      invitation.photographer_id,
-    );
-    return this.changeCollaboration(
-      s,
-      invitation,
-      booking,
-      'revoke',
-      invitee.user_id,
-    );
-  }
-
-  /**
-   * Invitee accepts a pending invitation.
-   *
-   * @param s EntityManager for the current transaction.
-   * @param a Invited photographer actor; other callers receive 403.
-   * @param i Invitation ID.
-   * @returns Invitation with `status = 'accepted'`; throws 409 if the invitation is no longer pending or the booking is closed.
-   */
-  acceptCollaboration(
-    s: EntityManager,
-    a: Actor,
-    i: Inputs.BookingCollaboratorAcceptCommandInput,
-  ) {
-    return this.respondCollaboration(s, a, i.id, 'accept');
-  }
-
-  /**
-   * Invitee declines a pending invitation; the primary photographer cannot invite this photographer again afterward.
-   *
-   * @param s EntityManager for the current transaction.
-   * @param a Invited photographer actor; other callers receive 403.
-   * @param i Invitation ID.
-   * @returns Invitation with `status = 'declined'`; throws 409 if the invitation is no longer pending or the booking is closed.
-   */
-  declineCollaboration(
-    s: EntityManager,
-    a: Actor,
-    i: Inputs.BookingCollaboratorDeclineCommandInput,
-  ) {
-    return this.respondCollaboration(s, a, i.id, 'decline');
-  }
-
-  /**
-   * The invitation, its booking, and the signed-in photographer profile. Lock the booking before the invitation
-   * (in the same order as the invite operation) so responding cannot race with booking cancellation or another invitation.
-   *
-   * @param s EntityManager for the current transaction.
-   * @param a Photographer actor.
-   * @param id Invitation ID.
-   * @returns `{ invitation, booking, me }`
-   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
-   */
-  private async invitation(s: EntityManager, a: Actor, id: string) {
-    role(a, 'photographer');
-    const me = await ownPhotographer(s, a);
-    const { booking_id } = await required(s, 'booking_collaborators', id);
-    const booking = await s.findOne(EntitySchemas.bookings, {
-      where: { id: booking_id },
-      lock: { mode: 'pessimistic_write' },
-    });
-    ensure(booking, 'bookings not found', 'missing');
-    const invitation = await s.findOne(EntitySchemas.booking_collaborators, {
-      where: { id },
-      lock: { mode: 'pessimistic_write' },
-    });
-    ensure(invitation, 'booking_collaborators not found', 'missing');
-    return { invitation, booking, me };
-  }
-
-  /**
-   * Apply the domain invitation transition, save it, and emit a real-time event.
-   *
-   * @param s EntityManager for the current transaction.
-   * @param invitation Invitation.
-   * @param booking Booking associated with the invitation.
-   * @param action 'accept' | 'decline' | 'revoke'
-   * @param notifyUserId User to notify through a real-time event.
-   * @returns Invitation after the status change.
-   */
-  private async changeCollaboration(
-    s: EntityManager,
-    invitation: BookingCollaboratorEntity,
-    booking: BookingEntity,
-    action: CollaborationAction,
-    notifyUserId: string,
-  ) {
-    const status = Collaboration.respond(invitation.status, action, {
-      bookingStatus: booking.status,
-      galleryPublished: !!booking.gallery_published_at,
-    });
-    const row = await updateEntity(
-      s,
-      EntitySchemas.booking_collaborators,
-      invitation.id,
-      {
-        status,
-        responded_at: action === 'revoke' ? null : new Date().toISOString(),
-      },
-    );
-    await emit(s, `booking.collaborator_${status}`, [notifyUserId], {
-      booking_id: booking.id,
-      collaborator_id: invitation.id,
-      status,
-    });
-    return row;
   }
 
   /**
@@ -1300,7 +943,7 @@ export class BookingUseCases
   ) {
     role(a, 'admin');
     const user = await currentUser(s, a),
-      b = await required(s, 'bookings', i.id);
+      b = await required(s, 'bookings', i.booking_id);
     return this.apply(
       s,
       b,
@@ -1324,7 +967,7 @@ export class BookingUseCases
     a: Actor,
     i: Inputs.BookingTimelineQueryInput,
   ) {
-    const booking = await this.viewable(s, a, i.id);
+    const booking = await this.viewable(s, a, i.booking_id);
     return {
       items: await s.find(EntitySchemas.booking_status_history, {
         where: { booking_id: booking.id },
@@ -1346,7 +989,7 @@ export class BookingUseCases
     a: Actor,
     input: Inputs.BookingDisputeCommandInput,
   ) {
-    const { user } = await bookingAccess(s, a, input.id);
+    const { user } = await bookingAccess(s, a, input.booking_id);
     ensure(
       this.disputeReports,
       'Booking dispute reporting is unavailable',
@@ -1354,7 +997,7 @@ export class BookingUseCases
     );
     return this.disputeReports.createBookingDispute(s, {
       user_id: user.id,
-      booking_id: input.id,
+      booking_id: input.booking_id,
       reason: input.reason,
     });
   }

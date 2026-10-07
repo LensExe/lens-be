@@ -4,11 +4,9 @@ import {
   BookingActorRole,
   OCCUPIED_BOOKING_STATUSES,
 } from '@shared/domain/values/booking.values';
-import { isOccupied } from '@shared/domain/rules/booking.rules';
+import { isOccupied, reservesTime } from '@shared/domain/rules/booking.rules';
 import { money } from '@shared/domain/rules/money.rules';
 import { interval, overlaps } from '@shared/domain/rules/time-range.rules';
-import { WorkSchedule } from '@shared/domain/rules/work-schedule.rules';
-import type { WorkingShift } from '@shared/domain/types/work-schedule.types';
 export { BookingStatus, OCCUPIED_BOOKING_STATUSES, BookingActorRole };
 
 export interface BookingDraftInput {
@@ -30,15 +28,12 @@ export interface BookingDraftInput {
   location: string;
   from: string;
   to: string;
-  /** Photographer weekly schedule; an empty schedule uses the default 08:00–20:00 hours. */
-  schedule: readonly WorkingShift[];
   blockedTimes: readonly { from: string; to: string }[];
-  /** Other photographer bookings that overlap the time range (`customer_id` identifies duplicate requests from the same customer). */
+  /** Other photographer bookings that overlap the time range. */
   bookings: readonly {
     from: string;
     to: string;
     status: string;
-    customer_id?: string;
   }[];
   /** Number of pending requests this customer has with this photographer. */
   openRequestsWithPhotographer: number;
@@ -74,7 +69,7 @@ export interface BookingPayment {
   galleryPublished: boolean;
 }
 
-/** Hours the customer has to pay the deposit after acceptance; the booking expires after that or when the shoot starts. */
+/** Legacy grace period for accepted bookings that still have an unpaid deposit. New requests pay before acceptance. */
 export const PAYMENT_DUE_AFTER_HOURS = 24;
 
 /** Maximum number of pending requests a customer may have with one photographer and across all photographers. */
@@ -88,7 +83,7 @@ export class Booking {
   /**
    * Validate booking creation for exactly one photographer and calculate payment: the deposit is the total plan price rounded up to 30%.
    *
-   * @param input Customer, photographer, plan, schedule, and blocked or overlapping booking intervals.
+   * @param input Customer, photographer, plan, blocked ranges, and overlapping bookings.
    * @returns Pending booking data to save; throws HTTP 400, 404, or 409 when business rules are violated.
    * @throws {DomainError} Thrown when required data or a resource is missing, input is invalid, a business condition is not met, or the current state or data conflicts with the operation.
    */
@@ -119,22 +114,7 @@ export class Booking {
         input.planDurationMinutes * 60_000,
       'Booking length must match plan duration',
     );
-    ensure(
-      WorkSchedule.fits(range, input.schedule),
-      'Booking must be within working hours',
-      'conflict',
-    );
-    Booking.assertCanAccept(range, input.blockedTimes, input.bookings);
-    ensure(
-      !input.bookings.some(
-        (booking) =>
-          booking.customer_id === input.customerId &&
-          booking.status === BookingStatus.PENDING &&
-          overlaps(booking, range),
-      ),
-      'You already requested this time',
-      'conflict',
-    );
+    Booking.assertCanBook(range, input.blockedTimes, input.bookings);
     const total = money(input.planPrice);
     return {
       customer_id: input.customerId,
@@ -148,9 +128,30 @@ export class Booking {
     };
   }
 
+  /** A new request can use any unblocked time without another pending or active booking. */
+  static assertCanBook(
+    range: { from: string; to: string },
+    blockedTimes: readonly { from: string; to: string }[],
+    bookings: readonly { from: string; to: string; status: string }[],
+  ) {
+    ensure(
+      !blockedTimes.some((blocked) => overlaps(range, blocked)),
+      'Photographer is unavailable at this time',
+      'conflict',
+    );
+    ensure(
+      !bookings.some(
+        (booking) => reservesTime(booking.status) && overlaps(booking, range),
+      ),
+      'Photographer already has a booking at this time',
+      'conflict',
+    );
+  }
+
   /**
    * Available time range for holding a booking: it must not overlap a blocked range or an existing booking that
-   * occupies the photographer’s schedule (`pending` requests do not count). Used during booking creation and acceptance.
+   * already occupies the photographer’s schedule. Pending requests are allowed here so the selected request can be accepted;
+   * overlapping pending requests are declined after acceptance.
    *
    * @param range Booking time range.
    * @param blockedTimes Photographer’s blocked time ranges.

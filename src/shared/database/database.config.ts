@@ -13,6 +13,10 @@ export const getTypeOrmConfig = (
   configService: ConfigService,
 ): TypeOrmModuleOptions => {
   const db = configService.get<DatabaseConfig>('database');
+  const requestedSynchronize =
+    db?.synchronize ?? process.env.DB_SYNCHRONIZE === 'true';
+  const synchronize =
+    process.env.NODE_ENV === 'production' ? false : requestedSynchronize;
 
   return {
     type: 'postgres',
@@ -23,7 +27,9 @@ export const getTypeOrmConfig = (
     database: db?.database ?? process.env.DB_NAME ?? 'lens',
     autoLoadEntities: true,
     entities: databaseEntities,
-    synchronize: false, // Schema changes are reviewed migrations, never auto-sync.
+    // Allow local development to opt into TypeORM schema sync through DB_SYNCHRONIZE.
+    // Keep this false in shared/production environments and use migrations instead.
+    synchronize,
     logging: db?.logging ?? process.env.DB_LOGGING === 'true',
     extra: {
       max: 20, // Max connection pool

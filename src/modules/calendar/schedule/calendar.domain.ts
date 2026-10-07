@@ -1,12 +1,6 @@
 import { ensure } from '@shared/domain/domain.error';
-import { isOccupied } from '@shared/domain/rules/booking.rules';
+import { isOccupied, reservesTime } from '@shared/domain/rules/booking.rules';
 import { interval, overlaps } from '@shared/domain/rules/time-range.rules';
-import {
-  WorkSchedule,
-  vnDate,
-  vnDayInterval,
-} from '@shared/domain/rules/work-schedule.rules';
-import type { WorkingShift } from '@shared/domain/types/work-schedule.types';
 
 type Range = { from: string; to: string };
 type CalendarBooking = Range & { status: string };
@@ -14,6 +8,17 @@ type CalendarBooking = Range & { status: string };
 /** Default and maximum calendar window, in days. */
 const DEFAULT_WINDOW_DAYS = 30;
 const MAX_WINDOW_DAYS = 93;
+const VN_OFFSET_MS = 7 * 3600 * 1000;
+const DAY_MS = 864e5;
+
+/** A Vietnam-time calendar day as [00:00, 24:00), returned as ISO UTC timestamps. */
+function vnDayInterval(date: string): Range {
+  const from = Date.parse(`${date}T00:00:00.000Z`) - VN_OFFSET_MS;
+  return interval(
+    new Date(from).toISOString(),
+    new Date(from + DAY_MS).toISOString(),
+  );
+}
 
 /**
  * Subtract occupied segments from a time range.
@@ -69,6 +74,25 @@ export class Calendar {
   }
 
   /**
+   * Public future offline-slot window: starts no earlier than now, defaults to 30 days, and is limited to 93 days.
+   *
+   * @param input Optional customer-provided `from` and `to` values.
+   * @param now Current time in milliseconds.
+   * @returns `{ from, to }` in ISO UTC; throws HTTP 400 if the range exceeds 93 days.
+   */
+  static futureOfflineSlotsWindow(
+    input: { from?: string; to?: string },
+    now: number,
+  ) {
+    const range = Calendar.availabilityWindow(input, now);
+    ensure(
+      Date.parse(range.to) - Date.parse(range.from) <= MAX_WINDOW_DAYS * DAY_MS,
+      `Maximum window is ${MAX_WINDOW_DAYS} days`,
+    );
+    return range;
+  }
+
+  /**
    * Photographer’s own calendar window: past dates are allowed; defaults to the next 30 days and is limited to 93 days.
    *
    * @param input Optional photographer-provided `from` and `to` values.
@@ -103,20 +127,18 @@ export class Calendar {
   }
 
   /**
-   * Photographer availability in a range: apply working shifts in Vietnam time, then subtract blocked ranges and bookings occupying the schedule.
+   * Photographer availability defaults to the requested range, then subtracts blocked ranges and bookings reserving the schedule.
    *
    * @param from Start of the time range to view, in ISO format.
    * @param to End of the time range to view, in ISO format; at most 93 days after `from`.
-   * @param schedule Photographer weekly schedule; an empty schedule uses the default 08:00–20:00 hours.
    * @param blockedTimes Photographer’s blocked time ranges.
-   * @param bookings Photographer bookings; only statuses that occupy the schedule are subtracted.
+   * @param bookings Photographer bookings; pending and active bookings reserve the schedule.
    * @returns Available `{ from, to }` ranges in ISO UTC, ordered by time.
    * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
    */
   static availability(
     from: string,
     to: string,
-    schedule: readonly WorkingShift[],
     blockedTimes: readonly Range[],
     bookings: readonly CalendarBooking[],
   ) {
@@ -127,20 +149,9 @@ export class Calendar {
     );
     const blocks: Range[] = [
       ...blockedTimes,
-      ...bookings.filter((b) => isOccupied(b.status)),
+      ...bookings.filter((b) => reservesTime(b.status)),
     ];
-    const free: Range[] = [];
-    const lastDay = vnDate(new Date(Date.parse(range.to) - 1).toISOString());
-    for (
-      let day = vnDate(range.from);
-      day <= lastDay;
-      day = vnDate(vnDayInterval(day).to)
-    )
-      for (const shift of WorkSchedule.shifts(day, schedule)) {
-        const part = clip(shift, range.from, range.to);
-        if (part) free.push(...subtract(part, blocks));
-      }
-    return free;
+    return subtract(range, blocks);
   }
 
   /**

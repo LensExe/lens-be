@@ -4,7 +4,7 @@ import { timestampTransformer } from './utils/column-transformers';
 
 /**
  * Entity managing photographers' personal blocked or busy time slots.
- * Photographers are available during `working_hours` except for intervals in this table and accepted bookings.
+ * Photographers are available by default except for intervals in this table and bookings reserving their time.
  */
 @Entity('offline_slots') // or 'busy_slots'.
 export class OfflineSlotEntity extends BaseEntity {

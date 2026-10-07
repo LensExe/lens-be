@@ -6,8 +6,8 @@ import { ensure } from '@shared/platform/exceptions/domain.error';
 import type { Actor } from '@shared/platform/auth/actor';
 import type * as Inputs from '@shared/contracts/customer.contract';
 import { Customer } from './customer.domain';
-import type { CustomerBookingStatsPort } from './ports/customer-booking-stats.port';
-import type { PhotographerSearchPort } from './ports/photographer-search.port';
+import { CustomerBookingStatsPort } from './ports/customer-booking-stats.port';
+import { PhotographerSearchPort } from './ports/photographer-search.port';
 
 @Injectable()
 export class CustomerUseCases {

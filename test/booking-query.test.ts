@@ -136,7 +136,7 @@ test('creating a booking reads only blocks and bookings that overlap it', async 
     { sub: 'kc-u1', roles: ['customer'] },
     {
       photographer_id: 'p1',
-      plan_id: 'plan',
+      booking_plan_id: 'plan',
       location: 'Studio',
       from,
       to,

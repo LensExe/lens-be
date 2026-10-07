@@ -49,10 +49,10 @@ export class BookingEntity extends BaseEntity {
   total_amount!: number;
 
   /** Booking status ('pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired' | 'in_progress' | 'shot' | 'completed'). */
-  @Column({ default: BookingStatus.PENDING })
-  status!: import('@shared/domain/values/booking.values').BookingStatus;
+  @Column('text', { default: BookingStatus.PENDING })
+  status!: BookingStatus;
 
-  /** When the photographer accepted the booking; the deposit payment deadline is calculated from this time. `null` if not accepted. */
+  /** When the photographer accepted the booking; retained for lifecycle/audit data. `null` until accepted. */
   @Column('timestamptz', {
     nullable: true,
     transformer: timestampTransformer,

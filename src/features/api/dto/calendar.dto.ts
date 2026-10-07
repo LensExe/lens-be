@@ -1,18 +1,11 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  ArrayMaxSize,
-  IsArray,
-  IsInt,
   IsString,
   IsBoolean,
   IsISO8601,
-  Max,
   MaxLength,
   Matches,
-  Min,
   ValidateIf,
-  ValidateNested,
 } from 'class-validator';
 
 export class CalendarBlockCommandBodyDto {
@@ -135,63 +128,4 @@ export class CalendarAvailabilityQueryQueryDto {
   @IsISO8601({ strict: true })
   @Matches(/T.*(Z|[+-]\d{2}:\d{2})$/)
   to?: string;
-}
-
-export class WorkingShiftDto {
-  @ApiProperty({
-    description: 'weekday: 1 = Monday ... 7 = Sunday',
-    type: 'integer',
-    minimum: 1,
-    maximum: 7,
-    example: 1,
-  })
-  @IsInt()
-  @Min(1)
-  @Max(7)
-  weekday!: number;
-
-  @ApiProperty({
-    description: 'start time HH:MM (Vietnam time)',
-    example: '08:00',
-  })
-  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)
-  start_time!: string;
-
-  @ApiProperty({
-    description: 'end time HH:MM (Vietnam time); 24:00 = midnight',
-    example: '12:00',
-  })
-  @Matches(/^(([01]\d|2[0-3]):[0-5]\d|24:00)$/)
-  end_time!: string;
-}
-
-export class CalendarSetWorkingHoursCommandBodyDto {
-  @ApiProperty({
-    description: 'weekly shifts; empty list resets to the default 08:00-20:00',
-    type: [WorkingShiftDto],
-  })
-  @IsArray()
-  @ArrayMaxSize(50)
-  @ValidateNested({ each: true })
-  @Type(() => WorkingShiftDto)
-  items!: WorkingShiftDto[];
-  @ApiPropertyOptional({
-    description:
-      'true = decline the pending requests outside the new hours (check POST calendar/me/working-hours/affected first). Without it the call fails with 409 if any exist',
-  })
-  @ValidateIf((_object, value) => value !== undefined)
-  @IsBoolean()
-  decline_pending?: boolean;
-}
-
-export class CalendarWorkingHoursPreviewQueryBodyDto {
-  @ApiProperty({
-    description: 'weekly shifts the photographer plans to save',
-    type: [WorkingShiftDto],
-  })
-  @IsArray()
-  @ArrayMaxSize(50)
-  @ValidateNested({ each: true })
-  @Type(() => WorkingShiftDto)
-  items!: WorkingShiftDto[];
 }

@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Get,
-  Put,
   Post,
   Delete,
   Param,
@@ -35,10 +34,8 @@ import { CalendarBlockCommand } from '@modules/calendar/schedule/calendar.comman
 import { CalendarMeQuery } from '@modules/calendar/schedule/calendar.query';
 import { CalendarUnblockCommand } from '@modules/calendar/schedule/calendar.command';
 import { CalendarAvailabilityQuery } from '@modules/calendar/schedule/calendar.query';
-import { CalendarWorkingHoursQuery } from '@modules/calendar/schedule/calendar.query';
-import { CalendarSetWorkingHoursCommand } from '@modules/calendar/schedule/calendar.command';
 import { CalendarBlockPreviewQuery } from '@modules/calendar/schedule/calendar.query';
-import { CalendarWorkingHoursPreviewQuery } from '@modules/calendar/schedule/calendar.query';
+import { CalendarOfflineSlotsQuery } from '@modules/calendar/schedule/calendar.query';
 
 @ApiTags('Calendar')
 @Controller()
@@ -99,97 +96,6 @@ export class CalendarController {
   }
 
   /**
-   * Get the current photographer’s configured working hours.
-   *
-   * @param req HTTP request containing authentication information and request data.
-   * @returns Result of the query dispatched to its handler.
-   */
-  @Get('calendar/me/working-hours')
-  @ApiOperation({
-    operationId: 'CAL-008',
-    summary: 'Xem giờ làm việc',
-    description:
-      'Thợ xem lịch làm việc theo tuần; chưa khai thì trả giờ mặc định 08:00-20:00. Role: Photographer',
-  })
-  @Access(['photographer'])
-  @ApiBearerAuth()
-  @ApiUnauthorizedResponse({
-    description: 'Missing or invalid Keycloak access token',
-  })
-  @ApiForbiddenResponse({
-    description: 'Role, ownership or account status denied',
-  })
-  @ApiBadRequestResponse({
-    description: 'DTO validation or business constraint failed',
-  })
-  @ApiNotFoundResponse({ description: 'Resource not found' })
-  @ApiConflictResponse({
-    description: 'State transition or uniqueness conflict',
-  })
-  @ApiServiceUnavailableResponse({
-    description: 'External integration is not configured or unavailable',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful result',
-    schema: responseSchema('CAL-008'),
-  })
-  workingHours(@Req() req: { actor?: Actor }) {
-    return this.queries.execute(
-      new CalendarWorkingHoursQuery(req.actor ?? { sub: '', roles: [] }, {}),
-    );
-  }
-
-  /**
-   * Update the photographer’s weekly schedule after validating its time ranges.
-   *
-   * @param req HTTP request containing authentication information and request data.
-   * @param body Request body validated against the DTO.
-   * @returns Result of the command dispatched to its handler.
-   */
-  @Put('calendar/me/working-hours')
-  @ApiOperation({
-    operationId: 'CAL-009',
-    summary: 'Khai giờ làm việc',
-    description:
-      'Thợ thay toàn bộ lịch làm việc theo tuần (giờ Việt Nam); danh sách rỗng thì quay về giờ mặc định. Có yêu cầu đang chờ ngoài giờ làm mới thì phải gửi decline_pending: true, không thì 409. Role: Photographer',
-  })
-  @Access(['photographer'])
-  @ApiBearerAuth()
-  @ApiUnauthorizedResponse({
-    description: 'Missing or invalid Keycloak access token',
-  })
-  @ApiForbiddenResponse({
-    description: 'Role, ownership or account status denied',
-  })
-  @ApiBadRequestResponse({
-    description: 'DTO validation or business constraint failed',
-  })
-  @ApiNotFoundResponse({ description: 'Resource not found' })
-  @ApiConflictResponse({
-    description: 'State transition or uniqueness conflict',
-  })
-  @ApiServiceUnavailableResponse({
-    description: 'External integration is not configured or unavailable',
-  })
-  @ApiBody({ type: Dto.CalendarSetWorkingHoursCommandBodyDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful result',
-    schema: responseSchema('CAL-009'),
-  })
-  setWorkingHours(
-    @Req() req: { actor?: Actor },
-    @Body() body: Dto.CalendarSetWorkingHoursCommandBodyDto,
-  ) {
-    return this.commands.execute(
-      new CalendarSetWorkingHoursCommand(req.actor ?? { sub: '', roles: [] }, {
-        ...body,
-      }),
-    );
-  }
-
-  /**
    * Get the current user information from the authenticated identity.
    *
    * @param req HTTP request containing authentication information and request data.
@@ -242,7 +148,7 @@ export class CalendarController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Delete('calendar/blocked-times/:id')
+  @Delete('calendar/blocked-times/:offline_slot_id')
   @ApiOperation({
     operationId: 'CAL-007',
     summary: 'Mở khóa thời gian',
@@ -266,7 +172,11 @@ export class CalendarController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'offline_slot_id',
+    type: String,
+    description: 'Offline slot UUID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -274,10 +184,12 @@ export class CalendarController {
   })
   unblock(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('offline_slot_id', new ParseUUIDPipe()) offline_slot_id: string,
   ) {
     return this.commands.execute(
-      new CalendarUnblockCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new CalendarUnblockCommand(req.actor ?? { sub: '', roles: [] }, {
+        offline_slot_id: offline_slot_id,
+      }),
     );
   }
 
@@ -289,12 +201,12 @@ export class CalendarController {
    * @param query Query filters and pagination options.
    * @returns Result of the query dispatched to its handler.
    */
-  @Get('photographers/:id/availability')
+  @Get('photographers/:photographer_id/availability')
   @ApiOperation({
     operationId: 'CAL-001',
     summary: 'Xem lịch trống',
     description:
-      'Khách hàng xem thời gian trống: ca làm theo giờ VN (mặc định 08:00–20:00) trừ khoảng chặn và booking. Role: Public',
+      'Khách hàng xem thời gian trống: toàn bộ khoảng truy vấn mặc định rảnh, trừ khoảng photographer đã chặn và booking đang giữ giờ. Role: Public',
   })
   @Public()
   @ApiBadRequestResponse({
@@ -307,7 +219,11 @@ export class CalendarController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer UUID',
+  })
   @ApiQuery({
     name: 'from',
     required: false,
@@ -322,13 +238,72 @@ export class CalendarController {
   })
   availability(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
     @Query() query: Dto.CalendarAvailabilityQueryQueryDto,
   ) {
     return this.queries.execute(
       new CalendarAvailabilityQuery(req.actor ?? { sub: '', roles: [] }, {
         ...query,
-        id,
+        photographer_id: photographer_id,
+      }),
+    );
+  }
+
+  /**
+   * Get future blocked time slots that customers should exclude when booking a photographer.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param photographer_id Photographer profile ID.
+   * @param query Optional future time window.
+   * @returns Future offline slots without their private reason.
+   */
+  @Get('photographers/:photographer_id/offline-slots')
+  @ApiOperation({
+    operationId: 'CAL-011',
+    summary: 'Xem lịch bận trong tương lai',
+    description:
+      'Khách hàng lấy các offline-slot có thời điểm bắt đầu trong khoảng tương lai để loại khỏi lịch đặt. Mặc định 30 ngày tới, tối đa 93 ngày; không trả về lý do riêng tư. Photographer phải đang hoạt động và đã được xác minh. Role: Public',
+  })
+  @Public()
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer UUID',
+  })
+  @ApiQuery({
+    name: 'from',
+    required: false,
+    type: 'string',
+    description:
+      'Khoảng bắt đầu lọc; thời điểm trong quá khứ được nâng lên hiện tại',
+  })
+  @ApiQuery({
+    name: 'to',
+    required: false,
+    type: 'string',
+    description: 'Mốc kết thúc lọc (exclusive)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('CAL-011'),
+  })
+  offlineSlots(
+    @Req() req: { actor?: Actor },
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
+    @Query() query: Dto.CalendarAvailabilityQueryQueryDto,
+  ) {
+    return this.queries.execute(
+      new CalendarOfflineSlotsQuery(req.actor ?? { sub: '', roles: [] }, {
+        ...query,
+        photographer_id,
       }),
     );
   }
@@ -378,57 +353,6 @@ export class CalendarController {
       new CalendarBlockPreviewQuery(req.actor ?? { sub: '', roles: [] }, {
         ...query,
       }),
-    );
-  }
-
-  /**
-   * Validate a new work schedule and identify conflicting bookings.
-   *
-   * @param req HTTP request containing authentication information and request data.
-   * @param body Request body validated against the DTO.
-   * @returns Result of the query dispatched to its handler.
-   */
-  @Post('calendar/me/working-hours/affected')
-  @ApiOperation({
-    operationId: 'CAL-011',
-    summary: 'Xem trước yêu cầu bị ảnh hưởng khi đổi giờ làm',
-    description:
-      'Các yêu cầu booking đang chờ nằm ngoài lịch tuần định lưu; có thì khi lưu phải gửi decline_pending: true. Không lưu gì. Role: Photographer',
-  })
-  @Access(['photographer'])
-  @ApiBearerAuth()
-  @ApiUnauthorizedResponse({
-    description: 'Missing or invalid Keycloak access token',
-  })
-  @ApiForbiddenResponse({
-    description: 'Role, ownership or account status denied',
-  })
-  @ApiBadRequestResponse({
-    description: 'DTO validation or business constraint failed',
-  })
-  @ApiNotFoundResponse({ description: 'Resource not found' })
-  @ApiConflictResponse({
-    description: 'State transition or uniqueness conflict',
-  })
-  @ApiServiceUnavailableResponse({
-    description: 'External integration is not configured or unavailable',
-  })
-  @ApiBody({ type: Dto.CalendarWorkingHoursPreviewQueryBodyDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Successful result',
-    schema: responseSchema('CAL-011'),
-  })
-  @HttpCode(200)
-  workingHoursPreview(
-    @Req() req: { actor?: Actor },
-    @Body() body: Dto.CalendarWorkingHoursPreviewQueryBodyDto,
-  ) {
-    return this.queries.execute(
-      new CalendarWorkingHoursPreviewQuery(
-        req.actor ?? { sub: '', roles: [] },
-        { ...body },
-      ),
     );
   }
 }

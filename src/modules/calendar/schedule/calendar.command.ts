@@ -55,29 +55,3 @@ export class CalendarUnblockCommandHandler implements ICommandHandler<CalendarUn
     );
   }
 }
-
-export class CalendarSetWorkingHoursCommand {
-  constructor(
-    public readonly actor: Actor,
-    public readonly input: Inputs.CalendarSetWorkingHoursCommandInput,
-  ) {}
-}
-@CommandHandler(CalendarSetWorkingHoursCommand)
-export class CalendarSetWorkingHoursCommandHandler implements ICommandHandler<CalendarSetWorkingHoursCommand> {
-  constructor(
-    private readonly dataSource: DataSource,
-    private readonly useCases: CalendarUseCases,
-  ) {}
-
-  /**
-   * Route the photographer working-hours update command to the use case in a transaction.
-   *
-   * @param message Command or query message to execute.
-   * @returns Result of the operation performed in the transaction.
-   */
-  execute(message: CalendarSetWorkingHoursCommand) {
-    return this.dataSource.transaction((s) =>
-      this.useCases.setWorkingHours(s, message.actor, message.input),
-    );
-  }
-}
