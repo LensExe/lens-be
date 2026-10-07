@@ -74,8 +74,14 @@ export class SwitchablePaymentGateway extends PaymentGateway {
     amount: number,
     provider: ExternalPaymentProviderType = this.activeProvider,
     expiresAt?: string,
+    description?: string,
   ) {
-    return this.gateway(provider).create(orderCode, amount, expiresAt);
+    return this.gateway(provider).create(
+      orderCode,
+      amount,
+      expiresAt,
+      description,
+    );
   }
 
   inspect(

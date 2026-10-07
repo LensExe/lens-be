@@ -16,7 +16,7 @@ export class UserEntity extends BaseEntity {
   @Column()
   fullname!: string;
 
-  /** User email address. */
+  /** User email; normalized case-insensitively by users_email_normalized_unique_idx. */
   @Column()
   email!: string;
 
@@ -37,6 +37,6 @@ export class UserEntity extends BaseEntity {
   dob!: string | null;
 
   /** User account status ('active' | 'suspended' | 'banned' | 'inactive'). */
-  @Column({ default: UserStatus.INACTIVE })
+  @Column({ default: UserStatus.ACTIVE })
   status!: UserStatus;
 }

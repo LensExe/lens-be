@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 import { BookingCancelUnpaidCommand } from '@modules/booking/core/bookings.command';
 import { runExclusive, SYSTEM_ACTOR } from './scheduled-job';
 
-/** Every 10 minutes, cancel accepted bookings whose customers have not paid the deposit within 24 hours or before the photo shoot starts. */
+/** Every 10 minutes, clean up legacy accepted bookings whose deposit is still unpaid within 24 hours or before the photo shoot starts. */
 @Injectable()
 export class BookingCancelUnpaidJob {
   constructor(

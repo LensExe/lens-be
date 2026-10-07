@@ -22,7 +22,9 @@ ALTER TABLE refund_requests
   ADD COLUMN booking_id uuid REFERENCES bookings(id),
   ADD COLUMN wallet_id uuid REFERENCES wallets(id),
   ADD COLUMN requested_by uuid REFERENCES users(id),
-  ADD COLUMN reserved_amount bigint NOT NULL DEFAULT 0 CHECK (reserved_amount >= 0),
+  ADD COLUMN reserved_amount bigint NOT NULL DEFAULT 0
+    CONSTRAINT refund_requests_reserved_amount_nonnegative_check
+    CHECK (reserved_amount >= 0),
   ADD COLUMN payout_destination_encrypted text,
   ADD COLUMN reviewed_by uuid REFERENCES users(id),
   ADD COLUMN reviewed_at timestamptz,

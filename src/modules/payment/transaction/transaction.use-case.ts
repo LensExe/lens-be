@@ -59,7 +59,7 @@ export class TransactionUseCases implements PaidAmountsPort {
     actor: Actor,
     input: Inputs.PaymentGetQueryInput,
   ) {
-    const transaction = await this.access(manager, actor, input.id);
+    const transaction = await this.access(manager, actor, input.payment_id);
     return this.presentTransaction(transaction, actor.roles.includes('admin'));
   }
 
@@ -76,7 +76,7 @@ export class TransactionUseCases implements PaidAmountsPort {
     actor: Actor,
     input: Inputs.PaymentQrQueryInput,
   ) {
-    const transaction = await this.access(manager, actor, input.id);
+    const transaction = await this.access(manager, actor, input.payment_id);
     const presented = this.presentTransaction(
       transaction,
       actor.roles.includes('admin'),
@@ -105,15 +105,15 @@ export class TransactionUseCases implements PaidAmountsPort {
     actor: Actor,
     input: Inputs.PaymentHistoryQueryInput,
   ) {
-    await bookingAccess(manager, actor, input.id);
+    await bookingAccess(manager, actor, input.booking_id);
     const settlement = await manager.findOneBy(
       EntitySchemas.payment_escrow_settlements,
-      { booking_id: input.id },
+      { booking_id: input.booking_id },
     );
     return {
       items: (
         await manager.find(EntitySchemas.transactions, {
-          where: { reference_id: input.id },
+          where: { reference_id: input.booking_id },
           order: { created_at: 'ASC', id: 'ASC' },
         })
       ).map((transaction) => this.presentTransaction(transaction)),

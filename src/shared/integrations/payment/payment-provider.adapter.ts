@@ -40,6 +40,7 @@ export interface PaymentProviderAdapter {
     orderCode: number,
     amount: number,
     expiresAt?: string,
+    description?: string,
   ): Promise<PaymentCheckout>;
 
   inspect?(orderCode: number): Promise<PaymentProviderOrderState>;

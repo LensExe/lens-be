@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PaymentController } from '../http/payments.controller';
+import { PayOsStandaloneTestController } from '../http/payos-standalone-test.controller';
 import {
   PaymentDepositCommandHandler,
   PaymentExtendEscrowReleaseCommandHandler,
@@ -41,7 +42,7 @@ import {
 } from '@modules/payment/refund/refund.query';
 
 @Module({
-  controllers: [PaymentController],
+  controllers: [PaymentController, PayOsStandaloneTestController],
   providers: [
     PaymentDepositCommandHandler,
     PaymentExtendEscrowReleaseCommandHandler,

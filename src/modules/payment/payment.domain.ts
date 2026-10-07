@@ -32,17 +32,17 @@ export class Payment {
     );
   }
 
-  /** Calculate the deposit deadline shared by intent creation and the booking expiry worker. */
-  static depositDeadlineAt(acceptedAt: string | null, shootStartsAt: string) {
-    const acceptedAtMs = acceptedAt ? Date.parse(acceptedAt) : Number.NaN;
+  /** Calculate the deposit deadline from the request/acceptance time and shoot start. */
+  static depositDeadlineAt(referenceAt: string | null, shootStartsAt: string) {
+    const referenceAtMs = referenceAt ? Date.parse(referenceAt) : Number.NaN;
     const shootStartsAtMs = Date.parse(shootStartsAt);
     ensure(
-      Number.isFinite(acceptedAtMs) && Number.isFinite(shootStartsAtMs),
+      Number.isFinite(referenceAtMs) && Number.isFinite(shootStartsAtMs),
       'Booking payment deadline data is missing or invalid',
       'conflict',
     );
     return new Date(
-      Math.min(acceptedAtMs + PAYMENT_DUE_AFTER_HOURS * 36e5, shootStartsAtMs),
+      Math.min(referenceAtMs + PAYMENT_DUE_AFTER_HOURS * 36e5, shootStartsAtMs),
     ).toISOString();
   }
 
@@ -85,26 +85,26 @@ export class Payment {
    * A new deposit intent may only be created before the earlier of the deposit deadline and shoot start.
    * Existing intents remain reusable so retries do not create another payment order.
    *
-   * @param acceptedAt Time the booking was accepted.
+   * @param referenceAt Time the booking request was created or accepted.
    * @param shootStartsAt Scheduled shoot start time.
    * @param now Current time in milliseconds.
    * @returns No value is returned.
-   * @throws {DomainError} Thrown when the acceptance time is missing or the deposit deadline has passed.
+   * @throws {DomainError} Thrown when the request/acceptance time is missing or the deposit deadline has passed.
    */
   static assertDepositIntentOpen(
-    acceptedAt: string | null,
+    referenceAt: string | null,
     shootStartsAt: string,
     now = Date.now(),
   ) {
-    const acceptedAtMs = acceptedAt ? Date.parse(acceptedAt) : Number.NaN;
+    const referenceAtMs = referenceAt ? Date.parse(referenceAt) : Number.NaN;
     const shootStartsAtMs = Date.parse(shootStartsAt);
     ensure(
-      Number.isFinite(acceptedAtMs) && Number.isFinite(shootStartsAtMs),
+      Number.isFinite(referenceAtMs) && Number.isFinite(shootStartsAtMs),
       'Booking payment deadline data is missing or invalid',
       'conflict',
     );
     ensure(
-      acceptedAtMs + PAYMENT_DUE_AFTER_HOURS * 36e5 > now &&
+      referenceAtMs + PAYMENT_DUE_AFTER_HOURS * 36e5 > now &&
         shootStartsAtMs > now,
       'Deposit payment deadline has passed',
       'conflict',

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PayOS } from '@payos/node';
 import type {
@@ -11,6 +11,7 @@ import { ExternalPaymentProvider } from '@shared/domain/values/payment.values';
 @Injectable()
 export class PayOsGateway implements PaymentProviderAdapter {
   readonly provider = ExternalPaymentProvider.PAYOS;
+  private readonly logger = new Logger(PayOsGateway.name);
 
   constructor(private readonly config: ConfigService) {}
 
@@ -38,7 +39,12 @@ export class PayOsGateway implements PaymentProviderAdapter {
    * @returns Result object containing the fields `checkout_url`, `qr_code`.
    * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
-  async create(orderCode: number, amount: number, expiresAt?: string) {
+  async create(
+    orderCode: number,
+    amount: number,
+    expiresAt?: string,
+    description?: string,
+  ) {
     const client = this.getClient(),
       returnUrl = this.config.get<string>('payos.returnUrl'),
       cancelUrl = this.config.get<string>('payos.cancelUrl');
@@ -53,7 +59,7 @@ export class PayOsGateway implements PaymentProviderAdapter {
       const link = await client.paymentRequests.create({
         orderCode,
         amount,
-        description: `Lens ${orderCode}`.slice(0, 25),
+        description: (description ?? `Lens ${orderCode}`).slice(0, 25),
         returnUrl,
         cancelUrl,
         ...(expiresAt
@@ -61,7 +67,31 @@ export class PayOsGateway implements PaymentProviderAdapter {
           : {}),
       });
       return { checkout_url: link.checkoutUrl, qr_code: link.qrCode };
-    } catch {
+    } catch (error) {
+      const providerError =
+        error && typeof error === 'object'
+          ? (error as {
+              status?: unknown;
+              code?: unknown;
+              desc?: unknown;
+            })
+          : undefined;
+      const status =
+        typeof providerError?.status === 'number'
+          ? providerError.status
+          : 'unknown';
+      const code =
+        typeof providerError?.code === 'string'
+          ? providerError.code
+          : 'unknown';
+      const description =
+        typeof providerError?.desc === 'string'
+          ? providerError.desc
+          : 'No provider description';
+      this.logger.error(
+        `PayOS payment-link creation failed (status=${status}, code=${code}): ${description}`,
+      );
+
       // Reconcile a retried create after an ambiguous network response.
       try {
         const existing = await client.paymentRequests.get(orderCode);
@@ -84,7 +114,7 @@ export class PayOsGateway implements PaymentProviderAdapter {
       } catch {
         throw new DomainError(
           'unavailable',
-          'PayOS payment creation failed; retry with the same idempotency key',
+          'PayOS payment creation failed and no existing payment link could be recovered',
         );
       }
     }

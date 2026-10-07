@@ -21,6 +21,7 @@ export abstract class PaymentGateway {
    * @param orderCode Order code.
    * @param amount Transaction amount in the system’s currency.
    * @param provider Selected service provider.
+   * @param description Optional provider-facing payment description.
    * @returns Result of the operation described above.
    */
   abstract create(
@@ -28,6 +29,7 @@ export abstract class PaymentGateway {
     amount: number,
     provider?: ExternalPaymentProvider,
     expiresAt?: string,
+    description?: string,
   ): Promise<PaymentCheckout>;
 
   /**

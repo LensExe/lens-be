@@ -96,6 +96,20 @@ export class PaymentTopUpCommandBodyDto {
   idempotency_key!: string;
 }
 
+export class PayOsStandaloneTestPaymentBodyDto {
+  @ApiProperty({
+    description: 'Số tiền thử tạo payment link PayOS, tối đa 1.000.000 VND.',
+    minimum: 1000,
+    maximum: 1000000,
+    example: 1000,
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1000)
+  @Max(1000000)
+  amount!: number;
+}
+
 export class PayoutDestinationDto {
   @ApiProperty({
     description: 'Mã BIN hoặc mã ngân hàng dùng cho lệnh chuyển khoản.',

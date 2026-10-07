@@ -116,7 +116,7 @@ export class PaymentReleaseDueEscrowCommandHandler implements ICommandHandler<Pa
 export class PaymentExtendEscrowReleaseCommand {
   constructor(
     public readonly actor: Actor,
-    public readonly input: Inputs.PaymentDeadlineExtensionInput,
+    public readonly input: Inputs.PaymentEscrowReleaseExtensionInput,
   ) {}
 }
 
@@ -133,7 +133,7 @@ export class PaymentExtendEscrowReleaseCommandHandler implements ICommandHandler
       this.useCases.extendBookingEscrowRelease(
         manager,
         message.actor,
-        message.input.id,
+        message.input.booking_id,
         message.input.hours,
         message.input.reason,
       ),

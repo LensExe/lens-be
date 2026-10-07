@@ -117,7 +117,7 @@ export class RefundUseCases {
   ) {
     role(actor, 'admin', 'system');
     const user = await currentUser(manager, actor);
-    const candidate = await required(manager, 'transactions', input.id);
+    const candidate = await required(manager, 'transactions', input.payment_id);
     if (candidate.type === 'subscription') {
       const transaction = await this.lockTransaction(manager, candidate.id);
       ensure(
@@ -569,7 +569,10 @@ export class RefundUseCases {
   ) {
     role(actor, 'admin');
     const reviewer = await currentUser(manager, actor);
-    const request = await this.lockRefundRequest(manager, input.id);
+    const request = await this.lockRefundRequest(
+      manager,
+      input.refund_request_id,
+    );
     if (request.status === RefundStatus.APPROVED)
       return this.presentRefund(manager, request);
     ensure(
@@ -758,7 +761,10 @@ export class RefundUseCases {
   ) {
     role(actor, 'admin');
     const reviewer = await currentUser(manager, actor);
-    const request = await this.lockRefundRequest(manager, input.id);
+    const request = await this.lockRefundRequest(
+      manager,
+      input.refund_request_id,
+    );
     if (request.status === RefundStatus.REJECTED)
       return this.presentRefund(manager, request);
     ensure(
@@ -859,7 +865,10 @@ export class RefundUseCases {
   ) {
     role(actor, 'admin');
     const operator = await currentUser(manager, actor);
-    const request = await this.lockRefundRequest(manager, input.id);
+    const request = await this.lockRefundRequest(
+      manager,
+      input.refund_request_id,
+    );
     if (request.status === RefundStatus.COMPLETED)
       return this.presentRefund(manager, request);
     ensure(
@@ -1096,7 +1105,10 @@ export class RefundUseCases {
     ensure(input.reason.trim().length > 0, 'An extension reason is required');
     ensure(input.reason.length <= 1000, 'Extension reason is too long');
     const admin = await currentUser(manager, actor);
-    const request = await this.lockRefundRequest(manager, input.id);
+    const request = await this.lockRefundRequest(
+      manager,
+      input.refund_request_id,
+    );
     ensure(
       request.status === RefundStatus.REQUESTED ||
         request.status === RefundStatus.APPROVED,
@@ -1356,7 +1368,7 @@ export class RefundUseCases {
     actor: Actor,
     input: Inputs.PaymentRefundsQueryInput,
   ) {
-    const transaction = await this.access(manager, actor, input.id);
+    const transaction = await this.access(manager, actor, input.payment_id);
     const user = await currentUser(manager, actor);
     ensure(
       transaction.user_id === user.id || actor.roles.includes('admin'),
@@ -1364,11 +1376,11 @@ export class RefundUseCases {
       'forbidden',
     );
     const directRequests = await manager.find(EntitySchemas.refund_requests, {
-      where: { transaction_id: input.id },
+      where: { transaction_id: input.payment_id },
     });
     const allocations = await manager.find(
       EntitySchemas.refund_request_allocations,
-      { where: { transaction_id: input.id } },
+      { where: { transaction_id: input.payment_id } },
     );
     const allocationRequestIds = allocations.map(
       ({ refund_request_id }) => refund_request_id,

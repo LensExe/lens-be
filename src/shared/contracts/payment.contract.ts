@@ -6,13 +6,13 @@ export interface PaymentAdminQueryInput {
 }
 
 export interface PaymentDepositCommandInput {
-  id: string;
+  booking_id: string;
   idempotency_key: string;
   payment_method?: 'gateway' | 'wallet';
 }
 
 export interface PaymentRemainingCommandInput {
-  id: string;
+  booking_id: string;
   idempotency_key: string;
   payment_method?: 'gateway' | 'wallet';
 }
@@ -34,19 +34,19 @@ export interface PaymentWithdrawalCommandInput {
 }
 
 export interface PaymentGetQueryInput {
-  id: string;
+  payment_id: string;
 }
 
 export interface PaymentQrQueryInput {
-  id: string;
+  payment_id: string;
 }
 
 export interface PaymentHistoryQueryInput {
-  id: string;
+  booking_id: string;
 }
 
 export interface PaymentRefundCommandInput {
-  id: string;
+  payment_id: string;
   amount: number;
   reason: string;
   idempotency_key?: string;
@@ -60,7 +60,7 @@ export interface PaymentCustomerRefundCommandInput {
 }
 
 export interface PaymentRefundReviewCommandInput {
-  id: string;
+  refund_request_id: string;
   reason?: string;
   payout_destination?: {
     bank_code: string;
@@ -70,18 +70,24 @@ export interface PaymentRefundReviewCommandInput {
 }
 
 export interface PaymentRefundCompleteCommandInput {
-  id: string;
+  refund_request_id: string;
   payout_reference?: string;
 }
 
 export interface PaymentDeadlineExtensionInput {
-  id: string;
+  refund_request_id: string;
+  hours: number;
+  reason: string;
+}
+
+export interface PaymentEscrowReleaseExtensionInput {
+  booking_id: string;
   hours: number;
   reason: string;
 }
 
 export interface PaymentRefundsQueryInput {
-  id: string;
+  payment_id: string;
 }
 
 export interface PaymentWebhookCommandInput {

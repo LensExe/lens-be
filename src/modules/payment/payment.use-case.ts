@@ -47,6 +47,13 @@ const CHECKOUT_RECONCILIATION_BACKOFF_MS = [
 const CHECKOUT_RECONCILIATION_MAX_ATTEMPTS =
   CHECKOUT_RECONCILIATION_BACKOFF_MS.length + 1;
 
+/**
+ * PayOS sends this signed sample payment when validating a webhook URL.
+ * It must be acknowledged without being treated as a real Lens transaction.
+ */
+const PAYOS_WEBHOOK_VALIDATION_ORDER_CODE = 123;
+const PAYOS_WEBHOOK_VALIDATION_AMOUNT = 3000;
+
 @Injectable()
 export class PaymentUseCases
   implements SubscriptionPaymentsPort, BookingPaymentSettlementPort
@@ -76,7 +83,7 @@ export class PaymentUseCases
     const { booking: accessibleBooking, user } = await bookingAccess(
       manager,
       actor,
-      input.id,
+      input.booking_id,
       'customer',
     );
     const booking = await manager.findOne(EntitySchemas.bookings, {
@@ -85,7 +92,11 @@ export class PaymentUseCases
     });
     ensure(booking, 'Booking not found', 'missing');
     ensure(
-      ['accepted', 'in_progress', 'shot'].includes(booking.status),
+      type === 'deposit'
+        ? ['pending', 'accepted', 'in_progress', 'shot'].includes(
+            booking.status,
+          )
+        : ['accepted', 'in_progress', 'shot'].includes(booking.status),
       'Booking cannot be paid in this state',
       'conflict',
     );
@@ -100,8 +111,11 @@ export class PaymentUseCases
     const existing = transactions.find(
       (transaction) => transaction.type === type,
     );
-    if (type === 'deposit' && booking.status === 'accepted')
-      Payment.assertDepositIntentOpen(booking.accepted_at, booking.from);
+    if (type === 'deposit' && ['pending', 'accepted'].includes(booking.status))
+      Payment.assertDepositIntentOpen(
+        booking.status === 'pending' ? booking.created_at : booking.accepted_at,
+        booking.from,
+      );
     const amount =
       type === 'deposit'
         ? Number(booking.deposit_amount)
@@ -141,8 +155,15 @@ export class PaymentUseCases
         'conflict',
       );
     const checkoutExpiresAt =
-      !payFromWallet && type === 'deposit'
-        ? Payment.depositDeadlineAt(booking.accepted_at, booking.from)
+      !payFromWallet &&
+      type === 'deposit' &&
+      ['pending', 'accepted'].includes(booking.status)
+        ? Payment.depositDeadlineAt(
+            booking.status === 'pending'
+              ? booking.created_at
+              : booking.accepted_at,
+            booking.from,
+          )
         : null;
 
     const transaction = await manager.save(EntitySchemas.transactions, {
@@ -425,6 +446,12 @@ export class PaymentUseCases
       input.headers,
     );
     ensure(verified.success, 'Payment callback is not successful');
+    if (
+      provider === ExternalPaymentProvider.PAYOS &&
+      verified.orderCode === PAYOS_WEBHOOK_VALIDATION_ORDER_CODE &&
+      verified.amount === PAYOS_WEBHOOK_VALIDATION_AMOUNT
+    )
+      return { received: true, validation: true };
     return this.acceptVerifiedPayment(manager, provider, verified);
   }
 
@@ -876,7 +903,7 @@ export class PaymentUseCases
     role(actor, 'admin');
     const admin = await currentUser(manager, actor);
     const candidate = await manager.findOneBy(EntitySchemas.transactions, {
-      id: input.id,
+      id: input.subscription_payment_id,
     });
     ensure(candidate, 'Transaction not found', 'missing');
     ensure(
@@ -922,7 +949,7 @@ export class PaymentUseCases
           return {
             transaction: candidate,
             refund: await this.refunds.refund(manager, actor, {
-              id: candidate.id,
+              payment_id: candidate.id,
               amount: Number(candidate.amount),
               reason: input.note.trim(),
               idempotency_key: `subscription-review-refund:${candidate.id}:${candidate.checkout_review_resolved_at}`,
@@ -1006,7 +1033,7 @@ export class PaymentUseCases
     const refund =
       input.outcome === 'refund'
         ? await this.refunds.refund(manager, actor, {
-            id: transaction.id,
+            payment_id: transaction.id,
             amount: Number(transaction.amount),
             reason: input.note.trim(),
             idempotency_key: `subscription-review-refund:${transaction.id}:${now}`,
