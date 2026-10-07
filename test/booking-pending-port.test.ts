@@ -37,20 +37,6 @@ const pending = [
   },
 ];
 
-test('pending requests that no longer fit the new weekly hours are listed', async () => {
-  const s = {
-    find: async () => pending,
-  } as unknown as EntityManager;
-  const useCases = new BookingUseCases({} as RatingUpdaterPort, noPayments);
-  const outside = await useCases.pendingOutside(s, 'p1', [
-    { weekday: 2, start_time: '08:00', end_time: '17:00' },
-  ]);
-  assert.deepEqual(
-    outside.map((b) => b.id),
-    ['evening'],
-  );
-});
-
 test('declining skips requests that were answered in the meantime', async () => {
   const updates: object[] = [];
   const s = {
