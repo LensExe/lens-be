@@ -8,7 +8,6 @@ test('paid amounts sum deposit and remaining per booking, 0 when nothing is paid
   const s = {
     findBy: async (_entity: unknown, where: Record<string, unknown>) => {
       queries++;
-      if (where.status === 'completed') return [];
       return [
         {
           id: 't1',
@@ -33,6 +32,18 @@ test('paid amounts sum deposit and remaining per booking, 0 when nothing is paid
         },
       ];
     },
+    createQueryBuilder: () => ({
+      innerJoin() {
+        return this;
+      },
+      where() {
+        return this;
+      },
+      andWhere() {
+        return this;
+      },
+      getMany: async () => [],
+    }),
   } as unknown as EntityManager;
   const paid = await new TransactionUseCases().paidAmounts(s, [
     'b1',
@@ -40,5 +51,5 @@ test('paid amounts sum deposit and remaining per booking, 0 when nothing is paid
     'b3',
   ]);
   assert.deepEqual(paid, { b1: 1000000, b2: 300000, b3: 0 });
-  assert.equal(queries, 2);
+  assert.equal(queries, 1);
 });

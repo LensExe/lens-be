@@ -42,7 +42,7 @@ test('booking domain prepares a valid draft and rejects an overlapping booking',
           },
         ],
       }),
-    /already booked/,
+    /already has a booking/,
   );
 });
 

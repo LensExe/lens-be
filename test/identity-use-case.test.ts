@@ -34,13 +34,14 @@ test('identity use case persists lowercase account statuses', async () => {
     }),
   } as unknown as EntityManager;
   const actor = { sub: 'kc-admin', roles: ['admin'] };
+  const noop = async (..._args: unknown[]) => undefined;
   const mockKeycloak = {
-    setUserEnabled: jest.fn(),
-    logoutUser: jest.fn(),
-    executeActionsEmail: jest.fn(),
-    setUserEmailVerified: jest.fn(),
-    assignRealmRoleToUser: jest.fn(),
-    removeRealmRoleFromUser: jest.fn(),
+    setUserEnabled: noop,
+    logoutUser: noop,
+    executeActionsEmail: noop,
+    setUserEmailVerified: noop,
+    assignRealmRoleToUser: noop,
+    removeRealmRoleFromUser: noop,
   } as any;
   const useCases = new IdentityUseCases(mockKeycloak);
 
