@@ -2,7 +2,7 @@ name: lens-backend
 
 services:
   # ── PostgreSQL (primary data source; automatically creates lens, kong, and keycloak via init.sql) ──
-  postgres:
+  lens-postgres:
     image: postgres:16-alpine
     container_name: lens-postgres
     environment:
@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: Postgres@#_Lens_EXE202_FPT_FA26
       POSTGRES_DB: lens
     ports:
-      - '5433:5432' # host 5433 → matches POSTGRESQL_PRIMARY_PORT in .env
+      - '5432:5432' # host 5433 → matches POSTGRESQL_PRIMARY_PORT in .env
     volumes:
       - pg-data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -23,38 +23,19 @@ services:
       - lens-network
     restart: unless-stopped
 
-  # ── 2. MongoDB (read database / query side - stores denormalized read views for CQRS) ──
-  mongodb:
-    image: mongo:7-jammy
-    container_name: lens-mongodb
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: lens-mongo
-      MONGO_INITDB_ROOT_PASSWORD: Mongo@#_Lens_EXE202_FPT_FA26
-      MONGO_INITDB_DATABASE: lens_read
-    ports:
-      - '27018:27017'
-    volumes:
-      - mongo-data:/data/db
-    healthcheck:
-      test: ['CMD', 'mongosh', '--eval', 'db.runCommand({ ping: 1 })']
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - lens-network
-    restart: unless-stopped
-
   # ── 3. Redis (Cache, CQRS Event Bus, BullMQ Queue, Socket.io) ──
-  redis:
+  lens-redis:
     image: redis:7-alpine
     container_name: lens-redis
     command: ['redis-server', '--requirepass', 'Redis@#_Lens_EXE202_FPT_FA26']
+    environment:
+      REDIS_PASSWORD: 'Redis@#_Lens_EXE202_FPT_FA26'
     ports:
       - '6380:6379' # host 6380 → matches REDIS_*_PORT in .env
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ['CMD', 'redis-cli', '-a', 'Redis@#_Lens_EXE202_FPT_FA26', 'ping']
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" ping']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -63,7 +44,7 @@ services:
     restart: unless-stopped
 
   # ── MinIO (S3-compatible Object Storage) ──
-  minio:
+  lens-minio:
     image: minio/minio:RELEASE.2024-06-13T22-53-53Z
     container_name: lens-minio
     command: server /data --console-address ":9001"
@@ -80,15 +61,15 @@ services:
     restart: unless-stopped
 
   # ── MinIO initialization (one-shot: create the `lens` bucket and expose only the `public/` prefix) ──
-  minio-init:
+  lens-minio-init:
     image: minio/mc:RELEASE.2024-06-12T14-34-03Z
     container_name: lens-minio-init
     depends_on:
-      - minio
+      - lens-minio
     entrypoint: >
       /bin/sh -c "
         sleep 2;
-        mc alias set local http://minio:9000 'LensMinioAdmin' 'Minio@#_Lens_EXE202_FPT_FA26';
+        mc alias set local http://lens-minio:9000 'LensMinioAdmin' 'Minio@#_Lens_EXE202_FPT_FA26';
         mc mb --ignore-existing local/lens;
         mc anonymous set download local/lens/public;
         echo 'MinIO bucket ready; only public/ is anonymously readable';
@@ -103,19 +84,18 @@ services:
     restart: 'no'
 
   # ── Keycloak (identity and access management; stores data in the Postgres `keycloak` database) ──
-  keycloak:
-    profiles: ['full']
+  lens-keycloak:
     image: quay.io/keycloak/keycloak:24.0
     container_name: lens-keycloak
     command: ['start-dev', '--http-port=8080']
     depends_on:
-      postgres:
+      lens-postgres:
         condition: service_healthy
     environment:
       KEYCLOAK_ADMIN: lens-admin-keycloak
       KEYCLOAK_ADMIN_PASSWORD: Keycloak@#_Lens_EXE202_FPT_FA26
       KC_DB: postgres
-      KC_DB_URL_HOST: postgres
+      KC_DB_URL_HOST: lens-postgres
       KC_DB_URL_PORT: 5432
       KC_DB_URL_DATABASE: keycloak
       KC_DB_USERNAME: lens-postgres
@@ -127,17 +107,16 @@ services:
     restart: unless-stopped
 
   # ── Kong migrations (initialize the Kong Gateway database schema) ──
-  kong-migrations:
-    profiles: ['full']
+  lenskong-migrations:
     image: kong:3.6
     container_name: lens-kong-migrations
     command: kong migrations bootstrap
     depends_on:
-      postgres:
+      lens-postgres:
         condition: service_healthy
     environment:
       KONG_DATABASE: postgres
-      KONG_PG_HOST: postgres
+      KONG_PG_HOST: lens-postgres
       KONG_PG_PORT: 5432
       KONG_PG_USER: lens-postgres
       KONG_PG_PASSWORD: 'Postgres@#_Lens_EXE202_FPT_FA26'
@@ -146,14 +125,14 @@ services:
       - lens-network
     restart: 'no'
 
-  kong:
+  lens-kong:
     profiles: ['full']
     image: kong:3.6
     container_name: lens-kong
     depends_on:
-      kong-migrations:
+      lenskong-migrations:
         condition: service_completed_successfully
-      postgres:
+      lens-postgres:
         condition: service_healthy
     ports:
       - '8000:8000' # Kong Proxy HTTP
@@ -161,7 +140,7 @@ services:
       - '8002:8002' # Kong Manager GUI
     environment:
       KONG_DATABASE: postgres
-      KONG_PG_HOST: postgres
+      KONG_PG_HOST: lens-postgres
       KONG_PG_PORT: 5432
       KONG_PG_USER: lens-postgres
       KONG_PG_PASSWORD: 'Postgres@#_Lens_EXE202_FPT_FA26'
@@ -187,4 +166,4 @@ volumes:
 networks:
   lens-network:
     name: lens-network
-    driver: bridge
+    external: true

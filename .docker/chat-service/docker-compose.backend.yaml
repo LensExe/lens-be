@@ -1,0 +1,24 @@
+name: deploy
+services:
+  chat:
+    build:
+      context: ../../../chat-service
+    environment:
+      SERVER_ADDRESS: ':8080'
+      SERVER_MODE: release
+      MONGO_URI: ${MONGO_URI:?Provide a MongoDB replica set URI}
+      MONGO_DATABASE: ${MONGO_DATABASE:-chat_direct}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:?Provide the realm issuer}
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-chat-service}
+      KEYCLOAK_PUBLIC_KEY: ${KEYCLOAK_PUBLIC_KEY:?Provide the realm RSA public key}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://localhost:3000}
+    ports:
+      - '8080:8080'
+    networks:
+      - lens-network
+    restart: unless-stopped
+
+networks:
+  lens-network:
+    external: true
+    name: lens-network

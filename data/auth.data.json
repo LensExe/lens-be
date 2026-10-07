@@ -40,6 +40,7 @@
           "Content-Type": "application/json"
         },
         "body": {
+          "role": "customer",
           "fullname": "Nguyễn Văn An",
           "email": "nguyenvanan@gmail.com",
           "password": "Password123@"

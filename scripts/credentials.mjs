@@ -99,6 +99,12 @@ export const CREDENTIALS = [
     generator: () => generateSecret(32, 'hex'),
     description: 'Client Secret của lens-backend trên Keycloak',
   },
+  {
+    env: 'KEYCLOAK_ADMIN_CLIENT_SECRET',
+    file: 'keycloak-admin-client-secret.key',
+    generator: () => generateSecret(32, 'hex'),
+    description: 'Client Secret của service account quản trị user Keycloak',
+  },
 
   // ── Security & Authentication ──
   {
@@ -176,6 +182,7 @@ export const APP_CREDENTIALS = [
   { env: 'KEYCLOAK_AUTH_SERVER_URL', default: 'http://localhost:8089', description: 'Auth server URL Keycloak' },
   { env: 'KEYCLOAK_REALM', default: 'lens', description: 'Realm dự án' },
   { env: 'KEYCLOAK_CLIENT_ID', default: 'lens-backend', description: 'Client ID đăng ký Keycloak' },
+  { env: 'KEYCLOAK_ADMIN_CLIENT_ID', default: 'lens-backend-admin', description: 'Client ID service account quản trị user Keycloak' },
   { env: 'KEYCLOAK_ADMIN_USERNAME', default: 'lens-admin-keycloak', description: 'Tài khoản admin Keycloak' },
 
   // ── Auth params ──

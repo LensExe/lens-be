@@ -21,7 +21,13 @@ const baseUrl = required(
 const realmName = required(process.env.KEYCLOAK_REALM, 'KEYCLOAK_REALM');
 const realm = encodeURIComponent(realmName);
 const clientId = required(process.env.KEYCLOAK_CLIENT_ID, 'KEYCLOAK_CLIENT_ID');
-const clientSecret = required(process.env.KEYCLOAK_SECRET, 'KEYCLOAK_SECRET');
+const clientSecret = required(
+  process.env.KEYCLOAK_CLIENT_SECRET,
+  'KEYCLOAK_CLIENT_SECRET',
+);
+const adminClientId = process.env.KEYCLOAK_ADMIN_CLIENT_ID?.trim() || clientId;
+const adminClientSecret =
+  process.env.KEYCLOAK_ADMIN_CLIENT_SECRET?.trim() || clientSecret;
 const googleClientId = required(
   process.env.GOOGLE_CLIENT_ID,
   'GOOGLE_CLIENT_ID',
@@ -57,19 +63,29 @@ const rootAdmin = axios.create({
   headers: { authorization: `Bearer ${tokenResponse.data.access_token}` },
 });
 
+let realmConfig;
 try {
-  await rootAdmin.get(`/realms/${realm}`);
+  realmConfig = (await rootAdmin.get(`/realms/${realm}`)).data;
 } catch (error) {
   if (!axios.isAxiosError(error) || error.response?.status !== 404) throw error;
-  await rootAdmin.post('/realms', {
+  realmConfig = {
     realm: realmName,
     enabled: true,
     registrationAllowed: false,
     loginWithEmailAllowed: true,
     duplicateEmailsAllowed: false,
     resetPasswordAllowed: true,
-  });
+  };
+  await rootAdmin.post('/realms', realmConfig);
 }
+await rootAdmin.put(`/realms/${realm}`, {
+  ...realmConfig,
+  enabled: true,
+  registrationAllowed: false,
+  loginWithEmailAllowed: true,
+  duplicateEmailsAllowed: false,
+  resetPasswordAllowed: true,
+});
 
 const admin = axios.create({
   baseURL: `${baseUrl}/admin/realms/${realm}`,
@@ -104,9 +120,76 @@ redirectUris.add(redirectUri);
 await admin.put(`/clients/${encodeURIComponent(client.id)}`, {
   ...client,
   secret: clientSecret,
+  enabled: true,
+  publicClient: false,
   standardFlowEnabled: true,
+  directAccessGrantsEnabled: true,
+  serviceAccountsEnabled: true,
   redirectUris: [...redirectUris],
 });
+
+if (adminClientId !== clientId) {
+  let adminClients = await admin.get('/clients', {
+    params: { clientId: adminClientId },
+  });
+  if (!adminClients.data[0]?.id) {
+    await admin.post('/clients', {
+      clientId: adminClientId,
+      secret: adminClientSecret,
+      protocol: 'openid-connect',
+      enabled: true,
+      publicClient: false,
+      standardFlowEnabled: false,
+      directAccessGrantsEnabled: false,
+      serviceAccountsEnabled: true,
+    });
+    adminClients = await admin.get('/clients', {
+      params: { clientId: adminClientId },
+    });
+  }
+  const dedicatedAdminClient = adminClients.data[0];
+  if (!dedicatedAdminClient?.id)
+    throw new Error(`Unable to configure client "${adminClientId}"`);
+  await admin.put(`/clients/${encodeURIComponent(dedicatedAdminClient.id)}`, {
+    ...dedicatedAdminClient,
+    clientId: adminClientId,
+    secret: adminClientSecret,
+    enabled: true,
+    publicClient: false,
+    standardFlowEnabled: false,
+    directAccessGrantsEnabled: false,
+    serviceAccountsEnabled: true,
+  });
+}
+
+// The backend uses this service account for Keycloak Admin REST calls.
+// Grant only the user-management roles it needs in the target realm.
+const realmManagementClients = await admin.get('/clients', {
+  params: { clientId: 'realm-management' },
+});
+const realmManagement = realmManagementClients.data[0];
+const serviceAccounts = await admin.get('/users', {
+  params: { username: `service-account-${adminClientId}`, exact: 'true' },
+});
+const serviceAccount = serviceAccounts.data[0];
+if (!realmManagement?.id || !serviceAccount?.id) {
+  throw new Error(
+    `Unable to configure service account roles for client "${adminClientId}"`,
+  );
+}
+const adminRoleNames = ['manage-users', 'query-users', 'view-users'];
+const adminRoles = await Promise.all(
+  adminRoleNames.map(async (roleName) => {
+    const response = await admin.get(
+      `/clients/${encodeURIComponent(realmManagement.id)}/roles/${encodeURIComponent(roleName)}`,
+    );
+    return response.data;
+  }),
+);
+await admin.post(
+  `/users/${encodeURIComponent(serviceAccount.id)}/role-mappings/clients/${encodeURIComponent(realmManagement.id)}`,
+  adminRoles,
+);
 
 const mappers = await admin.get(
   `/clients/${encodeURIComponent(client.id)}/protocol-mappers/models`,
