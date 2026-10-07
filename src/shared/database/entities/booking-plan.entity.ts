@@ -13,7 +13,7 @@ export class BookingPlanEntity extends BaseEntity {
   photographer_id!: string;
 
   /** Plan name (for example, 'Personal Yearbook Photos', 'Wedding Photojournalism', or 'Outdoor Portraits'). */
-  @Column()
+  @Column('text')
   name!: string;
 
   /** Detailed description of the photography plan. */

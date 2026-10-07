@@ -1,7 +1,18 @@
-/** Configuration for a membership plan feature or privilege. */
+/** Values that subscription policy code knows how to interpret and enforce. */
+export const SubscriptionFeatureCode = {
+  STORAGE_LIMIT_BYTES: 'storage_limit_bytes',
+  PORTFOLIO_LIMIT: 'portfolio_limit',
+} as const;
+
+export type SubscriptionFeatureCode =
+  (typeof SubscriptionFeatureCode)[keyof typeof SubscriptionFeatureCode];
+
+/** A typed subscription entitlement. `value` stays a string for JSON/API compatibility. */
 export interface PlanFeature {
-  code: string;
+  code: SubscriptionFeatureCode;
   name: string;
+  kind: 'quota';
+  unit: 'bytes' | 'portfolios';
   value: string;
 }
 

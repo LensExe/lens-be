@@ -47,7 +47,6 @@ let customer: string,
   photo: string,
   plan: string,
   booking: string,
-  rival: string,
   deposit: string,
   remaining: string,
   media: string;
@@ -445,25 +444,19 @@ test('only verified photographers are public; unavailable ones rank last', async
   await ok('PATCH', '/photographers/me/status', 'photographer', {
     is_available: true,
   });
-  // a plan longer than every working shift could never be booked
-  assert.equal(
-    (
-      await api('POST', '/photographers/me/booking-plans', 'photographer', {
-        name: 'Whole-day wedding',
-        price: 20000000,
-        duration_minutes: 13 * 60,
-        photo_count: 500,
-        retouched_photo_count: 50,
-      })
-    ).status,
-    400,
+  const longPlan = await ok(
+    'POST',
+    '/photographers/me/booking-plans',
+    'photographer',
+    {
+      name: 'Whole-day wedding',
+      price: 20000000,
+      duration_minutes: 13 * 60,
+      photo_count: 500,
+      retouched_photo_count: 50,
+    },
   );
-  // the photographer sees whether each plan still fits the working hours
-  assert.ok(
-    (
-      await ok('GET', '/photographers/me/booking-plans', 'photographer')
-    ).items.every((p: { fits_working_hours: boolean }) => p.fits_working_hours),
-  );
+  assert.equal(longPlan.duration_minutes, 13 * 60);
   // once approved, the tax code only changes through an admin
   assert.equal(
     (
@@ -479,56 +472,6 @@ test('only verified photographers are public; unavailable ones rank last', async
     [applicant],
   );
   assert.equal(found.total, 1);
-});
-test('photographer declares weekly working hours in Vietnam time', async () => {
-  const initial = await ok('GET', '/calendar/me/working-hours', 'photographer');
-  assert.equal(initial.is_default, true);
-  assert.equal(initial.items.length, 7);
-  assert.deepEqual(initial.items[0], {
-    weekday: 1,
-    start_time: '08:00',
-    end_time: '20:00',
-  });
-  const week = [
-    { weekday: 1, start_time: '08:00', end_time: '12:00' },
-    { weekday: 1, start_time: '14:00', end_time: '18:00' },
-    { weekday: 6, start_time: '07:00', end_time: '21:00' },
-  ];
-  assert.equal(
-    (
-      await api('PUT', '/calendar/me/working-hours', 'photographer', {
-        items: [
-          ...week,
-          { weekday: 1, start_time: '11:00', end_time: '13:00' },
-        ],
-      })
-    ).status,
-    400,
-  );
-  assert.equal(
-    (
-      await api('PUT', '/calendar/me/working-hours', 'photographer', {
-        items: [{ weekday: 9, start_time: '08:00', end_time: '12:00' }],
-      })
-    ).status,
-    400,
-  );
-  assert.equal(
-    (
-      await api('PUT', '/calendar/me/working-hours', 'customer', {
-        items: week,
-      })
-    ).status,
-    403,
-  );
-  const saved = await ok('PUT', '/calendar/me/working-hours', 'photographer', {
-    items: week,
-  });
-  assert.deepEqual(saved, { items: week, is_default: false });
-  const reset = await ok('PUT', '/calendar/me/working-hours', 'photographer', {
-    items: [],
-  });
-  assert.equal(reset.is_default, true);
 });
 test('calendar blocking and concurrent booking conflict', async () => {
   const blockedDate = new Date(Date.now() + 2 * 864e5)
@@ -590,46 +533,61 @@ test('calendar blocking and concurrent booking conflict', async () => {
     dayAfter.blocked.map((b: { id: string }) => b.id),
     [range.id],
   );
-  // free time is the 08:00-20:00 Vietnam shift minus blocks: nothing on the
-  // blocked day, the next day's shift starts only after the range ends
+  // time is free by default, with the blocked day and range removed
   const free = await ok(
     'GET',
     `/photographers/${photo}/availability?from=${encodeURIComponent(at(0))}&to=${encodeURIComponent(at(72))}`,
   );
-  assert.deepEqual(free.items, [{ from: at(60), to: at(68) }]);
+  assert.deepEqual(free.items, [{ from: at(60), to: at(72) }]);
   await ok('DELETE', `/calendar/blocked-times/${range.id}`, 'photographer');
   await ok('DELETE', `/calendar/blocked-times/${slot.id}`, 'photographer');
   const input = {
     photographer_id: photo,
-    plan_id: plan,
+    booking_plan_id: plan,
     location: 'Studio',
     from: at(33),
     to: at(34),
   };
-  // the plan lasts 60 minutes and the default shift ends at 20:00 Vietnam time
-  for (const [body, status] of [
-    [{ ...input, to: at(35) }, 400],
-    [{ ...input, from: at(44), to: at(45) }, 409],
-  ] as const)
+  // the plan lasts 60 minutes; availability has no daily shift boundary
+  for (const [body, status] of [[{ ...input, to: at(35) }, 400]] as const)
     assert.equal(
       (await api('POST', '/bookings', 'customer', body)).status,
       status,
     );
+  const late = await ok('POST', '/bookings', 'customer', {
+    ...input,
+    from: at(44),
+    to: at(45),
+  });
+  await ok('POST', `/bookings/${late.id}/cancel`, 'customer', {
+    reason: 'Cleanup',
+  });
   const attempts = await Promise.all([
     api('POST', '/bookings', 'customer', input),
     api('POST', '/bookings', 'stranger', input),
   ]);
-  // a pending request does not hold the time: both customers may ask for it
-  assert.deepEqual(
-    attempts.map((x) => x.status),
-    [200, 200],
+  // a pending request reserves its time, so only one simultaneous request wins
+  assert.deepEqual(attempts.map((x) => x.status).sort(), [200, 409]);
+  const winnerIndex = attempts.findIndex((x) => x.status === 200);
+  const winner = attempts[winnerIndex];
+  booking = winner.body.id;
+  const available = await ok(
+    'GET',
+    `/photographers/${photo}/availability?from=${encodeURIComponent(input.from)}&to=${encodeURIComponent(input.to)}`,
   );
-  booking = attempts[0].body.id;
-  rival = attempts[1].body.id;
-  // the same customer cannot send the same request twice
+  assert.deepEqual(available.items, []);
+  // Cancellation releases the same time for a new request.
+  await ok(
+    'POST',
+    `/bookings/${booking}/cancel`,
+    winnerIndex === 0 ? 'customer' : 'stranger',
+    {
+      reason: 'Cleanup',
+    },
+  );
+  booking = (await ok('POST', '/bookings', 'customer', input)).id;
+  // the same customer cannot send the same request twice while pending
   assert.equal((await api('POST', '/bookings', 'customer', input)).status, 409);
-  const available = await ok('GET', `/photographers/${photo}/availability`);
-  assert.ok(available.items.length > 0);
 });
 test('booking ownership and lifecycle checks', async () => {
   assert.equal(
@@ -640,27 +598,15 @@ test('booking ownership and lifecycle checks', async () => {
     (await api('POST', `/bookings/${booking}/accept`, 'customer')).status,
     403,
   );
+  // The photographer cannot confirm a request until the customer has paid the deposit.
   assert.equal(
-    (await ok('POST', `/bookings/${booking}/accept`, 'photographer')).status,
-    'accepted',
+    (await api('POST', `/bookings/${booking}/accept`, 'photographer')).status,
+    409,
   );
   assert.equal(
     (await api('POST', `/bookings/${booking}/start`, 'photographer')).status,
     409,
   );
-  // accepting records when, so the deposit deadline can be counted from it
-  assert.ok(
-    (await db.manager.findOneByOrFail(EntitySchemas.bookings, { id: booking }))
-      .accepted_at,
-  );
-  // accepting one request turns down the other requests for the same time
-  const turnedDown = await ok('GET', `/bookings/${rival}`, 'stranger');
-  assert.equal(turnedDown.status, 'rejected');
-  const [, last] = (await ok('GET', `/bookings/${rival}/timeline`, 'stranger'))
-    .items;
-  assert.equal(last.actor_role, 'system');
-  assert.equal(last.actor_user_id, null);
-  assert.match(last.reason, /accepted another booking/);
   // an admin can look into any booking to handle disputes
   assert.equal((await ok('GET', `/bookings/${booking}`, 'admin')).id, booking);
   assert.ok(
@@ -676,17 +622,14 @@ test('booking ownership and lifecycle checks', async () => {
         actor_role: string;
       }) => [x.from_status, x.to_status, x.actor_role],
     ),
-    [
-      [null, 'pending', 'customer'],
-      ['pending', 'accepted', 'photographer'],
-    ],
+    [[null, 'pending', 'customer']],
   );
 });
 test('cancel reason is kept in the booking history', async () => {
   const day = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
   const draft = await ok('POST', '/bookings', 'customer', {
     photographer_id: photo,
-    plan_id: plan,
+    booking_plan_id: plan,
     location: 'Studio',
     from: new Date(`${day}T09:00:00+07:00`).toISOString(),
     to: new Date(`${day}T10:00:00+07:00`).toISOString(),
@@ -710,7 +653,7 @@ test('blocking time over pending requests asks first, then declines them', async
     new Date(`${day}T${hour}:00+07:00`).toISOString();
   const request = await ok('POST', '/bookings', 'customer', {
     photographer_id: photo,
-    plan_id: plan,
+    booking_plan_id: plan,
     location: 'Studio',
     from: vn('09:00'),
     to: vn('10:00'),
@@ -751,65 +694,11 @@ test('blocking time over pending requests asks first, then declines them', async
   assert.match(last.reason, /blocked this time/);
   await ok('DELETE', `/calendar/blocked-times/${slot.id}`, 'photographer');
 });
-test('shortening working hours over pending requests asks first, then declines them', async () => {
-  const day = new Date(Date.now() + 8 * 864e5).toISOString().slice(0, 10);
-  const request = await ok('POST', '/bookings', 'customer', {
-    photographer_id: photo,
-    plan_id: plan,
-    location: 'Studio',
-    from: new Date(`${day}T19:00:00+07:00`).toISOString(),
-    to: new Date(`${day}T20:00:00+07:00`).toISOString(),
-  });
-  const shorter = {
-    items: [1, 2, 3, 4, 5, 6, 7].map((weekday) => ({
-      weekday,
-      start_time: '08:00',
-      end_time: '17:00',
-    })),
-  };
-  const preview = await ok(
-    'POST',
-    '/calendar/me/working-hours/affected',
-    'photographer',
-    shorter,
-  );
-  assert.deepEqual(
-    preview.items.map((b: { id: string }) => b.id),
-    [request.id],
-  );
-  assert.equal(
-    (await api('PUT', '/calendar/me/working-hours', 'photographer', shorter))
-      .status,
-    409,
-  );
-  assert.equal(
-    (await ok('GET', '/calendar/me/working-hours', 'photographer')).is_default,
-    true,
-  );
-  await ok('PUT', '/calendar/me/working-hours', 'photographer', {
-    ...shorter,
-    decline_pending: true,
-  });
-  const after = await ok('GET', `/bookings/${request.id}`, 'customer');
-  assert.equal(after.status, 'rejected');
-  const [, last] = (
-    await ok('GET', `/bookings/${request.id}/timeline`, 'customer')
-  ).items;
-  assert.match(last.reason, /changed working hours/);
-  // a shift may run until midnight
-  const late = await ok('PUT', '/calendar/me/working-hours', 'photographer', {
-    items: [{ weekday: 1, start_time: '20:00', end_time: '24:00' }],
-    decline_pending: true,
-  });
-  assert.equal(late.items[0].end_time, '24:00');
-  // back to the default hours for the tests after this one
-  await ok('PUT', '/calendar/me/working-hours', 'photographer', { items: [] });
-});
 test('cancel and accept at the same time: only one of them wins', async () => {
   const day = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
   const request = await ok('POST', '/bookings', 'customer', {
     photographer_id: photo,
-    plan_id: plan,
+    booking_plan_id: plan,
     location: 'Studio',
     from: new Date(`${day}T09:00:00+07:00`).toISOString(),
     to: new Date(`${day}T10:00:00+07:00`).toISOString(),
@@ -852,7 +741,7 @@ test('an admin can cancel a booking with a reason, others use the normal route',
   const day = new Date(Date.now() + 9 * 864e5).toISOString().slice(0, 10);
   const request = await ok('POST', '/bookings', 'customer', {
     photographer_id: photo,
-    plan_id: plan,
+    booking_plan_id: plan,
     location: 'Studio',
     from: new Date(`${day}T09:00:00+07:00`).toISOString(),
     to: new Date(`${day}T10:00:00+07:00`).toISOString(),
@@ -906,208 +795,6 @@ test('booking lists are filtered and paged in the database', async () => {
   );
   assert.equal(admin.total, 3);
   assert.equal(admin.limit, 5);
-});
-test('booking collaboration endpoints are temporarily disabled', async () => {
-  const collaboratorId = '11111111-1111-4111-8111-111111111111';
-  const disabledRoutes: [string, string, string, object?][] = [
-    [
-      'POST',
-      `/bookings/${booking}/collaborators`,
-      'photographer',
-      { photographer_id: collaboratorId, share_percent: 10 },
-    ],
-    ['GET', `/bookings/${booking}/collaborators`, 'photographer'],
-    ['GET', '/booking-collaborators/me', 'photographer'],
-    ['POST', `/booking-collaborators/${collaboratorId}/accept`, 'photographer'],
-    [
-      'POST',
-      `/booking-collaborators/${collaboratorId}/decline`,
-      'photographer',
-    ],
-    ['POST', `/booking-collaborators/${collaboratorId}/revoke`, 'photographer'],
-  ];
-  for (const [method, path, who, body] of disabledRoutes)
-    assert.equal((await api(method, path, who, body)).status, 404, path);
-});
-
-test.skip('future: main photographer invites a collaborator who answers once', async () => {
-  // approval gives the applicant the photographer role on the next token
-  actors.applicant.roles = ['customer', 'photographer'];
-  const other = (await ok('GET', '/photographers/me', 'applicant')).id;
-  const invite = (body: object, who = 'photographer') =>
-    api('POST', `/bookings/${booking}/collaborators`, who, body);
-  assert.equal(
-    (await invite({ photographer_id: photo, share_percent: 10 })).status,
-    400,
-  );
-  assert.equal(
-    (await invite({ photographer_id: other, share_percent: 10 }, 'customer'))
-      .status,
-    403,
-  );
-  // only a verified, active photographer can be invited
-  assert.equal(
-    (
-      await invite({
-        photographer_id: '11111111-1111-4111-8111-111111111111',
-        share_percent: 10,
-      })
-    ).status,
-    404,
-  );
-  const first = (await invite({ photographer_id: other, share_percent: 60 }))
-    .body;
-  assert.equal(first.status, 'invited');
-  assert.equal(
-    (await invite({ photographer_id: other, share_percent: 5 })).status,
-    409,
-  );
-  // a pending invitation can be revoked and sent again with another share
-  assert.equal(
-    (
-      await ok(
-        'POST',
-        `/booking-collaborators/${first.id}/revoke`,
-        'photographer',
-      )
-    ).status,
-    'revoked',
-  );
-  const second = (await invite({ photographer_id: other, share_percent: 50 }))
-    .body;
-  assert.equal(second.share_percent, 50);
-  const mine = await ok('GET', '/booking-collaborators/me', 'applicant');
-  assert.equal(mine.total, 2);
-  // a status filter outside the known statuses is a 400, not an empty list
-  assert.equal(
-    (await api('GET', '/bookings?status=foo', 'customer')).status,
-    400,
-  );
-  assert.deepEqual(
-    mine.items.map((c: { id: string; status: string }) => [c.id, c.status]),
-    [
-      [second.id, 'invited'],
-      [first.id, 'revoked'],
-    ],
-  );
-  // an invitation alone does not open the booking details
-  assert.equal(
-    (await api('GET', `/bookings/${booking}`, 'applicant')).status,
-    403,
-  );
-  // the invited photographer cannot accept while blocked at that time
-  const shoot = await ok('GET', `/bookings/${booking}`, 'customer');
-  const busy = await ok('POST', '/calendar/blocked-times', 'applicant', {
-    from: shoot.from,
-    to: shoot.to,
-  });
-  assert.equal(
-    (
-      await api(
-        'POST',
-        `/booking-collaborators/${second.id}/accept`,
-        'applicant',
-      )
-    ).status,
-    409,
-  );
-  await ok('DELETE', `/calendar/blocked-times/${busy.id}`, 'applicant');
-  // only the invited photographer answers
-  assert.equal(
-    (
-      await api(
-        'POST',
-        `/booking-collaborators/${second.id}/accept`,
-        'photographer',
-      )
-    ).status,
-    403,
-  );
-  assert.equal(
-    (
-      await ok(
-        'POST',
-        `/booking-collaborators/${second.id}/accept`,
-        'applicant',
-      )
-    ).status,
-    'accepted',
-  );
-  // once accepted, that time is taken on the collaborator's own calendar too
-  const otherPlan = (
-    await ok('POST', '/photographers/me/booking-plans', 'applicant', {
-      name: 'Portrait',
-      price: 1000000,
-      duration_minutes: 60,
-      photo_count: 20,
-      retouched_photo_count: 5,
-      features: ['All original photos'],
-    })
-  ).id;
-  const clash = await api('POST', '/bookings', 'stranger', {
-    photographer_id: other,
-    plan_id: otherPlan,
-    location: 'Studio',
-    from: shoot.from,
-    to: shoot.to,
-  });
-  assert.equal(clash.status, 409);
-  // ...so it is not offered as free time, and they cannot block over it
-  assert.deepEqual(
-    (
-      await ok(
-        'GET',
-        `/photographers/${other}/availability?from=${encodeURIComponent(shoot.from)}&to=${encodeURIComponent(shoot.to)}`,
-      )
-    ).items,
-    [],
-  );
-  assert.equal(
-    (
-      await api('POST', '/calendar/blocked-times', 'applicant', {
-        from: shoot.from,
-        to: shoot.to,
-      })
-    ).status,
-    409,
-  );
-  // once accepted, the collaborator also follows the booking history
-  assert.ok(
-    (await ok('GET', `/bookings/${booking}/timeline`, 'applicant')).items
-      .length,
-  );
-  // once accepted, the collaborator sees where and when to shoot
-  assert.equal(
-    (await ok('GET', `/bookings/${booking}`, 'applicant')).id,
-    booking,
-  );
-  for (const [path, who] of [
-    ['decline', 'applicant'],
-    ['revoke', 'photographer'],
-  ])
-    assert.equal(
-      (await api('POST', `/booking-collaborators/${second.id}/${path}`, who))
-        .status,
-      409,
-    );
-  // customer, main and invited photographer see the list; others do not
-  for (const who of ['customer', 'photographer', 'applicant'])
-    assert.deepEqual(
-      (await ok('GET', `/bookings/${booking}/collaborators`, who)).items.map(
-        (c: { status: string; share_percent: number }) => [
-          c.status,
-          c.share_percent,
-        ],
-      ),
-      [
-        ['revoked', 60],
-        ['accepted', 50],
-      ],
-    );
-  assert.equal(
-    (await api('GET', `/bookings/${booking}/collaborators`, 'stranger')).status,
-    403,
-  );
 });
 test('booking plan with bookings can only be deactivated', async () => {
   assert.equal(
@@ -1205,6 +892,15 @@ test('webhook signature, amount checks and replay are idempotent', async () => {
   assert.equal(
     (await db.manager.find(EntitySchemas.payment_webhooks)).length,
     1,
+  );
+  assert.equal(
+    (await ok('POST', `/bookings/${booking}/accept`, 'photographer')).status,
+    'accepted',
+  );
+  // Acceptance records when the photographer confirms after the deposit is paid.
+  assert.ok(
+    (await db.manager.findOneByOrFail(EntitySchemas.bookings, { id: booking }))
+      .accepted_at,
   );
   assert.equal(
     (await ok('POST', `/bookings/${booking}/start`, 'photographer')).status,
@@ -1527,7 +1223,7 @@ test('portfolio ordering, ownership and public signed image URLs', async () => {
         'PATCH',
         `/portfolios/${album.id}/items/reorder`,
         'photographer',
-        { item_ids: [item.id, item.id] },
+        { portfolio_item_ids: [item.id, item.id] },
       )
     ).status,
     400,
@@ -1536,7 +1232,7 @@ test('portfolio ordering, ownership and public signed image URLs', async () => {
     'PATCH',
     `/portfolios/${album.id}/items/reorder`,
     'photographer',
-    { item_ids: [item.id] },
+    { portfolio_item_ids: [item.id] },
   );
   assert.equal(sorted.items[0].id, item.id);
   assert.ok((await ok('GET', `/portfolios/${album.id}`)).items[0].download_url);
@@ -1576,8 +1272,14 @@ test('subscription plan snapshot, payment activation, ownership and cancellation
       billing_cycle: 30,
     }),
   );
+  const availablePlans = await ok('GET', '/subscriptions/plans');
+  assert.ok(
+    availablePlans.items.some(
+      (availablePlan: { id: string }) => availablePlan.id === plan.id,
+    ),
+  );
   const result = await ok('POST', '/subscriptions', 'photographer', {
-    plan_id: plan.id,
+    photographer_plan_id: plan.id,
     idempotency_key: 'subscription-test',
   });
   await db.transaction((s) =>
@@ -2052,7 +1754,7 @@ test('a customer cannot keep more than 3 open requests with one photographer', a
     const day = new Date(Date.now() + d * 864e5).toISOString().slice(0, 10);
     const res = await api('POST', '/bookings', 'customer', {
       photographer_id: photo,
-      plan_id: plan,
+      booking_plan_id: plan,
       location: 'Studio',
       from: new Date(`${day}T09:00:00+07:00`).toISOString(),
       to: new Date(`${day}T10:00:00+07:00`).toISOString(),

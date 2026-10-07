@@ -277,7 +277,7 @@ export class ModerationController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('admin/reports/:id/resolve')
+  @Post('admin/reports/:report_id/resolve')
   @ApiOperation({
     operationId: 'MOD-005',
     summary: 'Xử lý report',
@@ -301,7 +301,7 @@ export class ModerationController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'report_id', type: String, description: 'Report UUID' })
   @ApiBody({ type: Dto.ModerationResolveCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -311,13 +311,13 @@ export class ModerationController {
   @HttpCode(200)
   resolve(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('report_id', new ParseUUIDPipe()) report_id: string,
     @Body() body: Dto.ModerationResolveCommandBodyDto,
   ) {
     return this.commands.execute(
       new ModerationResolveCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        report_id,
       }),
     );
   }
@@ -329,7 +329,7 @@ export class ModerationController {
    * @param id ID of the record to process.
    * @returns Result of the query dispatched to its handler.
    */
-  @Get('admin/reports/:id')
+  @Get('admin/reports/:report_id')
   @ApiOperation({
     operationId: 'MOD-004',
     summary: 'Chi tiết report',
@@ -353,7 +353,7 @@ export class ModerationController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'report_id', type: String, description: 'Report UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -361,10 +361,12 @@ export class ModerationController {
   })
   get(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('report_id', new ParseUUIDPipe()) report_id: string,
   ) {
     return this.queries.execute(
-      new ModerationGetQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new ModerationGetQuery(req.actor ?? { sub: '', roles: [] }, {
+        report_id,
+      }),
     );
   }
 }

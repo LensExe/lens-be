@@ -137,7 +137,7 @@ export class UserController {
    * @param id ID of the record to process.
    * @returns Result of the query dispatched to its handler.
    */
-  @Get('users/:id')
+  @Get('users/:user_id')
   @ApiOperation({
     operationId: 'AUTH-004',
     summary: 'Lấy thông tin người dùng',
@@ -162,7 +162,7 @@ export class UserController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'user_id', type: String, description: 'User UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -170,10 +170,12 @@ export class UserController {
   })
   getUser(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('user_id', new ParseUUIDPipe()) user_id: string,
   ) {
     return this.queries.execute(
-      new IdentityGetUserQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new IdentityGetUserQuery(req.actor ?? { sub: '', roles: [] }, {
+        user_id,
+      }),
     );
   }
 }

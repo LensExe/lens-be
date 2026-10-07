@@ -35,11 +35,11 @@ export class ReviewUseCases implements RatingUpdaterPort {
    * @returns Review just created; throws HTTP 409 if the booking is incomplete or already has a review.
    */
   async create(s: EntityManager, a: Actor, i: Inputs.ReviewCreateCommandInput) {
-    const { id, ...values } = i,
+    const { booking_id, ...values } = i,
       { booking: b, photographer: p } = await bookingAccess(
         s,
         a,
-        id,
+        booking_id,
         'customer',
       );
     Review.requireCompletedBooking(b.status);
@@ -69,7 +69,7 @@ export class ReviewUseCases implements RatingUpdaterPort {
    * @returns `{ items, total, offset, limit }`
    */
   async list(s: EntityManager, _a: Actor, i: Inputs.ReviewListQueryInput) {
-    const { photographer: p } = await publicPhotographer(s, i.id);
+    const { photographer: p } = await publicPhotographer(s, i.photographer_id);
     const { offset, limit } = pageWindow(i);
     const [rows, total] = await s.findAndCount(EntitySchemas.feedbacks, {
       where: { photographer_id: p.id, status: ReviewStatus.VISIBLE },
@@ -158,7 +158,7 @@ export class ReviewUseCases implements RatingUpdaterPort {
     _a: Actor,
     i: Inputs.ReviewSummaryQueryInput,
   ) {
-    const { photographer: p } = await publicPhotographer(s, i.id);
+    const { photographer: p } = await publicPhotographer(s, i.photographer_id);
     return Review.summaryFromCounts(await this.ratingCounts(s, p.id));
   }
 
@@ -214,13 +214,13 @@ export class ReviewUseCases implements RatingUpdaterPort {
    * after 7 days
    */
   async update(s: EntityManager, a: Actor, i: Inputs.ReviewUpdateCommandInput) {
-    const { id, ...fields } = i,
-      r = await this.lockedReview(s, id);
+    const { feedback_id, ...fields } = i,
+      r = await this.lockedReview(s, feedback_id);
     await this.requireAuthor(s, a, r);
     Review.requireVisible(r.status);
     Review.requireEditWindow(r.created_at);
     Review.requireChanges(fields);
-    const result = await updateEntity(s, EntitySchemas.feedbacks, id, {
+    const result = await updateEntity(s, EntitySchemas.feedbacks, feedback_id, {
       ...fields,
       is_edited: true,
     });
@@ -243,7 +243,7 @@ export class ReviewUseCases implements RatingUpdaterPort {
    * @returns `{ deleted: true }`; throws HTTP 409 if the review was already deleted.
    */
   async remove(s: EntityManager, a: Actor, i: Inputs.ReviewRemoveCommandInput) {
-    const r = await this.lockedReview(s, i.id);
+    const r = await this.lockedReview(s, i.feedback_id);
     await this.requireAuthor(s, a, r);
     await updateEntity(s, EntitySchemas.feedbacks, r.id, {
       status: Review.nextStatus('delete', r.status),
@@ -263,7 +263,7 @@ export class ReviewUseCases implements RatingUpdaterPort {
    * @throws {DomainError} Thrown when the actor is not authorized.
    */
   async reply(s: EntityManager, a: Actor, i: Inputs.ReviewReplyCommandInput) {
-    const r = await this.lockedReview(s, i.id);
+    const r = await this.lockedReview(s, i.feedback_id);
     ensure(
       (await photographer(s, a)).id === r.photographer_id,
       'Review access denied',
@@ -293,7 +293,7 @@ export class ReviewUseCases implements RatingUpdaterPort {
   async hide(s: EntityManager, a: Actor, i: Inputs.ReviewHideCommandInput) {
     role(a, 'admin');
     await currentUser(s, a);
-    const r = await this.lockedReview(s, i.id);
+    const r = await this.lockedReview(s, i.feedback_id);
     const row = await updateEntity(s, EntitySchemas.feedbacks, r.id, {
       status: Review.nextStatus('hide', r.status),
       hidden_reason: i.reason,
@@ -324,7 +324,7 @@ export class ReviewUseCases implements RatingUpdaterPort {
   ) {
     role(a, 'admin');
     await currentUser(s, a);
-    const r = await this.lockedReview(s, i.id);
+    const r = await this.lockedReview(s, i.feedback_id);
     const row = await updateEntity(s, EntitySchemas.feedbacks, r.id, {
       status: Review.nextStatus('restore', r.status),
       hidden_reason: null,

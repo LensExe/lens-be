@@ -31,31 +31,4 @@ export class BookingPlan {
       'conflict',
     );
   }
-
-  /**
-   * Whether the plan fits within the photographer's longest working shift; if not, it can never be booked.
-   *
-   * @param durationMinutes Plan duration in minutes.
-   * @param longestShiftMinutes Photographer’s longest shift in minutes.
-   * @returns `true` if the plan fits.
-   */
-  static fitsShift(durationMinutes: number, longestShiftMinutes: number) {
-    return durationMinutes <= longestShiftMinutes;
-  }
-
-  /**
-   * A plan must not exceed the photographer's longest working shift. A booking must fit entirely within one shift, so a plan longer than
-   * every available shift can never be booked.
-   *
-   * @param durationMinutes Plan duration in minutes.
-   * @param longestShiftMinutes Photographer’s longest shift in minutes.
-   * @returns Returns no value; throws HTTP 400 if the plan is longer than the shift.
-   * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
-   */
-  static assertFitsShift(durationMinutes: number, longestShiftMinutes: number) {
-    ensure(
-      BookingPlan.fitsShift(durationMinutes, longestShiftMinutes),
-      'Plan is longer than your longest working shift; extend your working hours first',
-    );
-  }
 }

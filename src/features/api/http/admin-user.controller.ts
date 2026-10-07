@@ -127,7 +127,7 @@ export class AdminUserController {
    * @param id ID of the record to process.
    * @returns Result of the query dispatched to its handler.
    */
-  @Get('admin/users/:id')
+  @Get('admin/users/:user_id')
   @ApiOperation({
     operationId: 'ADM-003',
     summary: 'Chi tiết user',
@@ -151,7 +151,7 @@ export class AdminUserController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'user_id', type: String, description: 'User UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -159,10 +159,12 @@ export class AdminUserController {
   })
   adminUser(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('user_id', new ParseUUIDPipe()) user_id: string,
   ) {
     return this.queries.execute(
-      new IdentityAdminUserQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new IdentityAdminUserQuery(req.actor ?? { sub: '', roles: [] }, {
+        user_id,
+      }),
     );
   }
 
@@ -174,7 +176,7 @@ export class AdminUserController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Patch('admin/users/:id/status')
+  @Patch('admin/users/:user_id/status')
   @ApiOperation({
     operationId: 'ADM-004',
     summary: 'Cập nhật trạng thái user',
@@ -198,7 +200,7 @@ export class AdminUserController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'user_id', type: String, description: 'User UUID' })
   @ApiBody({ type: Dto.IdentityStatusCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -207,13 +209,13 @@ export class AdminUserController {
   })
   status(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('user_id', new ParseUUIDPipe()) user_id: string,
     @Body() body: Dto.IdentityStatusCommandBodyDto,
   ) {
     return this.commands.execute(
       new IdentityStatusCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        user_id,
       }),
     );
   }
@@ -225,7 +227,7 @@ export class AdminUserController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('admin/users/:id/suspend')
+  @Post('admin/users/:user_id/suspend')
   @ApiOperation({
     operationId: 'MOD-006',
     summary: 'Khóa tài khoản',
@@ -249,7 +251,7 @@ export class AdminUserController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'user_id', type: String, description: 'User UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -258,10 +260,12 @@ export class AdminUserController {
   @HttpCode(200)
   suspend(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('user_id', new ParseUUIDPipe()) user_id: string,
   ) {
     return this.commands.execute(
-      new IdentitySuspendCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new IdentitySuspendCommand(req.actor ?? { sub: '', roles: [] }, {
+        user_id,
+      }),
     );
   }
 
@@ -272,7 +276,7 @@ export class AdminUserController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('admin/users/:id/unsuspend')
+  @Post('admin/users/:user_id/unsuspend')
   @ApiOperation({
     operationId: 'MOD-007',
     summary: 'Mở khóa tài khoản',
@@ -296,7 +300,7 @@ export class AdminUserController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'user_id', type: String, description: 'User UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -305,10 +309,12 @@ export class AdminUserController {
   @HttpCode(200)
   unsuspend(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('user_id', new ParseUUIDPipe()) user_id: string,
   ) {
     return this.commands.execute(
-      new IdentityUnsuspendCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new IdentityUnsuspendCommand(req.actor ?? { sub: '', roles: [] }, {
+        user_id,
+      }),
     );
   }
 
@@ -319,7 +325,7 @@ export class AdminUserController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('admin/users/:id/ban')
+  @Post('admin/users/:user_id/ban')
   @ApiOperation({
     operationId: 'ADM-008',
     summary: 'Cấm tài khoản vĩnh viễn',
@@ -344,7 +350,7 @@ export class AdminUserController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'user_id', type: String, description: 'User UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -353,10 +359,12 @@ export class AdminUserController {
   @HttpCode(200)
   ban(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('user_id', new ParseUUIDPipe()) user_id: string,
   ) {
     return this.commands.execute(
-      new IdentityAdminBanCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new IdentityAdminBanCommand(req.actor ?? { sub: '', roles: [] }, {
+        user_id,
+      }),
     );
   }
 }

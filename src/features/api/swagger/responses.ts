@@ -1,4 +1,4 @@
-import type { SchemaObject } from '@nestjs/swagger';
+import type { ReferenceObject, SchemaObject } from '@nestjs/swagger';
 import { recordSchemas as records } from './record-schemas';
 import { PhotographyStyle } from '@shared/domain/values/photography-style.values';
 
@@ -16,7 +16,9 @@ const str: SchemaObject = { type: 'string' },
  * @param properties properties data of type Record<string, SchemaObject>.
  * @returns Result object containing the fields `type`, `properties`.
  */
-const obj = (properties: Record<string, SchemaObject>): SchemaObject => ({
+const obj = (
+  properties: Record<string, SchemaObject | ReferenceObject>,
+): SchemaObject => ({
   type: 'object',
   properties,
 });
@@ -49,7 +51,7 @@ const paged = (record: SchemaObject) =>
 const deleted = obj({ deleted: bool });
 
 const planFeature = {
-  oneOf: [obj({ code: str, name: str, value: str }), str],
+  oneOf: [obj({ code: str, name: str, kind: str, unit: str, value: str }), str],
 };
 
 const portfolioItem = obj({
@@ -163,11 +165,6 @@ const badge = obj({
   is_active: bool,
 });
 
-const workingHours = obj({
-  items: array(obj({ weekday: num, start_time: str, end_time: str })),
-  is_default: bool,
-});
-
 const privatePhotographer = obj({
   ...photographer.properties,
   tax_code: { ...str, nullable: true },
@@ -261,9 +258,7 @@ const schemas: Record<string, SchemaObject> = {
   'PHO-007': privatePhotographer,
   'PHO-008': privatePhotographer,
   'PHO-009': records.booking_plans,
-  'PHO-010': items(
-    obj({ ...records.booking_plans.properties, fits_working_hours: bool }),
-  ),
+  'PHO-010': items(obj({ ...records.booking_plans.properties })),
   'PHO-011': records.booking_plans,
   'PHO-012': deleted,
   'PHO-013': items(records.booking_plans),
@@ -277,17 +272,16 @@ const schemas: Record<string, SchemaObject> = {
   'PORT-006': portfolioItem,
   'PORT-007': deleted,
   'PORT-008': portfolio,
+  'PORT-009': paged(records.portfolios),
   'CAL-001': items(obj({ from: str, to: str })),
+  'CAL-011': items(obj({ id: str, from: str, to: str })),
   'CAL-002': obj({
     blocked: array(records.offline_slots),
     bookings: array(records.bookings),
   }),
   'CAL-006': records.offline_slots,
   'CAL-007': deleted,
-  'CAL-008': workingHours,
-  'CAL-009': workingHours,
   'CAL-010': items(records.bookings),
-  'CAL-011': items(records.bookings),
   'BOOK-001': records.bookings,
   'BOOK-002': records.bookings,
   'BOOK-003': paged(records.bookings),
@@ -300,12 +294,6 @@ const schemas: Record<string, SchemaObject> = {
   'BOOK-010': items(records.booking_status_history),
   'BOOK-011': records.reports,
   'BOOK-012': records.bookings,
-  'BOOK-013': records.booking_collaborators,
-  'BOOK-014': items(records.booking_collaborators),
-  'BOOK-015': paged(records.booking_collaborators),
-  'BOOK-016': records.booking_collaborators,
-  'BOOK-017': records.booking_collaborators,
-  'BOOK-018': records.booking_collaborators,
   'BOOK-019': records.bookings,
   'PAY-001': records.transactions,
   'PAY-002': records.transactions,
@@ -400,6 +388,10 @@ const schemas: Record<string, SchemaObject> = {
     storage_limit_bytes: { ...num, nullable: true },
     storage_remaining_bytes: { ...num, nullable: true },
     storage_over_limit: bool,
+    portfolio_count: num,
+    portfolio_limit: { ...num, nullable: true },
+    portfolio_remaining_count: { ...num, nullable: true },
+    portfolio_over_limit: bool,
   }),
   'SUB-006': webhook,
   'SUB-007': subscriptionHistory,

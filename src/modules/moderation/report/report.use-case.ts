@@ -185,7 +185,7 @@ export class ModerationReportUseCases implements BookingDisputeReportPort {
   async get(s: EntityManager, a: Actor, i: Inputs.ModerationGetQueryInput) {
     role(a, 'admin');
     await currentUser(s, a);
-    const report = await required(s, 'reports', i.id);
+    const report = await required(s, 'reports', i.report_id);
     const evidenceRows = await s.find(EntitySchemas.report_evidences, {
       where: { report_id: report.id },
       order: { sort_order: 'ASC', created_at: 'ASC', id: 'ASC' },
@@ -225,7 +225,7 @@ export class ModerationReportUseCases implements BookingDisputeReportPort {
     role(a, 'admin');
     const user = await currentUser(s, a);
     const report = await s.findOne(EntitySchemas.reports, {
-      where: { id: i.id },
+      where: { id: i.report_id },
       lock: { mode: 'pessimistic_write' },
     });
     ensure(report, 'reports not found', 'missing');

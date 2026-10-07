@@ -6,11 +6,11 @@ import {
 } from '@shared/domain/values/photography-style.values';
 
 /**
- * Photographer profile review flow: a customer submits a profile, which enters `pending`; an admin approves it as `verified` or rejects it as `rejected`.
+ * Photographer profile review flow: an authenticated applicant submits a profile, which enters `pending`; an admin approves it as `verified` or rejects it as `rejected`.
  */
 export class PhotographerApplication {
   /**
-   * Check whether a customer may submit or resubmit an application to become a photographer.
+   * Check whether an applicant may submit or resubmit an application to become a photographer.
    *
    * @param current Existing user profile status; `undefined` if no application has been submitted.
    * @returns Returns no value; throws `conflict` (HTTP 409) if the profile is pending review or already approved.

@@ -38,10 +38,10 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   ) {}
 
   /**
-   * A customer submits or resubmits an application after rejection; it enters `pending` for admin review.
+   * An authenticated user submits or resubmits an application after rejection; it enters `pending` for admin review.
    *
    * @param s EntityManager for the current transaction.
-   * @param a Customer actor making the request.
+   * @param a Applicant making the request.
    * @param input Professional profile details: styles, location, description, tax ID, and years of experience.
    * @returns Photographer profile from the owner’s perspective; throws HTTP 409 if the application is pending or the user is already a photographer.
    */
@@ -51,7 +51,6 @@ export class PhotographerUseCases implements PhotographerSearchPort {
     input: Inputs.PhotographerCreateCommandInput,
   ) {
     const u = await currentUser(s, a);
-    role(a, 'customer');
     const [existing] = await s.findBy(EntitySchemas.photographers, {
       user_id: u.id,
     });
@@ -60,6 +59,7 @@ export class PhotographerUseCases implements PhotographerSearchPort {
       ...input,
       styles: PhotographerProfile.normalizeStyles(input.styles),
       verification_status: VerificationStatus.PENDING,
+      is_verified: false,
       rejection_reason: null,
     };
     if (existing) {
@@ -69,6 +69,9 @@ export class PhotographerUseCases implements PhotographerSearchPort {
         existing.id,
         application,
       );
+      if (existing.verification_status === VerificationStatus.UNVERIFIED) {
+        await this.ratings.openRating(s, existing.id);
+      }
       return this.details(s, existing.id, true);
     }
     const p = await s.save(EntitySchemas.photographers, {

@@ -62,7 +62,7 @@ export class ReviewController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('bookings/:id/reviews')
+  @Post('bookings/:booking_id/reviews')
   @ApiOperation({
     operationId: 'REV-001',
     summary: 'Tạo đánh giá',
@@ -87,7 +87,7 @@ export class ReviewController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiBody({ type: Dto.ReviewCreateCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -97,13 +97,13 @@ export class ReviewController {
   @HttpCode(200)
   create(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
     @Body() body: Dto.ReviewCreateCommandBodyDto,
   ) {
     return this.commands.execute(
       new ReviewCreateCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        booking_id,
       }),
     );
   }
@@ -115,7 +115,7 @@ export class ReviewController {
    * @param id ID of the record to process.
    * @returns Result of the query dispatched to its handler.
    */
-  @Get('photographers/:id/rating-summary')
+  @Get('photographers/:photographer_id/rating-summary')
   @ApiOperation({
     operationId: 'REV-003',
     summary: 'Tổng hợp rating',
@@ -132,7 +132,11 @@ export class ReviewController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer UUID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -140,10 +144,12 @@ export class ReviewController {
   })
   summary(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
   ) {
     return this.queries.execute(
-      new ReviewSummaryQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new ReviewSummaryQuery(req.actor ?? { sub: '', roles: [] }, {
+        photographer_id,
+      }),
     );
   }
 
@@ -155,7 +161,7 @@ export class ReviewController {
    * @param query Query filters and pagination options.
    * @returns Result of the query dispatched to its handler.
    */
-  @Get('photographers/:id/reviews')
+  @Get('photographers/:photographer_id/reviews')
   @ApiOperation({
     operationId: 'REV-002',
     summary: 'Danh sách đánh giá',
@@ -173,7 +179,11 @@ export class ReviewController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer UUID',
+  })
   @ApiQuery({
     name: 'limit',
     required: false,
@@ -193,13 +203,13 @@ export class ReviewController {
   })
   list(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
     @Query() query: Dto.ReviewListQueryQueryDto,
   ) {
     return this.queries.execute(
       new ReviewListQuery(req.actor ?? { sub: '', roles: [] }, {
         ...query,
-        id,
+        photographer_id,
       }),
     );
   }
@@ -212,7 +222,7 @@ export class ReviewController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Patch('reviews/:id')
+  @Patch('reviews/:feedback_id')
   @ApiOperation({
     operationId: 'REV-004',
     summary: 'Cập nhật đánh giá',
@@ -237,7 +247,7 @@ export class ReviewController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'feedback_id', type: String, description: 'Feedback UUID' })
   @ApiBody({ type: Dto.ReviewUpdateCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -246,13 +256,13 @@ export class ReviewController {
   })
   update(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('feedback_id', new ParseUUIDPipe()) feedback_id: string,
     @Body() body: Dto.ReviewUpdateCommandBodyDto,
   ) {
     return this.commands.execute(
       new ReviewUpdateCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        feedback_id,
       }),
     );
   }
@@ -264,7 +274,7 @@ export class ReviewController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Delete('reviews/:id')
+  @Delete('reviews/:feedback_id')
   @ApiOperation({
     operationId: 'REV-005',
     summary: 'Xóa đánh giá',
@@ -289,7 +299,7 @@ export class ReviewController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'feedback_id', type: String, description: 'Feedback UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -297,10 +307,12 @@ export class ReviewController {
   })
   remove(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('feedback_id', new ParseUUIDPipe()) feedback_id: string,
   ) {
     return this.commands.execute(
-      new ReviewRemoveCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new ReviewRemoveCommand(req.actor ?? { sub: '', roles: [] }, {
+        feedback_id,
+      }),
     );
   }
 
@@ -312,7 +324,7 @@ export class ReviewController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Put('reviews/:id/reply')
+  @Put('reviews/:feedback_id/reply')
   @ApiOperation({
     operationId: 'REV-006',
     summary: 'Thợ trả lời đánh giá',
@@ -337,7 +349,7 @@ export class ReviewController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'feedback_id', type: String, description: 'Feedback UUID' })
   @ApiBody({ type: Dto.ReviewReplyCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -346,13 +358,13 @@ export class ReviewController {
   })
   reply(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('feedback_id', new ParseUUIDPipe()) feedback_id: string,
     @Body() body: Dto.ReviewReplyCommandBodyDto,
   ) {
     return this.commands.execute(
       new ReviewReplyCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        feedback_id,
       }),
     );
   }
@@ -364,7 +376,7 @@ export class ReviewController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('admin/reviews/:id/restore')
+  @Post('admin/reviews/:feedback_id/restore')
   @ApiOperation({
     operationId: 'REV-007',
     summary: 'Admin hiện lại đánh giá',
@@ -389,7 +401,7 @@ export class ReviewController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'feedback_id', type: String, description: 'Feedback UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -398,10 +410,12 @@ export class ReviewController {
   @HttpCode(200)
   restore(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('feedback_id', new ParseUUIDPipe()) feedback_id: string,
   ) {
     return this.commands.execute(
-      new ReviewRestoreCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new ReviewRestoreCommand(req.actor ?? { sub: '', roles: [] }, {
+        feedback_id,
+      }),
     );
   }
 
@@ -413,7 +427,7 @@ export class ReviewController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('admin/reviews/:id/hide')
+  @Post('admin/reviews/:feedback_id/hide')
   @ApiOperation({
     operationId: 'REV-009',
     summary: 'Admin ẩn đánh giá',
@@ -438,7 +452,7 @@ export class ReviewController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'feedback_id', type: String, description: 'Feedback UUID' })
   @ApiBody({ type: Dto.ReviewHideCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -448,13 +462,13 @@ export class ReviewController {
   @HttpCode(200)
   hide(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('feedback_id', new ParseUUIDPipe()) feedback_id: string,
     @Body() body: Dto.ReviewHideCommandBodyDto,
   ) {
     return this.commands.execute(
       new ReviewHideCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        feedback_id,
       }),
     );
   }

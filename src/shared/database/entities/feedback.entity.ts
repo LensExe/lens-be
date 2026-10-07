@@ -42,7 +42,7 @@ export class FeedbackEntity extends BaseEntity {
   is_edited!: boolean;
 
   /** Visibility status ('visible' | 'deleted_by_author' | 'hidden_by_admin'); see `ReviewStatus`. */
-  @Column({ default: ReviewStatus.VISIBLE })
+  @Column('text', { default: ReviewStatus.VISIBLE })
   status!: import('@shared/domain/values/review.values').ReviewStatus;
 
   /** Reason an admin hid the review; `null` if it is not hidden by an admin or was hidden before reasons were recorded. */

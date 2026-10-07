@@ -9,7 +9,7 @@ export interface BookingPlanCreateCommandInput {
 }
 
 export interface BookingPlanUpdateCommandInput {
-  id: string;
+  booking_plan_id: string;
   name?: string;
   description?: string;
   price?: number;
@@ -21,11 +21,11 @@ export interface BookingPlanUpdateCommandInput {
 }
 
 export interface BookingPlanRemoveCommandInput {
-  id: string;
+  booking_plan_id: string;
 }
 
 export type BookingPlanMeQueryInput = Record<string, never>;
 
 export interface BookingPlanListQueryInput {
-  id: string;
+  photographer_id: string;
 }

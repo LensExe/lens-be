@@ -221,7 +221,7 @@ export class PhotographerController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('admin/photographers/:id/approve')
+  @Post('admin/photographers/:photographer_id/approve')
   @ApiOperation({
     operationId: 'ADM-009',
     summary: 'Duyệt hồ sơ photographer',
@@ -246,7 +246,11 @@ export class PhotographerController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer UUID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -255,11 +259,11 @@ export class PhotographerController {
   @HttpCode(200)
   approve(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
   ) {
     return this.commands.execute(
       new PhotographerApproveCommand(req.actor ?? { sub: '', roles: [] }, {
-        photographer_id: id,
+        photographer_id,
       }),
     );
   }
@@ -272,7 +276,7 @@ export class PhotographerController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('admin/photographers/:id/reject')
+  @Post('admin/photographers/:photographer_id/reject')
   @ApiOperation({
     operationId: 'ADM-010',
     summary: 'Từ chối hồ sơ photographer',
@@ -297,7 +301,11 @@ export class PhotographerController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer UUID',
+  })
   @ApiBody({ type: Dto.PhotographerRejectCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -307,13 +315,13 @@ export class PhotographerController {
   @HttpCode(200)
   reject(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
     @Body() body: Dto.PhotographerRejectCommandBodyDto,
   ) {
     return this.commands.execute(
       new PhotographerRejectCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        photographer_id: id,
+        photographer_id,
       }),
     );
   }
@@ -378,9 +386,8 @@ export class PhotographerController {
     operationId: 'PHO-007',
     summary: 'Lấy hồ sơ photographer hiện tại',
     description:
-      'Hồ sơ thợ của chính mình, gồm trạng thái duyệt và lý do từ chối. Role: Customer, Photographer',
+      'Hồ sơ photographer của chính mình, gồm trạng thái duyệt và lý do từ chối. Yêu cầu đăng nhập.',
   })
-  @Access(['customer', 'photographer'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
@@ -421,9 +428,8 @@ export class PhotographerController {
     operationId: 'PHO-001',
     summary: 'Đăng ký làm photographer',
     description:
-      'Customer gửi (hoặc gửi lại sau khi bị từ chối) hồ sơ làm thợ; hồ sơ chờ admin duyệt. Role: Customer',
+      'Người dùng đã đăng nhập gửi hoặc gửi lại hồ sơ photographer; hồ sơ chờ admin duyệt.',
   })
-  @Access(['customer'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
@@ -589,7 +595,7 @@ export class PhotographerController {
    * @param id ID of the record to process.
    * @returns Result of the query dispatched to its handler.
    */
-  @Get('photographers/:id')
+  @Get('photographers/:photographer_id')
   @ApiOperation({
     operationId: 'PHO-002',
     summary: 'Xem hồ sơ photographer',
@@ -607,7 +613,11 @@ export class PhotographerController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer UUID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -615,11 +625,11 @@ export class PhotographerController {
   })
   get(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
   ) {
     return this.queries.execute(
       new PhotographerGetQuery(req.actor ?? { sub: '', roles: [] }, {
-        photographer_id: id,
+        photographer_id,
       }),
     );
   }

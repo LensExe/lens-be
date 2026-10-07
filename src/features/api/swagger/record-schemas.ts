@@ -366,6 +366,8 @@ export const recordSchemas: Record<string, SchemaObject> = {
           properties: {
             code: { type: 'string' },
             name: { type: 'string' },
+            kind: { type: 'string', enum: ['quota'] },
+            unit: { type: 'string', enum: ['bytes', 'portfolios'] },
             value: { type: 'string' },
           },
           required: ['code', 'name', 'value'],
@@ -597,8 +599,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
       },
       accepted_at: {
         type: 'string',
-        description:
-          'when the photographer accepted; the deposit is due 24 hours later or at the shoot start',
+        description: 'when the photographer accepted the booking',
         format: 'date-time',
         nullable: true,
       },
@@ -708,54 +709,6 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'booking_id',
       'to_status',
       'actor_role',
-      'created_at',
-      'updated_at',
-    ],
-  },
-  booking_collaborators: {
-    type: 'object',
-    properties: {
-      id: { type: 'string', description: 'id', format: 'uuid' },
-      booking_id: { type: 'string', description: 'booking id', format: 'uuid' },
-      photographer_id: {
-        type: 'string',
-        description: 'invited photographer id',
-        format: 'uuid',
-      },
-      share_percent: {
-        type: 'integer',
-        description: 'share of the photographers payout, 1-100',
-        minimum: 1,
-        maximum: 100,
-      },
-      status: {
-        type: 'string',
-        description: 'invitation status',
-        enum: ['invited', 'accepted', 'declined', 'revoked'],
-      },
-      responded_at: {
-        type: 'string',
-        description: 'when the invited photographer accepted or declined',
-        format: 'date-time',
-        nullable: true,
-      },
-      created_at: {
-        type: 'string',
-        description: 'created at',
-        format: 'date-time',
-      },
-      updated_at: {
-        type: 'string',
-        description: 'updated at',
-        format: 'date-time',
-      },
-    },
-    required: [
-      'id',
-      'booking_id',
-      'photographer_id',
-      'share_percent',
-      'status',
       'created_at',
       'updated_at',
     ],

@@ -16,3 +16,12 @@ export const UserStatus = {
 } as const;
 
 export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus];
+
+/** Profile type selected during account registration. */
+export const RegistrationRole = {
+  CUSTOMER: 'customer',
+  PHOTOGRAPHER: 'photographer',
+} as const;
+
+export type RegistrationRole =
+  (typeof RegistrationRole)[keyof typeof RegistrationRole];

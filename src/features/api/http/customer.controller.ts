@@ -137,7 +137,7 @@ export class CustomerController {
    * @param id ID of the record to process.
    * @returns Result of the query dispatched to its handler.
    */
-  @Get('admin/customers/:id')
+  @Get('admin/customers/:customer_id')
   @Access(['admin'])
   @ApiBearerAuth()
   @ApiOperation({
@@ -153,7 +153,7 @@ export class CustomerController {
     description: 'Role, ownership or account status denied',
   })
   @ApiNotFoundResponse({ description: 'Resource not found' })
-  @ApiParam({ name: 'id', type: String, description: 'Customer UUID' })
+  @ApiParam({ name: 'customer_id', type: String, description: 'Customer UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -161,11 +161,11 @@ export class CustomerController {
   })
   adminGet(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('customer_id', new ParseUUIDPipe()) customer_id: string,
   ) {
     return this.queries.execute(
       new CustomerAdminGetQuery(req.actor ?? { sub: '', roles: [] }, {
-        customer_id: id,
+        customer_id,
       }),
     );
   }

@@ -186,7 +186,7 @@ test('changing a review locks its row before reading its state', async () => {
       s,
       { sub: 'kc', roles: ['customer'] },
       {
-        id: 'r1',
+        feedback_id: 'r1',
         comment: 'x',
       },
     ),
@@ -217,8 +217,15 @@ test('only the author edits a review; the booking table is not read', async () =
   } as unknown as EntityManager;
   const actor = { sub: 'kc', roles: ['customer'] };
   for (const run of [
-    () => new ReviewUseCases().update(s, actor, { id: 'r1', comment: 'x' }),
-    () => new ReviewUseCases().remove(s, actor, { id: 'r1' }),
+    () =>
+      new ReviewUseCases().update(s, actor, {
+        feedback_id: 'r1',
+        comment: 'x',
+      }),
+    () =>
+      new ReviewUseCases().remove(s, actor, {
+        feedback_id: 'r1',
+      }),
   ])
     await assert.rejects(run(), /Review access denied/);
 });

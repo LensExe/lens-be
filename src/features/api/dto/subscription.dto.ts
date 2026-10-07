@@ -12,12 +12,12 @@ import {
 
 export class SubscriptionCreateCommandBodyDto {
   @ApiProperty({
-    description: 'plan id',
+    description: 'Photographer subscription plan identifier',
     format: 'uuid',
     example: '11111111-1111-4111-8111-111111111111',
   })
   @IsUUID()
-  plan_id!: string;
+  photographer_plan_id!: string;
 
   @ApiProperty({ description: 'idempotency key', type: 'string' })
   @IsString()

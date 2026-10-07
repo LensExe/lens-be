@@ -10,7 +10,6 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import type * as Inputs from '@shared/contracts/contracts';
 import { BookingPlan } from './booking-plan.domain';
-import { WorkingHoursPort } from '../ports/working-hours.port';
 import { PlanBookingsPort } from '../ports/plan-bookings.port';
 
 /**
@@ -18,10 +17,7 @@ import { PlanBookingsPort } from '../ports/plan-bookings.port';
  */
 @Injectable()
 export class BookingPlanUseCases {
-  constructor(
-    private readonly workingHours: WorkingHoursPort,
-    private readonly planBookings: PlanBookingsPort,
-  ) {}
+  constructor(private readonly planBookings: PlanBookingsPort) {}
 
   /**
    * Get a booking plan and ensure it belongs to the current caller's photographer profile.
@@ -49,7 +45,7 @@ export class BookingPlanUseCases {
    * @param s EntityManager for the current transaction.
    * @param a Actor making the request; must have a photographer profile.
    * @param i Plan details: name, price in VND, duration, photo count, retouched photo count, and benefits.
-   * @returns New booking plan; throws HTTP 400 if the retouched photo count exceeds the delivery count or the plan exceeds the longest shift.
+   * @returns New booking plan; throws HTTP 400 if the retouched photo count exceeds the delivery count.
    */
   async create(
     s: EntityManager,
@@ -58,10 +54,6 @@ export class BookingPlanUseCases {
   ) {
     const p = await photographer(s, a);
     BookingPlan.assertPhotoCounts(i.photo_count, i.retouched_photo_count);
-    BookingPlan.assertFitsShift(
-      i.duration_minutes,
-      await this.workingHours.longestShiftMinutes(s, p.id),
-    );
     return s.save(EntitySchemas.booking_plans, {
       ...i,
       features: i.features ?? [],
@@ -76,26 +68,25 @@ export class BookingPlanUseCases {
    * @param s EntityManager for the current transaction.
    * @param a Actor making the request; must own the plan.
    * @param i Plan ID and fields to update.
-   * @returns Updated plan; throws HTTP 400 if an active plan exceeds the longest shift.
+   * @returns Updated plan.
    */
   async update(
     s: EntityManager,
     a: Actor,
     i: Inputs.BookingPlanUpdateCommandInput,
   ) {
-    const { id, ...fields } = i;
-    const plan = await this.own(s, a, id);
+    const { booking_plan_id, ...fields } = i;
+    const plan = await this.own(s, a, booking_plan_id);
     BookingPlan.assertPhotoCounts(
       fields.photo_count ?? plan.photo_count,
       fields.retouched_photo_count ?? plan.retouched_photo_count,
     );
-    // Only active plans can be booked; deactivated plans can still be edited freely.
-    if (fields.is_active ?? plan.is_active)
-      BookingPlan.assertFitsShift(
-        fields.duration_minutes ?? plan.duration_minutes,
-        await this.workingHours.longestShiftMinutes(s, plan.photographer_id),
-      );
-    return updateEntity(s, EntitySchemas.booking_plans, id, fields);
+    return updateEntity(
+      s,
+      EntitySchemas.booking_plans,
+      booking_plan_id,
+      fields,
+    );
   }
 
   /**
@@ -111,11 +102,11 @@ export class BookingPlanUseCases {
     a: Actor,
     i: Inputs.BookingPlanRemoveCommandInput,
   ) {
-    await this.own(s, a, i.id);
+    await this.own(s, a, i.booking_plan_id);
     BookingPlan.assertRemovable(
-      await this.planBookings.bookingCountForPlan(s, i.id),
+      await this.planBookings.bookingCountForPlan(s, i.booking_plan_id),
     );
-    await s.delete(EntitySchemas.booking_plans, i.id);
+    await s.delete(EntitySchemas.booking_plans, i.booking_plan_id);
     return { deleted: true };
   }
 
@@ -124,25 +115,15 @@ export class BookingPlanUseCases {
    *
    * @param s EntityManager for the current transaction.
    * @param a Actor making the request; must have a photographer profile.
-   * @returns `{ items }` containing plans, oldest first; each plan has `fits_working_hours` indicating whether it fits the schedule.
-   * The longest working shift (if the photographer shortens their hours, a longer plan becomes `false` and customers cannot book it).
+   * @returns `{ items }` containing plans, oldest first.
    */
   async me(s: EntityManager, a: Actor) {
     const p = await photographer(s, a);
-    const longestShift = await this.workingHours.longestShiftMinutes(s, p.id);
     const plans = await s.find(EntitySchemas.booking_plans, {
       where: { photographer_id: p.id },
       order: { created_at: 'ASC' },
     });
-    return {
-      items: plans.map((plan) => ({
-        ...plan,
-        fits_working_hours: BookingPlan.fitsShift(
-          plan.duration_minutes,
-          longestShift,
-        ),
-      })),
-    };
+    return { items: plans };
   }
 
   /**
@@ -154,7 +135,7 @@ export class BookingPlanUseCases {
    * @returns `{ items }` containing active plans, lowest price first; throws HTTP 404 if the photographer does not exist or is suspended.
    */
   async list(s: EntityManager, _a: Actor, i: Inputs.BookingPlanListQueryInput) {
-    const { photographer: p } = await publicPhotographer(s, i.id);
+    const { photographer: p } = await publicPhotographer(s, i.photographer_id);
     return {
       items: await s.find(EntitySchemas.booking_plans, {
         where: { photographer_id: p.id, is_active: true },

@@ -26,11 +26,11 @@ export interface ModerationCreateCommandInput {
 }
 
 export interface ModerationResolveCommandInput {
-  id: string;
+  report_id: string;
   status: ReportResolutionStatus;
   resolution: string;
 }
 
 export interface ModerationGetQueryInput {
-  id: string;
+  report_id: string;
 }

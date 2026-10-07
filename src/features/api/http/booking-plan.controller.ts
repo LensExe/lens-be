@@ -147,7 +147,7 @@ export class BookingPlanController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Patch('booking-plans/:id')
+  @Patch('booking-plans/:booking_plan_id')
   @ApiOperation({
     operationId: 'PHO-011',
     summary: 'Sửa gói chụp',
@@ -172,7 +172,11 @@ export class BookingPlanController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'booking_plan_id',
+    type: String,
+    description: 'Booking plan UUID',
+  })
   @ApiBody({ type: Dto.BookingPlanUpdateCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -181,13 +185,13 @@ export class BookingPlanController {
   })
   update(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_plan_id', new ParseUUIDPipe()) booking_plan_id: string,
     @Body() body: Dto.BookingPlanUpdateCommandBodyDto,
   ) {
     return this.commands.execute(
       new BookingPlanUpdateCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        booking_plan_id,
       }),
     );
   }
@@ -199,7 +203,7 @@ export class BookingPlanController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Delete('booking-plans/:id')
+  @Delete('booking-plans/:booking_plan_id')
   @ApiOperation({
     operationId: 'PHO-012',
     summary: 'Xoá gói chụp',
@@ -224,7 +228,11 @@ export class BookingPlanController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'booking_plan_id',
+    type: String,
+    description: 'Booking plan UUID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -232,11 +240,11 @@ export class BookingPlanController {
   })
   remove(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_plan_id', new ParseUUIDPipe()) booking_plan_id: string,
   ) {
     return this.commands.execute(
       new BookingPlanRemoveCommand(req.actor ?? { sub: '', roles: [] }, {
-        id,
+        booking_plan_id,
       }),
     );
   }
@@ -248,7 +256,7 @@ export class BookingPlanController {
    * @param id ID of the record to process.
    * @returns Result of the query dispatched to its handler.
    */
-  @Get('photographers/:id/booking-plans')
+  @Get('photographers/:photographer_id/booking-plans')
   @ApiOperation({
     operationId: 'PHO-013',
     summary: 'Gói chụp của thợ',
@@ -265,7 +273,11 @@ export class BookingPlanController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Resource UUID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -273,10 +285,12 @@ export class BookingPlanController {
   })
   list(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
   ) {
     return this.queries.execute(
-      new BookingPlanListQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new BookingPlanListQuery(req.actor ?? { sub: '', roles: [] }, {
+        photographer_id,
+      }),
     );
   }
 }

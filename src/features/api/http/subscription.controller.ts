@@ -159,7 +159,7 @@ export class SubscriptionController {
    * @param req HTTP request containing authentication information and request data.
    * @returns Result of the query dispatched to its handler.
    */
-  @Get('plans')
+  @Get('subscriptions/plans')
   @ApiOperation({
     operationId: 'SUB-001',
     summary: 'Danh sách gói VIP',
@@ -231,7 +231,8 @@ export class SubscriptionController {
   ) {
     return this.commands.execute(
       new SubscriptionCreateCommand(req.actor ?? { sub: '', roles: [] }, {
-        ...body,
+        photographer_plan_id: body.photographer_plan_id,
+        idempotency_key: body.idempotency_key,
       }),
     );
   }
@@ -243,7 +244,7 @@ export class SubscriptionController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('subscriptions/:id/cancel')
+  @Post('subscriptions/:subscription_id/cancel')
   @ApiOperation({
     operationId: 'SUB-004',
     summary: 'Hủy gia hạn subscription',
@@ -268,7 +269,11 @@ export class SubscriptionController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'subscription_id',
+    type: String,
+    description: 'Subscription UUID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -277,17 +282,17 @@ export class SubscriptionController {
   @HttpCode(200)
   cancel(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('subscription_id', new ParseUUIDPipe()) subscription_id: string,
   ) {
     return this.commands.execute(
       new SubscriptionCancelCommand(req.actor ?? { sub: '', roles: [] }, {
-        id,
+        subscription_id,
       }),
     );
   }
 
   /** Resolve a subscription payment after automatic provider reconciliation. */
-  @Post('admin/subscriptions/payments/:id/reconcile')
+  @Post('admin/subscriptions/payments/:subscription_payment_id/reconcile')
   @HttpCode(200)
   @ApiOperation({
     operationId: 'SUB-008',
@@ -297,7 +302,11 @@ export class SubscriptionController {
   })
   @Access(['admin'])
   @ApiBearerAuth()
-  @ApiParam({ name: 'id', type: String, description: 'Transaction UUID' })
+  @ApiParam({
+    name: 'subscription_payment_id',
+    type: String,
+    description: 'Subscription payment UUID',
+  })
   @ApiBody({ type: Dto.SubscriptionPaymentReviewResolutionBodyDto })
   @ApiResponse({
     status: 200,
@@ -306,13 +315,14 @@ export class SubscriptionController {
   })
   resolvePaymentReview(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('subscription_payment_id', new ParseUUIDPipe())
+    subscription_payment_id: string,
     @Body() body: Dto.SubscriptionPaymentReviewResolutionBodyDto,
   ) {
     return this.commands.execute(
       new SubscriptionResolvePaymentReviewCommand(
         req.actor ?? { sub: '', roles: [] },
-        { ...body, id },
+        { ...body, subscription_payment_id },
       ),
     );
   }
