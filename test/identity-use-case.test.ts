@@ -44,18 +44,18 @@ test('identity use case persists lowercase account statuses', async () => {
   } as any;
   const useCases = new IdentityUseCases(mockKeycloak);
 
-  await useCases.suspend(manager, actor, { id: 'customer' });
+  await useCases.suspend(manager, actor, { user_id: 'customer' });
   assert.equal(users.get('customer')?.status, 'suspended');
-  await useCases.unsuspend(manager, actor, { id: 'customer' });
+  await useCases.unsuspend(manager, actor, { user_id: 'customer' });
   assert.equal(users.get('customer')?.status, 'active');
-  await useCases.ban(manager, actor, { id: 'customer' });
+  await useCases.ban(manager, actor, { user_id: 'customer' });
   assert.equal(users.get('customer')?.status, 'banned');
   await assert.rejects(
-    useCases.unsuspend(manager, actor, { id: 'customer' }),
+    useCases.unsuspend(manager, actor, { user_id: 'customer' }),
     /cannot be reactivated/,
   );
   await assert.rejects(
-    useCases.suspend(manager, actor, { id: 'admin' }),
+    useCases.suspend(manager, actor, { user_id: 'admin' }),
     /Cannot change own admin status/,
   );
 });

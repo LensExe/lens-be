@@ -5,7 +5,7 @@ import { AdminUserController } from '../http/admin-user.controller';
 import { GoogleAuthController } from '../http/google-auth.controller';
 import {
   IdentityAdminBanCommandHandler,
-  IdentityCustomerRegisterCommandHandler,
+  IdentityRegisterCommandHandler,
   IdentityStatusCommandHandler,
   IdentitySuspendCommandHandler,
   IdentityUnsuspendCommandHandler,
@@ -36,7 +36,7 @@ import { AuthService } from '../auth/auth.service';
     AuthService,
     GoogleAuthService,
     IdentityAdminBanCommandHandler,
-    IdentityCustomerRegisterCommandHandler,
+    IdentityRegisterCommandHandler,
     IdentityStatusCommandHandler,
     IdentitySuspendCommandHandler,
     IdentityUnsuspendCommandHandler,

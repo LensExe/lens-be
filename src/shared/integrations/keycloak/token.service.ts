@@ -1,13 +1,17 @@
 import {
   BadGatewayException,
+  BadRequestException,
   ConflictException,
   Injectable,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { AxiosRequestConfig } from 'axios';
-import { KeycloakHttpService } from './keycloak-http.service';
+import type { AxiosRequestConfig, AxiosResponse } from 'axios';
+import {
+  KeycloakHttpService,
+  KeycloakUpstreamException,
+} from './keycloak-http.service';
 import { KeycloakJwksService } from './jwks.service';
 import { KeycloakUserService } from './user.service';
 import type { KeycloakUserSummary } from './types/user';
@@ -20,6 +24,7 @@ import type {
   KeycloakTokenIntrospectResponse,
 } from './types/tokens';
 import { DeriveUsername } from './utils/derive-username';
+import { NormalizeEmail } from './utils/normalize-email';
 
 @Injectable()
 /** Keycloak OpenID Connect and Admin REST API client. */
@@ -66,11 +71,13 @@ export class KeycloakTokenService {
     try {
       return await this.tokenRequest({
         grant_type: 'password',
-        email: params.email,
+        username: DeriveUsername(params.email),
         password: params.password,
         scope: 'openid profile email',
       });
     } catch (error) {
+      console.log('error: ', error);
+
       if (
         error instanceof BadGatewayException &&
         error.getResponse() === 'Keycloak request failed with status 401'
@@ -117,67 +124,108 @@ export class KeycloakTokenService {
     );
   }
 
-  // register user
-
   /**
    * Register a user.
    *
    * @param params params data of type KeycloakRegisterUserParams.
    * @returns Result of the operation described above.
    * @throws {ConflictException} Thrown when the current state does not allow this operation.
+   * @throws {BadRequestException} Thrown when Keycloak rejects account details.
    * @throws {BadGatewayException} Thrown when the operation cannot be completed.
+   * @throws {ServiceUnavailableException} Thrown when Keycloak admin access is unavailable.
    */
   async registerUserWithPassword(
     params: KeycloakRegisterUserParams,
   ): Promise<string> {
-    const adminToken = await this.users.getAdminToken();
-    const response = await this.http.request<void>({
-      url: `/admin/realms/${this.realm()}/users`,
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${adminToken}`,
-        'content-type': 'application/json',
-      },
-      data: {
-        username: DeriveUsername(params.email),
-        email: params.email,
-        firstName: params.firstName,
-        lastName: params.lastName,
-        enabled: true,
-        emailVerified: false,
-        credentials: [
-          {
-            type: 'password',
-            value: params.password,
-            temporary: false,
-          },
-        ],
-      },
-      // notify axios that 409 is not an error
-      validateStatus: (status) =>
-        (status >= 200 && status < 300) || status === 409,
-    });
+    const adminToken = await this.users.getAdminAccessToken();
+    const email = NormalizeEmail(params.email);
+    const username = DeriveUsername(email);
+    const response = await this.createKeycloakUser(
+      adminToken,
+      { ...params, email },
+      username,
+    );
 
-    // if 409, throw conflict exception
     if (response.status === 409)
       throw new ConflictException('Keycloak user already exists');
-
-    // get user id from location header
     const location = response.headers.location as string | undefined;
-    if (location) return location.split('/').pop() ?? '';
+    const locationUserId = this.userIdFromLocation(location);
+    if (locationUserId) return locationUserId;
 
-    // get user id from query
-    const query = new URLSearchParams({
-      username: DeriveUsername(params.email),
-      exact: 'true',
-    });
+    // Some Keycloak versions omit Location; look up the exact username we sent.
+    const query = new URLSearchParams({ username, exact: 'true' });
     const users = await this.jsonRequest<KeycloakUserSummary[]>(
       `/admin/realms/${this.realm()}/users?${query}`,
       { headers: { authorization: `Bearer ${adminToken}` } },
     );
+
     if (!users[0]?.id)
       throw new BadGatewayException('Keycloak did not return the new user id');
     return users[0].id;
+  }
+
+  private async createKeycloakUser(
+    adminToken: string,
+    params: KeycloakRegisterUserParams,
+    username: string,
+  ): Promise<AxiosResponse<void>> {
+    try {
+      return await this.http.request<void>({
+        url: `/admin/realms/${this.realm()}/users`,
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${adminToken}`,
+          'content-type': 'application/json',
+        },
+        data: {
+          username,
+          email: params.email,
+          firstName: params.firstName,
+          lastName: params.lastName,
+          enabled: true,
+          emailVerified: false,
+          credentials: [
+            {
+              type: 'password',
+              value: params.password,
+              temporary: false,
+            },
+          ],
+        },
+        // notify axios that 409 is not an error
+        validateStatus: (status) =>
+          (status >= 200 && status < 300) || status === 409,
+      });
+    } catch (error) {
+      if (error instanceof KeycloakUpstreamException) {
+        if (error.upstreamStatus === 400) {
+          throw new BadRequestException(
+            'Keycloak rejected the registration details',
+          );
+        }
+        if ([401, 403].includes(error.upstreamStatus)) {
+          throw new ServiceUnavailableException(
+            'Keycloak admin access is not configured correctly',
+          );
+        }
+      }
+      throw error;
+    }
+  }
+
+  private userIdFromLocation(location?: string): string | undefined {
+    if (!location) return undefined;
+
+    let pathname: string;
+    try {
+      pathname = new URL(location, 'http://keycloak.local').pathname;
+    } catch {
+      return undefined;
+    }
+
+    const segments = pathname.split('/').filter(Boolean);
+    const usersIndex = segments.lastIndexOf('users');
+    return usersIndex >= 0 ? segments[usersIndex + 1] : undefined;
   }
 
   // send verify email
@@ -318,7 +366,7 @@ export class KeycloakTokenService {
    */
   private clientCredentials(): Record<string, string> {
     const clientId = this.config.get<string>('auth.keycloakClientId');
-    const clientSecret = this.config.get<string>('auth.keycloakSecret');
+    const clientSecret = this.config.get<string>('auth.keycloakClientSecret');
     if (!clientId || !clientSecret)
       throw new ServiceUnavailableException('Keycloak is not configured');
     return { client_id: clientId, client_secret: clientSecret };

@@ -1,6 +1,12 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { createHash, randomBytes } from 'node:crypto';
+import {
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Actor } from '@shared/platform/auth/actor';
+import { RedisService } from '@shared/database/redis/redis.service';
 import {
   KeycloakIdentityProvider,
   KeycloakOidcRedirectService,
@@ -14,6 +20,13 @@ export interface GoogleCallbackResult {
   actor: Actor;
 }
 
+export interface GoogleFrontendHandoff {
+  tokenSet: KeycloakExchangeCodeForTokenResponse;
+  user: unknown;
+}
+
+const GOOGLE_HANDOFF_TTL_SECONDS = 60;
+
 @Injectable()
 export class GoogleAuthService {
   constructor(
@@ -21,6 +34,7 @@ export class GoogleAuthService {
     private readonly oidc: KeycloakOidcRedirectService,
     private readonly keycloak: KeycloakService,
     private readonly tokens: KeycloakTokenService,
+    private readonly redis: RedisService,
   ) {}
 
   /**
@@ -69,6 +83,42 @@ export class GoogleAuthService {
     return { tokenSet, actor };
   }
 
+  async createFrontendHandoff(payload: GoogleFrontendHandoff): Promise<string> {
+    const code = randomBytes(32).toString('base64url');
+    await this.redis.setJson(
+      this.handoffKey(code),
+      payload,
+      GOOGLE_HANDOFF_TTL_SECONDS,
+    );
+    return code;
+  }
+
+  async consumeFrontendHandoff(code: string): Promise<GoogleFrontendHandoff> {
+    const raw = await this.redis.getAndDelete(this.handoffKey(code));
+    if (!raw) throw new UnauthorizedException('Google login has expired');
+
+    try {
+      return JSON.parse(raw) as GoogleFrontendHandoff;
+    } catch {
+      throw new UnauthorizedException('Google login handoff is invalid');
+    }
+  }
+
+  frontendRedirectUri(code: string): string {
+    const redirectUri = this.config.get<string>(
+      'auth.keycloakGoogleFrontendRedirectUri',
+    );
+    if (!redirectUri) {
+      throw new ServiceUnavailableException(
+        'Google frontend redirect URI is not configured',
+      );
+    }
+
+    const url = new URL(redirectUri);
+    url.searchParams.set('code', code);
+    return url.toString();
+  }
+
   /**
    * Build the callback URI used to complete the OAuth sign-in flow.
    *
@@ -85,5 +135,10 @@ export class GoogleAuthService {
       );
     }
     return redirectUri;
+  }
+
+  private handoffKey(code: string): string {
+    const digest = createHash('sha256').update(code).digest('hex');
+    return `keycloak:google-handoff:${digest}`;
   }
 }

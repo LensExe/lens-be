@@ -1,6 +1,7 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -8,7 +9,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
 import { RedisService } from '@shared/database/redis/redis.service';
 import {
   KeycloakService,
@@ -29,6 +29,7 @@ import {
   AuthVerifyForgotPasswordOtpDto,
 } from '../dto';
 import { SeparateFullname } from '@shared/integrations/keycloak/utils/separate-fullname';
+import { NormalizeEmail } from '@shared/integrations/keycloak/utils/normalize-email';
 
 const OTP_EXPIRED_IN_MINUTES = 5;
 const RESET_TOKEN_EXPIRED_IN_MINUTES = 10;
@@ -59,26 +60,62 @@ export class AuthService {
    */
   async registerWithPassword(body: AuthRegisterCommandBodyDto) {
     const { firstName, lastName } = SeparateFullname(body.fullname);
+    const email = NormalizeEmail(body.email);
+    let expectedKeycloakUserId: string;
 
-    // register user with Keycloak
-    await this.tokens.registerUserWithPassword({
-      email: body.email,
-      password: body.password,
-      firstName,
-      lastName,
-    });
+    try {
+      expectedKeycloakUserId = await this.tokens.registerUserWithPassword({
+        email,
+        password: body.password,
+        firstName,
+        lastName,
+      });
+    } catch (error) {
+      if (!(error instanceof ConflictException)) throw error;
 
-    // get tokens (access & refresh)
+      // A previous request may have created the Keycloak account and then
+      // failed before the Lens profile transaction completed. Resume only when
+      // the same email exists; the password grant below proves account ownership.
+      const existing = await this.keyCloakUser.getUserByEmail(email);
+      if (
+        !existing?.id ||
+        !existing.email ||
+        NormalizeEmail(existing.email) !== email
+      ) {
+        throw error;
+      }
+      expectedKeycloakUserId = existing.id;
+    }
+    console.log('dki thanh cong');
+
+    // This also lets a retry finish signup after an earlier downstream failure.
     const tokenSet = await this.tokens.exchangePasswordForToken({
-      email: body.email,
+      email,
       password: body.password,
     });
+
+    console.log('tạo token thanh cong');
 
     // get user info from token
     const claims = await this.keycloak.verifyToken(tokenSet.access_token);
+    if (claims.sub !== expectedKeycloakUserId) {
+      throw new UnauthorizedException(
+        'Keycloak token does not belong to the registered account',
+      );
+    }
+    console.log('check token thanh cong');
+
+    const claimEmail = claims.email ? NormalizeEmail(claims.email) : email;
+    if (claimEmail !== email) {
+      throw new UnauthorizedException(
+        'Keycloak token email does not match the registration email',
+      );
+    }
+    console.log('check email thanh cong');
+
     const actor: Actor = {
       sub: claims.sub,
-      email: claims.email,
+      email: claimEmail,
       name: claims.name,
       roles: claims.roles ?? [],
     };
@@ -206,12 +243,14 @@ export class AuthService {
     }
 
     const normalizedEmail = body.email.trim().toLowerCase();
-    const countSendTimesKey = `count:send-otp:${normalizedEmail}`;
+    const countSendTimesKey = `count:send-otp:${body.event}:${normalizedEmail}`;
+    const otpKey = this.getCacheKey(body.event, normalizedEmail);
     const countSendTimes = await this.redis.incrementWithExpiry(
       countSendTimesKey,
       MAX_SEND_OTP_EXPIRED_IN_MINUTES * 60,
     );
     if (countSendTimes > MAX_SEND_OTP_TIMES) {
+      await this.redis.del(otpKey);
       throw new BadRequestException(
         'Bạn đã gửi quá nhiều OTP, vui lòng thử lại sau',
       );
@@ -220,35 +259,35 @@ export class AuthService {
     // Generate a random six-digit OTP.
     const otp = randomInt(100000, 999999).toString();
     // Cache the OTP by event with a five-minute TTL.
-    const otpKey = this.getCacheKey(body.event, body.email);
     await this.redis.set(otpKey, otp, OTP_EXPIRED_IN_MINUTES * 60);
 
     // Get the Notification/Mail microservice URL from the configuration.
-    const notificationServiceUrl =
-      this.config.get<string>('NOTIFICATION_SERVICE_URL') ??
-      'http://localhost:3001';
+    // const notificationServiceUrl =
+    //   this.config.get<string>('NOTIFICATION_SERVICE_URL') ??
+    //   'http://localhost:3001';
 
     try {
+      // sử dụng notification để gửi mail (sau)
       this.logger.log(
-        `Gửi OTP [${body.event}] đến microservice cho email: ${body.email}`,
+        `Gửi OTP [${body.event}] đến microservice cho email: ${body.email} với mã: ${otp}`,
       );
 
       // Send an HTTP POST to the Notification microservice with the event so it can select a template.
-      await axios.post(
-        `${notificationServiceUrl}/api/v1/emails/send-otp`,
-        {
-          to: body.email,
-          otp,
-          event: body.event,
-          expired_in_minutes: OTP_EXPIRED_IN_MINUTES,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          timeout: 5000,
-        },
-      );
+      // await axios.post(
+      //   `${notificationServiceUrl}/api/v1/emails/send-otp`,
+      //   {
+      //     to: body.email,
+      //     otp,
+      //     event: body.event,
+      //     expired_in_minutes: OTP_EXPIRED_IN_MINUTES,
+      //   },
+      //   {
+      //     headers: {
+      //       'Content-Type': 'application/json',
+      //     },
+      //     timeout: 5000,
+      //   },
+      // );
 
       return {
         success: true,

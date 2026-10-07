@@ -4,31 +4,35 @@ import { DataSource } from 'typeorm';
 import type * as Inputs from '@shared/contracts/identity.contract';
 import { IdentityUseCases } from './identity.use-case';
 
-export class IdentityCustomerRegisterCommand {
+export class IdentityRegisterCommand {
   constructor(
     public readonly actor: Actor,
-    public readonly input: Inputs.IdentityCustomerRegisterCommandInput,
+    public readonly input: Inputs.IdentityRegisterCommandInput,
   ) {}
 }
-@CommandHandler(IdentityCustomerRegisterCommand)
-export class IdentityCustomerRegisterCommandHandler implements ICommandHandler<IdentityCustomerRegisterCommand> {
+export { IdentityRegisterCommand as IdentityCustomerRegisterCommand };
+
+@CommandHandler(IdentityRegisterCommand)
+export class IdentityRegisterCommandHandler implements ICommandHandler<IdentityRegisterCommand> {
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: IdentityUseCases,
   ) {}
 
   /**
-   * Route the customer account registration command to the use case in the current transaction.
+   * Route account registration to the use case in the current transaction.
    *
    * @param message Command or query message to execute.
    * @returns Result of the operation performed in the transaction.
    */
-  execute(message: IdentityCustomerRegisterCommand) {
+  execute(message: IdentityRegisterCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.register(s, message.actor, message.input),
     );
   }
 }
+
+export { IdentityRegisterCommandHandler as IdentityCustomerRegisterCommandHandler };
 
 export class IdentityUpdateMeCommand {
   constructor(

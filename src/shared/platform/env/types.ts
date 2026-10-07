@@ -36,11 +36,13 @@ export interface AuthConfig {
   keycloakAuthServerUrl?: string;
   keycloakRealm?: string;
   keycloakClientId?: string;
-  keycloakSecret?: string;
+  keycloakClientSecret?: string;
   keycloakAdminClientId?: string;
+  keycloakAdminClientSecret?: string;
   keycloakAdminUsername?: string;
   keycloakAdminPassword?: string;
   keycloakGoogleRedirectUri?: string;
+  keycloakGoogleFrontendRedirectUri?: string;
 }
 
 export interface CookieConfig {
@@ -53,6 +55,7 @@ export interface PayOSConfig {
   checksumKey?: string;
   returnUrl?: string;
   cancelUrl?: string;
+  standaloneTestEnabled: boolean;
 }
 
 export interface SePayConfig {

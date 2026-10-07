@@ -11,6 +11,7 @@ export interface KeycloakUser {
   roles?: string[];
   exp?: number;
   typ?: string;
+  azp?: string;
   resource_access?: Record<string, { roles: string[] }>;
   realm_access?: {
     roles: string[];
@@ -79,7 +80,9 @@ export class KeycloakService {
         {
           algorithms: ['RS256'],
           issuer: `${this.authServerUrl}/realms/${this.realm}`,
-          audience: this.audience,
+          // Keycloak currently issues this client token with `aud: account`.
+          // Keep accepting that token while verifying that `azp` is our client.
+          audience: ['account', this.audience],
         },
         (err, decoded) => {
           // err exist or token expired
@@ -94,10 +97,15 @@ export class KeycloakService {
 
           const user = decoded as KeycloakUser;
           // missing subject, expired token, or type is not Bearer
-          if (!user.sub || !user.exp || user.typ !== 'Bearer')
+          if (
+            !user.sub ||
+            !user.exp ||
+            user.typ !== 'Bearer' ||
+            user.azp !== this.audience
+          )
             return reject(
               new UnauthorizedException(
-                'A non-expired Keycloak access token is required',
+                'A valid Keycloak access token for this client is required',
               ),
             );
 

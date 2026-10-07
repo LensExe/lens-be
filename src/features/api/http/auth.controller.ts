@@ -1,6 +1,7 @@
 import { Body, Controller, HttpCode, Post, Req } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import {
+  ApiBadGatewayResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
@@ -15,7 +16,7 @@ import { Access, Public } from '../auth/keycloak.guard';
 import * as authDto from '../dto';
 import { responseSchema } from '../swagger';
 import { AuthService } from '../auth/auth.service';
-import { IdentityCustomerRegisterCommand } from '@modules/identity/identity.command';
+import { IdentityRegisterCommand } from '@modules/identity/identity.command';
 import { IdentityMeQuery } from '@modules/identity/identity.query';
 import { type Actor } from '@shared/platform/auth/actor';
 
@@ -40,13 +41,20 @@ export class AuthController {
     operationId: 'AUTH-001',
     summary: 'Đăng ký tài khoản',
     description:
-      'Đăng ký tài khoản bằng Email, Mật khẩu và Họ tên. Role: Public',
+      'Đăng ký bằng email, mật khẩu, họ tên và role customer hoặc photographer. Photographer được tạo hồ sơ chưa xác minh để hoàn tất ứng tuyển; admin duyệt mới cấp quyền photographer. Gửi lại cùng thông tin có thể hoàn tất hồ sơ nếu lần trước bị gián đoạn. Role: Public',
   })
   @ApiConflictResponse({
     description: 'Email hoặc tài khoản đã tồn tại',
   })
   @ApiBadRequestResponse({
-    description: 'DTO validation failed',
+    description:
+      'DTO validation failed or Keycloak rejected the account details',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Credentials do not match the existing Keycloak account',
+  })
+  @ApiBadGatewayResponse({
+    description: 'Keycloak returned an upstream error',
   })
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
@@ -63,15 +71,18 @@ export class AuthController {
     const { tokenSet, actor } =
       await this.authService.registerWithPassword(body);
 
-    // Create the user's User, Customer, and Wallet records in the Lens database.
+    console.log('qua key cloak r');
+
+    // Initialize the shared user and the selected customer or photographer profile.
     const user = await this.commands.execute(
-      new IdentityCustomerRegisterCommand(actor, {
+      new IdentityRegisterCommand(actor, {
         fullname: body.fullname,
+        role: body.role,
       }),
     );
 
     return { ...tokenSet, user };
-  }
+  } // done
 
   /**
    * Authenticate with an email and password, then return the tokens and session information.
@@ -105,11 +116,10 @@ export class AuthController {
   async login(@Body() body: authDto.AuthLoginQueryDto) {
     // login with Keycloak
     const { tokenSet, actor } = await this.authService.loginWithPassword(body);
-
     // get user info in db
     const user = await this.query.execute(new IdentityMeQuery(actor, {}));
     return { ...tokenSet, user };
-  }
+  } // done
 
   /**
    * Exchange a refresh token for a new token set; reject the request if the token is invalid.
@@ -142,7 +152,7 @@ export class AuthController {
   @HttpCode(200)
   refresh(@Body() body: authDto.AuthRefreshDto) {
     return this.authService.refresh(body);
-  }
+  } // done
 
   /**
    * Revoke the refresh token if present and complete logout idempotently.
@@ -172,7 +182,7 @@ export class AuthController {
   @HttpCode(200)
   logout(@Body() body: authDto.AuthLogoutDto) {
     return this.authService.logout(body);
-  }
+  } // nhưng còn vấn đề nếu access-token còn hạn (xử lý sau)
 
   /**
    * Change the password after verifying the current password and applying the security policy.
@@ -209,7 +219,7 @@ export class AuthController {
     @Body() body: authDto.AuthChangePasswordDto,
   ) {
     return this.authService.changePassword(req.actor!, body);
-  }
+  } // done
 
   /**
    * Send an OTP to verify a password reset request.
@@ -243,7 +253,7 @@ export class AuthController {
       email: body.email,
       event: authDto.AuthOtpEvent.FORGOT_PASSWORD,
     });
-  }
+  } //done
 
   /**
    * Verify the OTP used in the password recovery flow.
@@ -276,7 +286,7 @@ export class AuthController {
     @Body() body: authDto.AuthVerifyForgotPasswordOtpDto,
   ) {
     return this.authService.verifyForgotPasswordOtp(body);
-  }
+  } // done
 
   /**
    * Reset the password after verifying the OTP and password reset token.

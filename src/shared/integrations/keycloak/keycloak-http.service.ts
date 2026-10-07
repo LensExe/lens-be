@@ -7,6 +7,12 @@ import { ConfigService } from '@nestjs/config';
 import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import { AxiosService } from '../axios/axios.service';
 
+export class KeycloakUpstreamException extends BadGatewayException {
+  constructor(readonly upstreamStatus: number) {
+    super(`Keycloak request failed with status ${upstreamStatus}`);
+  }
+}
+
 @Injectable()
 export class KeycloakHttpService {
   constructor(
@@ -27,9 +33,7 @@ export class KeycloakHttpService {
       return await this.client().request<T>(config);
     } catch (error) {
       if (axios.isAxiosError(error) && error.response) {
-        throw new BadGatewayException(
-          `Keycloak request failed with status ${error.response.status}`,
-        );
+        throw new KeycloakUpstreamException(error.response.status);
       }
       throw new ServiceUnavailableException('Keycloak is unavailable');
     }

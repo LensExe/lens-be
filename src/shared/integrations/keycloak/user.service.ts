@@ -1,8 +1,16 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { AxiosRequestConfig } from 'axios';
-import { KeycloakHttpService } from './keycloak-http.service';
+import {
+  KeycloakHttpService,
+  KeycloakUpstreamException,
+} from './keycloak-http.service';
 import type { KeycloakUser } from './types/user';
+import { NormalizeEmail } from './utils/normalize-email';
 
 interface KeycloakAdminTokenResponse {
   access_token: string;
@@ -39,13 +47,35 @@ export class KeycloakUserService {
    * @returns Result of the operation described above.
    */
   async getUserByEmail(email: string): Promise<KeycloakUser | null> {
-    const users = await this.request<KeycloakUser[]>(
+    const normalizedEmail = NormalizeEmail(email);
+    const exactMatches = await this.searchUsersByEmail(normalizedEmail, true);
+    const exactMatch = exactMatches.find(
+      (user) => user.email && NormalizeEmail(user.email) === normalizedEmail,
+    );
+    if (exactMatch) return exactMatch;
+
+    // Older accounts may have been stored with different email casing.
+    const caseInsensitiveMatches = await this.searchUsersByEmail(
+      normalizedEmail,
+      false,
+    );
+    return (
+      caseInsensitiveMatches.find(
+        (user) => user.email && NormalizeEmail(user.email) === normalizedEmail,
+      ) ?? null
+    );
+  }
+
+  private searchUsersByEmail(
+    email: string,
+    exact: boolean,
+  ): Promise<KeycloakUser[]> {
+    return this.request(
       `/admin/realms/${this.realm()}/users?${new URLSearchParams({
         email,
-        exact: 'true',
+        exact: String(exact),
       })}`,
     );
-    return users[0] ?? null;
   }
 
   /**
@@ -60,38 +90,60 @@ export class KeycloakUserService {
     );
   }
 
-  // get admin access token
+  // get service-account access token
 
   /**
-   * Get an admin access token from Keycloak to call its user management API.
+   * Get a service-account access token from Keycloak to call its user management API.
    *
    * @returns Result of the operation described above.
    * @throws {ServiceUnavailableException} Thrown when an external service is not configured or is unavailable.
    */
-  async getAdminToken(): Promise<string> {
-    const username = this.config.get<string>('auth.keycloakAdminUsername');
-    const password = this.config.get<string>('auth.keycloakAdminPassword');
-    if (!username || !password) {
+  async getAdminAccessToken(): Promise<string> {
+    const clientId = this.config.get<string>('auth.keycloakClientId')?.trim();
+    const clientSecret = this.config
+      .get<string>('auth.keycloakClientSecret')
+      ?.trim();
+    console.log('clientId: ', clientId);
+    console.log('clientSecret: ', clientSecret);
+
+    if (!clientId || !clientSecret) {
       throw new ServiceUnavailableException(
-        'Keycloak admin credentials are not configured',
+        'Keycloak admin service-account credentials are not configured',
       );
     }
 
-    const response = await this.fetchJson<KeycloakAdminTokenResponse>(
-      `/realms/${this.realm()}/protocol/openid-connect/token`,
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        data: new URLSearchParams({
-          grant_type: 'password',
-          client_id:
-            this.config.get<string>('auth.keycloakAdminClientId') ??
-            'admin-cli',
-          username,
-          password,
-        }),
-      },
-    );
+    let response: KeycloakAdminTokenResponse;
+    try {
+      response = await this.fetchJson<KeycloakAdminTokenResponse>(
+        `/realms/${this.realm()}/protocol/openid-connect/token`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          data: new URLSearchParams({
+            grant_type: 'client_credentials',
+            client_id: clientId,
+            client_secret: clientSecret,
+          }),
+        },
+      );
+    } catch (error) {
+      if (
+        error instanceof KeycloakUpstreamException &&
+        [400, 401, 403].includes(error.upstreamStatus)
+      ) {
+        throw new ServiceUnavailableException(
+          'Keycloak admin authentication is not configured correctly',
+        );
+      }
+      throw error;
+    }
+    if (!response.access_token) {
+      throw new ServiceUnavailableException(
+        'Keycloak did not return an admin access token',
+      );
+    }
     return response.access_token;
   }
 
@@ -246,14 +298,28 @@ export class KeycloakUserService {
     path: string,
     config: AxiosRequestConfig = {},
   ): Promise<T> {
-    const token = await this.getAdminToken();
-    return this.fetchJson<T>(path, {
-      ...config,
-      headers: {
-        ...config.headers,
-        authorization: `Bearer ${token}`,
-      },
-    });
+    const token = await this.getAdminAccessToken();
+    try {
+      return await this.fetchJson<T>(path, {
+        ...config,
+        headers: {
+          ...config.headers,
+          authorization: `Bearer ${token}`,
+        },
+      });
+    } catch (error) {
+      if (error instanceof KeycloakUpstreamException) {
+        if ([401, 403].includes(error.upstreamStatus)) {
+          throw new ServiceUnavailableException(
+            'Keycloak admin access is not configured correctly',
+          );
+        }
+        if (error.upstreamStatus === 400) {
+          throw new BadRequestException('Keycloak rejected the request');
+        }
+      }
+      throw error;
+    }
   }
 
   /**

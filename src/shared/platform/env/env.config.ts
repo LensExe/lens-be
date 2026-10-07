@@ -59,11 +59,15 @@ export const envConfig = (): EnvConfig => {
       keycloakAuthServerUrl: process.env.KEYCLOAK_AUTH_SERVER_URL,
       keycloakRealm: process.env.KEYCLOAK_REALM,
       keycloakClientId: process.env.KEYCLOAK_CLIENT_ID,
-      keycloakSecret: process.env.KEYCLOAK_SECRET,
+      keycloakClientSecret: process.env.KEYCLOAK_CLIENT_SECRET,
       keycloakAdminClientId: process.env.KEYCLOAK_ADMIN_CLIENT_ID,
+      keycloakAdminClientSecret: process.env.KEYCLOAK_ADMIN_CLIENT_SECRET,
       keycloakAdminUsername: process.env.KEYCLOAK_ADMIN_USERNAME,
       keycloakAdminPassword: process.env.KEYCLOAK_ADMIN_PASSWORD,
       keycloakGoogleRedirectUri: process.env.KEYCLOAK_GOOGLE_REDIRECT_URI,
+      keycloakGoogleFrontendRedirectUri:
+        process.env.KEYCLOAK_GOOGLE_FRONTEND_REDIRECT_URI ??
+        'http://localhost:5173/auth/google/callback',
     },
     cookie: {
       domain: process.env.COOKIE_DOMAIN,
@@ -77,6 +81,10 @@ export const envConfig = (): EnvConfig => {
       checksumKey: process.env.PAYOS_CHECKSUM_KEY,
       returnUrl: process.env.PAYOS_RETURN_URL,
       cancelUrl: process.env.PAYOS_CANCEL_URL,
+      standaloneTestEnabled: readBoolean(
+        'PAYOS_STANDALONE_TEST_ENABLED',
+        false,
+      ),
     },
     sepay: {
       accountNumber: process.env.SEPAY_ACCOUNT_NUMBER,

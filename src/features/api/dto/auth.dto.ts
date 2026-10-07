@@ -1,5 +1,6 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { IsString, MinLength, IsEmail, IsEnum, Matches } from 'class-validator';
+import { RegistrationRole } from '@shared/domain/values/user.values';
 
 export enum AuthOtpEvent {
   FORGOT_PASSWORD = 'FORGOT_PASSWORD',
@@ -7,6 +8,14 @@ export enum AuthOtpEvent {
 }
 
 export class AuthRegisterCommandBodyDto {
+  @ApiProperty({
+    description: 'Loại hồ sơ muốn tạo cùng tài khoản',
+    enum: RegistrationRole,
+    example: RegistrationRole.CUSTOMER,
+  })
+  @IsEnum(RegistrationRole)
+  role!: RegistrationRole;
+
   @ApiProperty({
     description: 'Họ và tên người dùng',
     example: 'Nguyễn Văn A',

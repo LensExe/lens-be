@@ -1,13 +1,21 @@
-import type { Gender } from '@shared/domain/values/user.values';
+import type {
+  Gender,
+  RegistrationRole,
+} from '@shared/domain/values/user.values';
 
 /**
  * Input for registering a new account in the backend after Keycloak authentication.
- * Used to initialize the user record, customer profile, and wallet.
+ * The selected role determines which customer or photographer profile is initialized.
  */
-export interface IdentityCustomerRegisterCommandInput {
+export interface IdentityRegisterCommandInput {
   /** User's full name. */
   fullname: string;
+  /** Profile type selected during registration; defaults to customer for OAuth callers. */
+  role?: RegistrationRole;
 }
+
+/** Backward-compatible alias for callers that still use the original command name. */
+export type IdentityCustomerRegisterCommandInput = IdentityRegisterCommandInput;
 
 /**
  * Input for querying the current user's personal information (Me).
@@ -37,7 +45,7 @@ export interface IdentityUpdateMeCommandInput {
  */
 export interface IdentityGetUserQueryInput {
   /** UUID of the user to retrieve. */
-  id: string;
+  user_id: string;
 }
 
 /**
@@ -60,7 +68,7 @@ export interface IdentityAdminUsersQueryInput {
  */
 export interface IdentityAdminUserQueryInput {
   /** UUID of the user whose details are requested. */
-  id: string;
+  user_id: string;
 }
 
 /**
@@ -68,7 +76,7 @@ export interface IdentityAdminUserQueryInput {
  */
 export interface IdentityStatusCommandInput {
   /** UUID of the user whose status will change. */
-  id: string;
+  user_id: string;
   /** New status: 'active' or 'suspended'. */
   status: 'active' | 'suspended';
 }
@@ -78,7 +86,7 @@ export interface IdentityStatusCommandInput {
  */
 export interface IdentityAdminBanCommandInput {
   /** UUID of the user to ban. */
-  id: string;
+  user_id: string;
 }
 
 /**
@@ -86,7 +94,7 @@ export interface IdentityAdminBanCommandInput {
  */
 export interface IdentitySuspendCommandInput {
   /** UUID of the user to suspend. */
-  id: string;
+  user_id: string;
 }
 
 /**
@@ -94,27 +102,27 @@ export interface IdentitySuspendCommandInput {
  */
 export interface IdentityUnsuspendCommandInput {
   /** UUID of the user to unlock. */
-  id: string;
+  user_id: string;
 }
 
 export interface IdentityAssignRoleCommandInput {
-  id: string;
+  user_id: string;
   role: string;
 }
 
 export interface IdentityRevokeRoleCommandInput {
-  id: string;
+  user_id: string;
   role: string;
 }
 
 export interface IdentityVerifyEmailCommandInput {
-  id: string;
+  user_id: string;
 }
 
 export interface IdentityForcePasswordResetCommandInput {
-  id: string;
+  user_id: string;
 }
 
 export interface IdentityLogoutCommandInput {
-  id: string;
+  user_id: string;
 }

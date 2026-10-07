@@ -1,10 +1,15 @@
 import { KeycloakUserService } from '@shared/integrations/keycloak/user.service';
+import { NormalizeEmail } from '@shared/integrations/keycloak/utils/normalize-email';
 import { Injectable } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
 import { currentUser, required, role } from '@shared/common/access';
 import type * as Inputs from '@shared/contracts/identity.contract';
 import { EntitySchemas, updateEntity } from '@shared/database';
-import { UserStatus } from '@shared/domain/values/user.values';
+import {
+  RegistrationRole,
+  UserStatus,
+} from '@shared/domain/values/user.values';
+import { VerificationStatus } from '@shared/domain/values/photographer.values';
 import type { Actor } from '@shared/platform/auth/actor';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { Identity } from './identity.domain';
@@ -14,7 +19,7 @@ export class IdentityUseCases {
   constructor(private readonly keycloakUsers: KeycloakUserService) {}
 
   /**
-   * Register a user in the system using the supplied data and current permissions.
+   * Register a user and initialize the selected customer or photographer profile.
    *
    * @param s EntityManager for the current transaction.
    * @param actor Actor performing the operation; used for role and access checks.
@@ -25,25 +30,48 @@ export class IdentityUseCases {
   async register(
     s: EntityManager,
     actor: Actor,
-    input: Inputs.IdentityCustomerRegisterCommandInput,
+    input: Inputs.IdentityRegisterCommandInput,
   ) {
+    const registrationRole = input.role ?? RegistrationRole.CUSTOMER;
     const [existing] = await s.findBy(EntitySchemas.users, {
       keycloak_id: actor.sub,
     });
     if (existing) {
       Identity.assertCanRegister(existing.status);
+      if (input.role) {
+        const existingProfile =
+          registrationRole === RegistrationRole.CUSTOMER
+            ? await s.findOneBy(EntitySchemas.customers, {
+                user_id: existing.id,
+              })
+            : await s.findOneBy(EntitySchemas.photographers, {
+                user_id: existing.id,
+              });
+        ensure(
+          existingProfile,
+          'Account is already registered with a different profile type',
+          'conflict',
+        );
+      }
       return existing;
     }
 
-    ensure(actor.email, 'Keycloak token must contain email');
+    const email = NormalizeEmail(actor.email ?? '');
+    ensure(email, 'Keycloak token must contain email');
     const user = await s.save(EntitySchemas.users, {
       keycloak_id: actor.sub,
-      email: actor.email,
+      email,
       fullname: input.fullname,
     });
-    await s.save(EntitySchemas.customers, {
-      user_id: user.id,
-    });
+    if (registrationRole === RegistrationRole.CUSTOMER) {
+      await s.save(EntitySchemas.customers, { user_id: user.id });
+    } else {
+      await s.save(EntitySchemas.photographers, {
+        user_id: user.id,
+        verification_status: VerificationStatus.UNVERIFIED,
+        is_verified: false,
+      });
+    }
     await s.save(EntitySchemas.wallets, { user_id: user.id });
     return user;
   }
@@ -90,7 +118,7 @@ export class IdentityUseCases {
     input: Inputs.IdentityGetUserQueryInput,
   ) {
     await currentUser(s, actor);
-    const user = await required(s, 'users', input.id);
+    const user = await required(s, 'users', input.user_id);
     return {
       id: user.id,
       fullname: user.fullname,
@@ -155,7 +183,7 @@ export class IdentityUseCases {
   ) {
     role(actor, 'admin');
     await currentUser(s, actor);
-    return required(s, 'users', input.id);
+    return required(s, 'users', input.user_id);
   }
 
   /**
@@ -173,7 +201,7 @@ export class IdentityUseCases {
   ) {
     role(actor, 'admin');
     const current = await currentUser(s, actor);
-    const target = await required(s, 'users', input.id);
+    const target = await required(s, 'users', input.user_id);
     const newStatus = Identity.adminUpdateStatus(
       current.id,
       target.id,
@@ -188,7 +216,7 @@ export class IdentityUseCases {
       await this.keycloakUsers.logoutUser(target.keycloak_id);
     }
 
-    return updateEntity(s, EntitySchemas.users, input.id, {
+    return updateEntity(s, EntitySchemas.users, input.user_id, {
       status: newStatus,
     });
   }
@@ -208,7 +236,7 @@ export class IdentityUseCases {
   ) {
     role(actor, 'admin');
     const current = await currentUser(s, actor);
-    const target = await required(s, 'users', input.id);
+    const target = await required(s, 'users', input.user_id);
     const newStatus = Identity.adminUpdateStatus(
       current.id,
       target.id,
@@ -220,7 +248,7 @@ export class IdentityUseCases {
     await this.keycloakUsers.setUserEnabled(target.keycloak_id, false);
     await this.keycloakUsers.logoutUser(target.keycloak_id);
 
-    return updateEntity(s, EntitySchemas.users, input.id, {
+    return updateEntity(s, EntitySchemas.users, input.user_id, {
       status: newStatus,
     });
   }
@@ -271,7 +299,7 @@ export class IdentityUseCases {
     input: Inputs.IdentityAssignRoleCommandInput,
   ) {
     role(actor, 'admin');
-    const target = await required(s, 'users', input.id);
+    const target = await required(s, 'users', input.user_id);
     await this.keycloakUsers.assignRealmRoleToUser(
       target.keycloak_id,
       input.role,
@@ -292,7 +320,7 @@ export class IdentityUseCases {
     input: Inputs.IdentityRevokeRoleCommandInput,
   ) {
     role(actor, 'admin');
-    const target = await required(s, 'users', input.id);
+    const target = await required(s, 'users', input.user_id);
     await this.keycloakUsers.removeRealmRoleFromUser(
       target.keycloak_id,
       input.role,
@@ -313,7 +341,7 @@ export class IdentityUseCases {
     input: Inputs.IdentityVerifyEmailCommandInput,
   ) {
     role(actor, 'admin');
-    const target = await required(s, 'users', input.id);
+    const target = await required(s, 'users', input.user_id);
     await this.keycloakUsers.setUserEmailVerified(target.keycloak_id);
   }
 
@@ -331,7 +359,7 @@ export class IdentityUseCases {
     input: Inputs.IdentityForcePasswordResetCommandInput,
   ) {
     role(actor, 'admin');
-    const target = await required(s, 'users', input.id);
+    const target = await required(s, 'users', input.user_id);
     await this.keycloakUsers.executeActionsEmail(target.keycloak_id, [
       'UPDATE_PASSWORD',
     ]);
@@ -351,7 +379,7 @@ export class IdentityUseCases {
     input: Inputs.IdentityLogoutCommandInput,
   ) {
     role(actor, 'admin');
-    const target = await required(s, 'users', input.id);
+    const target = await required(s, 'users', input.user_id);
     await this.keycloakUsers.logoutUser(target.keycloak_id);
   }
 }
