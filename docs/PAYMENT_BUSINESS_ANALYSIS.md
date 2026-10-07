@@ -257,11 +257,11 @@ Luồng hiện tại được chia theo payment, wallet, refund và transaction 
 
 - `GET /wallet`, `GET /wallet/ledger`
 - `POST /wallet/topups`, `POST /wallet/withdrawals`
-- `GET /me/refund-requests`, `POST /payments/:id/refund-requests`
+- `GET /me/refund-requests`, `POST /payments/:payment_id/refund-requests`
 - `GET /admin/refund-requests`
-- `POST /admin/refund-requests/:id/approve`, `/reject`, `/complete`
-- `POST /admin/refund-requests/:id/extend-deadline`
-- `POST /admin/bookings/:id/escrow/extend-release`
+- `POST /admin/refund-requests/:refund_request_id/approve`, `/reject`, `/complete`
+- `POST /admin/refund-requests/:refund_request_id/extend-deadline`
+- `POST /admin/bookings/:booking_id/escrow/extend-release`
 - `POST /payments/webhooks/:provider` nhận callback PayOS hoặc SePay.
 
 ### Giới hạn đã chọn

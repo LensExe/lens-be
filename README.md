@@ -127,7 +127,7 @@ Toàn bộ hệ thống được chia thành 10 Bounded Contexts cốt lõi tạ
 | **Identity**          | `src/modules/identity/`     | Quản lý người dùng (`users`, `customers`, `admins`), đồng bộ danh tính Keycloak, phân quyền RBAC, cập nhật hồ sơ, khóa/mở tài khoản (`active`, `suspended`, `banned`).                       |
 | **Photographer**      | `src/modules/photographer/` | Hồ sơ thợ ảnh (`photographers`), phê duyệt/xác minh danh tính thợ ảnh, phong cách chụp (`styles`), tính điểm đánh giá trung bình (`ratings`), tìm kiếm và bảng xếp hạng thợ ảnh.             |
 | **Portfolio**         | `src/modules/photographer/` | Quản lý album ảnh mẫu (`portfolios`), sắp xếp thứ tự ảnh hiển thị, link xem trước và tối ưu hiển thị tác phẩm của thợ.                                                                       |
-| **Calendar**          | `src/modules/calendar/`     | Quản lý thời gian biểu làm việc (`working_slots`), chặn lịch bận cá nhân (`offline_slots`), API kiểm tra thời gian rảnh / khả dụng phục vụ đặt lịch.                                         |
+| **Calendar**          | `src/modules/calendar/`     | Quản lý các khoảng photographer bận (`offline_slots`); thời gian còn lại mặc định rảnh và API trả khả dụng sau khi trừ booking đang giữ chỗ.                                                 |
 | **Booking**           | `src/modules/booking/`      | Vòng đời đơn đặt lịch chụp (`bookings`): tạo mới, thợ chấp nhận/từ chối, hủy đơn, hoàn tất buổi chụp, bàn giao sản phẩm, tự động tính cọc 30% làm tròn theo VND.                             |
 | **Payment & Wallet**  | `src/modules/payment/`      | Ví nội bộ (`wallets`), thanh toán đặt cọc (`deposit`), thanh toán phần còn lại (`remaining`), tích hợp cổng thanh toán PayOS VietQR, xử lý webhook và yêu cầu hoàn tiền (`refund_requests`). |
 | **Subscription**      | `src/modules/subscription/` | Các gói hội viên cho nhiếp ảnh gia (`photographer_plans`), quản lý tính năng và hạn ngạch (`plan_features`), xử lý thanh toán gia hạn định kỳ qua PayOS webhook.                             |
@@ -170,7 +170,10 @@ lens-backend/
 │       ├── database/          # TypeORM Entities (mỗi bảng 1 file), DatabaseModule, Helpers
 │       ├── integrations/      # Các Adapter kết nối: Keycloak, PayOS, S3/MinIO, Realtime
 │       └── platform/          # Context xác thực Actor, cấu hình môi trường, xử lý lỗi chung
-├── .docker/                   # Dockerfile và Docker Compose (Postgres, Redis, MinIO, Keycloak)
+├── .docker/                   # Docker Compose configs for the microservices
+│   ├── lens-backend/           # PostgreSQL, MongoDB, Redis, MinIO, Keycloak, Kong
+│   ├── chat-service/           # Chat MongoDB and optional Chat API
+│   └── notification-system/    # MongoDB, PostgreSQL, Kafka; shares Lens Redis
 ├── docs/                      # Tài liệu kỹ thuật chuyên sâu và hướng dẫn chi tiết
 ├── migrations/                # Các tập lệnh SQL khởi tạo và chuyển đổi schema
 ├── scripts/                   # Scripts quản trị: seed dữ liệu, cấu hình Keycloak, migration runner
@@ -207,7 +210,7 @@ Khởi động cụm dịch vụ cơ bản (PostgreSQL, Redis, MinIO):
 pnpm docker:up
 ```
 
-_(Tùy chọn: Nếu muốn chạy cả Keycloak và Kong cục bộ, sử dụng: `docker compose -f .docker/compose.yaml --profile full up -d`)._
+_(Tùy chọn: Nếu muốn chạy cả Keycloak và Kong cục bộ, sử dụng: `docker compose --env-file .env -f .docker/lens-backend/compose.yaml --profile full up -d`)._
 
 ### 5. Áp dụng Database Migration & Seed dữ liệu
 
@@ -215,9 +218,11 @@ _(Tùy chọn: Nếu muốn chạy cả Keycloak và Kong cục bộ, sử dụn
 # Apply the latest database schema to PostgreSQL.
 pnpm db:migrate
 
-# Load the initial sample data (if needed).
+# Load the demo accounts plus the default medium dataset and local MinIO stock-photo galleries.
 pnpm db:seed
 ```
+
+`SEED_MEDIA_PHOTOGRAPHERS` controls how many generated photographers receive three demo gallery images (default 250; fixed demo portfolios are always populated). The included images are labeled as stock illustrations. See [local seed accounts and media details](docs/local-api-test-data.md).
 
 ### 6. Khởi chạy ứng dụng Backend
 
@@ -296,8 +301,9 @@ Toàn bộ tài liệu kiến trúc và hướng dẫn vận hành chi tiết đ
 | ⚙️ **[Hướng dẫn Triển khai & Vận hành](docs/backend-implementation.md)** | Hướng dẫn cấu hình runtime, chi tiết luồng nghiệp vụ Booking/Payment, cơ chế Outbox và kiểm thử.    |
 | 🗄️ **[Quyết định Cơ sở dữ liệu](docs/database-decisions.md)**            | Thiết kế 20 thực thể bảng, chiến lược phân rã schema SQL và quy trình quản lý migration an toàn.    |
 | 🔑 **[Đăng nhập Google qua Keycloak](docs/keycloak-google-login.md)**    | Hướng dẫn cấu hình Identity Provider Google Brokering và luồng đăng nhập trao đổi token.            |
+| 🧪 **[Dữ liệu test API local](docs/local-api-test-data.md)**             | Nạp dữ liệu PostgreSQL và tạo các tài khoản demo tương ứng trong Keycloak.                          |
 | 🔐 **[Bảo mật Secrets & Biến môi trường](docs/SECRETS_GUIDE.md)**        | Quy trình mã hóa biến môi trường tự động không chạm (Zero-touch) với Mozilla SOPS và Age.           |
-| 📋 **[API Tracker](docs/api-tracker.json)**                              | Danh sách theo dõi toàn bộ 80 Operation ID HTTP đã triển khai trong hệ thống.                       |
+| 📋 **[API Tracker](docs/api-tracker.json)**                              | Danh sách theo dõi các Operation ID HTTP đã triển khai trong hệ thống.                              |
 
 ---
 

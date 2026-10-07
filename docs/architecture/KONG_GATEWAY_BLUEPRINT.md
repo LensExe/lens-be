@@ -91,7 +91,7 @@ Các path phải phân quyền không giao nhau. Core sở hữu các resource p
 
 ### Điều chỉnh trên trạng thái repo hiện tại
 
-Tại thời điểm viết tài liệu, [`.docker/compose.yaml`](../../.docker/compose.yaml) đã có Kong `3.6` ở DB mode, migration job, port proxy `8000`, Admin API `8001`, Manager `8002`, nhưng chưa có route/service cấu hình tới Core và Core chưa nằm trong stack đó. Khi triển khai blueprint:
+Tại thời điểm viết tài liệu, [`.docker/lens-backend/compose.yaml`](../../.docker/lens-backend/compose.yaml) đã có Kong `3.6` ở DB mode, migration job, port proxy `8000`, Admin API `8001`, Manager `8002`, nhưng chưa có route/service cấu hình tới Core và Core chưa nằm trong stack đó. Khi triển khai blueprint:
 
 1. Thay Kong `3.6` bằng một bản Gateway được duy trì tại thời điểm triển khai và pin patch/digest cụ thể; không dùng tag trôi nổi `latest`.
 2. Chuyển Kong sang `KONG_DATABASE=off`, mount declarative config, bỏ migration job và cấu hình PostgreSQL riêng chỉ dùng cho Kong. Các database ứng dụng vẫn giữ nguyên.

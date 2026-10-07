@@ -168,11 +168,12 @@ POST /auth/register
      -> KeycloakTokenService.exchangePasswordForToken()
      -> KeycloakService.verifyToken()
      -> tạo Actor từ claims
-  -> IdentityCustomerRegisterCommand
+  -> IdentityRegisterCommand(role)
   -> IdentityUseCases.register()
      -> tìm users theo keycloak_id
-     -> nếu đã có và active: trả user hiện tại
-     -> nếu chưa có: tạo User + Customer + Wallet trong một transaction
+     -> nếu đã có và active: trả user hiện tại nếu profile khớp role đã chọn
+     -> nếu chưa có: tạo User + (Customer hoặc Photographer) + Wallet trong một transaction
+        -> Photographer bắt đầu `unverified`; gửi hồ sơ đầy đủ mới chuyển `pending`
   -> trả token set + user local
 ```
 
@@ -180,7 +181,7 @@ Auth provider và local profile là hai trách nhiệm khác nhau:
 
 - Keycloak lưu credential, token và identity provider account.
 - Lens lưu `UserEntity`, `CustomerEntity`, `WalletEntity` và dữ liệu nghiệp vụ.
-- `IdentityCustomerRegisterCommand` được dùng lại bởi Google callback, nên logic khởi tạo local profile không được viết lại trong controller.
+- `IdentityRegisterCommand` được dùng bởi password register; Google callback dùng cùng command với mặc định customer, nên logic khởi tạo local profile không bị viết lại trong controller.
 
 ### 4.3. Password login
 
@@ -228,11 +229,11 @@ PATCH /users/me
 
 ```text
 GET  /admin/users
-GET  /admin/users/:id
-PATCH /admin/users/:id/status
-POST /admin/users/:id/suspend
-POST /admin/users/:id/unsuspend
-POST /admin/users/:id/ban
+GET  /admin/users/:user_id
+PATCH /admin/users/:user_id/status
+POST /admin/users/:user_id/suspend
+POST /admin/users/:user_id/unsuspend
+POST /admin/users/:user_id/ban
   -> @Access(['admin'])
   -> AdminUserController
   -> IdentityAdmin*Query hoặc Identity*Command
@@ -377,9 +378,7 @@ Ví dụ hiện có:
 | Booking                | `RatingUpdaterPort`            | Feedback/Review  |
 | Booking                | `PaidAmountsPort`              | Payment          |
 | Calendar               | `PendingBookingsPort`          | Booking          |
-| Calendar               | `CollaborationTimesPort`       | Booking          |
 | Calendar               | `PhotographerBookingsPort`     | Booking          |
-| Photographer           | `WorkingHoursPort`             | Calendar         |
 | Photographer           | `PhotographerRatingsPort`      | Feedback/Review  |
 | Photographer           | `PlanBookingsPort`             | Booking          |
 | Photographer/Portfolio | `MediaOwnershipPort`           | Media            |

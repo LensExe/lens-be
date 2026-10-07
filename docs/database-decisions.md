@@ -1,6 +1,6 @@
 # PostgreSQL và TypeORM
 
-[`migrations/001_lens.sql`](../migrations/001_lens.sql) định nghĩa schema khởi tạo; các [TypeORM entity](../src/shared/database/entities/) ánh xạ bảng cho mã ứng dụng. `pnpm db:migrate` chạy migration theo yêu cầu, ghi checksum vào `lens_migrations` và không chạy lại file đã áp dụng. TypeORM luôn đặt `synchronize: false`.
+[`migrations/001_lens.sql`](../migrations/001_lens.sql) định nghĩa schema khởi tạo; các [TypeORM entity](../src/shared/database/entities/) ánh xạ bảng cho mã ứng dụng. `pnpm db:migrate` chạy migration theo yêu cầu, ghi checksum vào `lens_migrations` và không chạy lại file đã áp dụng. Local có thể bật TypeORM auto-sync bằng `DB_SYNCHRONIZE=true`; môi trường dùng chung và production nên giữ giá trị này là `false`.
 
 ## Các bảng đang dùng
 

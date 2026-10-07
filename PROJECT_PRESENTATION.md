@@ -121,7 +121,7 @@ Luồng thanh toán đang được nối vào runtime dùng `PaymentUseCases` c�
 5. Với booking, backend ghi sự kiện `payment.received`; với subscription, backend kích hoạt subscription và ghi `payment.subscription`. `paidAmounts()` được Booking gọi qua port để tính tổng tiền đã thanh toán.
 6. Refund hiện chỉ tạo `refund_requests` sau khi kiểm tra giao dịch đã trả và tổng số tiền refund không vượt khoản đã thu; đoạn này không thực hiện chuyển tiền hoàn qua PayOS.
 
-Các endpoint chính: `POST /bookings/:id/payments/deposit`, `POST /bookings/:id/payments/remaining`, `GET /bookings/:id/payments`, `GET /payments/:id/qr`, `POST /payments/webhooks/:provider`, `POST /payments/:id/refund`.
+Các endpoint chính: `POST /bookings/:booking_id/payments/deposit`, `POST /bookings/:booking_id/payments/remaining`, `GET /bookings/:booking_id/payments`, `GET /payments/:payment_id/qr`, `POST /payments/webhooks/:provider`, `POST /payments/:payment_id/refund`.
 
 **Phạm vi payment hiện tại:** `PaymentApiModule` và `ApiRuntimeModule` đăng ký `PaymentUseCases` với `PayOsGateway`, nên endpoint đang chạy theo luồng PayOS. Có file `collection/payment-collection.use-case.ts` chứa hướng mở rộng payment method/provider, nhưng class này chưa được wiring vào runtime; không nên trình bày wallet hoặc thanh toán đa provider như tính năng đang hoạt động.
 

@@ -388,7 +388,7 @@ lens-backend/
 
 ## 9. Database và dữ liệu
 
-Database chính là PostgreSQL. Schema khởi tạo nằm tại migrations/001_lens.sql; script pnpm db:migrate theo dõi checksum trong lens_migrations và không chạy lại migration đã áp dụng. TypeORM dùng synchronize: false.
+Database chính là PostgreSQL. Schema khởi tạo nằm tại migrations/001_lens.sql; script pnpm db:migrate theo dõi checksum trong lens_migrations và không chạy lại migration đã áp dụng. Local có thể bật TypeORM auto-sync bằng DB_SYNCHRONIZE=true; môi trường dùng chung và production dùng synchronize: false.
 
 ### 9.1. Nhóm bảng chính
 
@@ -434,14 +434,14 @@ API hiện được theo dõi trong docs/api-tracker.json với **80 operations*
 - POST /auth/register
 - GET /users/me
 - PATCH /users/me
-- GET /users/:id
+- GET /users/:user_id
 - GET /keycloak/google/login
 - GET /keycloak/google/callback
 
 ### Photographer
 
 - POST /photographers/profile
-- GET /photographers/:id
+- GET /photographers/:photographer_id
 - PATCH /photographers/me
 - PATCH /photographers/me/status
 - GET /photographers
@@ -452,72 +452,72 @@ API hiện được theo dõi trong docs/api-tracker.json với **80 operations*
 ### Portfolio
 
 - POST /photographers/me/portfolios
-- GET /photographers/:id/portfolios
-- GET /portfolios/:id
-- PATCH /portfolios/:id
-- DELETE /portfolios/:id
-- POST /portfolios/:id/items
-- DELETE /portfolios/:id/items/:itemId
-- PATCH /portfolios/:id/items/reorder
+- GET /photographers/:photographer_id/portfolios
+- GET /portfolios/:portfolio_id
+- PATCH /portfolios/:portfolio_id
+- DELETE /portfolios/:portfolio_id
+- POST /portfolios/:portfolio_id/items
+- DELETE /portfolios/:portfolio_id/items/:portfolio_item_id
+- PATCH /portfolios/:portfolio_id/items/reorder
 
 ### Calendar
 
-- GET /photographers/:id/availability
+- GET /photographers/:photographer_id/availability
 - GET /calendar/me
 - POST /calendar/blocked-times
-- DELETE /calendar/blocked-times/:id
+- DELETE /calendar/blocked-times/:offline_slot_id
 
 ### Booking
 
 - POST /bookings
-- GET /bookings/:id
+- GET /bookings/:booking_id
 - GET /bookings
-- POST /bookings/:id/accept
-- POST /bookings/:id/reject
-- POST /bookings/:id/cancel
-- POST /bookings/:id/start
-- POST /bookings/:id/complete-shoot
-- POST /bookings/:id/complete
-- GET /bookings/:id/timeline
-- POST /bookings/:id/dispute
+- POST /bookings/:booking_id/accept
+- POST /bookings/:booking_id/reject
+- POST /bookings/:booking_id/cancel
+- POST /bookings/:booking_id/start
+- POST /bookings/:booking_id/complete-shoot
+- POST /bookings/:booking_id/complete
+- GET /bookings/:booking_id/timeline
+- POST /bookings/:booking_id/dispute
 
 ### Payment
 
-- POST /bookings/:id/payments/deposit
-- POST /bookings/:id/payments/remaining
-- GET /bookings/:id/payments
-- GET /payments/:id
-- GET /payments/:id/qr
+- POST /bookings/:booking_id/payments/deposit
+- POST /bookings/:booking_id/payments/remaining
+- GET /bookings/:booking_id/payments
+- GET /payments/:payment_id
+- GET /payments/:payment_id/qr
 - POST /payments/webhooks/:provider
-- POST /payments/:id/refund
-- GET /payments/:id/refunds
+- POST /payments/:payment_id/refund
+- GET /payments/:payment_id/refunds
 
 ### Media & Gallery
 
 - POST /media/upload-url
 - POST /media/complete-upload
-- GET /media/:id
-- DELETE /media/:id
-- POST /bookings/:id/gallery
-- POST /bookings/:id/gallery/items
-- GET /bookings/:id/gallery
-- POST /bookings/:id/gallery/publish
-- GET /bookings/:id/gallery/download
+- GET /media/:media_id
+- DELETE /media/:media_id
+- POST /bookings/:booking_id/gallery
+- POST /bookings/:booking_id/gallery/items
+- GET /bookings/:booking_id/gallery
+- POST /bookings/:booking_id/gallery/publish
+- GET /bookings/:booking_id/gallery/download
 
 ### Review
 
-- POST /bookings/:id/reviews
-- GET /photographers/:id/reviews
-- GET /photographers/:id/rating-summary
-- PATCH /reviews/:id
-- DELETE /reviews/:id
+- POST /bookings/:booking_id/reviews
+- GET /photographers/:photographer_id/reviews
+- GET /photographers/:photographer_id/rating-summary
+- PATCH /reviews/:feedback_id
+- DELETE /reviews/:feedback_id
 
 ### Subscription
 
 - GET /plans
 - POST /subscriptions
 - GET /subscriptions/me
-- POST /subscriptions/:id/cancel
+- POST /subscriptions/:subscription_id/cancel
 - GET /subscriptions/me/usage
 - GET /subscriptions/me/history
 - POST /subscriptions/webhooks/:provider
@@ -527,21 +527,21 @@ API hiện được theo dõi trong docs/api-tracker.json với **80 operations*
 - POST /reports
 - GET /reports/me
 - GET /admin/reports
-- GET /admin/reports/:id
-- POST /admin/reports/:id/resolve
-- POST /admin/users/:id/suspend
-- POST /admin/users/:id/unsuspend
+- GET /admin/reports/:report_id
+- POST /admin/reports/:report_id/resolve
+- POST /admin/users/:user_id/suspend
+- POST /admin/users/:user_id/unsuspend
 
 ### Admin
 
 - GET /admin/dashboard
 - GET /admin/users
-- GET /admin/users/:id
-- PATCH /admin/users/:id/status
+- GET /admin/users/:user_id
+- PATCH /admin/users/:user_id/status
 - GET /admin/bookings
 - GET /admin/payments
 - GET /admin/photographers
-- POST /admin/users/:id/ban
+- POST /admin/users/:user_id/ban
 
 Swagger UI mặc định ở /docs; OpenAPI JSON ở /docs-json.
 
@@ -604,7 +604,7 @@ Redis được dùng cho:
 
 ## 13. Hạ tầng chạy local
 
-Docker Compose trong .docker/compose.yaml cung cấp các service chính:
+Docker Compose trong .docker/lens-backend/compose.yaml cung cấp các service chính:
 
 - PostgreSQL.
 - Redis.
