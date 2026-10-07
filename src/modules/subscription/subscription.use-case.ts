@@ -26,9 +26,12 @@ import type {
 } from '@shared/domain/values/subscription.values';
 import { SubscriptionStorageQuotaPort } from '@modules/media/ports/subscription-storage-quota.port';
 import { SubscriptionStorageUsagePort } from './ports/subscription-storage-usage.port';
+import { SubscriptionPortfolioQuotaPort } from '@modules/photographer/ports/subscription-portfolio-quota.port';
 
 @Injectable()
-export class SubscriptionUseCases implements SubscriptionStorageQuotaPort {
+export class SubscriptionUseCases
+  implements SubscriptionStorageQuotaPort, SubscriptionPortfolioQuotaPort
+{
   constructor(
     private readonly payments: SubscriptionPaymentsPort,
     private readonly storageUsage: SubscriptionStorageUsagePort,
@@ -82,7 +85,7 @@ export class SubscriptionUseCases implements SubscriptionStorageQuotaPort {
   ) {
     const u = await currentUser(s, a),
       owner = await photographer(s, a),
-      p = await required(s, 'photographer_plans', i.plan_id);
+      p = await required(s, 'photographer_plans', i.photographer_plan_id);
     // Serialize create attempts for the same photographer before checking the one-live invariant.
     await s.findOne(EntitySchemas.photographers, {
       where: { id: owner.id },
@@ -116,6 +119,7 @@ export class SubscriptionUseCases implements SubscriptionStorageQuotaPort {
       };
     }
     ensure(p.is_active, 'Plan inactive', 'conflict');
+    Subscription.assertFeaturesValid(p.features);
     const startAt = new Date().toISOString();
     const planSnapshot = {
       id: p.id,
@@ -191,7 +195,7 @@ export class SubscriptionUseCases implements SubscriptionStorageQuotaPort {
     role(a, 'admin');
     const admin = await currentUser(s, a);
     const candidate = await s.findOneBy(EntitySchemas.transactions, {
-      id: input.id,
+      id: input.subscription_payment_id,
     });
     ensure(candidate, 'Transaction not found', 'missing');
     ensure(
@@ -433,7 +437,7 @@ export class SubscriptionUseCases implements SubscriptionStorageQuotaPort {
     const user = await currentUser(s, a);
     const owner = await photographer(s, a),
       sub = await s.findOne(EntitySchemas.subscriptions, {
-        where: { id: i.id },
+        where: { id: i.subscription_id },
         lock: { mode: 'pessimistic_write' },
       });
     ensure(sub, 'subscriptions not found', 'missing');
@@ -478,12 +482,20 @@ export class SubscriptionUseCases implements SubscriptionStorageQuotaPort {
    */
   async usage(s: EntityManager, a: Actor) {
     const u = await currentUser(s, a),
+      owner = await photographer(s, a),
       current = await this.me(s, a);
     const { storage_bytes, reserved_storage_bytes, total_bytes } =
       await this.storageUsage.usage(s, u.id);
+    const portfolio_count = await s.countBy(EntitySchemas.portfolios, {
+      photographer_id: owner.id,
+    });
     const storage_limit_bytes =
       current.subscription?.status === 'active'
         ? Subscription.storageLimitBytes(current.features)
+        : null;
+    const portfolio_limit =
+      current.subscription?.status === 'active'
+        ? Subscription.portfolioLimit(current.features)
         : null;
     return {
       ...current,
@@ -496,6 +508,14 @@ export class SubscriptionUseCases implements SubscriptionStorageQuotaPort {
           : Math.max(storage_limit_bytes - total_bytes, 0),
       storage_over_limit:
         storage_limit_bytes !== null && total_bytes > storage_limit_bytes,
+      portfolio_count,
+      portfolio_limit,
+      portfolio_remaining_count:
+        portfolio_limit === null
+          ? null
+          : Math.max(portfolio_limit - portfolio_count, 0),
+      portfolio_over_limit:
+        portfolio_limit !== null && portfolio_count > portfolio_limit,
     };
   }
 
@@ -554,6 +574,28 @@ export class SubscriptionUseCases implements SubscriptionStorageQuotaPort {
       return;
     const limit = Subscription.storageLimitBytes(await this.features(s, sub));
     Subscription.assertStorageAvailable(limit, currentBytes, requestedBytes);
+  }
+
+  /** Enforce the active subscription's portfolio cap before creating an album. */
+  async assertPortfolioCreationAllowed(
+    s: EntityManager,
+    photographerId: string,
+  ) {
+    const sub = await s.findOne(EntitySchemas.subscriptions, {
+      where: { photographer_id: photographerId, status: 'active' },
+      order: { created_at: 'DESC', id: 'ASC' },
+    });
+    if (
+      !sub ||
+      new Subscription(sub.status, sub.end_at).effectiveStatus() !== 'active'
+    )
+      return;
+    const limit = Subscription.portfolioLimit(await this.features(s, sub));
+    if (limit === null) return;
+    const currentCount = await s.countBy(EntitySchemas.portfolios, {
+      photographer_id: photographerId,
+    });
+    Subscription.assertPortfolioAvailable(limit, currentCount);
   }
 
   /**

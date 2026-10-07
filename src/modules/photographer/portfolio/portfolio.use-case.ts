@@ -12,12 +12,14 @@ import { ensure } from '@shared/platform/exceptions/domain.error';
 import type * as Inputs from '@shared/contracts/contracts';
 import { MediaOwnershipPort } from '../ports/media-ownership.port';
 import { Portfolio } from './portfolio.domain';
+import { SubscriptionPortfolioQuotaPort } from '../ports/subscription-portfolio-quota.port';
 
 @Injectable()
 export class PortfolioUseCases {
   constructor(
     private readonly media: MediaOwnershipPort,
     private readonly storage: ObjectStorage,
+    private readonly subscriptionQuota?: SubscriptionPortfolioQuotaPort,
   ) {}
 
   /**
@@ -58,6 +60,17 @@ export class PortfolioUseCases {
     i: Inputs.PortfolioCreateCommandInput,
   ) {
     const p = await photographer(s, a);
+    await s.findOne(EntitySchemas.photographers, {
+      where: { id: p.id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    const subscriptionQuota = this.subscriptionQuota;
+    ensure(
+      subscriptionQuota,
+      'Subscription portfolio quota is unavailable',
+      'unavailable',
+    );
+    await subscriptionQuota.assertPortfolioCreationAllowed(s, p.id);
     if (i.cover_media_id) await this.media.owned(s, a, i.cover_media_id);
     return s.save(EntitySchemas.portfolios, { ...i, photographer_id: p.id });
   }
@@ -71,11 +84,29 @@ export class PortfolioUseCases {
    * @returns `{ items, total, offset, limit }`, oldest portfolios first; throws HTTP 404 if the photographer is not public.
    */
   async list(s: EntityManager, _a: Actor, i: Inputs.PortfolioListQueryInput) {
-    await publicPhotographer(s, i.id);
+    await publicPhotographer(s, i.photographer_id);
     const offset = i.offset ?? 0,
       limit = i.limit ?? 20;
     const [items, total] = await s.findAndCount(EntitySchemas.portfolios, {
-      where: { photographer_id: i.id },
+      where: { photographer_id: i.photographer_id },
+      order: { created_at: 'ASC', id: 'ASC' },
+      skip: offset,
+      take: limit,
+    });
+    return { items, total, offset, limit };
+  }
+
+  /** List all portfolios owned by the authenticated photographer, including non-public profiles. */
+  async listMine(
+    s: EntityManager,
+    a: Actor,
+    i: Inputs.PortfolioMyListQueryInput,
+  ) {
+    const p = await photographer(s, a);
+    const offset = i.offset ?? 0;
+    const limit = i.limit ?? 20;
+    const [items, total] = await s.findAndCount(EntitySchemas.portfolios, {
+      where: { photographer_id: p.id },
       order: { created_at: 'ASC', id: 'ASC' },
       skip: offset,
       take: limit,
@@ -93,7 +124,7 @@ export class PortfolioUseCases {
    * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   async get(s: EntityManager, _a: Actor, i: Inputs.PortfolioGetQueryInput) {
-    const album = await required(s, 'portfolios', i.id);
+    const album = await required(s, 'portfolios', i.portfolio_id);
     await publicPhotographer(s, album.photographer_id);
     const items = [] as {
       id: string;
@@ -142,11 +173,11 @@ export class PortfolioUseCases {
     a: Actor,
     i: Inputs.PortfolioUpdateCommandInput,
   ) {
-    const { id, ...fields } = i;
-    await this.own(s, a, id);
+    const { portfolio_id, ...fields } = i;
+    await this.own(s, a, portfolio_id);
     if (fields.cover_media_id)
       await this.media.owned(s, a, fields.cover_media_id);
-    return updateEntity(s, EntitySchemas.portfolios, id, fields);
+    return updateEntity(s, EntitySchemas.portfolios, portfolio_id, fields);
   }
 
   /**
@@ -162,8 +193,8 @@ export class PortfolioUseCases {
     a: Actor,
     i: Inputs.PortfolioRemoveCommandInput,
   ) {
-    await this.own(s, a, i.id);
-    await s.delete(EntitySchemas.portfolios, i.id);
+    await this.own(s, a, i.portfolio_id);
+    await s.delete(EntitySchemas.portfolios, i.portfolio_id);
     return { deleted: true };
   }
 
@@ -176,7 +207,7 @@ export class PortfolioUseCases {
    * @returns Item just added, including its position.
    */
   async add(s: EntityManager, a: Actor, i: Inputs.PortfolioAddCommandInput) {
-    const album = await this.own(s, a, i.id);
+    const album = await this.own(s, a, i.portfolio_id);
     const m = await this.media.owned(s, a, i.media_id);
     await updateEntity(s, EntitySchemas.portfolios, album.id, {
       items: Portfolio.add(album.items, m.id),
@@ -202,9 +233,9 @@ export class PortfolioUseCases {
     a: Actor,
     i: Inputs.PortfolioRemoveItemCommandInput,
   ) {
-    const album = await this.own(s, a, i.id);
+    const album = await this.own(s, a, i.portfolio_id);
     await updateEntity(s, EntitySchemas.portfolios, album.id, {
-      items: Portfolio.remove(album.items, i.itemId),
+      items: Portfolio.remove(album.items, i.portfolio_item_id),
     });
     return { deleted: true };
   }
@@ -222,9 +253,9 @@ export class PortfolioUseCases {
     a: Actor,
     i: Inputs.PortfolioReorderCommandInput,
   ) {
-    const album = await this.own(s, a, i.id);
+    const album = await this.own(s, a, i.portfolio_id);
     await updateEntity(s, EntitySchemas.portfolios, album.id, {
-      items: Portfolio.reorder(album.items, i.item_ids),
+      items: Portfolio.reorder(album.items, i.portfolio_item_ids),
     });
     return this.get(s, a, i);
   }

@@ -15,7 +15,6 @@ import { KeycloakUserService } from '@shared/integrations/keycloak/user.service'
 import { NotificationModule } from '@shared/integrations/notification/notification.module';
 import { KafkaNotificationProducer } from '@shared/integrations/notification/kafka-notification.producer';
 import { NotificationOutboxPublisher } from '@shared/integrations/notification/notification-outbox.publisher';
-import { PaymentGateway } from '@shared/integrations/payment/port/payment.port';
 import { PaymentModule } from '@shared/integrations/payment/payment.module';
 import { RealtimePublisher } from '@shared/integrations/realtime/realtime-publisher.port';
 import { S3Module } from '@shared/integrations/s3/s3.module';
@@ -53,9 +52,9 @@ import { SubscriptionPaymentsPort } from '@modules/subscription/ports/subscripti
 import { SubscriptionStorageQuotaPort } from '@modules/media/ports/subscription-storage-quota.port';
 import { SubscriptionStorageUsagePort } from '@modules/subscription/ports/subscription-storage-usage.port';
 import { PhotographerRolePort } from '@modules/photographer/ports/photographer-role.port';
-import { WorkingHoursPort } from '@modules/photographer/ports/working-hours.port';
 import { PhotographerRatingsPort } from '@modules/photographer/ports/photographer-ratings.port';
 import { PlanBookingsPort } from '@modules/photographer/ports/plan-bookings.port';
+import { SubscriptionPortfolioQuotaPort } from '@modules/photographer/ports/subscription-portfolio-quota.port';
 import { LensGateway } from '../socketio/socketio.gateway';
 import { OutboxWorker } from '../workers/outbox.worker';
 import { KeycloakGuard } from './auth/keycloak.guard';
@@ -91,7 +90,6 @@ const applicationServices = [
 @Module({
   imports: [
     EnvModule,
-    CqrsModule.forRoot(),
     BullModule.forRootAsync({
       imports: [EnvModule],
       inject: [ConfigService],
@@ -151,10 +149,6 @@ const applicationServices = [
       useExisting: BookingUseCases,
     },
     {
-      provide: WorkingHoursPort,
-      useExisting: CalendarUseCases,
-    },
-    {
       provide: PhotographerRatingsPort,
       useExisting: ReviewUseCases,
     },
@@ -176,6 +170,10 @@ const applicationServices = [
     },
     {
       provide: SubscriptionStorageQuotaPort,
+      useExisting: SubscriptionUseCases,
+    },
+    {
+      provide: SubscriptionPortfolioQuotaPort,
       useExisting: SubscriptionUseCases,
     },
     {
@@ -219,7 +217,7 @@ const applicationServices = [
     KeycloakModule,
     ...applicationServices,
     S3Module,
-    PaymentGateway,
+    PaymentModule,
     RealtimePublisher,
     RedisModule,
   ],

@@ -33,7 +33,10 @@ import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
 import { PortfolioCreateCommand } from '@modules/photographer/portfolio/portfolios.command';
 import { PortfolioReorderCommand } from '@modules/photographer/portfolio/portfolios.command';
-import { PortfolioListQuery } from '@modules/photographer/portfolio/portfolios.query';
+import {
+  PortfolioListQuery,
+  PortfolioMyListQuery,
+} from '@modules/photographer/portfolio/portfolios.query';
 import { PortfolioAddCommand } from '@modules/photographer/portfolio/portfolios.command';
 import { PortfolioGetQuery } from '@modules/photographer/portfolio/portfolios.query';
 import { PortfolioUpdateCommand } from '@modules/photographer/portfolio/portfolios.command';
@@ -105,7 +108,7 @@ export class PortfolioController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Patch('portfolios/:id/items/reorder')
+  @Patch('portfolios/:portfolio_id/items/reorder')
   @ApiOperation({
     operationId: 'PORT-008',
     summary: 'Sắp xếp ảnh portfolio',
@@ -129,7 +132,11 @@ export class PortfolioController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'portfolio_id',
+    type: String,
+    description: 'Portfolio UUID',
+  })
   @ApiBody({ type: Dto.PortfolioReorderCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -138,13 +145,62 @@ export class PortfolioController {
   })
   reorder(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('portfolio_id', new ParseUUIDPipe()) portfolio_id: string,
     @Body() body: Dto.PortfolioReorderCommandBodyDto,
   ) {
     return this.commands.execute(
       new PortfolioReorderCommand(req.actor ?? { sub: '', roles: [] }, {
-        ...body,
-        id,
+        portfolio_item_ids: body.portfolio_item_ids,
+        portfolio_id,
+      }),
+    );
+  }
+
+  /** List every portfolio belonging to the authenticated photographer. */
+  @Get('photographers/me/portfolios')
+  @ApiOperation({
+    operationId: 'PORT-009',
+    summary: 'Danh sách portfolio của tôi',
+    description:
+      'Photographer xem portfolio của chính mình, kể cả hồ sơ chưa công khai. Role: Photographer',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Photographer profile not found' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: 'number',
+    description: 'Số portfolio mỗi trang (mặc định 20)',
+  })
+  @ApiQuery({
+    name: 'offset',
+    required: false,
+    type: 'number',
+    description: 'Vị trí bắt đầu (mặc định 0)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Danh sách portfolio của photographer đang đăng nhập',
+    schema: responseSchema('PORT-009'),
+  })
+  myList(
+    @Req() req: { actor?: Actor },
+    @Query() query: Dto.PortfolioListQueryQueryDto,
+  ) {
+    return this.queries.execute(
+      new PortfolioMyListQuery(req.actor ?? { sub: '', roles: [] }, {
+        limit: query.limit,
+        offset: query.offset,
       }),
     );
   }
@@ -157,7 +213,7 @@ export class PortfolioController {
    * @param query Query filters and pagination options.
    * @returns Result of the query dispatched to its handler.
    */
-  @Get('photographers/:id/portfolios')
+  @Get('photographers/:photographer_id/portfolios')
   @ApiOperation({
     operationId: 'PORT-002',
     summary: 'Danh sách portfolio',
@@ -174,7 +230,11 @@ export class PortfolioController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer UUID',
+  })
   @ApiQuery({
     name: 'limit',
     required: false,
@@ -194,13 +254,13 @@ export class PortfolioController {
   })
   list(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
     @Query() query: Dto.PortfolioListQueryQueryDto,
   ) {
     return this.queries.execute(
       new PortfolioListQuery(req.actor ?? { sub: '', roles: [] }, {
         ...query,
-        id,
+        photographer_id,
       }),
     );
   }
@@ -213,7 +273,7 @@ export class PortfolioController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Post('portfolios/:id/items')
+  @Post('portfolios/:portfolio_id/items')
   @ApiOperation({
     operationId: 'PORT-006',
     summary: 'Thêm ảnh vào portfolio',
@@ -237,7 +297,11 @@ export class PortfolioController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'portfolio_id',
+    type: String,
+    description: 'Portfolio UUID',
+  })
   @ApiBody({ type: Dto.PortfolioAddCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -247,13 +311,13 @@ export class PortfolioController {
   @HttpCode(200)
   add(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('portfolio_id', new ParseUUIDPipe()) portfolio_id: string,
     @Body() body: Dto.PortfolioAddCommandBodyDto,
   ) {
     return this.commands.execute(
       new PortfolioAddCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        portfolio_id,
       }),
     );
   }
@@ -265,7 +329,7 @@ export class PortfolioController {
    * @param id ID of the record to process.
    * @returns Result of the query dispatched to its handler.
    */
-  @Get('portfolios/:id')
+  @Get('portfolios/:portfolio_id')
   @ApiOperation({
     operationId: 'PORT-003',
     summary: 'Chi tiết portfolio',
@@ -282,7 +346,11 @@ export class PortfolioController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'portfolio_id',
+    type: String,
+    description: 'Portfolio UUID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -290,10 +358,12 @@ export class PortfolioController {
   })
   get(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('portfolio_id', new ParseUUIDPipe()) portfolio_id: string,
   ) {
     return this.queries.execute(
-      new PortfolioGetQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new PortfolioGetQuery(req.actor ?? { sub: '', roles: [] }, {
+        portfolio_id,
+      }),
     );
   }
 
@@ -305,7 +375,7 @@ export class PortfolioController {
    * @param body Request body validated against the DTO.
    * @returns Result of the command dispatched to its handler.
    */
-  @Patch('portfolios/:id')
+  @Patch('portfolios/:portfolio_id')
   @ApiOperation({
     operationId: 'PORT-004',
     summary: 'Cập nhật portfolio',
@@ -329,7 +399,11 @@ export class PortfolioController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'portfolio_id',
+    type: String,
+    description: 'Portfolio UUID',
+  })
   @ApiBody({ type: Dto.PortfolioUpdateCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -338,13 +412,13 @@ export class PortfolioController {
   })
   update(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('portfolio_id', new ParseUUIDPipe()) portfolio_id: string,
     @Body() body: Dto.PortfolioUpdateCommandBodyDto,
   ) {
     return this.commands.execute(
       new PortfolioUpdateCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        portfolio_id,
       }),
     );
   }
@@ -356,7 +430,7 @@ export class PortfolioController {
    * @param id ID of the record to process.
    * @returns Result of the command dispatched to its handler.
    */
-  @Delete('portfolios/:id')
+  @Delete('portfolios/:portfolio_id')
   @ApiOperation({
     operationId: 'PORT-005',
     summary: 'Xóa portfolio',
@@ -380,7 +454,11 @@ export class PortfolioController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'portfolio_id',
+    type: String,
+    description: 'Portfolio UUID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -388,10 +466,12 @@ export class PortfolioController {
   })
   remove(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('portfolio_id', new ParseUUIDPipe()) portfolio_id: string,
   ) {
     return this.commands.execute(
-      new PortfolioRemoveCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new PortfolioRemoveCommand(req.actor ?? { sub: '', roles: [] }, {
+        portfolio_id,
+      }),
     );
   }
 
@@ -399,11 +479,11 @@ export class PortfolioController {
    * Remove media from a portfolio after checking ownership.
    *
    * @param req HTTP request containing authentication information and request data.
-   * @param id ID of the record to process.
-   * @param itemId Item ID to process.
+   * @param portfolio_id Portfolio UUID.
+   * @param portfolio_item_id Portfolio item UUID.
    * @returns Result of the command dispatched to its handler.
    */
-  @Delete('portfolios/:id/items/:itemId')
+  @Delete('portfolios/:portfolio_id/items/:portfolio_item_id')
   @ApiOperation({
     operationId: 'PORT-007',
     summary: 'Xóa ảnh khỏi portfolio',
@@ -427,8 +507,16 @@ export class PortfolioController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
-  @ApiParam({ name: 'itemId', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'portfolio_id',
+    type: String,
+    description: 'Portfolio UUID',
+  })
+  @ApiParam({
+    name: 'portfolio_item_id',
+    type: String,
+    description: 'Portfolio item UUID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -436,13 +524,13 @@ export class PortfolioController {
   })
   removeItem(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Param('itemId', new ParseUUIDPipe()) itemId: string,
+    @Param('portfolio_id', new ParseUUIDPipe()) portfolio_id: string,
+    @Param('portfolio_item_id', new ParseUUIDPipe()) portfolio_item_id: string,
   ) {
     return this.commands.execute(
       new PortfolioRemoveItemCommand(req.actor ?? { sub: '', roles: [] }, {
-        id,
-        itemId,
+        portfolio_id,
+        portfolio_item_id,
       }),
     );
   }

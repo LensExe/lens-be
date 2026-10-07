@@ -11,6 +11,7 @@ import {
 import {
   PortfolioGetQueryHandler,
   PortfolioListQueryHandler,
+  PortfolioMyListQueryHandler,
 } from '@modules/photographer/portfolio/portfolios.query';
 
 @Module({
@@ -24,6 +25,7 @@ import {
     PortfolioUpdateCommandHandler,
     PortfolioGetQueryHandler,
     PortfolioListQueryHandler,
+    PortfolioMyListQueryHandler,
   ],
 })
 export class PortfolioApiModule {}

@@ -10,6 +10,28 @@ export class PortfolioListQuery {
     public readonly input: Inputs.PortfolioListQueryInput,
   ) {}
 }
+
+export class PortfolioMyListQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.PortfolioMyListQueryInput,
+  ) {}
+}
+
+@QueryHandler(PortfolioMyListQuery)
+export class PortfolioMyListQueryHandler implements IQueryHandler<PortfolioMyListQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: PortfolioUseCases,
+  ) {}
+
+  execute(message: PortfolioMyListQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.listMine(s, message.actor, message.input),
+    );
+  }
+}
+
 @QueryHandler(PortfolioListQuery)
 export class PortfolioListQueryHandler implements IQueryHandler<PortfolioListQuery> {
   constructor(

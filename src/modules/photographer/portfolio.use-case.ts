@@ -65,12 +65,12 @@ export class PortfolioUseCases {
    * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   async list(s: EntityManager, _a: Actor, i: Inputs.PortfolioListQueryInput) {
-    const p = await required(s, 'photographers', i.id),
+    const p = await required(s, 'photographers', i.photographer_id),
       u = await required(s, 'users', p.user_id);
     ensure(u.status === 'active', 'Photographer not found', 'missing');
     return {
       items: await s.findBy(EntitySchemas.portfolios, {
-        photographer_id: i.id,
+        photographer_id: i.photographer_id,
       }),
     };
   }
@@ -85,7 +85,7 @@ export class PortfolioUseCases {
    * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   async get(s: EntityManager, _a: Actor, i: Inputs.PortfolioGetQueryInput) {
-    const album = await required(s, 'portfolios', i.id),
+    const album = await required(s, 'portfolios', i.portfolio_id),
       p = await required(s, 'photographers', album.photographer_id),
       u = await required(s, 'users', p.user_id);
     ensure(u.status === 'active', 'Portfolio not found', 'missing');
@@ -146,11 +146,11 @@ export class PortfolioUseCases {
     a: Actor,
     i: Inputs.PortfolioUpdateCommandInput,
   ) {
-    const { id, ...fields } = i;
-    await this.own(s, a, id);
+    const { portfolio_id, ...fields } = i;
+    await this.own(s, a, portfolio_id);
     if (fields.cover_media_id)
       await this.media.owned(s, a, fields.cover_media_id);
-    return updateEntity(s, EntitySchemas.portfolios, id, fields);
+    return updateEntity(s, EntitySchemas.portfolios, portfolio_id, fields);
   }
 
   /**
@@ -166,8 +166,8 @@ export class PortfolioUseCases {
     a: Actor,
     i: Inputs.PortfolioRemoveCommandInput,
   ) {
-    await this.own(s, a, i.id);
-    await s.delete(EntitySchemas.portfolios, i.id);
+    await this.own(s, a, i.portfolio_id);
+    await s.delete(EntitySchemas.portfolios, i.portfolio_id);
     return { deleted: true };
   }
 
@@ -180,7 +180,7 @@ export class PortfolioUseCases {
    * @returns Result object containing the fields `id`, `portfolio_id`, `media_id`, `position`.
    */
   async add(s: EntityManager, a: Actor, i: Inputs.PortfolioAddCommandInput) {
-    const album = await this.own(s, a, i.id);
+    const album = await this.own(s, a, i.portfolio_id);
     const m = await this.media.owned(s, a, i.media_id);
     await updateEntity(s, EntitySchemas.portfolios, album.id, {
       items: Portfolio.add(album.items, m.id),
@@ -206,9 +206,9 @@ export class PortfolioUseCases {
     a: Actor,
     i: Inputs.PortfolioRemoveItemCommandInput,
   ) {
-    const album = await this.own(s, a, i.id);
+    const album = await this.own(s, a, i.portfolio_id);
     await updateEntity(s, EntitySchemas.portfolios, album.id, {
-      items: Portfolio.remove(album.items, i.itemId),
+      items: Portfolio.remove(album.items, i.portfolio_item_id),
     });
     return { deleted: true };
   }
@@ -226,9 +226,9 @@ export class PortfolioUseCases {
     a: Actor,
     i: Inputs.PortfolioReorderCommandInput,
   ) {
-    const album = await this.own(s, a, i.id);
+    const album = await this.own(s, a, i.portfolio_id);
     await updateEntity(s, EntitySchemas.portfolios, album.id, {
-      items: Portfolio.reorder(album.items, i.item_ids),
+      items: Portfolio.reorder(album.items, i.portfolio_item_ids),
     });
     return this.get(s, a, i);
   }
