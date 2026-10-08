@@ -31,14 +31,16 @@ The Docker host must already have the external `lens-network` network and the
 shared infrastructure containers (`lens-postgres`, `lens-redis`, `lens-minio`,
 and `lens-keycloak`) attached to that network.
 
-After the stack is healthy, enable **Create a stack webhook** in the stack's
-Editor tab and save the copied URL as the GitHub Actions repository/environment
-secret `PORTAINER_WEBHOOK_URL`.
+After the stack is healthy, open the stack settings, enable **GitOps updates**,
+choose **Webhook**, and enable **Re-pull image**. Save the generated GitOps
+webhook URL as the GitHub Actions repository/environment secret
+`PORTAINER_WEBHOOK_URL`.
 
 GitHub Actions publishes `latest` plus an immutable `sha-<commit>` tag. After
-publishing, it calls the Portainer webhook with `IMAGE_TAG=sha-<commit>`, so the
-stack redeploys the exact backend image built by that workflow instead of
-relying on a mutable tag.
+publishing, it calls the GitOps webhook. Portainer checks out the new commit
+from `master`, re-pulls the `latest` backend image, and redeploys the service.
+The immutable `sha-<commit>` tags remain available for a manual rollback by
+setting `IMAGE_TAG` in Portainer.
 
 The backend runtime variables (`DB_*`, `REDIS_*`, `S3_*`, `JWT_*`, payment
 credentials, and so on) stay in Portainer. They are injected through
