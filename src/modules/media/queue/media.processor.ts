@@ -1,6 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
+import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import { MediaStatus } from '@shared/domain/values/media.values';
@@ -62,7 +63,11 @@ export class MediaVariantsProcessor extends WorkerHost {
         });
         await s.save(
           EntitySchemas.media_variants,
-          variants.map((variant) => ({ ...variant, media_id: media.id })),
+          variants.map((variant) => ({
+            id: randomUUID(),
+            ...variant,
+            media_id: media.id,
+          })),
         );
         await updateEntity(s, EntitySchemas.media, media.id, {
           status: MediaStatus.READY,
