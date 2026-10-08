@@ -71,7 +71,7 @@ services:
 
   # ── MinIO (S3-compatible Object Storage) ──
   lens-minio:
-    image: minio/minio:RELEASE.2024-06-13T22-53-53Z
+    image: docker.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: lens-minio
     command: server /data --console-address ":9001"
     environment:
@@ -88,7 +88,7 @@ services:
 
   # ── MinIO initialization (one-shot: create the `lens` bucket and expose only the `public/` prefix) ──
   lens-minio-init:
-    image: minio/mc:RELEASE.2024-06-12T14-34-03Z
+    image: docker.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: lens-minio-init
     depends_on:
       - lens-minio
