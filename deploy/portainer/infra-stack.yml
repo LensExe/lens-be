@@ -129,7 +129,9 @@ volumes:
   minio-data:
     name: lens-minio-data
 
-# This stack creates the shared network. backend-stack.yml joins it as external.
+# The network is shared with backend-stack.yml and may be created outside
+# Compose (for example by Portainer or Docker). Both stacks join it as external.
 networks:
   lens-network:
+    external: true
     name: lens-network
