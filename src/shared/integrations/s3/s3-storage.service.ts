@@ -25,7 +25,10 @@ export class S3ObjectStorage extends ObjectStorage {
 
   /**
    * Create a presigned URL so the client (web or mobile) can upload a file directly to S3 using PUT.
-   * Bind the Content-Type, Content-Length, and expiration time (TTL) in advance.
+   * Bind the Content-Type and expiration time (TTL) in advance. The expected
+   * size is persisted and checked by `complete-upload`; it is intentionally
+   * not signed as a `Content-Length` request header because browser `fetch`
+   * cannot set that forbidden header reliably.
    *
    * @param key Key used by the operation.
    * @param type Type of object or operation.
@@ -37,6 +40,8 @@ export class S3ObjectStorage extends ObjectStorage {
     type: string,
     size: number,
   ): Promise<PresignedUploadUrl> {
+    // Size remains part of the method contract and is enforced by complete().
+    void size;
     const { config, client: presignClient } = this.resolver.resolve(true);
     const url = await getSignedUrl(
       presignClient,
@@ -44,7 +49,6 @@ export class S3ObjectStorage extends ObjectStorage {
         Bucket: config.bucket,
         Key: key,
         ContentType: type,
-        ContentLength: size,
       }),
       { expiresIn: config.presignedUrlTtlSeconds },
     );

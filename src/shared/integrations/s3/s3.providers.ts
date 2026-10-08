@@ -33,6 +33,15 @@ const createClient = (config: S3ProviderConfig, presign: boolean): S3Client => {
     region: config.region,
     forcePathStyle: config.forcePathStyle,
     credentials,
+    // The presigned URL is consumed by the browser with a plain PUT. Newer
+    // AWS SDK versions automatically add a CRC32 checksum to PutObject
+    // requests; when that command is presigned, the checksum is calculated
+    // before the browser's file body exists and the generated URL contains a
+    // stale checksum query parameter. Disable the automatic checksum for the
+    // presign client so S3 validates the uploaded object in `complete-upload`.
+    ...(presign
+      ? { requestChecksumCalculation: 'WHEN_REQUIRED' as const }
+      : {}),
   });
 };
 
