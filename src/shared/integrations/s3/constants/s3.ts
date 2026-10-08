@@ -1,13 +1,38 @@
 import { S3Provider } from '../enums/s3';
+import { DomainError } from '../../../platform/exceptions/domain.error';
 
 /**
- * Active provider; prefer S3_PROVIDER, with an environment-based fallback.
+ * Select the active object-storage provider from S3_PROVIDER.
+ *
+ * `spaces` and `digital-ocean` are accepted aliases for DigitalOcean Spaces.
+ * Without an explicit value, retain the existing environment-based defaults.
  *
  * @returns Result of type S3Provider.
  */
-export const getActiveS3Provider = (): S3Provider =>
-  (process.env.S3_PROVIDER as S3Provider | undefined) ??
-  (process.env.NODE_ENV === 'production' ? S3Provider.Cloud : S3Provider.Minio);
+export const getActiveS3Provider = (): S3Provider => {
+  const configured = process.env.S3_PROVIDER?.trim().toLowerCase();
+  if (!configured) {
+    return process.env.NODE_ENV === 'production'
+      ? S3Provider.Cloud
+      : S3Provider.Minio;
+  }
+
+  switch (configured) {
+    case 'cloud':
+      return S3Provider.Cloud;
+    case 'minio':
+      return S3Provider.Minio;
+    case 'digitalocean':
+    case 'digital-ocean':
+    case 'spaces':
+      return S3Provider.DigitalOcean;
+    default:
+      throw new DomainError(
+        'invalid',
+        `Unsupported S3_PROVIDER "${configured}". Use "minio", "digitalocean", or "cloud".`,
+      );
+  }
+};
 
 export const ACTIVE_S3 = 'ACTIVE_S3';
 export const ACTIVE_S3_PRESIGN = 'ACTIVE_S3_PRESIGN';

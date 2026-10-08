@@ -16,6 +16,13 @@ export interface S3ProviderConfig {
   endpoint?: string;
 
   /**
+   * Public base URL for objects in this bucket, such as a CDN or custom domain.
+   * This is separate from `publicEndpoint`, which is an S3 API endpoint used to
+   * generate presigned URLs.
+   */
+  publicObjectBaseUrl?: string;
+
+  /**
    * URL addressing style:
    * - `true`: Path-style (`https://endpoint/bucket/key`), required for MinIO.
    * - `false`: Virtual-hosted style (`https://bucket.endpoint/key`), standard for cloud S3/AWS.
@@ -36,6 +43,12 @@ export interface S3ProviderConfig {
    * AWS region of the data center storing the S3 objects (for example, `us-east-1` or `ap-southeast-1`).
    */
   region: string;
+
+  /**
+   * Provider's bucket location when it differs from the AWS SDK signing region
+   * (DigitalOcean Spaces, for example, signs with `us-east-1` but uses `nyc3`).
+   */
+  bucketRegion?: string;
 
   /**
    * Secret access key or password used to sign requests.

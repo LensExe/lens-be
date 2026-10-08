@@ -132,6 +132,14 @@ export class S3ObjectStorage extends ObjectStorage {
       .split('/')
       .map((segment) => encodeURIComponent(segment))
       .join('/');
+
+    if (provider === S3Provider.DigitalOcean) {
+      const base =
+        config.publicObjectBaseUrl?.trim() ||
+        `https://${config.bucket}.${config.bucketRegion}.digitaloceanspaces.com`;
+      return `${base.replace(/\/+$/, '')}/${encodedKey}`;
+    }
+
     const configuredBase =
       config.publicEndpoint?.trim() || config.endpoint?.trim();
 

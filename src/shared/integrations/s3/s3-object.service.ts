@@ -5,13 +5,15 @@ import {
   GetObjectCommand,
   type GetObjectCommandOutput,
   HeadObjectCommand,
+  ListObjectsCommand,
   ListObjectsV2Command,
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 import type { Readable } from 'node:stream';
 import { DomainError } from '../../platform/exceptions/domain.error';
-import { S3_DELETE_BATCH_SIZE } from './constants/s3';
+import { getActiveS3Provider, S3_DELETE_BATCH_SIZE } from './constants/s3';
+import { S3Provider } from './enums/s3';
 import { S3ClientResolverService } from './s3-client-resolver.service';
 import { isS3NotFound } from './s3-errors';
 import type { S3CopySameBucketParams } from './types/copy';
@@ -139,21 +141,71 @@ export class S3ObjectService {
   async list(params: ListParams): Promise<string[]> {
     const { client, config } = this.resolver.resolve();
     const prefix = params.key.endsWith('/') ? params.key : `${params.key}/`;
-    const result = await client.send(
-      new ListObjectsV2Command({
-        Bucket: config.bucket,
-        Prefix: prefix,
-        Delimiter: '/',
-      }),
-    );
-    return (result.CommonPrefixes ?? []).flatMap(({ Prefix }) =>
-      Prefix ? [Prefix.slice(prefix.length).replace(/\/$/, '')] : [],
-    );
+    const prefixes = new Set<string>();
+
+    if (getActiveS3Provider() === S3Provider.DigitalOcean) {
+      let marker: string | undefined;
+      do {
+        const result = await client.send(
+          new ListObjectsCommand({
+            Bucket: config.bucket,
+            Prefix: prefix,
+            Delimiter: '/',
+            Marker: marker,
+          }),
+        );
+        for (const { Prefix } of result.CommonPrefixes ?? []) {
+          if (Prefix)
+            prefixes.add(Prefix.slice(prefix.length).replace(/\/$/, ''));
+        }
+        const nextMarker =
+          result.NextMarker ??
+          result.CommonPrefixes?.at(-1)?.Prefix ??
+          result.Contents?.at(-1)?.Key;
+        if (result.IsTruncated && (!nextMarker || nextMarker === marker)) {
+          throw new DomainError(
+            'unavailable',
+            'DigitalOcean Spaces returned a truncated object listing without a usable marker',
+          );
+        }
+        marker = result.IsTruncated ? nextMarker : undefined;
+      } while (marker);
+      return [...prefixes];
+    }
+
+    let continuationToken: string | undefined;
+    do {
+      const result = await client.send(
+        new ListObjectsV2Command({
+          Bucket: config.bucket,
+          Prefix: prefix,
+          Delimiter: '/',
+          ContinuationToken: continuationToken,
+        }),
+      );
+      for (const { Prefix } of result.CommonPrefixes ?? []) {
+        if (Prefix)
+          prefixes.add(Prefix.slice(prefix.length).replace(/\/$/, ''));
+      }
+      const nextToken = result.NextContinuationToken;
+      if (
+        result.IsTruncated &&
+        (!nextToken || nextToken === continuationToken)
+      ) {
+        throw new DomainError(
+          'unavailable',
+          'Object storage returned a truncated listing without a usable continuation token',
+        );
+      }
+      continuationToken = result.IsTruncated ? nextToken : undefined;
+    } while (continuationToken);
+
+    return [...prefixes];
   }
 
   /**
    * Scan and return all file keys matching the prefix.
-   * Automatically paginate with `ContinuationToken` until all files are retrieved.
+   * Use S3 continuation tokens, or legacy marker pagination for DigitalOcean Spaces.
    *
    * @param params params data of type ListAllParams.
    * @returns Processed keys value.
@@ -161,6 +213,32 @@ export class S3ObjectService {
   async listAll(params: ListAllParams): Promise<string[]> {
     const { client, config } = this.resolver.resolve();
     const keys: string[] = [];
+
+    if (getActiveS3Provider() === S3Provider.DigitalOcean) {
+      let marker: string | undefined;
+      do {
+        const result = await client.send(
+          new ListObjectsCommand({
+            Bucket: config.bucket,
+            Prefix: params.prefix,
+            Marker: marker,
+          }),
+        );
+        for (const object of result.Contents ?? []) {
+          if (object.Key) keys.push(object.Key);
+        }
+        const nextMarker = result.NextMarker ?? result.Contents?.at(-1)?.Key;
+        if (result.IsTruncated && (!nextMarker || nextMarker === marker)) {
+          throw new DomainError(
+            'unavailable',
+            'DigitalOcean Spaces returned a truncated object listing without a usable marker',
+          );
+        }
+        marker = result.IsTruncated ? nextMarker : undefined;
+      } while (marker);
+      return keys;
+    }
+
     let continuationToken: string | undefined;
     do {
       const result = await client.send(
@@ -173,9 +251,17 @@ export class S3ObjectService {
       for (const object of result.Contents ?? []) {
         if (object.Key) keys.push(object.Key);
       }
-      continuationToken = result.IsTruncated
-        ? result.NextContinuationToken
-        : undefined;
+      const nextToken = result.NextContinuationToken;
+      if (
+        result.IsTruncated &&
+        (!nextToken || nextToken === continuationToken)
+      ) {
+        throw new DomainError(
+          'unavailable',
+          'Object storage returned a truncated listing without a usable continuation token',
+        );
+      }
+      continuationToken = result.IsTruncated ? nextToken : undefined;
     } while (continuationToken);
     return keys;
   }
