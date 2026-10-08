@@ -12,8 +12,10 @@ import {
   KeycloakOidcRedirectService,
   KeycloakService,
   KeycloakTokenService,
+  KeycloakUserService,
   type KeycloakExchangeCodeForTokenResponse,
 } from '@shared/integrations/keycloak';
+import type { RegistrationRole } from '@shared/domain/values/user.values';
 
 export interface GoogleCallbackResult {
   tokenSet: KeycloakExchangeCodeForTokenResponse;
@@ -34,6 +36,7 @@ export class GoogleAuthService {
     private readonly oidc: KeycloakOidcRedirectService,
     private readonly keycloak: KeycloakService,
     private readonly tokens: KeycloakTokenService,
+    private readonly users: KeycloakUserService,
     private readonly redis: RedisService,
   ) {}
 
@@ -81,6 +84,32 @@ export class GoogleAuthService {
       roles: claims.roles ?? [],
     };
     return { tokenSet, actor };
+  }
+
+  /**
+   * Make sure the Google session carries the Lens role resolved from the
+   * local profile. A token issued before the first-login profile is created
+   * does not contain that role, so refresh it after the Keycloak mapping is
+   * updated.
+   */
+  async synchronizeRole(
+    actor: Actor,
+    tokenSet: KeycloakExchangeCodeForTokenResponse,
+    role: RegistrationRole,
+  ): Promise<KeycloakExchangeCodeForTokenResponse> {
+    if (actor.roles.includes(role)) return tokenSet;
+
+    await this.users.assignRealmRoleToUser(actor.sub, role);
+    const refreshed = await this.tokens.exchangeRefreshTokenForToken({
+      refreshToken: tokenSet.refresh_token,
+    });
+    const claims = await this.keycloak.verifyToken(refreshed.access_token);
+    if (!claims.roles?.includes(role)) {
+      throw new UnauthorizedException(
+        `Keycloak did not issue the ${role} role for the Google account`,
+      );
+    }
+    return refreshed;
   }
 
   async createFrontendHandoff(payload: GoogleFrontendHandoff): Promise<string> {

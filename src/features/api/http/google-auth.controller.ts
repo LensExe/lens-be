@@ -1,5 +1,11 @@
-import { Controller, Get, Query, Res } from '@nestjs/common';
-import { CommandBus } from '@nestjs/cqrs';
+import {
+  Controller,
+  Get,
+  Query,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import type { Response } from 'express';
 import {
   ApiBadGatewayResponse,
@@ -17,12 +23,14 @@ import {
 } from '../dto/google-auth.dto';
 import { responseSchema } from '../swagger';
 import { IdentityRegisterCommand } from '@modules/identity/identity.command';
+import { IdentityMeQuery } from '@modules/identity/identity.query';
 
 @ApiTags('Authentication')
 @Controller('keycloak/google')
 export class GoogleAuthController {
   constructor(
     private readonly commands: CommandBus,
+    private readonly query: QueryBus,
     private readonly googleAuth: GoogleAuthService,
   ) {}
 
@@ -85,13 +93,25 @@ export class GoogleAuthController {
       query.code,
       query.state,
     );
-    const user = await this.commands.execute(
+    await this.commands.execute(
       new IdentityRegisterCommand(actor, {
         fullname: actor.name ?? '',
       }),
     );
-    const code = await this.googleAuth.createFrontendHandoff({
+    const user = await this.query.execute(new IdentityMeQuery(actor, {}));
+    const role = user.role;
+    if (!role) {
+      throw new UnauthorizedException(
+        'Google account does not have a customer or photographer profile',
+      );
+    }
+    const sessionTokenSet = await this.googleAuth.synchronizeRole(
+      actor,
       tokenSet,
+      role,
+    );
+    const code = await this.googleAuth.createFrontendHandoff({
+      tokenSet: sessionTokenSet,
       user,
     });
     return response.redirect(302, this.googleAuth.frontendRedirectUri(code));
