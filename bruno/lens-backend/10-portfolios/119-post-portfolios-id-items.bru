@@ -1,0 +1,35 @@
+meta {
+  name: portfolios/:portfolio_id/items
+  type: http
+  seq: 219
+}
+
+docs {
+  Thêm ảnh vào portfolio
+  Handler: add
+  Authentication: role 'photographer'
+  Body: PortfolioAddCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/portfolios/{{portfolioId}}/items
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "media_id": "{{mediaId}}"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

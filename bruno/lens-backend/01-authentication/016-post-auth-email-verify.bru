@@ -1,0 +1,36 @@
+meta {
+  name: auth/email/verify
+  type: http
+  seq: 116
+}
+
+post {
+  url: {{baseUrl}}/auth/email/verify
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "{{registrationEmail}}",
+    "otp": "287138"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}
+
+docs {
+  Xác minh Email
+  Handler: verifyEmail
+  Authentication: Bearer token
+  Body: AuthVerifyEmailDto
+}

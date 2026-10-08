@@ -1,0 +1,27 @@
+meta {
+  name: subscriptions/:subscription_id/cancel
+  type: http
+  seq: 231
+}
+
+docs {
+  Hủy gia hạn subscription
+  Handler: cancel
+  Authentication: role 'photographer'
+}
+
+post {
+  url: {{baseUrl}}/subscriptions/{{subscriptionId}}/cancel
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

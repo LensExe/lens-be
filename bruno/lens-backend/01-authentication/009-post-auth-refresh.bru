@@ -1,0 +1,45 @@
+meta {
+  name: auth/refresh
+  type: http
+  seq: 109
+}
+
+post {
+  url: {{baseUrl}}/auth/refresh
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "refresh_token": "eyJhbGciOiJIUzUxMiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJjZmFkYzE1MS02MzU4LTQ0NWQtODU2Yi04ZDQyYjJiMmUxZGIifQ.eyJleHAiOjE3OTEyMDg4NzQsImlhdCI6MTc5MTIwNzA3NCwianRpIjoiNzZjYjQ4NjQtYzVjZS00Y2NlLWIxYTgtNmYwOTY1OTE4NmI3IiwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDg5L3JlYWxtcy9sZW5zLWRldiIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODA4OS9yZWFsbXMvbGVucy1kZXYiLCJzdWIiOiJjMTAyMWUwZi0zYTlmLTQ2ZWUtYWZmNC0wYmRhZjZhZDI1MzYiLCJ0eXAiOiJSZWZyZXNoIiwiYXpwIjoibGVucy1iZSIsInNlc3Npb25fc3RhdGUiOiI5MDk2ODU0Ni1mMWEzLTRjZWItYmIxYy0zNTA0MjMyYjU1YzciLCJzY29wZSI6Im9wZW5pZCBlbWFpbCBwcm9maWxlIiwic2lkIjoiOTA5Njg1NDYtZjFhMy00Y2ViLWJiMWMtMzUwNDIzMmI1NWM3In0.YURvrZaS-Qjh6VP1vm514kq0-Mw8tv4cDp0FC_fGgmh0XSdGHSGj54mvT34Sskg9I61nOP_vq-kb46FDQ5DqPg"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() < 300) {
+    const body = res.getBody();
+    if (body && body.access_token) {
+      bru.setVar("accessToken", body.access_token);
+      bru.setVar("customerToken", body.access_token);
+      if (body.refresh_token) bru.setVar("refreshToken", body.refresh_token);
+    }
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}
+
+docs {
+  Làm mới token
+  Handler: refresh
+  Authentication: public
+  Body: AuthRefreshDto
+}

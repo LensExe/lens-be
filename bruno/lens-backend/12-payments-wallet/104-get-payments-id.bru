@@ -1,0 +1,27 @@
+meta {
+  name: payments/:payment_id
+  type: http
+  seq: 204
+}
+
+docs {
+  Chi tiết thanh toán
+  Handler: get
+  Authentication: role 'customer', 'photographer'
+}
+
+get {
+  url: {{baseUrl}}/payments/{{paymentId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

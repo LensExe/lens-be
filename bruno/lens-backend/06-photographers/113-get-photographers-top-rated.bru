@@ -1,0 +1,24 @@
+meta {
+  name: photographers/top-rated
+  type: http
+  seq: 213
+}
+
+docs {
+  Danh sách photographer nổi bật
+  Handler: top
+  Authentication: public
+  Query: PhotographerTopQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/photographers/top-rated?limit=20&offset=0
+  body: none
+  auth: none
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

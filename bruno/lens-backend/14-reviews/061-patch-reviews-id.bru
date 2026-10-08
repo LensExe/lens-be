@@ -1,0 +1,38 @@
+meta {
+  name: reviews/:feedback_id
+  type: http
+  seq: 161
+}
+
+docs {
+  Cập nhật đánh giá
+  Handler: update
+  Authentication: role 'customer'
+  Body: ReviewUpdateCommandBodyDto
+}
+
+patch {
+  url: {{baseUrl}}/reviews/{{feedbackId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{customerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "rating": 5,
+    "punctuality_rating": 5,
+    "attitude_rating": 5,
+    "comment": "Updated by Bruno API tests"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

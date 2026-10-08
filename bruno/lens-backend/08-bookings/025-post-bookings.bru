@@ -1,0 +1,39 @@
+meta {
+  name: bookings
+  type: http
+  seq: 125
+}
+
+docs {
+  Tạo booking
+  Handler: create
+  Authentication: role 'customer'
+  Body: BookingCreateCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/bookings
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{customerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "photographer_id": "{{photographerId}}",
+    "booking_plan_id": "{{bookingPlanId}}",
+    "location": "Ha Noi",
+    "from": "{{fromDateTime}}",
+    "to": "{{toDateTime}}"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -1,0 +1,37 @@
+meta {
+  name: photographers/me/portfolios
+  type: http
+  seq: 216
+}
+
+docs {
+  Tạo portfolio
+  Handler: create
+  Authentication: role 'photographer'
+  Body: PortfolioCreateCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/photographers/me/portfolios
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Bruno test portfolio",
+    "category": "portrait",
+    "description": "Created by Bruno API tests"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

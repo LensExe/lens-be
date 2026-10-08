@@ -1,0 +1,36 @@
+meta {
+  name: admin/bookings/:booking_id/escrow/extend-release
+  type: http
+  seq: 194
+}
+
+docs {
+  Gia hạn thời gian giải ngân escrow
+  Handler: extendEscrowRelease
+  Authentication: role 'admin'
+  Body: PaymentDeadlineExtensionBodyDto
+}
+
+post {
+  url: {{baseUrl}}/admin/bookings/{{bookingId}}/escrow/extend-release
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "hours": 24,
+    "reason": "Bruno API test deadline extension"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

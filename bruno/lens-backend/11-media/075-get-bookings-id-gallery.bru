@@ -1,0 +1,27 @@
+meta {
+  name: bookings/:booking_id/gallery
+  type: http
+  seq: 175
+}
+
+docs {
+  Xem gallery
+  Handler: gallery
+  Authentication: role 'customer', 'photographer'
+}
+
+get {
+  url: {{baseUrl}}/bookings/{{bookingId}}/gallery
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

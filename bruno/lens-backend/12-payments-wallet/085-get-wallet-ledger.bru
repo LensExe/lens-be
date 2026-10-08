@@ -1,0 +1,28 @@
+meta {
+  name: wallet/ledger
+  type: http
+  seq: 185
+}
+
+docs {
+  Lịch sử biến động ví
+  Handler: walletLedger
+  Authentication: role 'customer', 'photographer'
+  Query: PaymentWalletLedgerQueryDto
+}
+
+get {
+  url: {{baseUrl}}/wallet/ledger?limit=20&offset=0
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

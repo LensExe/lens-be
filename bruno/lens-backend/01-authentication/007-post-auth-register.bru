@@ -1,0 +1,48 @@
+meta {
+  name: auth/register
+  type: http
+  seq: 107
+}
+
+post {
+  url: {{baseUrl}}/auth/register
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "role": "photographer",
+    "fullname": "Anh Đỗ1",
+    "email": "anhdo1@gmail.com",
+    "password": "{{registrationPassword}}"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() < 300) {
+    const body = res.getBody();
+    if (body && body.access_token) {
+      bru.setVar("accessToken", body.access_token);
+      bru.setVar("customerToken", body.access_token);
+      if (body.refresh_token) bru.setVar("refreshToken", body.refresh_token);
+    }
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}
+
+docs {
+  Đăng ký tài khoản
+  Handler: register
+  Authentication: public
+  Body: AuthRegisterCommandBodyDto
+}

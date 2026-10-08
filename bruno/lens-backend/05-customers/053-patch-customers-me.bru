@@ -1,0 +1,39 @@
+meta {
+  name: customers/me
+  type: http
+  seq: 153
+}
+
+docs {
+  Cập nhật customer profile
+  Handler: update
+  Authentication: Bearer token
+  Body: CustomerUpdateCommandBodyDto
+}
+
+patch {
+  url: {{baseUrl}}/customers/me
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "description": "Bruno API test profile",
+    "preferred_styles": [
+      "portrait"
+    ],
+    "location": "Ha Noi"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

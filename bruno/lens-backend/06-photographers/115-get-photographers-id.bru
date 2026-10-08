@@ -1,0 +1,23 @@
+meta {
+  name: photographers/:photographer_id
+  type: http
+  seq: 215
+}
+
+docs {
+  Xem hồ sơ photographer
+  Handler: get
+  Authentication: public
+}
+
+get {
+  url: {{baseUrl}}/photographers/{{photographerId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -1,0 +1,36 @@
+meta {
+  name: subscriptions
+  type: http
+  seq: 230
+}
+
+docs {
+  Đăng ký gói VIP
+  Handler: create
+  Authentication: role 'photographer'
+  Body: SubscriptionCreateCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/subscriptions
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "photographer_plan_id": "{{photographerPlanId}}",
+    "idempotency_key": "bruno-local-subscription-001"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

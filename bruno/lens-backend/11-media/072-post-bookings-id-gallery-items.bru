@@ -1,0 +1,35 @@
+meta {
+  name: bookings/:booking_id/gallery/items
+  type: http
+  seq: 172
+}
+
+docs {
+  Thêm ảnh vào gallery
+  Handler: addGallery
+  Authentication: role 'photographer'
+  Body: MediaAddGalleryCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/gallery/items
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "media_id": "{{mediaId}}"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

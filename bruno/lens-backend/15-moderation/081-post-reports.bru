@@ -1,0 +1,38 @@
+meta {
+  name: reports
+  type: http
+  seq: 181
+}
+
+docs {
+  Tạo report
+  Handler: create
+  Authentication: Bearer token
+  Body: ModerationCreateCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/reports
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "target_type": "photographer",
+    "target_id": "{{photographerId}}",
+    "reason": "Bruno API test report",
+    "evidence_media_ids": []
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

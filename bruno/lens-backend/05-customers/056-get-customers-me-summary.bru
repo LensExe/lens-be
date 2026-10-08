@@ -1,0 +1,27 @@
+meta {
+  name: customers/me/summary
+  type: http
+  seq: 156
+}
+
+docs {
+  Khách hàng xem thống kê booking của mình
+  Handler: myBookingSummary
+  Authentication: role 'customer'
+}
+
+get {
+  url: {{baseUrl}}/customers/me/summary
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{customerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

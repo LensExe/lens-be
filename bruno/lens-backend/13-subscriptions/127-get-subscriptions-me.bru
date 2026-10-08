@@ -1,0 +1,27 @@
+meta {
+  name: subscriptions/me
+  type: http
+  seq: 227
+}
+
+docs {
+  Subscription hiện tại
+  Handler: me
+  Authentication: role 'photographer'
+}
+
+get {
+  url: {{baseUrl}}/subscriptions/me
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

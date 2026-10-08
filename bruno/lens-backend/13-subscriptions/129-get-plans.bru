@@ -1,0 +1,23 @@
+meta {
+  name: subscription plans
+  type: http
+  seq: 229
+}
+
+docs {
+  Danh sách gói VIP
+  Handler: plans
+  Authentication: public
+}
+
+get {
+  url: {{baseUrl}}/subscriptions/plans
+  body: none
+  auth: none
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -1,0 +1,27 @@
+meta {
+  name: bookings/:booking_id/timeline
+  type: http
+  seq: 135
+}
+
+docs {
+  Lịch sử trạng thái booking
+  Handler: timeline
+  Authentication: role 'customer', 'photographer', 'admin'
+}
+
+get {
+  url: {{baseUrl}}/bookings/{{bookingId}}/timeline
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

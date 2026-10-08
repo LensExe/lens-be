@@ -1,0 +1,43 @@
+meta {
+  name: photographers/me/booking-plans
+  type: http
+  seq: 119
+}
+
+docs {
+  Tạo gói chụp
+  Handler: create
+  Authentication: role 'photographer'
+  Body: BookingPlanCreateCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/photographers/me/booking-plans
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Bruno test plan",
+    "description": "Temporary API test plan",
+    "price": 1000000,
+    "duration_minutes": 90,
+    "photo_count": 50,
+    "retouched_photo_count": 10,
+    "features": [
+      "Edited photos"
+    ]
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}
