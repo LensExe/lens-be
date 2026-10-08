@@ -38,6 +38,11 @@ lerna-debug.log*
 # dotenv environment variable files
 .env
 .env.*
+env.production
+env.infra.production
+env.backend.production
+env.infra.development
+env.backend.development
 *.env
 *.key
 key.txt
