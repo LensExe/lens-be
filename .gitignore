@@ -43,6 +43,7 @@ env.infra.production
 env.backend.production
 env.infra.development
 env.backend.development
+env.infra.local
 *.env
 *.key
 key.txt
