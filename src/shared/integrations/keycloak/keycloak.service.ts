@@ -115,7 +115,9 @@ export class KeycloakService {
               ...(user.realm_access?.roles ?? []), // role in realm
               ...(user.resource_access?.[this.audience!]?.roles ?? []), // role in client
             ]),
-          ];
+          ]
+            .map((role) => role.trim().toLowerCase())
+            .filter(Boolean);
           resolve(user);
         },
       );
