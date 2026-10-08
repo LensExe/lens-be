@@ -1,6 +1,32 @@
 name: lens-backend
 
 services:
+  # ── Lens API (built from the repository Dockerfile) ──
+  # Runtime secrets are loaded from the ignored root .env.production file.
+  # They are deliberately not copied into the image during docker build.
+  lens-backend:
+    profiles: ['app']
+    image: lens-backend:local
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    env_file:
+      - ../../.env.production
+    ports:
+      - '${BACKEND_HOST_PORT:-3000}:3000'
+    depends_on:
+      lens-postgres:
+        condition: service_healthy
+      lens-redis:
+        condition: service_healthy
+      lens-minio-init:
+        condition: service_completed_successfully
+      lens-keycloak:
+        condition: service_started
+    networks:
+      - lens-network
+    restart: unless-stopped
+
   # ── PostgreSQL (primary data source; automatically creates lens, kong, and keycloak via init.sql) ──
   lens-postgres:
     image: postgres:16-alpine

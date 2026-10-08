@@ -11,6 +11,28 @@ pnpm docker:up
 Lệnh này tạo network Docker dùng chung tên `lens-network` nếu chưa có. Các Compose khác tham chiếu network này dưới dạng external nên lệnh `down` của một stack không xóa network. Nếu chỉ chạy một microservice riêng, tạo network trước bằng `pnpm docker:network`.
 Lens Redis lấy mật khẩu từ `REDIS_PASSWORD` trong `.env` ở thư mục gốc; Notification dùng cùng giá trị này.
 
+Để build và chạy API trong Docker bằng cấu hình runtime từ `.env.production`:
+
+```sh
+pnpm docker:backend
+```
+
+Hoặc build và khởi động cả API lẫn toàn bộ hạ tầng:
+
+```sh
+pnpm docker:all
+```
+
+Cổng trong container luôn là `3000`. Nếu cổng `3000` trên máy host đang được dùng, đổi riêng cổng host khi chạy:
+
+```sh
+BACKEND_HOST_PORT=3001 docker compose --env-file .env --profile app -f .docker/lens-backend/compose.yaml up -d --build lens-backend
+```
+
+Compose đọc `.env.production` bằng `env_file` khi tạo container; file này không được copy vào image và không được commit lên Git. Khi triển khai bằng Portainer, nhập cùng các biến vào phần **Environment variables** của Stack thay vì đưa file secret vào image.
+
+Trong local Docker, backend dùng hostname nội bộ như `lens-postgres`, `lens-redis` và `lens-minio`; browser vẫn cần URL host như `http://localhost:9000` ở `S3_MINIO_PUBLIC_ENDPOINT` để upload trực tiếp lên MinIO.
+
 Để bật thêm Keycloak và Kong:
 
 ```sh
