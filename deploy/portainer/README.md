@@ -78,21 +78,22 @@ docker network create lens-network
 Marking it external avoids Compose label conflicts when Portainer or another
 stack created the network first.
 
-The default S3 images use the `latest` MinIO tags and pull policy `missing`:
+The default S3 images use public `netiedge` mirrors with fixed release tags and
+pull policy `missing`:
 
 ```dotenv
-MINIO_IMAGE=docker.io/minio/minio:latest
-MINIO_MC_IMAGE=docker.io/minio/mc:latest
+MINIO_IMAGE=netiedge/minio:RELEASE.2025-01-20T14-49-07Z
+MINIO_MC_IMAGE=netiedge/minio-mc:RELEASE.2025-01-17T23-25-50Z
 MINIO_PULL_POLICY=missing
 ```
 
 If the MinIO server and client images were imported into the Portainer Docker
-environment from local `.tar` files, keep the `latest` tags and prevent
+environment from local `.tar` files, keep the same release tags and prevent
 Compose from contacting the registry:
 
 ```dotenv
-MINIO_IMAGE=docker.io/minio/minio:latest
-MINIO_MC_IMAGE=docker.io/minio/mc:latest
+MINIO_IMAGE=netiedge/minio:RELEASE.2025-01-20T14-49-07Z
+MINIO_MC_IMAGE=netiedge/minio-mc:RELEASE.2025-01-17T23-25-50Z
 MINIO_PULL_POLICY=never
 ```
 
