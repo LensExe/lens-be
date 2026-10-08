@@ -25,14 +25,14 @@ Controller gọi `CommandBus`/`QueryBus`; handler hiện mở `DataSource.transa
 ```bash
 pnpm install
 pnpm docker:up
-# Cấu hình .env cho dịch vụ cục bộ trước khi chạy migration.
+# Configure `.env` for local services before running migrations.
 pnpm db:migrate
 pnpm start:dev
 ```
 
-`pnpm docker:up` dùng Docker Compose mặc định; Keycloak và Kong thuộc profile `full` nên cần `docker compose -f .docker/compose.yaml --profile full up -d` nếu muốn chạy chúng cục bộ. Khi chạy app trên host, đặt port Redis/DB trong `.env` theo các port được expose trong `.docker/compose.yaml`.
+`pnpm docker:up` dùng Docker Compose mặc định; Keycloak và Kong thuộc profile `full` nên cần `docker compose --env-file .env -f .docker/lens-backend/compose.yaml --profile full up -d` nếu muốn chạy chúng cục bộ. Khi chạy app trên host, đặt port Redis/DB trong `.env` theo các port được expose trong `.docker/lens-backend/compose.yaml`.
 
-Lệnh và script có trong [`package.json`](../package.json). Migration không tự chạy khi ứng dụng khởi động; `DB_SYNCHRONIZE` không bật TypeORM auto-sync. `001_lens.sql` chỉ khởi tạo database mới, không phải migration nâng cấp database đã có dữ liệu.
+Lệnh và script có trong [`package.json`](../package.json). Migration không tự chạy khi ứng dụng khởi động; local có thể bật TypeORM auto-sync bằng `DB_SYNCHRONIZE=true`. `001_lens.sql` chỉ khởi tạo database mới, không phải migration nâng cấp database đã có dữ liệu.
 
 Swagger UI ở `/docs`, OpenAPI JSON ở `/docs-json`; mặc định server lắng nghe `PORT=3000`. Khi triển khai, `API_PUBLIC_URL` có thể đặt URL server cho Swagger “Try it out”. `CORS_ORIGINS` là danh sách origin cách nhau bằng dấu phẩy. Các route HTTP hiện đặt tại root, ví dụ `POST /bookings`. Request và response dùng snake_case; tiền là số nguyên VND; thời gian gửi vào API là ISO 8601 có múi giờ.
 
@@ -57,21 +57,23 @@ Danh sách và logic chọn module ở [`feature-modules.ts`](../src/features/ap
 
 ## Xác thực và tài khoản
 
-API dùng Keycloak access token. Guard kiểm tra token và quyền; `POST /auth/register` tạo user, customer profile và wallet nội bộ cho actor đã xác thực. Lệnh có tính idempotent với tài khoản đang `active`; tài khoản bị đình chỉ/ban không được đăng ký lại. Các thao tác trạng thái admin (`active`, `suspended`, `banned`) đi qua `identity.domain.ts`; admin không thể tự khóa/ban chính mình. Google login đi qua Keycloak theo [hướng dẫn riêng](keycloak-google-login.md).
+API dùng Keycloak access token. `POST /auth/register` nhận `role` là `customer` hoặc `photographer`, tạo user cùng profile tương ứng và tạo wallet. Photographer mới có trạng thái `unverified`; gửi hồ sơ qua `/photographers/profile` sẽ chuyển sang `pending` để admin duyệt. Tài khoản Google tiếp tục khởi tạo theo luồng customer. Lệnh có tính idempotent với tài khoản đang `active`; tài khoản bị đình chỉ/ban không được đăng ký lại. Các thao tác trạng thái admin (`active`, `suspended`, `banned`) đi qua `identity.domain.ts`; admin không thể tự khóa/ban chính mình. Google login đi qua Keycloak theo [hướng dẫn riêng](keycloak-google-login.md).
 
 ## Booking, payment và subscription
 
 `POST /bookings` nhận photographer, booking plan, địa điểm và khoảng thời gian. Use case lấy photographer/plan/lịch, domain kiểm tra khả dụng, trùng lịch, ngày nghỉ và tính cọc 30% (làm tròn lên VND). Photographer có thể accept/reject; các bước start, complete-shoot và complete kiểm tra trạng thái và payment cần thiết. Các command dùng PostgreSQL transaction; tạo booking khóa bản ghi photographer bằng pessimistic write lock.
 
-`POST /bookings/:id/payments/deposit` và `/remaining` tạo hoặc lấy lại transaction intent theo loại thanh toán. Intent được commit trước khi gọi PayOS; nếu bước gọi nhà cung cấp thất bại, transaction/order code vẫn còn để retry. PayOS adapter thử tra order hiện hữu sau lỗi tạo link; đường dẫn checkout phục hồi có thể không kèm QR gốc. Chỉ webhook đã xác minh chữ ký và số tiền mới đánh dấu transaction `paid`. Các URL redirect của frontend không xác nhận thanh toán.
+`POST /bookings/:booking_id/payments/deposit` và `/remaining` tạo hoặc lấy lại transaction intent theo loại thanh toán. Intent được commit trước khi gọi PayOS; nếu bước gọi nhà cung cấp thất bại, transaction/order code vẫn còn để retry. PayOS adapter thử tra order hiện hữu sau lỗi tạo link; đường dẫn checkout phục hồi có thể không kèm QR gốc. Chỉ webhook đã xác minh chữ ký và số tiền mới đánh dấu transaction `paid`. Các URL redirect của frontend không xác nhận thanh toán.
 
-Webhook PayOS nhận JSON gốc ở `POST /payments/webhooks/payos` hoặc `POST /subscriptions/webhooks/payos`. `payment_webhooks` ghi `(provider, reference)` để xử lý callback lặp; callback subscription cập nhật subscription tương ứng. `POST /payments/:id/refund` tạo yêu cầu hoàn tiền, không thực hiện chuyển tiền cho người dùng. Subscription chụp giá và kỳ hạn khi tạo; payment dùng port do Subscription sở hữu. Chi tiết route/request/response xem Swagger.
+Webhook PayOS nhận JSON gốc ở `POST /payments/webhooks/payos` hoặc `POST /subscriptions/webhooks/payos`. `payment_webhooks` ghi `(provider, reference)` để xử lý callback lặp; callback subscription cập nhật subscription tương ứng và ghi timeline. Checkout subscription hết hạn chỉ đóng pending khi provider xác nhận chưa thu tiền; kết quả chưa rõ được giữ để admin đối soát. Subscription lưu snapshot điều khoản plan khi đăng ký và tự đánh dấu kỳ đã hết hạn. `POST /payments/:payment_id/refund` tạo yêu cầu hoàn tiền, không thực hiện chuyển tiền cho người dùng. Subscription gọi Payment qua port. Chi tiết route/request/response xem Swagger.
 
 ## Media và realtime
 
 Object storage hỗ trợ MinIO và S3-compatible cloud. Presigned URL dùng TTL mặc định 900 giây, có thể cấu hình theo provider; `complete-upload` kiểm tra object với storage. Bucket và CORS phải cho phép upload theo cấu hình frontend. Xem [biến môi trường](SECRETS_GUIDE.md) và [`s3.config.ts`](../src/shared/integrations/s3/s3.config.ts).
 
-Sự kiện nghiệp vụ được ghi vào `outbox_events` trong transaction. Worker quét tối đa 50 event mỗi lượt, cách 2 giây, rồi phát qua Socket.IO namespace `/lens` tới room của user đã xác thực. Client gửi `auth: { token: accessToken }`. Worker hiện đánh dấu event đã xử lý **trước khi** gọi publisher; lỗi publisher xảy ra sau đó không được retry tự động. Không dựa vào outbox hiện tại để bảo đảm delivery đúng một lần hoặc nhiều replica cùng phát an toàn.
+Sự kiện nghiệp vụ được ghi vào `outbox_events` trong transaction. Worker quét tối đa 50 event mỗi lượt, cách 2 giây. Khi `KAFKA_ENABLED=true`, `booking.created` được ánh xạ thành `order_placed`; `payment.received`, `payment.wallet_topped_up` và `payment.subscription` được ánh xạ thành `payment_success`. Producer gửi từng recipient thành một Kafka message, ánh xạ `users.id` nội bộ sang Keycloak `sub`, và giữ `eventId` ổn định theo outbox event cùng recipient. Các event khác tiếp tục phát qua Socket.IO namespace `/lens` trong giai đoạn chuyển tiếp.
+
+Notification-service phát notification đã consume qua namespace `/notification`, Socket.IO path `/api/v1/socket.io`, event `notification`; frontend cần kết nối endpoint này cho các notification đi Kafka. Giao nhận là at-least-once; consumer dùng `eventId` làm BullMQ job ID để deduplicate khi job còn được giữ lại. Worker chỉ đánh dấu event đã xử lý sau khi publisher thành công, retry tối đa năm lần rồi chuyển outbox event sang dead letter.
 
 ## Kiểm thử
 

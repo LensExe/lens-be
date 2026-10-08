@@ -3,11 +3,13 @@ import { CalendarController } from '../http/calendar.controller';
 import {
   CalendarBlockCommandHandler,
   CalendarUnblockCommandHandler,
-} from '@modules/calendar/calendar.command';
+} from '@modules/calendar/schedule/calendar.command';
 import {
   CalendarAvailabilityQueryHandler,
+  CalendarBlockPreviewQueryHandler,
   CalendarMeQueryHandler,
-} from '@modules/calendar/calendar.query';
+  CalendarOfflineSlotsQueryHandler,
+} from '@modules/calendar/schedule/calendar.query';
 
 @Module({
   controllers: [CalendarController],
@@ -15,7 +17,9 @@ import {
     CalendarBlockCommandHandler,
     CalendarUnblockCommandHandler,
     CalendarAvailabilityQueryHandler,
+    CalendarOfflineSlotsQueryHandler,
     CalendarMeQueryHandler,
+    CalendarBlockPreviewQueryHandler,
   ],
 })
 export class CalendarApiModule {}

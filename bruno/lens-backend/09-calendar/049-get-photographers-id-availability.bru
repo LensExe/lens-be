@@ -1,0 +1,24 @@
+meta {
+  name: photographers/:photographer_id/availability
+  type: http
+  seq: 149
+}
+
+docs {
+  Xem lịch trống
+  Handler: availability
+  Authentication: public
+  Query: CalendarAvailabilityQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/photographers/{{photographerId}}/availability?from={{fromDateTime}}&to={{toDateTime}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -1,5 +1,6 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Res } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
+import type { Response } from 'express';
 import {
   ApiBadGatewayResponse,
   ApiOperation,
@@ -10,7 +11,10 @@ import {
 } from '@nestjs/swagger';
 import { Public } from '../auth/keycloak.guard';
 import { GoogleAuthService } from '../auth/google-auth.service';
-import { GoogleCallbackQuery } from '../dto/google-auth.dto';
+import {
+  GoogleCallbackQuery,
+  GoogleExchangeQuery,
+} from '../dto/google-auth.dto';
 import { responseSchema } from '../swagger';
 import { IdentityRegisterCommand } from '@modules/identity/identity.command';
 
@@ -22,6 +26,11 @@ export class GoogleAuthController {
     private readonly googleAuth: GoogleAuthService,
   ) {}
 
+  /**
+   * Build a Google sign-in URL to start the authentication flow.
+   *
+   * @returns Result object containing the fields `authorization_url`.
+   */
   @Get('login')
   @Public()
   @ApiOperation({
@@ -42,6 +51,12 @@ export class GoogleAuthController {
     return { authorization_url: await this.googleAuth.buildLoginUrl() };
   }
 
+  /**
+   * Complete sign-in using the OAuth provider callback data.
+   *
+   * @param query Query filters and pagination options.
+   * @returns Result object containing the fields `user`.
+   */
   @Get('callback')
   @Public()
   @ApiOperation({
@@ -59,17 +74,45 @@ export class GoogleAuthController {
     description: 'Keycloak hoặc Google callback chưa được cấu hình',
   })
   @ApiResponse({
-    status: 200,
-    description: 'Token Keycloak và hồ sơ Lens của người dùng',
-    schema: responseSchema('AUTH-008'),
+    status: 302,
+    description: 'Redirect về frontend kèm mã handoff dùng một lần',
   })
-  async callback(@Query() query: GoogleCallbackQuery) {
-    const { actor, fullname, tokenSet } = await this.googleAuth.handleCallback(
+  async callback(
+    @Query() query: GoogleCallbackQuery,
+    @Res() response: Response,
+  ) {
+    const { actor, tokenSet } = await this.googleAuth.handleCallback(
       query.code,
       query.state,
     );
     const user = await this.commands.execute(
-      new IdentityRegisterCommand(actor, { fullname }),
+      new IdentityRegisterCommand(actor, {
+        fullname: actor.name ?? '',
+      }),
+    );
+    const code = await this.googleAuth.createFrontendHandoff({
+      tokenSet,
+      user,
+    });
+    return response.redirect(302, this.googleAuth.frontendRedirectUri(code));
+  }
+
+  @Get('exchange')
+  @Public()
+  @ApiOperation({
+    operationId: 'AUTH-008B',
+    summary: 'Đổi mã đăng nhập Google lấy token',
+    description: 'Đổi mã handoff dùng một lần lấy token và hồ sơ người dùng.',
+  })
+  @ApiQuery({ name: 'code', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Token Keycloak và hồ sơ Lens của người dùng',
+    schema: responseSchema('AUTH-008'),
+  })
+  async exchange(@Query() query: GoogleExchangeQuery) {
+    const { tokenSet, user } = await this.googleAuth.consumeFrontendHandoff(
+      query.code,
     );
     return { ...tokenSet, user };
   }

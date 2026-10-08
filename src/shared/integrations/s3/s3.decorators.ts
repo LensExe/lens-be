@@ -1,13 +1,18 @@
 import { Inject } from '@nestjs/common';
-import {
-  DIGITAL_OCEAN_S3,
-  DIGITAL_OCEAN_S3_PRESIGN,
-  MINIO_S3,
-  MINIO_S3_PRESIGN,
-} from './constants/s3';
+import { ACTIVE_S3, ACTIVE_S3_PRESIGN } from './constants/s3';
 
-export const InjectDigitalOceanS3 = () => Inject(DIGITAL_OCEAN_S3);
-export const InjectDigitalOceanS3Presign = () =>
-  Inject(DIGITAL_OCEAN_S3_PRESIGN);
-export const InjectMinioS3 = () => Inject(MINIO_S3);
-export const InjectMinioS3Presign = () => Inject(MINIO_S3_PRESIGN);
+/**
+ * Inject the system's primary `S3Client` instance.
+ * Used by backend tasks that call the storage API directly through an internal endpoint.
+ *
+ * @returns Result returned by `Inject`.
+ */
+export const InjectActiveS3 = () => Inject(ACTIVE_S3);
+
+/**
+ * Inject the `S3Client` instance dedicated to generating presigned URLs.
+ * This client is configured with `publicEndpoint` so external clients (web and mobile) can access it.
+ *
+ * @returns Result returned by `Inject`.
+ */
+export const InjectActiveS3Presign = () => Inject(ACTIVE_S3_PRESIGN);

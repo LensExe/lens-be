@@ -1,0 +1,37 @@
+meta {
+  name: payments/:payment_id/refund
+  type: http
+  seq: 200
+}
+
+docs {
+  Yêu cầu hoàn tiền
+  Handler: refund
+  Authentication: role 'admin', 'system'
+  Body: PaymentRefundCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/payments/{{paymentId}}/refund
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "amount": 1000,
+    "reason": "Bruno API test refund",
+    "idempotency_key": "bruno-local-refund-001"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

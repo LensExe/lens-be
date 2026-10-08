@@ -1,0 +1,35 @@
+meta {
+  name: photographers/me/status
+  type: http
+  seq: 206
+}
+
+docs {
+  Cập nhật trạng thái hoạt động
+  Handler: status
+  Authentication: role 'photographer'
+  Body: PhotographerStatusCommandBodyDto
+}
+
+patch {
+  url: {{baseUrl}}/photographers/me/status
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "is_available": true
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

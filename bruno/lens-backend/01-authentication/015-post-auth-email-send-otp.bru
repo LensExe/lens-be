@@ -1,0 +1,27 @@
+meta {
+  name: auth/email/send-otp
+  type: http
+  seq: 115
+}
+
+docs {
+  Gửi OTP xác minh Email
+  Handler: sendEmailOtp
+  Authentication: Bearer token
+}
+
+post {
+  url: {{baseUrl}}/auth/email/send-otp
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

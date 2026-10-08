@@ -1,62 +1,61 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
+import { timestampTransformer } from './utils/column-transformers';
+import { VerificationStatus } from '@shared/domain/values/photographer.values';
+import type { VerificationStatus as VerificationStatusType } from '@shared/domain/values/photographer.values';
+import type { PhotographyStyle } from '@shared/domain/values/photography-style.values';
 
 /**
- * Trạng thái xét duyệt / xác minh hồ sơ của Nhiếp ảnh gia
- */
-export const VerificationStatus = {
-  UNVERIFIED: 'unverified',
-  PENDING: 'pending',
-  VERIFIED: 'verified',
-  REJECTED: 'rejected',
-} as const;
-
-export type VerificationStatus =
-  (typeof VerificationStatus)[keyof typeof VerificationStatus];
-
-/**
- * Entity đại diện cho bảng `photographers`.
- * Lưu thông tin hồ sơ nghề nghiệp và xét duyệt của Nhiếp ảnh gia (Thợ chụp ảnh).
+ * Entity representing the `photographers` table.
+ * Stores photographers' professional profile and review status.
  */
 @Entity('photographers')
 export class PhotographerEntity extends BaseEntity {
-  /** ID người dùng (khóa ngoại duy nhất liên kết tới `users.id`) */
+  /** User ID (unique foreign key referencing `users.id`). */
   @Column('uuid', { unique: true })
   user_id!: string;
 
-  /** Mã số thuế cá nhân/doanh nghiệp của thợ chụp (nếu có) */
+  /** Photographer's personal or business tax ID, if available. */
   @Column('text', { nullable: true })
   tax_code!: string | null;
 
-  /** Danh sách các phong cách chụp ảnh (ví dụ: chân dung, kỷ yếu, sự kiện, cưới, ngoại cảnh...) */
-  @Column('jsonb', { default: [] })
-  styles!: string[];
+  /** List of photography styles (for example, portrait, yearbook, events, weddings, or outdoor shoots). */
+  @Column('jsonb', { default: () => "'[]'::jsonb" })
+  styles!: PhotographyStyle[];
 
-  /** Năm bắt đầu làm nghề chụp ảnh */
+  /** Year the photographer started working professionally. */
   @Column({ type: 'int', nullable: true })
   started_career_at!: number | null;
 
-  /** Địa bàn / thành phố hoạt động chính của thợ ảnh */
+  /** Photographer's primary service area or city. */
   @Column({ default: '' })
   location!: string;
 
-  /** Đoạn văn bản giới thiệu bản thân, phong cách làm việc và dịch vụ */
+  /** Introduction to the photographer, working style, and services. */
   @Column({ default: '' })
   description!: string;
 
-  /** Trạng thái xác thực hồ sơ nghề nghiệp bởi ban quản trị */
+  /** Administrative verification status of the professional profile. */
   @Column({ default: VerificationStatus.PENDING })
-  verification_status!: VerificationStatus;
+  verification_status!: VerificationStatusType;
 
-  /** Cờ boolean xác nhận đã duyệt (true khi verification_status là 'verified') */
+  /** Boolean approval flag (`true` when `verification_status` is 'verified'). */
   @Column({ default: false })
   is_verified!: boolean;
 
-  /** ID của Quản trị viên (Admin) đã phê duyệt hồ sơ thợ ảnh này */
+  /** ID of the admin who approved this photographer profile. */
   @Column('uuid', { nullable: true })
   approved_by!: string | null;
 
-  /** Trạng thái sẵn sàng nhận đơn đặt lịch (bật/tắt nhận booking) */
+  /** Reason an admin rejected the profile (`null` if it has not been rejected or has been resubmitted). */
+  @Column('text', { nullable: true })
+  rejection_reason!: string | null;
+
+  /** Time of the admin's most recent approval or rejection. */
+  @Column('timestamptz', { nullable: true, transformer: timestampTransformer })
+  reviewed_at!: string | null;
+
+  /** Whether the photographer is available to accept bookings. */
   @Column({ default: true })
   is_available!: boolean;
 }

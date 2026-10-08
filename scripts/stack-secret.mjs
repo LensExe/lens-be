@@ -45,12 +45,47 @@ const MASTER_KEY = join(homedir(), ".lens-be", "key.txt")
 const IS_WINDOWS = process.platform === "win32"
 
 const USE_COLOR = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR
+
+/**
+ * Color a string using the supplied terminal color code.
+ *
+ * @param code Business or configuration code to process.
+ * @param text Value used by the operation: text.
+ * @returns Result of the operation described above.
+ */
 const paint = (code, text) => (USE_COLOR ? `[${code}m${text}[0m` : text)
+
+/**
+ * Color a string red in the terminal.
+ *
+ * @param text Value used by the operation: text.
+ * @returns Result returned by `paint`.
+ */
 const red = (text) => paint("31", text)
+
+/**
+ * Color a string green in the terminal.
+ *
+ * @param text Value used by the operation: text.
+ * @returns Result returned by `paint`.
+ */
 const green = (text) => paint("32", text)
+
+/**
+ * Print a string with reduced brightness.
+ *
+ * @param text Value used by the operation: text.
+ * @returns Result returned by `paint`.
+ */
 const dim = (text) => paint("2", text)
 
-/** Aborts with a readable message rather than a stack trace. */
+/**
+ * Aborts with a readable message rather than a stack trace.
+ *
+ * @param message Command or query message to execute.
+ * @param hints Value used by the operation: hints.
+ * @returns No value is returned.
+ */
 const die = (message, hints = []) => {
     console.error(`\n${red("stack-secret:")} ${message}`)
     for (const hint of hints) {
@@ -64,7 +99,9 @@ const die = (message, hints = []) => {
  * Resolves an executable by hand. `spawnSync` without a shell ignores PATHEXT on
  * Windows, and winget installs sops under Packages/ with a PATH entry that
  * already-open shells have not picked up yet.
+ *
  * @param command - bare command name, e.g. "sops".
+ * @returns Result of the operation described above.
  */
 const resolveCommand = (command) => {
     const dirs = (process.env.PATH || "").split(IS_WINDOWS ? ";" : ":").filter(Boolean)
@@ -105,7 +142,9 @@ const resolveCommand = (command) => {
 /**
  * The sops format for a target path. Whole-file credentials are opaque and must
  * be binary, or sops tries to parse an ssh key as JSON and fails.
+ *
  * @returns "dotenv" | "json" | "yaml" | "binary"
+ * @param file File to process.
  */
 const formatFor = (file) => {
     if (file.endsWith(".env")) {
@@ -139,7 +178,7 @@ const resolveInStacks = (target) => {
         const normalised = target.replace(/^\.stacks?[\\/]/, "").split(/[\\/]/).join(sep)
         plainPath = resolve(STACKS_ROOT, normalised)
     } else if (target === ".env" || target.startsWith(".env") || !target.includes("/")) {
-        // Hỗ trợ lưu trực tiếp tại thư mục root (ví dụ: .env)
+        // Support saving directly in the project root (for example, `.env`).
         plainPath = resolve(REPO_ROOT, target)
     } else {
         const normalised = target.split(/[\\/]/).join(sep)
@@ -158,7 +197,9 @@ const resolveInStacks = (target) => {
 /**
  * Reads a secret without echoing it. Falls back to a plain read when there is no
  * TTY (piped input), which is what CI does.
+ *
  * @param prompt - text shown before the cursor.
+ * @returns Result of the operation described above.
  */
 const readHidden = (prompt) => new Promise((resolveValue) => {
     if (!process.stdin.isTTY) {
@@ -196,7 +237,11 @@ const readHidden = (prompt) => new Promise((resolveValue) => {
     muted = true
 })
 
-/** Reads every byte from stdin until EOF, for values that span lines. */
+/**
+ * Reads every byte from stdin until EOF, for values that span lines.
+ *
+ * @returns Result of the operation described above.
+ */
 const readAllStdin = () => new Promise((resolveValue) => {
     let buffer = ""
     process.stdin.setEncoding("utf8")
@@ -206,7 +251,15 @@ const readAllStdin = () => new Promise((resolveValue) => {
     process.stdin.on("end", () => resolveValue(buffer))
 })
 
-/** Encrypts `plainPath` to `plainPath + ".enc"`, then deletes the plaintext unless keep is true. */
+/**
+ * Encrypts `plainPath` to `plainPath + ".enc"`, then deletes the plaintext unless keep is true.
+ *
+ * @param sops Value used by the operation: sops.
+ * @param plainPath Value used by the operation: plain path.
+ * @param relPath Value used by the operation: rel path.
+ * @param options Options for the operation.
+ * @returns Processed encPath value.
+ */
 const encryptInPlace = (sops, plainPath, relPath, options = {}) => {
     const encPath = `${plainPath}.enc`
     const format = formatFor(plainPath)
@@ -241,7 +294,13 @@ const encryptInPlace = (sops, plainPath, relPath, options = {}) => {
 // commands
 // ---------------------------------------------------------------------------
 
-/** `set <path>` -- prompt for a value and leave only its encrypted twin. */
+/**
+ * `set <path>` -- prompt for a value and leave only its encrypted twin.
+ *
+ * @param target Target object to process.
+ * @param options Options for the operation.
+ * @returns No value is returned.
+ */
 const commandSet = async (target, options) => {
     if (!target) {
         die("set needs a path under .stacks/", [
@@ -313,7 +372,11 @@ const commandSet = async (target, options) => {
     console.log(dim("    other machines get it with:  git pull && npm run sync\n"))
 }
 
-/** `list` -- every secret in the repository and .stacks/, by name. */
+/**
+ * `list` -- every secret in the repository and .stacks/, by name.
+ *
+ * @returns No value is returned.
+ */
 const commandList = () => {
     const rootRows = []
     for (const entry of readdirSync(REPO_ROOT, { withFileTypes: true })) {
@@ -368,7 +431,12 @@ const commandList = () => {
     console.log("")
 }
 
-/** `show <path>` -- decrypt TO DISK so a tool can read it. Never to stdout. */
+/**
+ * `show <path>` -- decrypt TO DISK so a tool can read it. Never to stdout.
+ *
+ * @param target Target object to process.
+ * @returns No value is returned.
+ */
 const commandShow = (target) => {
     if (!target) {
         die("show needs a path under .stacks/")
@@ -419,18 +487,23 @@ Options:
   --keep, --keep-plain Keep original plaintext file after encrypting (default: deletes plaintext)
 
 Examples:
-  # Mã hoá file .env ở thư mục root (giữ lại file .env gốc):
+  # Encrypt the root `.env` file (keep the original `.env` file):
   node scripts/stack-secret.mjs set .env --from-file .env --keep
 
-  # Giải mã .env.enc ở root thành .env:
+  # Decrypt root `.env.enc` to `.env`:
   node scripts/stack-secret.mjs show .env
 
-  # Làm việc với .stacks:
+  # Work with `.stacks`:
   node scripts/stack-secret.mjs set dev/runtime/env/app.env --from-file .env
   node scripts/stack-secret.mjs show dev/runtime/env/app.env
   node scripts/stack-secret.mjs list
 `
 
+/**
+ * Run the main flow of the stack-secret script.
+ *
+ * @returns No value is returned.
+ */
 const main = async () => {
     const [command, ...rest] = process.argv.slice(2)
     if (!command || command === "--help" || command === "-h" || command === "help") {

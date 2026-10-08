@@ -1,0 +1,24 @@
+meta {
+  name: photographers/:photographer_id/reviews
+  type: http
+  seq: 160
+}
+
+docs {
+  Danh sách đánh giá
+  Handler: list
+  Authentication: public
+  Query: ReviewListQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/photographers/{{photographerId}}/reviews?limit=20&offset=0
+  body: none
+  auth: none
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

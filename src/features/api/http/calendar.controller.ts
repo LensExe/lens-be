@@ -30,10 +30,12 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { Access, Public } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
-import { CalendarBlockCommand } from '@modules/calendar/calendar.command';
-import { CalendarMeQuery } from '@modules/calendar/calendar.query';
-import { CalendarUnblockCommand } from '@modules/calendar/calendar.command';
-import { CalendarAvailabilityQuery } from '@modules/calendar/calendar.query';
+import { CalendarBlockCommand } from '@modules/calendar/schedule/calendar.command';
+import { CalendarMeQuery } from '@modules/calendar/schedule/calendar.query';
+import { CalendarUnblockCommand } from '@modules/calendar/schedule/calendar.command';
+import { CalendarAvailabilityQuery } from '@modules/calendar/schedule/calendar.query';
+import { CalendarBlockPreviewQuery } from '@modules/calendar/schedule/calendar.query';
+import { CalendarOfflineSlotsQuery } from '@modules/calendar/schedule/calendar.query';
 
 @ApiTags('Calendar')
 @Controller()
@@ -42,11 +44,20 @@ export class CalendarController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  /**
+   * Block a time range in the photographer’s work calendar.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('calendar/blocked-times')
   @ApiOperation({
     operationId: 'CAL-006',
-    summary: 'Khóa ngày',
-    description: 'Đánh dấu một ngày không nhận booking. Role: Photographer',
+    summary: 'Chặn lịch',
+    description:
+      'Đánh dấu khoảng bận không nhận booking: nguyên ngày (date, giờ VN) hoặc from–to. Có yêu cầu đang chờ chồng giờ thì phải gửi decline_pending: true, không thì 409. Role: Photographer',
   })
   @Access(['photographer'])
   @ApiBearerAuth()
@@ -84,12 +95,19 @@ export class CalendarController {
     );
   }
 
+  /**
+   * Get the current user information from the authenticated identity.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('calendar/me')
   @ApiOperation({
     operationId: 'CAL-002',
     summary: 'Xem lịch cá nhân',
     description:
-      'Photographer xem lịch booking và các ngày đã chặn. Role: Photographer',
+      'Photographer xem booking và các khoảng đã chặn, lọc theo from/to. Role: Photographer',
   })
   @Access(['photographer'])
   @ApiBearerAuth()
@@ -114,13 +132,23 @@ export class CalendarController {
     description: 'Successful result',
     schema: responseSchema('CAL-002'),
   })
-  me(@Req() req: { actor?: Actor }) {
+  me(
+    @Req() req: { actor?: Actor },
+    @Query() query: Dto.CalendarMeQueryQueryDto,
+  ) {
     return this.queries.execute(
-      new CalendarMeQuery(req.actor ?? { sub: '', roles: [] }, {}),
+      new CalendarMeQuery(req.actor ?? { sub: '', roles: [] }, query),
     );
   }
 
-  @Delete('calendar/blocked-times/:id')
+  /**
+   * Remove a blocked time range from the photographer’s calendar.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
+  @Delete('calendar/blocked-times/:offline_slot_id')
   @ApiOperation({
     operationId: 'CAL-007',
     summary: 'Mở khóa thời gian',
@@ -144,7 +172,11 @@ export class CalendarController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'offline_slot_id',
+    type: String,
+    description: 'Offline slot UUID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -152,19 +184,29 @@ export class CalendarController {
   })
   unblock(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('offline_slot_id', new ParseUUIDPipe()) offline_slot_id: string,
   ) {
     return this.commands.execute(
-      new CalendarUnblockCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new CalendarUnblockCommand(req.actor ?? { sub: '', roles: [] }, {
+        offline_slot_id: offline_slot_id,
+      }),
     );
   }
 
-  @Get('photographers/:id/availability')
+  /**
+   * Get the available time ranges in the photographer’s calendar.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
+  @Get('photographers/:photographer_id/availability')
   @ApiOperation({
     operationId: 'CAL-001',
     summary: 'Xem lịch trống',
     description:
-      'Khách hàng xem thời gian khả dụng, mặc định 24/7 trừ ngày chặn và booking. Role: Public',
+      'Khách hàng xem thời gian trống: toàn bộ khoảng truy vấn mặc định rảnh, trừ khoảng photographer đã chặn và booking đang giữ giờ. Role: Public',
   })
   @Public()
   @ApiBadRequestResponse({
@@ -177,7 +219,11 @@ export class CalendarController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer UUID',
+  })
   @ApiQuery({
     name: 'from',
     required: false,
@@ -192,13 +238,120 @@ export class CalendarController {
   })
   availability(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
     @Query() query: Dto.CalendarAvailabilityQueryQueryDto,
   ) {
     return this.queries.execute(
       new CalendarAvailabilityQuery(req.actor ?? { sub: '', roles: [] }, {
         ...query,
-        id,
+        photographer_id: photographer_id,
+      }),
+    );
+  }
+
+  /**
+   * Get future blocked time slots that customers should exclude when booking a photographer.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param photographer_id Photographer profile ID.
+   * @param query Optional future time window.
+   * @returns Future offline slots without their private reason.
+   */
+  @Get('photographers/:photographer_id/offline-slots')
+  @ApiOperation({
+    operationId: 'CAL-011',
+    summary: 'Xem lịch bận trong tương lai',
+    description:
+      'Khách hàng lấy các offline-slot có thời điểm bắt đầu trong khoảng tương lai để loại khỏi lịch đặt. Mặc định 30 ngày tới, tối đa 93 ngày; không trả về lý do riêng tư. Photographer phải đang hoạt động và đã được xác minh. Role: Public',
+  })
+  @Public()
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer UUID',
+  })
+  @ApiQuery({
+    name: 'from',
+    required: false,
+    type: 'string',
+    description:
+      'Khoảng bắt đầu lọc; thời điểm trong quá khứ được nâng lên hiện tại',
+  })
+  @ApiQuery({
+    name: 'to',
+    required: false,
+    type: 'string',
+    description: 'Mốc kết thúc lọc (exclusive)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('CAL-011'),
+  })
+  offlineSlots(
+    @Req() req: { actor?: Actor },
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
+    @Query() query: Dto.CalendarAvailabilityQueryQueryDto,
+  ) {
+    return this.queries.execute(
+      new CalendarOfflineSlotsQuery(req.actor ?? { sub: '', roles: [] }, {
+        ...query,
+        photographer_id,
+      }),
+    );
+  }
+
+  /**
+   * Preview a calendar block and return the affected bookings.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
+  @Get('calendar/blocked-times/affected')
+  @ApiOperation({
+    operationId: 'CAL-010',
+    summary: 'Xem trước yêu cầu bị ảnh hưởng khi chặn lịch',
+    description:
+      'Các yêu cầu booking đang chờ chồng lên khoảng định chặn; có thì khi chặn phải gửi decline_pending: true. Role: Photographer',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('CAL-010'),
+  })
+  blockPreview(
+    @Req() req: { actor?: Actor },
+    @Query() query: Dto.CalendarBlockPreviewQueryQueryDto,
+  ) {
+    return this.queries.execute(
+      new CalendarBlockPreviewQuery(req.actor ?? { sub: '', roles: [] }, {
+        ...query,
       }),
     );
   }

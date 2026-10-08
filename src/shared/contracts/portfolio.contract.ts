@@ -6,27 +6,32 @@ export interface PortfolioCreateCommandInput {
 }
 
 export interface PortfolioReorderCommandInput {
-  id: string;
-  item_ids: string[];
+  portfolio_id: string;
+  portfolio_item_ids: string[];
 }
 
 export interface PortfolioListQueryInput {
-  id: string;
+  photographer_id: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface PortfolioMyListQueryInput {
   limit?: number;
   offset?: number;
 }
 
 export interface PortfolioAddCommandInput {
-  id: string;
+  portfolio_id: string;
   media_id: string;
 }
 
 export interface PortfolioGetQueryInput {
-  id: string;
+  portfolio_id: string;
 }
 
 export interface PortfolioUpdateCommandInput {
-  id: string;
+  portfolio_id: string;
   name?: string;
   category?: string;
   description?: string;
@@ -34,10 +39,10 @@ export interface PortfolioUpdateCommandInput {
 }
 
 export interface PortfolioRemoveCommandInput {
-  id: string;
+  portfolio_id: string;
 }
 
 export interface PortfolioRemoveItemCommandInput {
-  id: string;
-  itemId: string;
+  portfolio_id: string;
+  portfolio_item_id: string;
 }

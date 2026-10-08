@@ -36,6 +36,10 @@ import { PhotographerAdminQuery } from '@modules/photographer/photographers.quer
 import { PhotographerUpdateCommand } from '@modules/photographer/photographers.command';
 import { PhotographerMeQuery } from '@modules/photographer/photographers.query';
 import { PhotographerCreateCommand } from '@modules/photographer/photographers.command';
+import {
+  PhotographerApproveCommand,
+  PhotographerRejectCommand,
+} from '@modules/photographer/photographers.command';
 import { PhotographerTopQuery } from '@modules/photographer/photographers.query';
 import { PhotographerSearchQuery } from '@modules/photographer/photographers.query';
 import { PhotographerGetQuery } from '@modules/photographer/photographers.query';
@@ -47,6 +51,14 @@ export class PhotographerController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  /**
+   * Update the photographer’s location using the supplied data.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('photographers/me/location')
   @ApiOperation({
     operationId: 'PHO-008',
@@ -88,6 +100,13 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * Get the current user status with administrator access.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('photographers/me/status')
   @ApiOperation({
     operationId: 'PHO-004',
@@ -130,6 +149,13 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * List records for the admin view using the supplied filters.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('admin/photographers')
   @ApiOperation({
     operationId: 'ADM-007',
@@ -166,6 +192,12 @@ export class PhotographerController {
     type: 'number',
     description: 'offset',
   })
+  @ApiQuery({
+    name: 'verification_status',
+    required: false,
+    enum: ['unverified', 'pending', 'verified', 'rejected'],
+    description: 'verification status',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -182,6 +214,125 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * Approve a photographer after checking permissions and the current status.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
+  @Post('admin/photographers/:photographer_id/approve')
+  @ApiOperation({
+    operationId: 'ADM-009',
+    summary: 'Duyệt hồ sơ photographer',
+    description:
+      'Admin duyệt hồ sơ đang chờ; người gửi được gán role photographer. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer UUID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('ADM-009'),
+  })
+  @HttpCode(200)
+  approve(
+    @Req() req: { actor?: Actor },
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
+  ) {
+    return this.commands.execute(
+      new PhotographerApproveCommand(req.actor ?? { sub: '', roles: [] }, {
+        photographer_id,
+      }),
+    );
+  }
+
+  /**
+   * Reject a photographer and record the reason when provided.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
+  @Post('admin/photographers/:photographer_id/reject')
+  @ApiOperation({
+    operationId: 'ADM-010',
+    summary: 'Từ chối hồ sơ photographer',
+    description:
+      'Admin từ chối hồ sơ đang chờ kèm lý do; người gửi sửa và gửi lại được. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiConflictResponse({
+    description: 'State transition or uniqueness conflict',
+  })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer UUID',
+  })
+  @ApiBody({ type: Dto.PhotographerRejectCommandBodyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('ADM-010'),
+  })
+  @HttpCode(200)
+  reject(
+    @Req() req: { actor?: Actor },
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
+    @Body() body: Dto.PhotographerRejectCommandBodyDto,
+  ) {
+    return this.commands.execute(
+      new PhotographerRejectCommand(req.actor ?? { sub: '', roles: [] }, {
+        ...body,
+        photographer_id,
+      }),
+    );
+  }
+
+  /**
+   * Update a photographer profile after checking ownership and validating the input.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('photographers/me')
   @ApiOperation({
     operationId: 'PHO-003',
@@ -224,13 +375,19 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * Get the current user information from the authenticated identity.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('photographers/me')
   @ApiOperation({
     operationId: 'PHO-007',
     summary: 'Lấy hồ sơ photographer hiện tại',
-    description: 'Trang quản trị hồ sơ cho photographer. Role: Photographer',
+    description:
+      'Hồ sơ photographer của chính mình, gồm trạng thái duyệt và lý do từ chối. Yêu cầu đăng nhập.',
   })
-  @Access(['photographer'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
@@ -259,13 +416,20 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * Create a photographer profile after validating the input and business rules.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('photographers/profile')
   @ApiOperation({
     operationId: 'PHO-001',
-    summary: 'Tạo hồ sơ photographer',
-    description: 'Tạo hồ sơ nghề nghiệp của photographer. Role: Photographer',
+    summary: 'Đăng ký làm photographer',
+    description:
+      'Người dùng đã đăng nhập gửi hoặc gửi lại hồ sơ photographer; hồ sơ chờ admin duyệt.',
   })
-  @Access(['photographer'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
@@ -301,6 +465,13 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * List featured photographers using the ranking criteria.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('photographers/top-rated')
   @ApiOperation({
     operationId: 'PHO-006',
@@ -347,6 +518,13 @@ export class PhotographerController {
     );
   }
 
+  /**
+   * Search photographers by keyword, location, and the supplied filters.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('photographers')
   @ApiOperation({
     operationId: 'PHO-005',
@@ -410,7 +588,14 @@ export class PhotographerController {
     );
   }
 
-  @Get('photographers/:id')
+  /**
+   * Get photographer details by ID after checking access permissions.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
+  @Get('photographers/:photographer_id')
   @ApiOperation({
     operationId: 'PHO-002',
     summary: 'Xem hồ sơ photographer',
@@ -428,7 +613,11 @@ export class PhotographerController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer UUID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -436,10 +625,12 @@ export class PhotographerController {
   })
   get(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
   ) {
     return this.queries.execute(
-      new PhotographerGetQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new PhotographerGetQuery(req.actor ?? { sub: '', roles: [] }, {
+        photographer_id,
+      }),
     );
   }
 }

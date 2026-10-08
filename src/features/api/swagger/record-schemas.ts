@@ -1,4 +1,5 @@
 import type { SchemaObject } from '@nestjs/swagger';
+import { PhotographyStyle } from '@shared/domain/values/photography-style.values';
 
 export const recordSchemas: Record<string, SchemaObject> = {
   users: {
@@ -80,6 +81,19 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'user id',
         format: 'uuid',
       },
+      description: {
+        type: 'string',
+        description: 'customer description',
+        nullable: true,
+      },
+      preferred_styles: {
+        type: 'array',
+        description: 'preferred photography styles',
+        items: {
+          type: 'string',
+          enum: Object.values(PhotographyStyle),
+        },
+      },
       location: {
         type: 'string',
         description: 'location',
@@ -96,7 +110,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
         format: 'date-time',
       },
     },
-    required: ['id', 'user_id', 'created_at', 'updated_at'],
+    required: ['id', 'user_id', 'preferred_styles', 'created_at', 'updated_at'],
   },
   admins: {
     type: 'object',
@@ -150,6 +164,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'array',
         items: {
           type: 'string',
+          enum: Object.values(PhotographyStyle),
         },
       },
       started_career_at: {
@@ -207,7 +222,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'updated_at',
     ],
   },
-  ratings: {
+  photographer_ratings: {
     type: 'object',
     properties: {
       id: {
@@ -261,32 +276,31 @@ export const recordSchemas: Record<string, SchemaObject> = {
   booking_plans: {
     type: 'object',
     properties: {
-      id: {
+      id: { type: 'string', description: 'id', format: 'uuid' },
+      photographer_id: {
         type: 'string',
-        description: 'id',
+        description: 'photographer id',
         format: 'uuid',
       },
-      code: {
-        type: 'string',
-        description: 'code',
-      },
-      name: {
-        type: 'string',
-        description: 'name',
-      },
+      name: { type: 'string', description: 'name' },
       description: {
         type: 'string',
         description: 'description',
         nullable: true,
       },
-      price: {
+      price: { type: 'number', description: 'price (VND)' },
+      duration_minutes: { type: 'number', description: 'duration minutes' },
+      photo_count: { type: 'number', description: 'photo count' },
+      retouched_photo_count: {
         type: 'number',
-        description: 'price',
+        description: 'retouched photo count',
       },
-      is_active: {
-        type: 'boolean',
-        description: 'is active',
+      features: {
+        type: 'array',
+        description: 'features',
+        items: { type: 'string' },
       },
+      is_active: { type: 'boolean', description: 'is active' },
       created_at: {
         type: 'string',
         description: 'created at',
@@ -300,9 +314,13 @@ export const recordSchemas: Record<string, SchemaObject> = {
     },
     required: [
       'id',
-      'code',
+      'photographer_id',
       'name',
       'price',
+      'duration_minutes',
+      'photo_count',
+      'retouched_photo_count',
+      'features',
       'is_active',
       'created_at',
       'updated_at',
@@ -348,6 +366,8 @@ export const recordSchemas: Record<string, SchemaObject> = {
           properties: {
             code: { type: 'string' },
             name: { type: 'string' },
+            kind: { type: 'string', enum: ['quota'] },
+            unit: { type: 'string', enum: ['bytes', 'portfolios'] },
             value: { type: 'string' },
           },
           required: ['code', 'name', 'value'],
@@ -394,6 +414,11 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'plan id',
         format: 'uuid',
       },
+      plan_snapshot: {
+        type: 'object',
+        description: 'Plan terms copied when the subscription was created',
+        additionalProperties: true,
+      },
       start_at: {
         type: 'string',
         description: 'start at',
@@ -411,6 +436,10 @@ export const recordSchemas: Record<string, SchemaObject> = {
       auto_renew: {
         type: 'boolean',
         description: 'auto renew',
+      },
+      cancel_at_period_end: {
+        type: 'boolean',
+        description: 'Renewal cancellation takes effect after the paid period',
       },
       price: {
         type: 'number',
@@ -431,11 +460,42 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'id',
       'photographer_id',
       'plan_id',
+      'plan_snapshot',
       'start_at',
       'end_at',
       'status',
       'auto_renew',
+      'cancel_at_period_end',
       'price',
+      'created_at',
+      'updated_at',
+    ],
+  },
+  subscription_status_history: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      subscription_id: { type: 'string', format: 'uuid' },
+      event_type: { type: 'string' },
+      from_status: { type: 'string', nullable: true },
+      to_status: { type: 'string' },
+      actor_user_id: { type: 'string', format: 'uuid', nullable: true },
+      actor_role: { type: 'string' },
+      transaction_id: { type: 'string', format: 'uuid', nullable: true },
+      note: { type: 'string', nullable: true },
+      created_at: { type: 'string', format: 'date-time' },
+      updated_at: { type: 'string', format: 'date-time' },
+    },
+    required: [
+      'id',
+      'subscription_id',
+      'event_type',
+      'from_status',
+      'to_status',
+      'actor_user_id',
+      'actor_role',
+      'transaction_id',
+      'note',
       'created_at',
       'updated_at',
     ],
@@ -453,10 +513,15 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'photographer id',
         format: 'uuid',
       },
-      date: {
+      from: {
         type: 'string',
-        description: 'date',
-        format: 'date',
+        description: 'from',
+        format: 'date-time',
+      },
+      to: {
+        type: 'string',
+        description: 'to',
+        format: 'date-time',
       },
       reason: {
         type: 'string',
@@ -474,7 +539,14 @@ export const recordSchemas: Record<string, SchemaObject> = {
         format: 'date-time',
       },
     },
-    required: ['id', 'photographer_id', 'date', 'created_at', 'updated_at'],
+    required: [
+      'id',
+      'photographer_id',
+      'from',
+      'to',
+      'created_at',
+      'updated_at',
+    ],
   },
   bookings: {
     type: 'object',
@@ -525,6 +597,12 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'string',
         description: 'status',
       },
+      accepted_at: {
+        type: 'string',
+        description: 'when the photographer accepted the booking',
+        format: 'date-time',
+        nullable: true,
+      },
       gallery_published_at: {
         type: 'string',
         description: 'gallery published at',
@@ -553,6 +631,84 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'deposit_amount',
       'total_amount',
       'status',
+      'created_at',
+      'updated_at',
+    ],
+  },
+  booking_status_history: {
+    type: 'object',
+    properties: {
+      id: {
+        type: 'string',
+        description: 'id',
+        format: 'uuid',
+      },
+      booking_id: {
+        type: 'string',
+        description: 'booking id',
+        format: 'uuid',
+      },
+      from_status: {
+        type: 'string',
+        description: 'status before the change; null on the creation row',
+        nullable: true,
+        enum: [
+          'pending',
+          'accepted',
+          'rejected',
+          'cancelled',
+          'expired',
+          'in_progress',
+          'shot',
+          'completed',
+        ],
+      },
+      to_status: {
+        type: 'string',
+        description: 'status after the change',
+        enum: [
+          'pending',
+          'accepted',
+          'rejected',
+          'cancelled',
+          'expired',
+          'in_progress',
+          'shot',
+          'completed',
+        ],
+      },
+      actor_role: {
+        type: 'string',
+        description: 'who made the change',
+        enum: ['customer', 'photographer', 'admin', 'system'],
+      },
+      actor_user_id: {
+        type: 'string',
+        description: 'user who made the change; null for background jobs',
+        format: 'uuid',
+        nullable: true,
+      },
+      reason: {
+        type: 'string',
+        description: 'reason (reject / cancel)',
+        nullable: true,
+      },
+      created_at: {
+        type: 'string',
+        description: 'created at',
+        format: 'date-time',
+      },
+      updated_at: {
+        type: 'string',
+        description: 'updated at',
+        format: 'date-time',
+      },
+    },
+    required: [
+      'id',
+      'booking_id',
+      'to_status',
+      'actor_role',
       'created_at',
       'updated_at',
     ],
@@ -597,6 +753,22 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'created_at',
       'updated_at',
     ],
+  },
+  wallet_ledger: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      wallet_id: { type: 'string', format: 'uuid' },
+      transaction_id: { type: 'string', format: 'uuid', nullable: true },
+      refund_request_id: { type: 'string', format: 'uuid', nullable: true },
+      entry_type: { type: 'string' },
+      available_delta: { type: 'number' },
+      frozen_delta: { type: 'number' },
+      idempotency_key: { type: 'string' },
+      description: { type: 'string' },
+      created_at: { type: 'string', format: 'date-time' },
+      updated_at: { type: 'string', format: 'date-time' },
+    },
   },
   transactions: {
     type: 'object',
@@ -661,6 +833,47 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'string',
         description: 'qr code',
         nullable: true,
+      },
+      checkout_expires_at: {
+        type: 'string',
+        description: 'checkout expiration time',
+        format: 'date-time',
+        nullable: true,
+      },
+      checkout_expired_at: {
+        type: 'string',
+        description: 'checkout expiration processing time',
+        format: 'date-time',
+        nullable: true,
+      },
+      checkout_review_required_at: {
+        type: 'string',
+        description: 'manual checkout reconciliation time',
+        format: 'date-time',
+        nullable: true,
+      },
+      checkout_reconciliation_attempts: { type: 'integer' },
+      checkout_reconciliation_next_at: {
+        type: 'string',
+        format: 'date-time',
+        nullable: true,
+      },
+      checkout_review_resolution: { type: 'string', nullable: true },
+      checkout_review_resolved_by: {
+        type: 'string',
+        format: 'uuid',
+        nullable: true,
+      },
+      checkout_review_resolved_at: {
+        type: 'string',
+        format: 'date-time',
+        nullable: true,
+      },
+      checkout_review_resolution_reference: { type: 'string', nullable: true },
+      checkout_review_resolution_note: { type: 'string', nullable: true },
+      checkout_expired: {
+        type: 'boolean',
+        description: 'whether the checkout can still be used',
       },
       idempotency_key: {
         type: 'string',
@@ -744,10 +957,57 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'id',
         format: 'uuid',
       },
+      allocations: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            refund_request_id: { type: 'string', format: 'uuid' },
+            transaction_id: { type: 'string', format: 'uuid' },
+            amount: { type: 'number' },
+            reserved_amount: { type: 'number' },
+            completed_transaction_id: {
+              type: 'string',
+              format: 'uuid',
+              nullable: true,
+            },
+            created_at: { type: 'string', format: 'date-time' },
+            updated_at: { type: 'string', format: 'date-time' },
+          },
+          required: [
+            'id',
+            'refund_request_id',
+            'transaction_id',
+            'amount',
+            'reserved_amount',
+            'completed_transaction_id',
+            'created_at',
+            'updated_at',
+          ],
+        },
+      },
+      request_type: { type: 'string' },
       transaction_id: {
         type: 'string',
         description: 'transaction id',
         format: 'uuid',
+        nullable: true,
+      },
+      booking_id: {
+        type: 'string',
+        format: 'uuid',
+        nullable: true,
+      },
+      subscription_id: {
+        type: 'string',
+        format: 'uuid',
+        nullable: true,
+      },
+      wallet_id: {
+        type: 'string',
+        format: 'uuid',
+        nullable: true,
       },
       user_id: {
         type: 'string',
@@ -765,6 +1025,37 @@ export const recordSchemas: Record<string, SchemaObject> = {
       status: {
         type: 'string',
         description: 'status',
+      },
+      payout_destination: {
+        type: 'object',
+        nullable: true,
+        properties: {
+          bank_code: { type: 'string' },
+          account_number: { type: 'string' },
+          account_name: { type: 'string' },
+        },
+      },
+      processing_due_at: {
+        type: 'string',
+        description: 'next payment request processing deadline',
+        format: 'date-time',
+        nullable: true,
+      },
+      sla_reminded_at: {
+        type: 'string',
+        description: 'time when administrators were reminded',
+        format: 'date-time',
+        nullable: true,
+      },
+      sla_escalated_at: {
+        type: 'string',
+        description: 'time when the overdue request was escalated',
+        format: 'date-time',
+        nullable: true,
+      },
+      deadline_extension_count: {
+        type: 'integer',
+        description: 'number of deadline extensions',
       },
       created_at: {
         type: 'string',
@@ -813,9 +1104,20 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'string',
         description: 'content type',
       },
+      visibility: {
+        type: 'string',
+        enum: ['public', 'private'],
+        description: 'object visibility',
+      },
       status: {
         type: 'string',
         description: 'status',
+      },
+      upload_expires_at: {
+        type: 'string',
+        description: 'presigned upload reservation deadline',
+        format: 'date-time',
+        nullable: true,
       },
       created_at: {
         type: 'string',
@@ -834,7 +1136,9 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'file_key',
       'file_size',
       'content_type',
+      'visibility',
       'status',
+      'upload_expires_at',
       'created_at',
       'updated_at',
     ],
@@ -945,6 +1249,11 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'id',
         format: 'uuid',
       },
+      photographer_id: {
+        type: 'string',
+        description: 'reviewed photographer id',
+        format: 'uuid',
+      },
       booking_id: {
         type: 'string',
         description: 'booking id',
@@ -975,9 +1284,15 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'boolean',
         description: 'is edited',
       },
-      is_visible: {
-        type: 'boolean',
-        description: 'is visible',
+      status: {
+        type: 'string',
+        enum: ['visible', 'deleted_by_author', 'hidden_by_admin'],
+        description: 'visibility status',
+      },
+      hidden_reason: {
+        type: 'string',
+        nullable: true,
+        description: 'reason the admin hid the review',
       },
       created_at: {
         type: 'string',
@@ -999,7 +1314,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'attitude_rating',
       'comment',
       'is_edited',
-      'is_visible',
+      'status',
       'created_at',
       'updated_at',
     ],

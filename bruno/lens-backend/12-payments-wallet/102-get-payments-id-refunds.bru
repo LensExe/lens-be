@@ -1,0 +1,27 @@
+meta {
+  name: payments/:payment_id/refunds
+  type: http
+  seq: 202
+}
+
+docs {
+  Lịch sử hoàn tiền
+  Handler: refunds
+  Authentication: role 'customer', 'admin'
+}
+
+get {
+  url: {{baseUrl}}/payments/{{paymentId}}/refunds
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

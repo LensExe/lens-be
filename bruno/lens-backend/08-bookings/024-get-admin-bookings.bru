@@ -1,0 +1,28 @@
+meta {
+  name: admin/bookings
+  type: http
+  seq: 124
+}
+
+docs {
+  Theo dõi booking
+  Handler: admin
+  Authentication: role 'admin'
+  Query: BookingAdminQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/admin/bookings?limit=20&offset=0
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -1,0 +1,28 @@
+meta {
+  name: admin/payments
+  type: http
+  seq: 195
+}
+
+docs {
+  Theo dõi payment
+  Handler: admin
+  Authentication: role 'admin'
+  Query: PaymentAdminQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/admin/payments?limit=20&offset=0
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

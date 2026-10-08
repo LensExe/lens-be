@@ -1,0 +1,228 @@
+import { strict as assert } from 'node:assert';
+import { test } from 'node:test';
+import { Calendar } from '../src/modules/calendar/schedule/calendar.domain';
+import { Booking } from '../src/modules/booking/core/booking.domain';
+import { DomainError } from '../src/shared/platform/exceptions/domain.error';
+
+/**
+ * Create an assertion that checks the expected error code of a thrown exception.
+ *
+ * @param expected String value used by the operation: expected.
+ * @returns Result of the operation described above.
+ */
+const code = (expected: string) => (error: unknown) =>
+  error instanceof DomainError && error.code === expected;
+const now = Date.parse('2026-09-25T00:00:00.000Z');
+
+test('a blocked date means the whole day in Vietnam time', () => {
+  assert.deepEqual(Calendar.blockRange({ date: '2026-10-01' }), {
+    from: '2026-09-30T17:00:00.000Z',
+    to: '2026-10-01T17:00:00.000Z',
+  });
+});
+
+test('a blocked range may span several days', () => {
+  assert.deepEqual(
+    Calendar.blockRange({
+      from: '2026-10-01T18:00:00+07:00',
+      to: '2026-10-03T12:00:00+07:00',
+    }),
+    { from: '2026-10-01T11:00:00.000Z', to: '2026-10-03T05:00:00.000Z' },
+  );
+});
+
+test('a block needs exactly one form: date, or from and to', () => {
+  for (const bad of [
+    {},
+    { date: '2026-10-01', from: '2026-10-01T10:00:00+07:00' },
+    { from: '2026-10-01T10:00:00+07:00' },
+    { from: '2026-10-01T12:00:00+07:00', to: '2026-10-01T10:00:00+07:00' },
+  ])
+    assert.throws(() => Calendar.blockRange(bad), code('invalid'));
+});
+
+test('a block must not be over, overlap a booking or another block', () => {
+  const range = {
+    from: '2026-10-01T07:00:00.000Z',
+    to: '2026-10-01T09:00:00.000Z',
+  };
+  assert.doesNotThrow(() => Calendar.assertCanBlock(range, [], [], now));
+  // the day that ends before now is in the past
+  assert.throws(
+    () =>
+      Calendar.assertCanBlock(
+        { from: '2026-09-23T17:00:00.000Z', to: '2026-09-24T17:00:00.000Z' },
+        [],
+        [],
+        now,
+      ),
+    code('invalid'),
+  );
+  const booking = {
+    from: '2026-10-01T08:00:00.000Z',
+    to: '2026-10-01T10:00:00.000Z',
+  };
+  assert.throws(
+    () =>
+      Calendar.assertCanBlock(
+        range,
+        [{ ...booking, status: 'accepted' }],
+        [],
+        now,
+      ),
+    code('conflict'),
+  );
+  // a cancelled booking no longer holds the time
+  assert.doesNotThrow(() =>
+    Calendar.assertCanBlock(
+      range,
+      [{ ...booking, status: 'cancelled' }],
+      [],
+      now,
+    ),
+  );
+  assert.throws(
+    () => Calendar.assertCanBlock(range, [], [booking], now),
+    code('conflict'),
+  );
+  // touching blocks do not overlap: [07,09) and [09,10)
+  assert.doesNotThrow(() =>
+    Calendar.assertCanBlock(
+      range,
+      [],
+      [{ from: '2026-10-01T09:00:00.000Z', to: '2026-10-01T10:00:00.000Z' }],
+      now,
+    ),
+  );
+});
+
+test('availability and booking only lose the blocked range', () => {
+  const blocked = [
+    { from: '2030-01-01T10:00:00.000Z', to: '2030-01-01T12:00:00.000Z' },
+  ];
+  assert.deepEqual(
+    Calendar.availability(
+      '2030-01-01T09:00:00.000Z',
+      '2030-01-01T14:00:00.000Z',
+      blocked,
+      [],
+    ),
+    [
+      { from: '2030-01-01T09:00:00.000Z', to: '2030-01-01T10:00:00.000Z' },
+      { from: '2030-01-01T12:00:00.000Z', to: '2030-01-01T14:00:00.000Z' },
+    ],
+  );
+  const draft = {
+    customerId: 'c',
+    customerUserId: 'cu',
+    photographerId: 'p',
+    photographerUserId: 'pu',
+    photographerStatus: 'active',
+    photographerVerified: true,
+    photographerAvailable: true,
+    planId: 'plan',
+    planPhotographerId: 'p',
+    planActive: true,
+    planPrice: 100_000,
+    planDurationMinutes: 60,
+    openRequestsWithPhotographer: 0,
+    openRequests: 0,
+    location: 'Studio',
+    blockedTimes: blocked,
+    bookings: [],
+    now,
+  };
+  assert.doesNotThrow(() =>
+    Booking.prepare({
+      ...draft,
+      from: '2030-01-01T12:00:00.000Z',
+      to: '2030-01-01T13:00:00.000Z',
+    }),
+  );
+  assert.throws(
+    () =>
+      Booking.prepare({
+        ...draft,
+        from: '2030-01-01T11:00:00.000Z',
+        to: '2030-01-01T12:00:00.000Z',
+      }),
+    code('conflict'),
+  );
+});
+
+test('availability defaults to the whole range minus blocks and reserved bookings', () => {
+  assert.deepEqual(
+    Calendar.availability(
+      '2026-09-28T00:00:00+07:00',
+      '2026-10-01T00:00:00+07:00',
+      [{ from: '2026-09-28T09:00:00+07:00', to: '2026-09-28T10:00:00+07:00' }],
+      [
+        {
+          from: '2026-09-28T15:00:00+07:00',
+          to: '2026-09-28T16:00:00+07:00',
+          status: 'accepted',
+        },
+      ],
+    ),
+    [
+      { from: '2026-09-27T17:00:00.000Z', to: '2026-09-28T02:00:00.000Z' },
+      { from: '2026-09-28T03:00:00.000Z', to: '2026-09-28T08:00:00.000Z' },
+      { from: '2026-09-28T09:00:00.000Z', to: '2026-09-30T17:00:00.000Z' },
+    ],
+  );
+});
+
+test('availability retains the full window starting at 00:00 Vietnam time', () => {
+  assert.deepEqual(
+    Calendar.availability(
+      '2026-10-01T00:00:00+07:00',
+      '2026-10-02T00:00:00+07:00',
+      [],
+      [],
+    ),
+    [{ from: '2026-09-30T17:00:00.000Z', to: '2026-10-01T17:00:00.000Z' }],
+  );
+});
+
+test('blocking a date that does not exist is a 400, not a crash or a shifted day', () => {
+  for (const date of ['2026-13-45', '2026-02-30', '2026-00-10'])
+    assert.throws(() => Calendar.blockRange({ date }), /real calendar date/);
+  assert.equal(
+    Calendar.blockRange({ date: '2028-02-29' }).from,
+    '2028-02-28T17:00:00.000Z',
+  );
+});
+
+test('free time never starts in the past and defaults to 30 days from its start', () => {
+  const now = Date.parse('2030-01-10T00:00:00.000Z');
+  assert.deepEqual(
+    Calendar.availabilityWindow({ from: '2030-01-01T00:00:00.000Z' }, now),
+    { from: '2030-01-10T00:00:00.000Z', to: '2030-02-09T00:00:00.000Z' },
+  );
+  // a start far ahead without an end gets 30 days after that start, not after now
+  assert.deepEqual(
+    Calendar.availabilityWindow({ from: '2030-06-01T00:00:00.000Z' }, now),
+    { from: '2030-06-01T00:00:00.000Z', to: '2030-07-01T00:00:00.000Z' },
+  );
+});
+
+test("the photographer's own calendar is bounded: 30 days by default, 93 days at most", () => {
+  const now = Date.parse('2030-01-10T00:00:00.000Z');
+  assert.deepEqual(Calendar.personalWindow({}, now), {
+    from: '2030-01-10T00:00:00.000Z',
+    to: '2030-02-09T00:00:00.000Z',
+  });
+  // looking back is allowed for the photographer's own history
+  assert.equal(
+    Calendar.personalWindow({ from: '2029-12-01T00:00:00.000Z' }, now).from,
+    '2029-12-01T00:00:00.000Z',
+  );
+  assert.throws(
+    () =>
+      Calendar.personalWindow(
+        { from: '2030-01-01T00:00:00.000Z', to: '2030-06-01T00:00:00.000Z' },
+        now,
+      ),
+    /93 days/,
+  );
+});

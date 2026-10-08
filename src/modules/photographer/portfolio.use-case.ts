@@ -1,5 +1,6 @@
 import type { EntityManager } from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
+import { MediaVariantType } from '@shared/database/entities/media-variant.entity';
 import { Injectable } from '@nestjs/common';
 import { photographer, required } from '@shared/common/access';
 import { ObjectStorage } from '@shared/integrations/s3/storage.port';
@@ -7,7 +8,7 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import type * as Inputs from '@shared/contracts/contracts';
 import { MediaOwnershipPort } from './ports/media-ownership.port';
-import { Portfolio } from './portfolio.domain';
+import { Portfolio } from './portfolio/portfolio.domain';
 
 @Injectable()
 export class PortfolioUseCases {
@@ -16,6 +17,15 @@ export class PortfolioUseCases {
     private readonly storage: ObjectStorage,
   ) {}
 
+  /**
+   * Check whether the caller owns the specified portfolio.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param id ID of the record to process.
+   * @returns Processed album value.
+   * @throws {DomainError} Thrown when the actor is not authorized.
+   */
   async own(s: EntityManager, a: Actor, id: string) {
     const p = await photographer(s, a),
       album = await required(s, 'portfolios', id);
@@ -27,6 +37,14 @@ export class PortfolioUseCases {
     return album;
   }
 
+  /**
+   * Create a photographer portfolio after validating the input and business rules.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result returned by `save`.
+   */
   async create(
     s: EntityManager,
     a: Actor,
@@ -37,19 +55,37 @@ export class PortfolioUseCases {
     return s.save(EntitySchemas.portfolios, { ...i, photographer_id: p.id });
   }
 
+  /**
+   * List photographer portfolios using the supplied query filters.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param _a Actor passed through the interface; unused by this code path.
+   * @param i Input data for the operation.
+   * @returns Result object containing the fields `items`.
+   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
+   */
   async list(s: EntityManager, _a: Actor, i: Inputs.PortfolioListQueryInput) {
-    const p = await required(s, 'photographers', i.id),
+    const p = await required(s, 'photographers', i.photographer_id),
       u = await required(s, 'users', p.user_id);
     ensure(u.status === 'active', 'Photographer not found', 'missing');
     return {
       items: await s.findBy(EntitySchemas.portfolios, {
-        photographer_id: i.id,
+        photographer_id: i.photographer_id,
       }),
     };
   }
 
+  /**
+   * Get a photographer portfolio by ID after checking access permissions.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param _a Actor passed through the interface; unused by this code path.
+   * @param i Input data for the operation.
+   * @returns Result object containing the fields `cover_url`, `items`, `expires_in`.
+   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
+   */
   async get(s: EntityManager, _a: Actor, i: Inputs.PortfolioGetQueryInput) {
-    const album = await required(s, 'portfolios', i.id),
+    const album = await required(s, 'portfolios', i.portfolio_id),
       p = await required(s, 'photographers', album.photographer_id),
       u = await required(s, 'users', p.user_id);
     ensure(u.status === 'active', 'Portfolio not found', 'missing');
@@ -62,49 +98,89 @@ export class PortfolioUseCases {
     }[];
     for (const [position, mediaId] of album.items.entries()) {
       const m = await required(s, 'media', mediaId);
+      const thumbnail = await s.findOneBy(EntitySchemas.media_variants, {
+        media_id: m.id,
+        variant: MediaVariantType.THUMBNAIL,
+      });
       items.push({
         id: mediaId,
         portfolio_id: album.id,
         media_id: mediaId,
         position,
-        download_url: await this.storage.downloadUrl(m.file_key),
+        download_url: await this.storage.downloadUrl(
+          thumbnail?.file_key ?? m.file_key,
+        ),
       });
     }
     const cover = album.cover_media_id
       ? await required(s, 'media', album.cover_media_id)
       : null;
+    const coverThumbnail = cover
+      ? await s.findOneBy(EntitySchemas.media_variants, {
+          media_id: cover.id,
+          variant: MediaVariantType.THUMBNAIL,
+        })
+      : null;
     return {
       ...album,
-      cover_url: cover ? await this.storage.downloadUrl(cover.file_key) : null,
+      cover_url: cover
+        ? await this.storage.downloadUrl(
+            coverThumbnail?.file_key ?? cover.file_key,
+          )
+        : null,
       items,
       expires_in: 900,
     };
   }
 
+  /**
+   * Update portfolio details after checking ownership.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result returned by `updateEntity`.
+   */
   async update(
     s: EntityManager,
     a: Actor,
     i: Inputs.PortfolioUpdateCommandInput,
   ) {
-    const { id, ...fields } = i;
-    await this.own(s, a, id);
+    const { portfolio_id, ...fields } = i;
+    await this.own(s, a, portfolio_id);
     if (fields.cover_media_id)
       await this.media.owned(s, a, fields.cover_media_id);
-    return updateEntity(s, EntitySchemas.portfolios, id, fields);
+    return updateEntity(s, EntitySchemas.portfolios, portfolio_id, fields);
   }
 
+  /**
+   * Delete a portfolio or portfolio item after checking ownership.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result object containing the fields `deleted`.
+   */
   async remove(
     s: EntityManager,
     a: Actor,
     i: Inputs.PortfolioRemoveCommandInput,
   ) {
-    await this.own(s, a, i.id);
-    await s.delete(EntitySchemas.portfolios, i.id);
+    await this.own(s, a, i.portfolio_id);
+    await s.delete(EntitySchemas.portfolios, i.portfolio_id);
     return { deleted: true };
   }
 
+  /**
+   * Add media to a portfolio after checking ownership and media status.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result object containing the fields `id`, `portfolio_id`, `media_id`, `position`.
+   */
   async add(s: EntityManager, a: Actor, i: Inputs.PortfolioAddCommandInput) {
-    const album = await this.own(s, a, i.id);
+    const album = await this.own(s, a, i.portfolio_id);
     const m = await this.media.owned(s, a, i.media_id);
     await updateEntity(s, EntitySchemas.portfolios, album.id, {
       items: Portfolio.add(album.items, m.id),
@@ -117,26 +193,42 @@ export class PortfolioUseCases {
     };
   }
 
+  /**
+   * Remove media from a portfolio after checking ownership.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result object containing the fields `deleted`.
+   */
   async removeItem(
     s: EntityManager,
     a: Actor,
     i: Inputs.PortfolioRemoveItemCommandInput,
   ) {
-    const album = await this.own(s, a, i.id);
+    const album = await this.own(s, a, i.portfolio_id);
     await updateEntity(s, EntitySchemas.portfolios, album.id, {
-      items: Portfolio.remove(album.items, i.itemId),
+      items: Portfolio.remove(album.items, i.portfolio_item_id),
     });
     return { deleted: true };
   }
 
+  /**
+   * Update the display order using the supplied list of IDs.
+   *
+   * @param s EntityManager for the current transaction.
+   * @param a Actor performing the operation; used for role and access checks.
+   * @param i Input data for the operation.
+   * @returns Result returned by `get`.
+   */
   async reorder(
     s: EntityManager,
     a: Actor,
     i: Inputs.PortfolioReorderCommandInput,
   ) {
-    const album = await this.own(s, a, i.id);
+    const album = await this.own(s, a, i.portfolio_id);
     await updateEntity(s, EntitySchemas.portfolios, album.id, {
-      items: Portfolio.reorder(album.items, i.item_ids),
+      items: Portfolio.reorder(album.items, i.portfolio_item_ids),
     });
     return this.get(s, a, i);
   }

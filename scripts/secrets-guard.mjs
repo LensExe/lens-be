@@ -1,15 +1,20 @@
 #!/usr/bin/env node
 /**
- * scripts/secrets-guard.mjs -- Kiểm tra an toàn bảo mật trước khi commit
+ * `scripts/secrets-guard.mjs` — run security checks before committing.
  *
- * Chạy tự động từ .husky/pre-commit:
- *   1. Chặn việc commit nhầm file plaintext `.env` (chỉ cho phép `.env.enc`, `.env.example`).
- *   2. Quét các file đang staged để tránh commit nhầm private key hoặc secret nhạy cảm.
+ * Runs automatically from `.husky/pre-commit`:
+ * 1. Block accidental commits of plaintext `.env`; only `.env.enc` and `.env.example` are allowed.
+ * 2. Scan staged files for private keys or sensitive secrets that should not be committed.
  */
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 
+/**
+ * Get the list of files staged in Git.
+ *
+ * @returns List of results from the operation.
+ */
 function getStagedFiles() {
   try {
     const stdout = execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACM'], {
@@ -24,6 +29,11 @@ function getStagedFiles() {
   }
 }
 
+/**
+ * Run the main flow of the secrets-guard script.
+ *
+ * @returns No value is returned.
+ */
 function main() {
   const stagedFiles = getStagedFiles();
   if (stagedFiles.length === 0) {
@@ -33,7 +43,7 @@ function main() {
   let hasError = false;
 
   for (const file of stagedFiles) {
-    // 1. Chặn commit file .env chứa plaintext
+    // 1. Block commits containing a plaintext `.env` file.
     if (file === '.env' || file.endsWith('/.env') || file.endsWith('.env.local')) {
       console.error(`\n🚨 [SECRETS GUARD] BỊ CHẶN:`);
       console.error(`   Bạn đang cố commit file plaintext: "${file}"!`);
@@ -42,12 +52,12 @@ function main() {
       hasError = true;
     }
 
-    // Bỏ qua chính file guard này và các file docs
+    // Skip this guard file itself and documentation files.
     if (file === 'scripts/secrets-guard.mjs' || file.startsWith('docs/')) {
       continue;
     }
 
-    // 2. Quét nội dung staged để phát hiện Private Key thô
+    // 2. Scan staged content for raw private keys.
     if (existsSync(file) && !file.endsWith('.enc') && !file.endsWith('.enc.yaml')) {
       try {
         const content = readFileSync(file, 'utf8');
@@ -60,7 +70,7 @@ function main() {
           hasError = true;
         }
       } catch {
-        // bỏ qua các file binary
+        // Skip binary files.
       }
     }
   }

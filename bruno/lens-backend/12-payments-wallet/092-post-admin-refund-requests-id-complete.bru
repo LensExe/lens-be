@@ -1,0 +1,35 @@
+meta {
+  name: admin/refund-requests/:refund_request_id/complete
+  type: http
+  seq: 192
+}
+
+docs {
+  Ghi nhận payout/refund đã chuyển thành công
+  Handler: completeRefund
+  Authentication: role 'admin'
+  Body: PaymentRefundCompleteBodyDto
+}
+
+post {
+  url: {{baseUrl}}/admin/refund-requests/{{refundRequestId}}/complete
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "payout_reference": "bruno-local-payout-001"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

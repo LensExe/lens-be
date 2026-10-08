@@ -1,28 +1,28 @@
 /**
- * Đại diện cho chủ thể (người dùng/hệ thống) đang thực hiện request,
- * được trích xuất trực tiếp từ payload của Keycloak JWT Access Token.
+ * Represents the subject (user or system) making the request,
+ * extracted directly from the Keycloak JWT access-token payload.
  */
 export interface Actor {
   /**
-   * Subject Identifier (User ID bên phía Keycloak - định dạng UUID).
-   * Dùng làm khóa ngoại `keycloak_id` để liên kết bản ghi tài khoản giữa Keycloak và Database backend.
+   * Subject identifier (Keycloak user ID in UUID format).
+   * Used as the `keycloak_id` foreign key linking the Keycloak account to its backend database record.
    */
   sub: string;
 
   /**
-   * Địa chỉ email của người dùng được xác thực từ Keycloak.
-   * Dùng để gán email khi đăng ký tài khoản hoặc gửi thông báo. (Có thể optional nếu token không chứa scope email).
+   * User email verified by Keycloak.
+   * Used to set the email during account registration or send notifications. It may be absent if the token lacks the email scope.
    */
   email?: string;
 
   /**
-   * Họ và tên hiển thị (preferred_username / full name) lấy từ hồ sơ Keycloak.
+   * Display name (`preferred_username` or full name) from the Keycloak profile.
    */
   name?: string;
 
   /**
-   * Danh sách vai trò (roles) được cấp cho người dùng trong Keycloak Realm hoặc Client (ví dụ: ['admin', 'customer', 'photographer']).
-   * Dùng cho việc phân quyền truy cập (RBAC) thông qua hàm kiểm tra `role(actor, 'admin')` hoặc Guard.
+   * Roles assigned to the user in the Keycloak realm or client (for example, `['admin', 'customer', 'photographer']`).
+   * Used for role-based access control (RBAC) through checks such as `role(actor, 'admin')` or a guard.
    */
   roles: string[];
 }

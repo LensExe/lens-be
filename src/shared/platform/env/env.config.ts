@@ -1,9 +1,21 @@
 import type { EnvConfig } from './types';
 
+/**
+ * Read, transform, and validate the application environment variables.
+ *
+ * @returns Result object containing the fields `app`, `cors`, `database`, `mongodb`, `redis`.
+ */
 export const envConfig = (): EnvConfig => {
   const nodeEnv = process.env.NODE_ENV ?? 'development';
   const isProduction = nodeEnv === 'production';
   const isDevelopment = nodeEnv === 'development';
+  const readBoolean = (name: string, fallback: boolean): boolean => {
+    const value = process.env[name]?.trim().toLowerCase();
+    if (!value) return fallback;
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    throw new Error(`${name} must be true or false`);
+  };
 
   const corsOriginsRaw = process.env.CORS_ORIGINS ?? '*';
   const origins =
@@ -38,7 +50,7 @@ export const envConfig = (): EnvConfig => {
     },
     redis: {
       host: process.env.REDIS_HOST ?? 'localhost',
-      port: Number.parseInt(process.env.REDIS_PORT ?? '6379', 10),
+      port: Number.parseInt(process.env.REDIS_PORT ?? '6380', 10),
       password: process.env.REDIS_PASSWORD || undefined,
     },
     auth: {
@@ -47,19 +59,54 @@ export const envConfig = (): EnvConfig => {
       keycloakAuthServerUrl: process.env.KEYCLOAK_AUTH_SERVER_URL,
       keycloakRealm: process.env.KEYCLOAK_REALM,
       keycloakClientId: process.env.KEYCLOAK_CLIENT_ID,
-      keycloakSecret: process.env.KEYCLOAK_SECRET,
+      keycloakClientSecret: process.env.KEYCLOAK_CLIENT_SECRET,
       keycloakAdminClientId: process.env.KEYCLOAK_ADMIN_CLIENT_ID,
+      keycloakAdminClientSecret: process.env.KEYCLOAK_ADMIN_CLIENT_SECRET,
       keycloakAdminUsername: process.env.KEYCLOAK_ADMIN_USERNAME,
       keycloakAdminPassword: process.env.KEYCLOAK_ADMIN_PASSWORD,
       keycloakGoogleRedirectUri: process.env.KEYCLOAK_GOOGLE_REDIRECT_URI,
+      keycloakGoogleFrontendRedirectUri:
+        process.env.KEYCLOAK_GOOGLE_FRONTEND_REDIRECT_URI ??
+        'http://localhost:5173/auth/google/callback',
     },
     cookie: {
       domain: process.env.COOKIE_DOMAIN,
+    },
+    payment: {
+      provider: process.env.PAYMENT_PROVIDER ?? 'payos',
     },
     payos: {
       clientId: process.env.PAYOS_CLIENT_ID,
       apiKey: process.env.PAYOS_API_KEY,
       checksumKey: process.env.PAYOS_CHECKSUM_KEY,
+      returnUrl: process.env.PAYOS_RETURN_URL,
+      cancelUrl: process.env.PAYOS_CANCEL_URL,
+      standaloneTestEnabled: readBoolean(
+        'PAYOS_STANDALONE_TEST_ENABLED',
+        false,
+      ),
+    },
+    sepay: {
+      accountNumber: process.env.SEPAY_ACCOUNT_NUMBER,
+      accountName: process.env.SEPAY_ACCOUNT_NAME,
+      bankCode: process.env.SEPAY_BANK_CODE,
+      webhookApiKey: process.env.SEPAY_WEBHOOK_API_KEY,
+    },
+    notification: {
+      serviceUrl: process.env.NOTIFICATION_SERVICE_URL,
+    },
+    kafka: {
+      enabled: readBoolean('KAFKA_ENABLED', false),
+      brokers: (process.env.KAFKA_BROKERS ?? 'localhost:9092')
+        .split(',')
+        .map((broker) => broker.trim())
+        .filter(Boolean),
+      clientId: process.env.KAFKA_CLIENT_ID ?? 'lens-backend',
+      notificationEventsTopic:
+        process.env.KAFKA_NOTIFICATION_EVENTS_TOPIC ?? 'notification.events',
+      username: process.env.KAFKA_USERNAME || undefined,
+      password: process.env.KAFKA_PASSWORD || undefined,
+      ssl: readBoolean('KAFKA_SSL', false),
     },
     axios: {
       timeoutMs: Number.parseInt(process.env.AXIOS_TIMEOUT_MS ?? '10000', 10),

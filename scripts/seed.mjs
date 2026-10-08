@@ -1,17 +1,24 @@
 #!/usr/bin/env node
-/**
- * scripts/seed.mjs -- Khởi tạo dữ liệu mẫu cho hệ thống Lens (EXE202)
- *
- * Dữ liệu mẫu bao gồm:
- *   - Các gói dịch vụ chụp ảnh (Booking Plans: BASIC, STANDARD, VIP_WEDDING)
- *   - Tài khoản Admin & Khách hàng mẫu
- *   - Nhiếp ảnh gia mẫu (Photographers) & Lịch làm việc mẫu (Working Slots)
- */
+/** Load curated demo fixtures and deterministic, scalable local data for Lens. */
 
 import pg from 'pg';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { prepareStockMedia, seedStockMedia } from './seed-media.mjs';
+
 const { Client } = pg;
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Automatically load `.env` if it exists.
+try {
+  process.loadEnvFile?.();
+} catch (error) {
+  if (error.code !== 'ENOENT') throw error;
+}
 
 const config = {
+  connectionString: process.env.DATABASE_URL,
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT || 5433),
   user: process.env.DB_USERNAME || 'lens-postgres',
@@ -19,72 +26,128 @@ const config = {
   database: process.env.DB_NAME || 'lens',
 };
 
-async function seed() {
-  console.log(`\n🌱 [Seed] Đang kết nối tới PostgreSQL [${config.host}:${config.port}/${config.database}]...`);
-  const client = new Client(config);
+const seedProfiles = {
+  none: { photographers: 0, customers: 0, bookings: 0 },
+  small: { photographers: 20, customers: 100, bookings: 500 },
+  medium: { photographers: 100, customers: 1000, bookings: 5000 },
+  large: { photographers: 1000, customers: 10000, bookings: 100000 },
+};
+const maxSeedCounts = {
+  photographers: 100_000,
+  customers: 500_000,
+  bookings: 1_000_000,
+};
 
+function countFromEnvironment(name, fallback, maximum) {
+  const value = process.env[name];
+  if (value === undefined) return fallback;
+  if (!/^(0|[1-9]\d*)$/.test(value)) {
+    throw new Error(`${name} must be a non-negative integer`);
+  }
+  const count = Number(value);
+  if (!Number.isSafeInteger(count) || count > maximum) {
+    throw new Error(`${name} must be between 0 and ${maximum}`);
+  }
+  return count;
+}
+
+function seedCounts() {
+  const profileName = process.env.SEED_SCALE || 'none';
+  const profile = Object.hasOwn(seedProfiles, profileName)
+    ? seedProfiles[profileName]
+    : undefined;
+  if (!profile) {
+    throw new Error(
+      `SEED_SCALE must be one of: ${Object.keys(seedProfiles).join(', ')}`,
+    );
+  }
+
+  const counts = {
+    photographers: countFromEnvironment(
+      'SEED_PHOTOGRAPHERS',
+      profile.photographers,
+      maxSeedCounts.photographers,
+    ),
+    customers: countFromEnvironment(
+      'SEED_CUSTOMERS',
+      profile.customers,
+      maxSeedCounts.customers,
+    ),
+    bookings: countFromEnvironment(
+      'SEED_BOOKINGS',
+      profile.bookings,
+      maxSeedCounts.bookings,
+    ),
+  };
+
+  if (counts.bookings > 0 && (!counts.photographers || !counts.customers)) {
+    throw new Error(
+      'SEED_BOOKINGS requires at least one generated photographer and customer',
+    );
+  }
+  return { profileName, counts };
+}
+
+function databaseTarget() {
+  const url = config.connectionString ? new URL(config.connectionString) : null;
+  return `${url?.hostname ?? config.host}:${url?.port || config.port}/${url?.pathname.slice(1) || config.database}`;
+}
+
+/** Seed the database with the selected profile and any explicit count overrides. */
+async function seed() {
+  const { profileName, counts } = seedCounts();
+  const client = new Client(config);
+  let scaleTransactionOpen = false;
+  let stockMedia;
+
+  console.log(`\n🌱 [Seed] Đang kết nối tới PostgreSQL [${databaseTarget()}]...`);
   try {
+    // Validate local MinIO and bundled assets before changing either seeded dataset.
+    stockMedia = await prepareStockMedia();
     await client.connect();
     console.log('✅ Đã kết nối cơ sở dữ liệu thành công.');
 
-    console.log('📦 Bắt đầu nạp dữ liệu mẫu cho Lens...');
+    const demoSeedPath = resolve(__dirname, '../migrations/seed_lens-dev.sql');
+    const scaleSeedPath = resolve(__dirname, '../migrations/seed_lens-scale.sql');
+    console.log(`📦 Đang đọc dữ liệu demo: ${demoSeedPath}`);
+    const demoSeedSql = readFileSync(demoSeedPath, 'utf8');
+    const scaleSeedSql = readFileSync(scaleSeedPath, 'utf8');
 
-    // 1. Tạo bảng booking_plans nếu chưa có (phục vụ test/seed ban đầu)
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS booking_plans (
-        id VARCHAR(36) PRIMARY KEY,
-        code VARCHAR(50) UNIQUE NOT NULL,
-        name VARCHAR(100) NOT NULL,
-        description TEXT,
-        price NUMERIC(12, 2) NOT NULL DEFAULT 0,
-        is_active BOOLEAN NOT NULL DEFAULT true,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
+    console.log('🚀 Đang nạp dữ liệu demo cố định...');
+    await client.query(demoSeedSql);
 
-    // 2. Chèn các gói Booking Plans
-    const plans = [
-      {
-        id: 'plan-basic-001',
-        code: 'BASIC_PORTRAIT',
-        name: 'Gói Chân Dung Cơ Bản',
-        description: 'Chụp chân dung ngoại cảnh 1 tiếng, chỉnh sửa 10 ảnh chất lượng cao.',
-        price: 500000,
-      },
-      {
-        id: 'plan-std-002',
-        code: 'STD_EVENT',
-        name: 'Gói Chụp Sự Kiện / Tiệc',
-        description: 'Chụp sự kiện 3 tiếng, toàn bộ file gốc và blend 50 ảnh đẹp.',
-        price: 1500000,
-      },
-      {
-        id: 'plan-vip-003',
-        code: 'VIP_WEDDING',
-        name: 'Gói Phóng Sự Cưới Cao Cấp',
-        description: 'Gói ngày cưới trọn gói 2 thợ chụp, kèm album photobook cao cấp.',
-        price: 8000000,
-      },
-    ];
+    console.log(
+      `🚀 Đang nạp dữ liệu ${profileName}: ${counts.photographers} photographers, ${counts.customers} customers, ${counts.bookings} bookings...`,
+    );
+    await client.query('BEGIN');
+    scaleTransactionOpen = true;
+    await client.query(
+      `SELECT
+        set_config('lens.seed.photographers', $1, true),
+        set_config('lens.seed.customers', $2, true),
+        set_config('lens.seed.bookings', $3, true)`,
+      [
+        String(counts.photographers),
+        String(counts.customers),
+        String(counts.bookings),
+      ],
+    );
+    await client.query(scaleSeedSql);
+    await client.query('COMMIT');
+    scaleTransactionOpen = false;
 
-    for (const plan of plans) {
-      await client.query(
-        `
-        INSERT INTO booking_plans (id, code, name, description, price, is_active)
-        VALUES ($1, $2, $3, $4, $5, true)
-        ON CONFLICT (code) DO UPDATE 
-        SET name = EXCLUDED.name, description = EXCLUDED.description, price = EXCLUDED.price;
-      `,
-        [plan.id, plan.code, plan.name, plan.description, plan.price],
-      );
-    }
-    console.log(`  ✓ Đã nạp ${plans.length} gói dịch vụ chụp ảnh mẫu (Booking Plans).`);
+    await seedStockMedia(client, stockMedia);
 
-    console.log('\n🎉 Hoàn tất nạp dữ liệu mẫu thành công!\n');
+    console.log('\n🎉 Hoàn tất nạp dữ liệu Lens thành công!');
+    console.log('   - Bộ dữ liệu tổng hợp cũ đã được thay thế bằng quy mô được chọn.');
+    console.log('   - User tổng hợp dùng domain .invalid, không được tạo trong Keycloak.');
+    console.log('   - Ảnh stock được ghi vào MinIO và gắn vào portfolio demo.');
   } catch (error) {
-    console.error('❌ Lỗi khi nạp dữ liệu mẫu:', error.message);
+    if (scaleTransactionOpen) await client.query('ROLLBACK').catch(() => {});
+    console.error('\n❌ Lỗi khi nạp dữ liệu mẫu:', error.message);
+    process.exitCode = 1;
   } finally {
+    stockMedia?.client.destroy();
     await client.end();
   }
 }

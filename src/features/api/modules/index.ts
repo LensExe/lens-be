@@ -1,5 +1,6 @@
 export { BookingApiModule } from './booking-api.module';
 export { CalendarApiModule } from './calendar-api.module';
+export { CustomerApiModule } from './customer-api.module';
 export { IdentityApiModule } from './identity-api.module';
 export { MediaApiModule } from './media-api.module';
 export { ModerationApiModule } from './moderation-api.module';

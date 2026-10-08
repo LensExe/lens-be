@@ -1,0 +1,27 @@
+meta {
+  name: subscriptions/me/history
+  type: http
+  seq: 228
+}
+
+docs {
+  Lịch sử subscription
+  Handler: history
+  Authentication: role 'photographer'
+}
+
+get {
+  url: {{baseUrl}}/subscriptions/me/history
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

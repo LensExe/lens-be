@@ -1,0 +1,36 @@
+meta {
+  name: admin/reports/:report_id/resolve
+  type: http
+  seq: 182
+}
+
+docs {
+  Xử lý report
+  Handler: resolve
+  Authentication: role 'admin'
+  Body: ModerationResolveCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/admin/reports/{{reportId}}/resolve
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "status": "resolved",
+    "resolution": "Bruno API test resolution"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -40,6 +40,12 @@ export class UserController {
     private readonly queries: QueryBus,
   ) {}
 
+  /**
+   * Get the current user information from the authenticated identity.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('users/me')
   @ApiOperation({
     operationId: 'AUTH-002',
@@ -75,6 +81,13 @@ export class UserController {
     );
   }
 
+  /**
+   * Update a user after checking permissions and validating the data.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Patch('users/me')
   @ApiOperation({
     operationId: 'AUTH-003',
@@ -117,7 +130,14 @@ export class UserController {
     );
   }
 
-  @Get('users/:id')
+  /**
+   * Get user details by ID after checking the caller’s permissions.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
+  @Get('users/:user_id')
   @ApiOperation({
     operationId: 'AUTH-004',
     summary: 'Lấy thông tin người dùng',
@@ -142,7 +162,7 @@ export class UserController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'user_id', type: String, description: 'User UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -150,10 +170,12 @@ export class UserController {
   })
   getUser(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('user_id', new ParseUUIDPipe()) user_id: string,
   ) {
     return this.queries.execute(
-      new IdentityGetUserQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new IdentityGetUserQuery(req.actor ?? { sub: '', roles: [] }, {
+        user_id,
+      }),
     );
   }
 }

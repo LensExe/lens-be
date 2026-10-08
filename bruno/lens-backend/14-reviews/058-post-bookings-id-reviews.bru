@@ -1,0 +1,38 @@
+meta {
+  name: bookings/:booking_id/reviews
+  type: http
+  seq: 158
+}
+
+docs {
+  Tạo đánh giá
+  Handler: create
+  Authentication: role 'customer'
+  Body: ReviewCreateCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/reviews
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{customerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "rating": 5,
+    "punctuality_rating": 5,
+    "attitude_rating": 5,
+    "comment": "Bruno API test review"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

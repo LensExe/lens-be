@@ -1,0 +1,35 @@
+meta {
+  name: bookings/:booking_id/cancel
+  type: http
+  seq: 128
+}
+
+docs {
+  Hủy booking
+  Handler: cancel
+  Authentication: role 'customer', 'photographer'
+  Body: BookingCancelCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/cancel
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "reason": "Bruno API test cancellation"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -1,0 +1,27 @@
+meta {
+  name: bookings/:booking_id/gallery/publish
+  type: http
+  seq: 173
+}
+
+docs {
+  Publish gallery
+  Handler: publish
+  Authentication: role 'photographer'
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/gallery/publish
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

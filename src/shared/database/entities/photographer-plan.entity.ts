@@ -1,60 +1,41 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { bigintColumn } from './utils/column-transformers';
+import type { PlanFeatureValue } from '@shared/domain/types/plan.types';
 
 /**
- * Cấu hình tính năng / đặc quyền của gói hội viên
- */
-export interface PlanFeature {
-  /**
-   * Mã định danh tính năng (ví dụ: 'MAX_IMAGES', 'BADGE_PRO', 'PRIORITY_SEARCH')
-   */
-  code: string;
-
-  /**
-   * Tên hiển thị tính năng (ví dụ: 'Tải tối đa 100 ảnh', 'Huy hiệu PRO nổi bật')
-   */
-  name: string;
-
-  /**
-   * Giá trị cấu hình của tính năng (ví dụ: '100', 'true', 'unlimited')
-   */
-  value: string;
-}
-
-/**
- * Entity đại diện cho bảng `photographer_plans`.
- * Định nghĩa các gói hội viên / thuê bao dành cho Nhiếp ảnh gia (ví dụ: gói PRO, VIP theo tháng/năm).
+ * Entity representing the `photographer_plans` table.
+ * Defines photographer membership or subscription plans (for example, monthly or yearly PRO/VIP plans).
  */
 @Entity('photographer_plans')
 export class PhotographerPlanEntity extends BaseEntity {
-  /** Mã định danh gói hội viên (duy nhất, ví dụ: 'MONTHLY_PRO', 'YEARLY_VIP') */
+  /** Unique membership plan identifier (for example, 'MONTHLY_PRO' or 'YEARLY_VIP'). */
   @Column({ unique: true })
   code!: string;
 
-  /** Tên gói hội viên */
+  /** Membership plan name. */
   @Column()
   name!: string;
 
-  /** Mô tả chi tiết quyền lợi gói hội viên */
+  /** Detailed description of membership benefits. */
   @Column('text', { nullable: true })
   description!: string | null;
 
-  /** Giá cước thuê bao gói (VND) */
+  /** Subscription price (VND). */
   @Column(bigintColumn)
   price!: number;
 
-  /** Trạng thái gói còn mở bán hay không */
+  /** Whether the plan is currently available for purchase. */
   @Column({ default: true })
   is_active!: boolean;
 
-  /** Chu kỳ thanh toán (tính bằng số ngày, ví dụ: 30 ngày, 365 ngày) */
+  /** Billing cycle in days (for example, 30 or 365 days). */
   @Column()
   billing_cycle!: number;
 
   /**
-   * Danh sách tính năng / đặc quyền của gói hội viên (lưu trực tiếp dưới dạng mảng JSONB).
+   * Membership features or privileges, stored directly as a JSONB array.
    */
   @Column('jsonb', { default: [] })
-  features!: PlanFeature[];
+  features!: PlanFeatureValue[];
 }

@@ -1,0 +1,42 @@
+meta {
+  name: wallet/withdrawals
+  type: http
+  seq: 187
+}
+
+docs {
+  Yêu cầu rút tiền từ ví
+  Handler: withdrawal
+  Authentication: role 'customer', 'photographer'
+  Body: PaymentWithdrawalCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/wallet/withdrawals
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "amount": 10000,
+    "reason": "Bruno API test withdrawal",
+    "payout_destination": {
+      "bank_code": "VCB",
+      "account_number": "0123456789",
+      "account_name": "BRUNO TEST"
+    },
+    "idempotency_key": "bruno-local-withdrawal-001"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

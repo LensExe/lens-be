@@ -1,9 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { BookingStatus } from '@shared/domain/values/booking.values';
 import {
   IsString,
   IsUUID,
   IsISO8601,
+  IsIn,
   IsInt,
   Min,
   Max,
@@ -40,17 +42,18 @@ export class BookingAdminQueryQueryDto {
   @Max(1000000)
   offset?: number;
 
-  @ApiPropertyOptional({ description: 'status', type: 'string' })
+  @ApiPropertyOptional({
+    description: 'status',
+    enum: Object.values(BookingStatus),
+  })
   @ValidateIf((_object, value) => value !== undefined)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(500)
-  status?: string;
+  @IsIn(Object.values(BookingStatus))
+  status?: BookingStatus;
 }
 
 export class BookingCreateCommandBodyDto {
   @ApiProperty({
-    description: 'photographer id',
+    description: 'Photographer duy nhất chịu trách nhiệm cho booking',
     format: 'uuid',
     example: '11111111-1111-4111-8111-111111111111',
   })
@@ -58,12 +61,12 @@ export class BookingCreateCommandBodyDto {
   photographer_id!: string;
 
   @ApiProperty({
-    description: 'plan id',
+    description: 'Booking plan identifier',
     format: 'uuid',
     example: '11111111-1111-4111-8111-111111111111',
   })
   @IsUUID()
-  plan_id!: string;
+  booking_plan_id!: string;
 
   @ApiProperty({ description: 'location', type: 'string' })
   @IsString()
@@ -117,12 +120,13 @@ export class BookingListQueryQueryDto {
   @Max(1000000)
   offset?: number;
 
-  @ApiPropertyOptional({ description: 'status', type: 'string' })
+  @ApiPropertyOptional({
+    description: 'status',
+    enum: Object.values(BookingStatus),
+  })
   @ValidateIf((_object, value) => value !== undefined)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(500)
-  status?: string;
+  @IsIn(Object.values(BookingStatus))
+  status?: BookingStatus;
 
   @ApiPropertyOptional({
     description: 'from',

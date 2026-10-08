@@ -1,0 +1,27 @@
+meta {
+  name: bookings/:booking_id/start
+  type: http
+  seq: 134
+}
+
+docs {
+  Bắt đầu buổi chụp
+  Handler: start
+  Authentication: role 'photographer'
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/start
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

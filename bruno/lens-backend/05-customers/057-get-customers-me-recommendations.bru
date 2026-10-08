@@ -1,0 +1,28 @@
+meta {
+  name: customers/me/recommendations
+  type: http
+  seq: 157
+}
+
+docs {
+  Gợi ý thợ ảnh cho khách hàng theo profile
+  Handler: recommend
+  Authentication: role 'customer'
+  Query: CustomerRecommendQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/customers/me/recommendations?limit=20&offset=0
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{customerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

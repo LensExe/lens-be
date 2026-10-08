@@ -1,0 +1,35 @@
+meta {
+  name: reviews/:feedback_id/reply
+  type: http
+  seq: 163
+}
+
+docs {
+  Thợ trả lời đánh giá
+  Handler: reply
+  Authentication: role 'photographer'
+  Body: ReviewReplyCommandBodyDto
+}
+
+put {
+  url: {{baseUrl}}/reviews/{{feedbackId}}/reply
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "reply": "Thanks for your feedback."
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

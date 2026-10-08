@@ -1,0 +1,37 @@
+meta {
+  name: portfolios/:portfolio_id
+  type: http
+  seq: 221
+}
+
+docs {
+  Cập nhật portfolio
+  Handler: update
+  Authentication: role 'photographer'
+  Body: PortfolioUpdateCommandBodyDto
+}
+
+patch {
+  url: {{baseUrl}}/portfolios/{{portfolioId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Bruno test portfolio updated",
+    "category": "portrait",
+    "description": "Updated by Bruno API tests"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

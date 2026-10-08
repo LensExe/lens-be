@@ -1,0 +1,28 @@
+meta {
+  name: bookings
+  type: http
+  seq: 126
+}
+
+docs {
+  Danh sách booking
+  Handler: list
+  Authentication: role 'customer', 'photographer'
+  Query: BookingListQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/bookings?limit=20&offset=0
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

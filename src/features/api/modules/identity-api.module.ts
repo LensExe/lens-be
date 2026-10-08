@@ -10,6 +10,11 @@ import {
   IdentitySuspendCommandHandler,
   IdentityUnsuspendCommandHandler,
   IdentityUpdateMeCommandHandler,
+  IdentityAssignRoleCommandHandler,
+  IdentityRevokeRoleCommandHandler,
+  IdentityVerifyEmailCommandHandler,
+  IdentityForcePasswordResetCommandHandler,
+  IdentityLogoutCommandHandler,
 } from '@modules/identity/identity.command';
 import {
   IdentityAdminUserQueryHandler,
@@ -18,6 +23,7 @@ import {
   IdentityMeQueryHandler,
 } from '@modules/identity/identity.query';
 import { GoogleAuthService } from '../auth/google-auth.service';
+import { AuthService } from '../auth/auth.service';
 
 @Module({
   controllers: [
@@ -27,6 +33,7 @@ import { GoogleAuthService } from '../auth/google-auth.service';
     GoogleAuthController,
   ],
   providers: [
+    AuthService,
     GoogleAuthService,
     IdentityAdminBanCommandHandler,
     IdentityRegisterCommandHandler,
@@ -34,6 +41,11 @@ import { GoogleAuthService } from '../auth/google-auth.service';
     IdentitySuspendCommandHandler,
     IdentityUnsuspendCommandHandler,
     IdentityUpdateMeCommandHandler,
+    IdentityAssignRoleCommandHandler,
+    IdentityRevokeRoleCommandHandler,
+    IdentityVerifyEmailCommandHandler,
+    IdentityForcePasswordResetCommandHandler,
+    IdentityLogoutCommandHandler,
     IdentityAdminUserQueryHandler,
     IdentityAdminUsersQueryHandler,
     IdentityGetUserQueryHandler,

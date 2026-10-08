@@ -4,7 +4,7 @@ import type { KeycloakJwtPayload } from './jwt-jwks';
  * Request body for exchanging username/password for a token.
  */
 export interface KeycloakPasswordLoginParams {
-  username: string;
+  email: string;
   password: string;
 }
 
@@ -19,7 +19,6 @@ export interface KeycloakRefreshTokenParams {
  * Parameters for creating a Keycloak user with password credentials.
  */
 export interface KeycloakRegisterUserParams {
-  username: string;
   email: string;
   password: string;
   firstName?: string;
@@ -106,10 +105,6 @@ export interface KeycloakTokenIntrospectResponse extends Partial<KeycloakJwtPayl
    * Token type (typically "Bearer").
    */
   token_type?: string;
-  /**
-   * Avatar of the user.
-   */
-  avatar?: string;
 }
 
 export interface KeycloakOidcPkceBundle {

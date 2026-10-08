@@ -1,0 +1,27 @@
+meta {
+  name: admin/users/:user_id/unsuspend
+  type: http
+  seq: 105
+}
+
+docs {
+  Mở khóa tài khoản
+  Handler: unsuspend
+  Authentication: role 'admin'
+}
+
+post {
+  url: {{baseUrl}}/admin/users/{{userId}}/unsuspend
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

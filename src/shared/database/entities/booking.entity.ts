@@ -4,83 +4,62 @@ import {
   bigintColumn,
   timestampTransformer,
 } from './utils/column-transformers';
+import { BookingStatus } from '@shared/domain/values/booking.values';
 
 /**
- * Trạng thái của đơn đặt lịch chụp ảnh
- */
-export const BookingStatus = {
-  PENDING: 'pending',
-  ACCEPTED: 'accepted',
-  REJECTED: 'rejected',
-  CANCELLED: 'cancelled',
-  IN_PROGRESS: 'in_progress',
-  SHOT: 'shot',
-  COMPLETED: 'completed',
-} as const;
-
-export type BookingStatus = (typeof BookingStatus)[keyof typeof BookingStatus];
-
-/**
- * Các trạng thái booking chiếm dụng lịch chụp của photographer
- * (không thể đặt trùng hoặc tự khóa lịch trong khoảng thời gian này).
- */
-export const OCCUPIED_BOOKING_STATUSES = [
-  BookingStatus.PENDING,
-  BookingStatus.ACCEPTED,
-  BookingStatus.IN_PROGRESS,
-  BookingStatus.SHOT,
-  BookingStatus.COMPLETED,
-] as const;
-
-export type OccupiedBookingStatus = (typeof OCCUPIED_BOOKING_STATUSES)[number];
-
-/**
- * Entity đại diện cho bảng `bookings`.
- * Bảng nghiệp vụ cốt lõi quản lý thông tin các đơn đặt lịch thuê chụp ảnh giữa Khách hàng và Nhiếp ảnh gia.
+ * Entity representing the `bookings` table.
+ * Core business table managing photography bookings between customers and photographers.
  */
 @Entity('bookings')
 export class BookingEntity extends BaseEntity {
-  /** ID của khách hàng đặt lịch (khóa ngoại liên kết tới `customers.id`) */
+  /** ID of the customer who made the booking (foreign key referencing `customers.id`). */
   @Column('uuid')
   customer_id!: string;
 
-  /** ID của nhiếp ảnh gia được thuê (khóa ngoại liên kết tới `photographers.id`) */
+  /** Photographer solely responsible for the booking (foreign key `photographers.id`). */
   @Column('uuid')
   photographer_id!: string;
 
-  /** ID gói chụp được chọn (khóa ngoại liên kết tới `booking_plans.id`) */
+  /** ID of the selected photography plan (foreign key referencing `booking_plans.id`). */
   @Column('uuid')
   booking_plan_id!: string;
 
-  /** Địa điểm diễn ra buổi chụp ảnh */
+  /** Location of the photo shoot. */
   @Column()
   location!: string;
 
-  /** Thời gian bắt đầu buổi chụp (ISO timestamptz string) */
+  /** Shoot start time (ISO timestamptz string). */
   @Column('timestamptz', {
     transformer: timestampTransformer,
   })
   from!: string;
 
-  /** Thời gian dự kiến kết thúc buổi chụp (ISO timestamptz string) */
+  /** Expected shoot end time (ISO timestamptz string). */
   @Column('timestamptz', {
     transformer: timestampTransformer,
   })
   to!: string;
 
-  /** Số tiền đặt cọc cần thanh toán trước (VND) */
+  /** Deposit amount due in advance (VND). */
   @Column(bigintColumn)
   deposit_amount!: number;
 
-  /** Tổng giá trị hợp đồng của đơn booking (VND) */
+  /** Total contract value for the booking (VND). */
   @Column(bigintColumn)
   total_amount!: number;
 
-  /** Trạng thái đơn booking ('pending' | 'accepted' | 'rejected' | 'cancelled' | 'in_progress' | 'shot' | 'completed') */
-  @Column({ default: BookingStatus.PENDING })
+  /** Booking status ('pending' | 'accepted' | 'rejected' | 'cancelled' | 'expired' | 'in_progress' | 'shot' | 'completed'). */
+  @Column('text', { default: BookingStatus.PENDING })
   status!: BookingStatus;
 
-  /** Thời điểm album ảnh sản phẩm được bàn giao và công khai cho khách xem */
+  /** When the photographer accepted the booking; retained for lifecycle/audit data. `null` until accepted. */
+  @Column('timestamptz', {
+    nullable: true,
+    transformer: timestampTransformer,
+  })
+  accepted_at!: string | null;
+
+  /** Time when the delivered photo album was published for the customer. */
   @Column('timestamptz', {
     nullable: true,
     transformer: timestampTransformer,

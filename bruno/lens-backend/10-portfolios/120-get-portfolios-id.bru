@@ -1,0 +1,23 @@
+meta {
+  name: portfolios/:portfolio_id
+  type: http
+  seq: 220
+}
+
+docs {
+  Chi tiết portfolio
+  Handler: get
+  Authentication: public
+}
+
+get {
+  url: {{baseUrl}}/portfolios/{{portfolioId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

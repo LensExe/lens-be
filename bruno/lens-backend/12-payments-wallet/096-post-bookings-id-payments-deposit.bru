@@ -1,0 +1,36 @@
+meta {
+  name: bookings/:booking_id/payments/deposit
+  type: http
+  seq: 196
+}
+
+docs {
+  Tạo thanh toán đặt cọc
+  Handler: deposit
+  Authentication: role 'customer'
+  Body: PaymentDepositCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/payments/deposit
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{customerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "idempotency_key": "bruno-local-deposit-001",
+    "payment_method": "gateway"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

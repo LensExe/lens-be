@@ -1,0 +1,39 @@
+meta {
+  name: users/me
+  type: http
+  seq: 235
+}
+
+patch {
+  url: {{baseUrl}}/users/me
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "fullname": "Anh Đỗ Nguyễn Nhĩ",
+    "avatar_url": "https://example.test/avatar.png",
+    "phone_number": "+84901234567",
+    "gender": "other",
+    "dob": "1995-01-01"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}
+
+docs {
+  Cập nhật hồ sơ cá nhân
+  Handler: updateMe
+  Authentication: Bearer token
+  Body: IdentityUpdateMeCommandBodyDto
+}

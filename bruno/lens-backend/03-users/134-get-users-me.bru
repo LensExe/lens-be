@@ -1,0 +1,27 @@
+meta {
+  name: users/me
+  type: http
+  seq: 234
+}
+
+docs {
+  Lấy hồ sơ cá nhân
+  Handler: me
+  Authentication: Bearer token
+}
+
+get {
+  url: {{baseUrl}}/users/me
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

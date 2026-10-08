@@ -1,0 +1,27 @@
+meta {
+  name: admin/users/:user_id
+  type: http
+  seq: 102
+}
+
+docs {
+  Chi tiết user
+  Handler: adminUser
+  Authentication: role 'admin'
+}
+
+get {
+  url: {{baseUrl}}/admin/users/{{userId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

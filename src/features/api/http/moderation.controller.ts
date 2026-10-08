@@ -29,12 +29,16 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { Access } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
-import { ModerationDashboardQuery } from '@modules/moderation/moderation.query';
-import { ModerationListQuery } from '@modules/moderation/moderation.query';
-import { ModerationMineQuery } from '@modules/moderation/moderation.query';
-import { ModerationCreateCommand } from '@modules/moderation/moderation.command';
-import { ModerationResolveCommand } from '@modules/moderation/moderation.command';
-import { ModerationGetQuery } from '@modules/moderation/moderation.query';
+import { ModerationDashboardQuery } from '@modules/moderation/dashboard/dashboard.query';
+import {
+  ModerationGetQuery,
+  ModerationListQuery,
+  ModerationMineQuery,
+} from '@modules/moderation/report/report.query';
+import {
+  ModerationCreateCommand,
+  ModerationResolveCommand,
+} from '@modules/moderation/report/report.command';
 
 @ApiTags('Moderation')
 @Controller()
@@ -43,6 +47,13 @@ export class ModerationController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  /**
+   * Summarize moderation metrics for the admin dashboard.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('admin/dashboard')
   @ApiOperation({
     operationId: 'ADM-001',
@@ -78,6 +89,13 @@ export class ModerationController {
     );
   }
 
+  /**
+   * List moderation records using the supplied query filters.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('admin/reports')
   @ApiOperation({
     operationId: 'MOD-003',
@@ -142,6 +160,13 @@ export class ModerationController {
     );
   }
 
+  /**
+   * List reports created by the current user.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param query Query filters and pagination options.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('reports/me')
   @ApiOperation({
     operationId: 'MOD-002',
@@ -194,6 +219,13 @@ export class ModerationController {
     );
   }
 
+  /**
+   * Create a moderation report for the target and reason supplied by the user.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('reports')
   @ApiOperation({
     operationId: 'MOD-001',
@@ -237,7 +269,15 @@ export class ModerationController {
     );
   }
 
-  @Post('admin/reports/:id/resolve')
+  /**
+   * Resolve the target entity using the current data.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
+  @Post('admin/reports/:report_id/resolve')
   @ApiOperation({
     operationId: 'MOD-005',
     summary: 'Xử lý report',
@@ -261,7 +301,7 @@ export class ModerationController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'report_id', type: String, description: 'Report UUID' })
   @ApiBody({ type: Dto.ModerationResolveCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -271,18 +311,25 @@ export class ModerationController {
   @HttpCode(200)
   resolve(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('report_id', new ParseUUIDPipe()) report_id: string,
     @Body() body: Dto.ModerationResolveCommandBodyDto,
   ) {
     return this.commands.execute(
       new ModerationResolveCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        report_id,
       }),
     );
   }
 
-  @Get('admin/reports/:id')
+  /**
+   * Get moderation details by ID after checking access permissions.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
+  @Get('admin/reports/:report_id')
   @ApiOperation({
     operationId: 'MOD-004',
     summary: 'Chi tiết report',
@@ -306,7 +353,7 @@ export class ModerationController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'report_id', type: String, description: 'Report UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -314,10 +361,12 @@ export class ModerationController {
   })
   get(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('report_id', new ParseUUIDPipe()) report_id: string,
   ) {
     return this.queries.execute(
-      new ModerationGetQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new ModerationGetQuery(req.actor ?? { sub: '', roles: [] }, {
+        report_id,
+      }),
     );
   }
 }

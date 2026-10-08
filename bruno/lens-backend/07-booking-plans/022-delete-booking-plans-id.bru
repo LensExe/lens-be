@@ -1,0 +1,27 @@
+meta {
+  name: booking-plans/:booking_plan_id
+  type: http
+  seq: 122
+}
+
+docs {
+  Xoá gói chụp
+  Handler: remove
+  Authentication: role 'photographer'
+}
+
+delete {
+  url: {{baseUrl}}/booking-plans/{{bookingPlanId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

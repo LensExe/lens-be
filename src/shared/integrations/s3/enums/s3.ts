@@ -1,4 +1,5 @@
 export enum S3Provider {
-  DigitalOcean = 'digitalOcean',
+  Cloud = 'cloud',
+  DigitalOcean = 'digitalocean',
   Minio = 'minio',
 }

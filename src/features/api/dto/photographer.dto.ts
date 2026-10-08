@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsString,
   IsBoolean,
@@ -12,8 +12,13 @@ import {
   MaxLength,
   ArrayMaxSize,
   ArrayUnique,
+  IsIn,
   ValidateIf,
 } from 'class-validator';
+import {
+  PhotographyStyle,
+  type PhotographyStyle as PhotographyStyleValue,
+} from '@shared/domain/values/photography-style.values';
 
 export class PhotographerLocationCommandBodyDto {
   @ApiProperty({ description: 'location', type: 'string' })
@@ -55,6 +60,27 @@ export class PhotographerAdminQueryQueryDto {
   @Min(0)
   @Max(1000000)
   offset?: number;
+
+  @ApiPropertyOptional({
+    description: 'verification status',
+    enum: ['unverified', 'pending', 'verified', 'rejected'],
+    example: 'pending',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsIn(['unverified', 'pending', 'verified', 'rejected'])
+  verification_status?: 'unverified' | 'pending' | 'verified' | 'rejected';
+}
+
+export class PhotographerRejectCommandBodyDto {
+  @ApiProperty({
+    description: 'reason',
+    type: 'string',
+    example: 'Portfolio chưa đủ ảnh để đánh giá',
+  })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(10000)
+  reason!: string;
 }
 
 export class PhotographerUpdateCommandBodyDto {
@@ -69,13 +95,22 @@ export class PhotographerUpdateCommandBodyDto {
     description: 'styles',
     type: 'array',
     items: { type: 'string' },
+    enum: Object.values(PhotographyStyle),
   })
   @ValidateIf((_object, value) => value !== undefined)
   @IsArray()
   @ArrayMaxSize(200)
   @ArrayUnique()
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? value.map((style) =>
+          typeof style === 'string' ? style.trim().toLowerCase() : style,
+        )
+      : value,
+  )
   @IsString({ each: true })
-  styles?: string[];
+  @IsIn(Object.values(PhotographyStyle), { each: true })
+  styles?: PhotographyStyleValue[];
 
   @ApiPropertyOptional({
     description: 'Year the photographer started their career',
@@ -109,12 +144,21 @@ export class PhotographerCreateCommandBodyDto {
     description: 'styles',
     type: 'array',
     items: { type: 'string' },
+    enum: Object.values(PhotographyStyle),
   })
   @IsArray()
   @ArrayMaxSize(200)
   @ArrayUnique()
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? value.map((style) =>
+          typeof style === 'string' ? style.trim().toLowerCase() : style,
+        )
+      : value,
+  )
   @IsString({ each: true })
-  styles!: string[];
+  @IsIn(Object.values(PhotographyStyle), { each: true })
+  styles!: PhotographyStyleValue[];
 
   @ApiPropertyOptional({
     description: 'Year the photographer started their career',

@@ -1,25 +1,58 @@
-import type { SchemaObject } from '@nestjs/swagger';
+import type { ReferenceObject, SchemaObject } from '@nestjs/swagger';
 import { recordSchemas as records } from './record-schemas';
+import { PhotographyStyle } from '@shared/domain/values/photography-style.values';
 
 const str: SchemaObject = { type: 'string' },
   num: SchemaObject = { type: 'number' },
-  bool: SchemaObject = { type: 'boolean' };
+  bool: SchemaObject = { type: 'boolean' },
+  photographyStyle: SchemaObject = {
+    type: 'string',
+    enum: Object.values(PhotographyStyle),
+  };
 
-const obj = (properties: Record<string, SchemaObject>): SchemaObject => ({
+/**
+ * Create an OpenAPI object schema from a list of properties.
+ *
+ * @param properties properties data of type Record<string, SchemaObject>.
+ * @returns Result object containing the fields `type`, `properties`.
+ */
+const obj = (
+  properties: Record<string, SchemaObject | ReferenceObject>,
+): SchemaObject => ({
   type: 'object',
   properties,
 });
 
+/**
+ * Create an OpenAPI schema for an array with the specified item type.
+ *
+ * @param items items data of type SchemaObject.
+ * @returns Result object containing the fields `type`, `items`.
+ */
 const array = (items: SchemaObject): SchemaObject => ({ type: 'array', items });
 
+/**
+ * Create a response schema containing a list of records.
+ *
+ * @param record record data of type SchemaObject.
+ * @returns Result returned by `obj`.
+ */
 const items = (record: SchemaObject) => obj({ items: array(record) });
 
+/**
+ * Create a paginated list response schema with the total count and pagination details.
+ *
+ * @param record record data of type SchemaObject.
+ * @returns Result returned by `obj`.
+ */
 const paged = (record: SchemaObject) =>
   obj({ items: array(record), total: num, limit: num, offset: num });
 
 const deleted = obj({ deleted: bool });
 
-const planFeature = obj({ code: str, name: str, value: str });
+const planFeature = {
+  oneOf: [obj({ code: str, name: str, kind: str, unit: str, value: str }), str],
+};
 
 const portfolioItem = obj({
   id: str,
@@ -29,33 +62,134 @@ const portfolioItem = obj({
   download_url: str,
 });
 
+const reportHistory = obj({
+  id: str,
+  report_id: str,
+  event_type: str,
+  from_status: { ...str, nullable: true },
+  to_status: str,
+  actor_user_id: { ...str, nullable: true },
+  actor_role: str,
+  note: { ...str, nullable: true },
+  created_at: str,
+  updated_at: str,
+});
+
+const reportHistoryPublic = obj({
+  id: str,
+  event_type: str,
+  from_status: { ...str, nullable: true },
+  to_status: str,
+  actor_role: str,
+  created_at: str,
+});
+
+const reportEvidence = obj({
+  report_evidence_id: str,
+  sort_order: num,
+  id: str,
+  status: str,
+  content_type: str,
+  file_size: num,
+  visibility: str,
+  thumbnail_url: { ...str, nullable: true },
+  preview_url: { ...str, nullable: true },
+  download_url: { ...str, nullable: true },
+  expires_in: { ...num, nullable: true },
+});
+
+const reportMine = obj({
+  ...records.reports.properties,
+  history: array(reportHistoryPublic),
+});
+
+const reportDetails = obj({
+  ...records.reports.properties,
+  evidence: array(reportEvidence),
+  history: array(reportHistory),
+});
+
+const publicReview = obj({
+  id: str,
+  rating: num,
+  punctuality_rating: num,
+  attitude_rating: num,
+  comment: str,
+  is_edited: bool,
+  photographer_reply: { ...str, nullable: true },
+  replied_at: { ...str, nullable: true },
+  created_at: str,
+  customer: obj({ name: str, avatar_url: { ...str, nullable: true } }),
+});
+
 const photographer = obj({
   id: str,
   fullname: str,
   avatar_url: { ...str, nullable: true },
-  styles: array(str),
+  styles: array(photographyStyle),
   started_career_at: { ...num, nullable: true },
   is_verified: bool,
   verification_status: str,
   location: str,
   is_available: bool,
   description: str,
-  rating: records.ratings,
+  rating: obj({
+    average_rating: num,
+    total_feedbacks: num,
+    total_bookings: num,
+    return_customers: num,
+  }),
+  rank: obj({ code: str, name: str }),
+  badges: array(obj({ code: str, name: str, earned_at: str })),
+});
+
+const rank = obj({
+  id: str,
+  code: str,
+  name: str,
+  min_completed: num,
+  commission_percent: num,
+});
+
+const badge = obj({
+  id: str,
+  code: str,
+  name: str,
+  description: str,
+  metric: {
+    ...str,
+    enum: ['average_rating', 'average_punctuality', 'return_customers'],
+  },
+  min_value: num,
+  min_reviews: num,
+  is_active: bool,
 });
 
 const privatePhotographer = obj({
   ...photographer.properties,
   tax_code: { ...str, nullable: true },
   user_id: str,
+  rejection_reason: { ...str, nullable: true },
+  reviewed_at: { ...str, nullable: true },
+  commission_percent: num,
 });
 
 const gallery = obj({
   ...records.booking_deliveries.properties,
   published_at: { ...str, nullable: true },
   items: array(
-    obj({ id: str, media_id: str, file_size: num, download_url: str }),
+    obj({
+      id: str,
+      media_id: str,
+      file_size: num,
+      content_type: str,
+      thumbnail_url: str,
+      width: { ...num, nullable: true },
+      height: { ...num, nullable: true },
+      download_url: str,
+    }),
   ),
-  expires_in: num,
+  expires_in: { ...num, nullable: true },
 });
 
 const portfolio = obj({
@@ -70,7 +204,23 @@ const subscription = obj({
   features: array(planFeature),
 });
 
+const subscriptionHistory = obj({
+  items: array(records.subscription_status_history),
+});
+
 const webhook = obj({ received: bool, duplicate: bool });
+
+const tokenSet = obj({
+  access_token: str,
+  expires_in: num,
+  refresh_token: str,
+  scope: str,
+  token_type: str,
+});
+
+const authSession = obj({ ...tokenSet.properties, user: records.users });
+
+const authResult = obj({ success: bool, message: str });
 
 const schemas: Record<string, SchemaObject> = {
   'AUTH-001': records.users,
@@ -90,6 +240,15 @@ const schemas: Record<string, SchemaObject> = {
     token_type: str,
     user: records.users,
   }),
+  'AUTH-009': authSession,
+  'AUTH-010': tokenSet,
+  'AUTH-011': authResult,
+  'AUTH-012': authResult,
+  'AUTH-013': authResult,
+  'AUTH-014': obj({ ...authResult.properties, reset_token: str }),
+  'AUTH-015': authResult,
+  'AUTH-016': authResult,
+  'AUTH-017': authResult,
   'PHO-001': privatePhotographer,
   'PHO-002': photographer,
   'PHO-003': privatePhotographer,
@@ -98,6 +257,13 @@ const schemas: Record<string, SchemaObject> = {
   'PHO-006': paged(photographer),
   'PHO-007': privatePhotographer,
   'PHO-008': privatePhotographer,
+  'PHO-009': records.booking_plans,
+  'PHO-010': items(obj({ ...records.booking_plans.properties })),
+  'PHO-011': records.booking_plans,
+  'PHO-012': deleted,
+  'PHO-013': items(records.booking_plans),
+  'PHO-014': items(rank),
+  'PHO-015': items(badge),
   'PORT-001': records.portfolios,
   'PORT-002': paged(records.portfolios),
   'PORT-003': portfolio,
@@ -106,13 +272,16 @@ const schemas: Record<string, SchemaObject> = {
   'PORT-006': portfolioItem,
   'PORT-007': deleted,
   'PORT-008': portfolio,
+  'PORT-009': paged(records.portfolios),
   'CAL-001': items(obj({ from: str, to: str })),
+  'CAL-011': items(obj({ id: str, from: str, to: str })),
   'CAL-002': obj({
     blocked: array(records.offline_slots),
     bookings: array(records.bookings),
   }),
   'CAL-006': records.offline_slots,
   'CAL-007': deleted,
+  'CAL-010': items(records.bookings),
   'BOOK-001': records.bookings,
   'BOOK-002': records.bookings,
   'BOOK-003': paged(records.bookings),
@@ -122,31 +291,62 @@ const schemas: Record<string, SchemaObject> = {
   'BOOK-007': records.bookings,
   'BOOK-008': records.bookings,
   'BOOK-009': records.bookings,
-  'BOOK-010': items(
-    obj({ booking_id: str, status: str, created_at: str, updated_at: str }),
-  ),
+  'BOOK-010': items(records.booking_status_history),
   'BOOK-011': records.reports,
+  'BOOK-012': records.bookings,
+  'BOOK-019': records.bookings,
   'PAY-001': records.transactions,
   'PAY-002': records.transactions,
-  'PAY-003': items(records.transactions),
+  'PAY-003': obj({
+    items: array(records.transactions),
+    escrow_release_at: { ...str, nullable: true },
+    refund_request_deadline_at: { ...str, nullable: true },
+  }),
   'PAY-004': records.transactions,
   'PAY-005': obj({
     id: str,
     status: str,
     qr_code: { ...str, nullable: true },
     checkout_url: { ...str, nullable: true },
+    checkout_expires_at: { ...str, nullable: true },
+    checkout_expired: bool,
+    checkout_review_required_at: { ...str, nullable: true },
   }),
   'PAY-006': webhook,
   'PAY-007': records.refund_requests,
   'PAY-008': items(records.refund_requests),
+  'PAY-009': records.wallets,
+  'PAY-010': paged(records.wallet_ledger),
+  'PAY-011': records.transactions,
+  'PAY-012': records.refund_requests,
+  'PAY-013': paged(records.refund_requests),
+  'PAY-014': records.refund_requests,
+  'PAY-015': paged(records.refund_requests),
+  'PAY-016': records.refund_requests,
+  'PAY-017': records.refund_requests,
+  'PAY-018': records.refund_requests,
+  'PAY-019': records.refund_requests,
+  'PAY-020': obj({
+    id: str,
+    booking_id: str,
+    release_at: str,
+    refund_request_deadline_at: str,
+    release_processed_at: { ...str, nullable: true },
+    created_at: str,
+    updated_at: str,
+  }),
   'MEDIA-001': obj({ media: records.media, upload_url: str, expires_in: num }),
   'MEDIA-002': records.media,
   'MEDIA-003': obj({
     id: str,
+    status: str,
     content_type: str,
     file_size: num,
-    download_url: str,
-    expires_in: num,
+    visibility: str,
+    thumbnail_url: { ...str, nullable: true },
+    preview_url: { ...str, nullable: true },
+    download_url: { ...str, nullable: true },
+    expires_in: { ...num, nullable: true },
   }),
   'MEDIA-004': deleted,
   'MEDIA-005': records.booking_deliveries,
@@ -155,7 +355,7 @@ const schemas: Record<string, SchemaObject> = {
   'MEDIA-008': gallery,
   'MEDIA-009': gallery,
   'REV-001': records.feedbacks,
-  'REV-002': paged(records.feedbacks),
+  'REV-002': paged(publicReview),
   'REV-003': obj({
     average_rating: num,
     total_feedbacks: num,
@@ -163,6 +363,10 @@ const schemas: Record<string, SchemaObject> = {
   }),
   'REV-004': records.feedbacks,
   'REV-005': deleted,
+  'REV-006': records.feedbacks,
+  'REV-007': records.feedbacks,
+  'REV-008': paged(records.feedbacks),
+  'REV-009': records.feedbacks,
   'SUB-001': obj({
     items: array(
       obj({
@@ -170,7 +374,6 @@ const schemas: Record<string, SchemaObject> = {
         features: array(planFeature),
       }),
     ),
-    booking_plans: array(records.booking_plans),
   }),
   'SUB-002': obj({
     subscription: records.subscriptions,
@@ -178,12 +381,29 @@ const schemas: Record<string, SchemaObject> = {
   }),
   'SUB-003': subscription,
   'SUB-004': records.subscriptions,
-  'SUB-005': obj({ ...subscription.properties, storage_bytes: num }),
+  'SUB-005': obj({
+    ...subscription.properties,
+    storage_bytes: num,
+    reserved_storage_bytes: num,
+    storage_limit_bytes: { ...num, nullable: true },
+    storage_remaining_bytes: { ...num, nullable: true },
+    storage_over_limit: bool,
+    portfolio_count: num,
+    portfolio_limit: { ...num, nullable: true },
+    portfolio_remaining_count: { ...num, nullable: true },
+    portfolio_over_limit: bool,
+  }),
   'SUB-006': webhook,
+  'SUB-007': subscriptionHistory,
+  'SUB-008': obj({
+    transaction: records.transactions,
+    subscription: records.subscriptions,
+    refund: { oneOf: [records.refund_requests, { type: 'null' }] },
+  }),
   'MOD-001': records.reports,
-  'MOD-002': paged(records.reports),
+  'MOD-002': paged(reportMine),
   'MOD-003': paged(records.reports),
-  'MOD-004': records.reports,
+  'MOD-004': reportDetails,
   'MOD-005': records.reports,
   'MOD-006': records.users,
   'MOD-007': records.users,
@@ -201,7 +421,46 @@ const schemas: Record<string, SchemaObject> = {
   'ADM-006': paged(records.transactions),
   'ADM-007': paged(records.photographers),
   'ADM-008': records.users,
+  'ADM-009': privatePhotographer,
+  'ADM-010': privatePhotographer,
+  'ADM-011': rank,
+  'ADM-012': badge,
+  'CUST-001': obj({
+    ...records.customers.properties!,
+    fullname: str,
+    avatar_url: { ...str, nullable: true },
+  }),
+  'CUST-002': records.customers,
+  'CUST-003': obj({
+    ...records.customers.properties!,
+    fullname: str,
+    avatar_url: { ...str, nullable: true },
+  }),
+  'CUST-004': paged(
+    obj({
+      ...records.customers.properties!,
+      fullname: str,
+      email: str,
+      avatar_url: { ...str, nullable: true },
+      status: str,
+    }),
+  ),
+  'CUST-005': obj({
+    total: num,
+    pending: num,
+    completed: num,
+    total_spent_vnd: num,
+  }),
+  'CUST-006': paged(photographer),
 };
+
+/**
+ * Create an OpenAPI schema for the specified response structure.
+ *
+ * @param id ID of the record to process.
+ * @returns Processed schema value.
+ * @throws {Error} Thrown when the operation cannot be completed.
+ */
 export function responseSchema(id: string): SchemaObject {
   const schema = schemas[id];
   if (!schema) throw new Error(`Missing response schema: ${id}`);

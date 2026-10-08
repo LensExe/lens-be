@@ -1,5 +1,7 @@
+import type { ReviewStatus } from '@shared/domain/values/review.values';
+
 export interface ReviewCreateCommandInput {
-  id: string;
+  booking_id: string;
   rating: number;
   punctuality_rating: number;
   attitude_rating: number;
@@ -7,17 +9,17 @@ export interface ReviewCreateCommandInput {
 }
 
 export interface ReviewSummaryQueryInput {
-  id: string;
+  photographer_id: string;
 }
 
 export interface ReviewListQueryInput {
-  id: string;
+  photographer_id: string;
   limit?: number;
   offset?: number;
 }
 
 export interface ReviewUpdateCommandInput {
-  id: string;
+  feedback_id: string;
   rating?: number;
   punctuality_rating?: number;
   attitude_rating?: number;
@@ -25,5 +27,26 @@ export interface ReviewUpdateCommandInput {
 }
 
 export interface ReviewRemoveCommandInput {
-  id: string;
+  feedback_id: string;
+}
+
+export interface ReviewReplyCommandInput {
+  feedback_id: string;
+  reply: string;
+}
+
+export interface ReviewRestoreCommandInput {
+  feedback_id: string;
+}
+
+export interface ReviewHideCommandInput {
+  feedback_id: string;
+  reason: string;
+}
+
+export interface ReviewAdminListQueryInput {
+  limit?: number;
+  offset?: number;
+  status?: ReviewStatus;
+  photographer_id?: string;
 }

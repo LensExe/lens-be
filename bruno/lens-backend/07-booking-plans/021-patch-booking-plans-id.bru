@@ -1,0 +1,40 @@
+meta {
+  name: booking-plans/:booking_plan_id
+  type: http
+  seq: 121
+}
+
+docs {
+  Sửa gói chụp
+  Handler: update
+  Authentication: role 'photographer'
+  Body: BookingPlanUpdateCommandBodyDto
+}
+
+patch {
+  url: {{baseUrl}}/booking-plans/{{bookingPlanId}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Bruno test plan updated",
+    "price": 1000000,
+    "duration_minutes": 90,
+    "photo_count": 50,
+    "retouched_photo_count": 10,
+    "is_active": true
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

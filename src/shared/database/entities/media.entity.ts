@@ -1,72 +1,51 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { bigintColumn } from './utils/column-transformers';
+import {
+  MediaStatus,
+  MediaVisibility,
+} from '@shared/domain/values/media.values';
+import type {
+  MediaContentType,
+  MediaStatus as MediaStatusType,
+  MediaVisibility as MediaVisibilityType,
+} from '@shared/domain/values/media.values';
+import { timestampTransformer } from './utils/column-transformers';
 
 /**
- * Các định dạng MIME của tập tin media được hỗ trợ trong hệ thống
- */
-export const MediaContentType = {
-  JPEG: 'image/jpeg',
-  PNG: 'image/png',
-  WEBP: 'image/webp',
-  HEIC: 'image/heic',
-  MP4: 'video/mp4',
-  QUICKTIME: 'video/quicktime',
-} as const;
-
-export type MediaContentType =
-  (typeof MediaContentType)[keyof typeof MediaContentType];
-
-/**
- * Danh sách toàn bộ các MIME types hợp lệ được phép tải lên
- */
-export const ALLOWED_MEDIA_CONTENT_TYPES = [
-  MediaContentType.JPEG,
-  MediaContentType.PNG,
-  MediaContentType.WEBP,
-  MediaContentType.HEIC,
-  MediaContentType.MP4,
-  MediaContentType.QUICKTIME,
-] as const;
-
-export type AllowedMediaContentType =
-  (typeof ALLOWED_MEDIA_CONTENT_TYPES)[number];
-
-/**
- * Trạng thái xử lý của tệp tin media
- */
-export const MediaStatus = {
-  PENDING: 'pending',
-  UPLOADED: 'uploaded',
-  READY: 'ready',
-  DELETED: 'deleted',
-} as const;
-
-export type MediaStatus = (typeof MediaStatus)[keyof typeof MediaStatus];
-
-/**
- * Entity đại diện cho bảng `media`.
- * Lưu trữ thông tin metadata của tất cả các tập tin tải lên hệ thống (ảnh đại diện, album ảnh, bằng chứng tranh chấp...).
+ * Entity representing the `media` table.
+ * Stores metadata for all files uploaded to the system (profile images, photo albums, dispute evidence, etc.).
  */
 @Entity('media')
 export class MediaEntity extends BaseEntity {
-  /** ID của người dùng sở hữu tập tin tải lên (khóa ngoại liên kết `users.id`) */
+  /** ID of the user who owns the uploaded file (foreign key referencing `users.id`). */
   @Column('uuid')
   user_id!: string;
 
-  /** Đường dẫn / định danh duy nhất của tệp tin trên dịch vụ lưu trữ đám mây (S3 Key) */
+  /** Unique path or identifier for the file in cloud storage (S3 key). */
   @Column({ unique: true })
   file_key!: string;
 
-  /** Dung lượng tập tin (bytes), tự động ép kiểu sang dạng số number */
+  /** File size in bytes, automatically converted to a number. */
   @Column(bigintColumn)
   file_size!: number;
 
-  /** Định dạng MIME của tập tin (ví dụ: 'image/jpeg', 'image/png', 'image/webp') */
+  /** File MIME type (for example, 'image/jpeg', 'image/png', or 'image/webp'). */
   @Column()
   content_type!: MediaContentType;
 
-  /** Trạng thái xử lý của tệp tin ('pending' | 'uploaded' | 'ready' | 'deleted') */
+  /** Private by default; public objects must be readable under the bucket policy. */
+  @Column({ default: MediaVisibility.PRIVATE })
+  visibility!: MediaVisibilityType;
+
+  /** Processing status of the file. */
   @Column({ default: MediaStatus.PENDING })
-  status!: MediaStatus;
+  status!: MediaStatusType;
+
+  /** Deadline of the current presigned upload reservation; null after completion. */
+  @Column('timestamptz', {
+    nullable: true,
+    transformer: timestampTransformer,
+  })
+  upload_expires_at!: string | null;
 }

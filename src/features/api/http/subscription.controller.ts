@@ -29,10 +29,12 @@ import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
 import { SubscriptionUsageQuery } from '@modules/subscription/subscriptions.query';
 import { SubscriptionMeQuery } from '@modules/subscription/subscriptions.query';
+import { SubscriptionHistoryQuery } from '@modules/subscription/subscriptions.query';
 import { SubscriptionPlansQuery } from '@modules/subscription/subscriptions.query';
 import { SubscriptionCreateCommand } from '@modules/subscription/subscriptions.command';
 import { SubscriptionCancelCommand } from '@modules/subscription/subscriptions.command';
 import { SubscriptionWebhookCommand } from '@modules/subscription/subscriptions.command';
+import { SubscriptionResolvePaymentReviewCommand } from '@modules/subscription/subscriptions.command';
 
 @ApiTags('Subscription')
 @Controller()
@@ -41,6 +43,13 @@ export class SubscriptionController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  /**
+   * Summarize the current subscription usage for the user.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('subscriptions/me/usage')
   @ApiOperation({
     operationId: 'SUB-005',
@@ -76,6 +85,12 @@ export class SubscriptionController {
     );
   }
 
+  /**
+   * Get the current user information from the authenticated identity.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
   @Get('subscriptions/me')
   @ApiOperation({
     operationId: 'SUB-003',
@@ -112,7 +127,39 @@ export class SubscriptionController {
     );
   }
 
-  @Get('plans')
+  /** List the authenticated photographer's subscription lifecycle events. */
+  @Get('subscriptions/me/history')
+  @ApiOperation({
+    operationId: 'SUB-007',
+    summary: 'Lịch sử subscription',
+    description: 'Xem các lần đăng ký, kích hoạt, hủy gia hạn và hết hạn.',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('SUB-007'),
+  })
+  history(@Req() req: { actor?: Actor }) {
+    return this.queries.execute(
+      new SubscriptionHistoryQuery(req.actor ?? { sub: '', roles: [] }, {}),
+    );
+  }
+
+  /**
+   * List the subscriptions available for enrollment.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result of the query dispatched to its handler.
+   */
+  @Get('subscriptions/plans')
   @ApiOperation({
     operationId: 'SUB-001',
     summary: 'Danh sách gói VIP',
@@ -140,6 +187,13 @@ export class SubscriptionController {
     );
   }
 
+  /**
+   * Create a subscription after validating the input and business rules.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('subscriptions')
   @ApiOperation({
     operationId: 'SUB-002',
@@ -177,16 +231,25 @@ export class SubscriptionController {
   ) {
     return this.commands.execute(
       new SubscriptionCreateCommand(req.actor ?? { sub: '', roles: [] }, {
-        ...body,
+        photographer_plan_id: body.photographer_plan_id,
+        idempotency_key: body.idempotency_key,
       }),
     );
   }
 
-  @Post('subscriptions/:id/cancel')
+  /**
+   * Cancel a subscription and apply the related business rules.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
+  @Post('subscriptions/:subscription_id/cancel')
   @ApiOperation({
     operationId: 'SUB-004',
     summary: 'Hủy gia hạn subscription',
-    description: 'Dừng auto-renew theo chính sách. Role: Photographer',
+    description:
+      'Ngừng gia hạn sau kỳ đã thanh toán; quyền lợi còn đến end_at. Role: Photographer',
   })
   @Access(['photographer'])
   @ApiBearerAuth()
@@ -206,7 +269,11 @@ export class SubscriptionController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({
+    name: 'subscription_id',
+    type: String,
+    description: 'Subscription UUID',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -215,15 +282,59 @@ export class SubscriptionController {
   @HttpCode(200)
   cancel(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('subscription_id', new ParseUUIDPipe()) subscription_id: string,
   ) {
     return this.commands.execute(
       new SubscriptionCancelCommand(req.actor ?? { sub: '', roles: [] }, {
-        id,
+        subscription_id,
       }),
     );
   }
 
+  /** Resolve a subscription payment after automatic provider reconciliation. */
+  @Post('admin/subscriptions/payments/:subscription_payment_id/reconcile')
+  @HttpCode(200)
+  @ApiOperation({
+    operationId: 'SUB-008',
+    summary: 'Đối soát payment subscription',
+    description:
+      'Admin xác nhận payment để kích hoạt subscription hoặc tạo yêu cầu refund, hoặc xác nhận chưa thu tiền để đóng checkout.',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiParam({
+    name: 'subscription_payment_id',
+    type: String,
+    description: 'Subscription payment UUID',
+  })
+  @ApiBody({ type: Dto.SubscriptionPaymentReviewResolutionBodyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Subscription payment review resolved and recorded.',
+    schema: responseSchema('SUB-008'),
+  })
+  resolvePaymentReview(
+    @Req() req: { actor?: Actor },
+    @Param('subscription_payment_id', new ParseUUIDPipe())
+    subscription_payment_id: string,
+    @Body() body: Dto.SubscriptionPaymentReviewResolutionBodyDto,
+  ) {
+    return this.commands.execute(
+      new SubscriptionResolvePaymentReviewCommand(
+        req.actor ?? { sub: '', roles: [] },
+        { ...body, subscription_payment_id },
+      ),
+    );
+  }
+
+  /**
+   * Validate and process a webhook from the provider.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param provider Selected service provider.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('subscriptions/webhooks/:provider')
   @ApiOperation({
     operationId: 'SUB-006',

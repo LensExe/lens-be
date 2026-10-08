@@ -3,13 +3,13 @@ import { ModerationController } from '../http/moderation.controller';
 import {
   ModerationCreateCommandHandler,
   ModerationResolveCommandHandler,
-} from '@modules/moderation/moderation.command';
+} from '@modules/moderation/report/report.command';
 import {
-  ModerationDashboardQueryHandler,
   ModerationGetQueryHandler,
   ModerationListQueryHandler,
   ModerationMineQueryHandler,
-} from '@modules/moderation/moderation.query';
+} from '@modules/moderation/report/report.query';
+import { ModerationDashboardQueryHandler } from '@modules/moderation/dashboard/dashboard.query';
 
 @Module({
   controllers: [ModerationController],

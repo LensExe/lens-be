@@ -1,0 +1,27 @@
+meta {
+  name: admin/customers/:customer_id
+  type: http
+  seq: 154
+}
+
+docs {
+  Admin xem customer profile
+  Handler: adminGet
+  Authentication: role 'admin'
+}
+
+get {
+  url: {{baseUrl}}/admin/customers/{{customerId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

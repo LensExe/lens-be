@@ -50,10 +50,10 @@ POST /bookings
   → đọc dữ liệu bằng EntityManager
   → Booking.prepare(facts) trong booking.domain.ts
   → lưu booking và ghi outbox bằng cùng EntityManager/transaction
-  → commit → OutboxWorker phát realtime
+  → commit → OutboxWorker gửi notification qua Kafka hoặc Socket.IO dự phòng
 ```
 
-- `*.domain.ts`: hàm/quy tắc thuần; nhận facts/giá trị, trả kết quả hoặc lỗi nghiệp vụ. Không inject service, gọi DB/API, phát sự kiện hoặc biết controller. Ví dụ [`booking.domain.ts`](../src/modules/booking/booking.domain.ts) quyết định tạo booking hợp lệ và chuyển trạng thái; [`identity.domain.ts`](../src/modules/identity/identity.domain.ts) quyết định chuyển trạng thái tài khoản.
+- `*.domain.ts`: hàm/quy tắc thuần; nhận facts/giá trị, trả kết quả hoặc lỗi nghiệp vụ. Không inject service, gọi DB/API, phát sự kiện hoặc biết controller. Ví dụ [`booking.domain.ts`](../src/modules/booking/core/booking.domain.ts) quyết định tạo booking hợp lệ và chuyển trạng thái; [`identity.domain.ts`](../src/modules/identity/identity.domain.ts) quyết định chuyển trạng thái tài khoản.
 - `*.use-case.ts`: lấy facts từ database, gọi domain, điều phối nhiều bước, kiểm tra quyền và lưu kết quả. `EntityManager` được truyền từ handler; các command và query handler hiện đều mở `DataSource.transaction()`.
 - `*.command.ts` / `*.query.ts`: adapter CQRS mỏng, chuyển input từ bus vào use case. Handler sở hữu ranh giới transaction, không chứa quy tắc nghiệp vụ.
 - `src/features/`: adapter đầu vào (HTTP) và đầu ra (realtime/worker), cùng wiring NestJS. TypeORM entity trong `src/shared/database/entities/` là mô hình lưu trữ; không đặt quy tắc domain vào entity này.
@@ -65,10 +65,27 @@ Port là hợp đồng cho một khả năng mà **module tiêu thụ** cần. �
 | Module tiêu thụ        | Port                       | Bên cung cấp                |
 | ---------------------- | -------------------------- | --------------------------- |
 | Booking                | `RatingUpdaterPort`        | `ReviewUseCases` (feedback) |
+| Booking                | `PaidAmountsPort`          | `PaymentUseCases` (payment) |
+| Calendar               | `PendingBookingsPort`      | `BookingUseCases` (booking) |
+| Calendar               | `PhotographerBookingsPort` | `BookingUseCases` (booking) |
+| Photographer           | `PhotographerRatingsPort`  | `ReviewUseCases` (feedback) |
+| Photographer           | `PlanBookingsPort`         | `BookingUseCases` (booking) |
 | Photographer/Portfolio | `MediaOwnershipPort`       | `MediaUseCases`             |
 | Subscription           | `SubscriptionPaymentsPort` | `PaymentUseCases`           |
 
-Wiring nằm tại [`api-runtime.module.ts`](../src/features/api/api-runtime.module.ts). Use case tiêu thụ inject port, không inject trực tiếp use case của module khác. Đây là lời gọi đồng bộ khi cần kết quả ngay hoặc phải dùng cùng `EntityManager`/transaction. Tác vụ realtime được ghi vào outbox trong transaction rồi worker phát sau commit. Worker hiện đánh dấu `processed_at` trước khi gọi publisher; nếu publisher thất bại sau bước đó, sự kiện không tự được retry. Không coi outbox hiện tại là cơ chế bảo đảm phát đúng một lần.
+Wiring nằm tại [`api-runtime.module.ts`](../src/features/api/api-runtime.module.ts). Use case tiêu thụ inject port, không inject trực tiếp use case của module khác. Đây là lời gọi đồng bộ khi cần kết quả ngay hoặc phải dùng cùng `EntityManager`/transaction. Notification được ghi vào outbox trong transaction rồi worker gửi sau commit: event có type được notification-service hỗ trợ đi Kafka; event khác dùng Socket.IO `/lens`. Worker chỉ ghi `processed_at` sau khi publisher thành công, retry tối đa năm lần rồi dead-letter. Đây là giao nhận at-least-once, nên có thể phát trùng nếu broker đã nhận message nhưng worker chưa kịp xác nhận.
+
+**Phụ thuộc giữa các module phải một chiều** (không có vòng). Trước khi thêm port, kiểm đồ thị "use case nào inject use case nào"; nếu port mới làm A cần B trong khi B đã cần A thì chọn lại thiết kế (bỏ chiều ngược, đưa thông tin lên module phía trên, hoặc dùng sự kiện), không dùng `forwardRef` hay class phụ chỉ để né vòng. NestJS docs: "Avoid circular dependencies where possible".
+
+**Ngoại lệ có chủ đích (đọc thẳng bảng của module khác):**
+
+| Module đọc   | Bảng                              | Ở đâu                                       | Vì sao chưa qua port                                                                                                                                                                                                                                                                      |
+| ------------ | --------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Booking      | `offline_slots` (calendar)        | tạo / nhận booking                          | Calendar đã phụ thuộc booking qua port (`PendingBookingsPort`); booking gọi ngược calendar qua port sẽ thành vòng. Hai context dính chặt (lịch cần booking để trừ giờ bận, booking cần lịch để biết giờ trống). Gỡ triệt để: gộp calendar vào context booking, hoặc đồng bộ bằng sự kiện. |
+| Photographer | `photographer_ratings` (feedback) | tìm thợ (`search`)                          | Sắp xếp theo rating phải JOIN trong SQL để phân trang đúng; port không trả được điều kiện JOIN. Các chỗ khác đọc rating qua port.                                                                                                                                                         |
+| Feedback     | `bookings` (booking)              | viết review (`create`, qua `bookingAccess`) | Cần biết booking đã hoàn tất và ai là khách / thợ. Booking đã gọi feedback qua `RatingUpdaterPort`; feedback hỏi ngược booking qua port sẽ thành vòng. Sửa / xoá / trả lời review kiểm quyền bằng `customer_id` / `photographer_id` lưu trên review, không đọc booking.                   |
+
+Dữ liệu danh tính dùng chung (`users`, `customers`, `photographers`) được đọc qua helper trong `shared/common/access.ts`, không tính là đọc chéo.
 
 Port của tích hợp bên ngoài có phạm vi toàn ứng dụng, như `PaymentGateway` và `RealtimePublisher`, nằm trong `src/shared/integrations/`. Mã domain chung chỉ đặt ở `src/shared/domain/` nếu thật sự không thuộc riêng context nào, ví dụ giá trị khoảng thời gian/tiền dùng bởi booking, calendar và payment.
 

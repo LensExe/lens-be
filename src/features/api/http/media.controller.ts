@@ -45,6 +45,14 @@ export class MediaController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  /**
+   * Confirm that the media upload completed and queue the file for processing.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('media/complete-upload')
   @ApiOperation({
     operationId: 'MEDIA-002',
@@ -88,6 +96,13 @@ export class MediaController {
     );
   }
 
+  /**
+   * Upload media.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
   @Post('media/upload-url')
   @ApiOperation({
     operationId: 'MEDIA-001',
@@ -129,13 +144,21 @@ export class MediaController {
     );
   }
 
-  @Get('bookings/:id/gallery/download')
+  /**
+   * Download media.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
+  @Get('bookings/:booking_id/gallery/download')
   @ApiOperation({
     operationId: 'MEDIA-009',
     summary: 'Tải gallery',
-    description: 'Sinh link/package tải ảnh được phép. Role: Customer',
+    description:
+      'Sinh link/package tải ảnh được phép. Role: Customer hoặc Photographer',
   })
-  @Access(['customer'])
+  @Access(['customer', 'photographer'])
   @ApiBearerAuth()
   @ApiUnauthorizedResponse({
     description: 'Missing or invalid Keycloak access token',
@@ -153,7 +176,7 @@ export class MediaController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -161,14 +184,24 @@ export class MediaController {
   })
   download(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
   ) {
     return this.queries.execute(
-      new MediaDownloadQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new MediaDownloadQuery(req.actor ?? { sub: '', roles: [] }, {
+        booking_id,
+      }),
     );
   }
 
-  @Post('bookings/:id/gallery/items')
+  /**
+   * Add an image to a booking gallery after checking media ownership.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @param body Request body validated against the DTO.
+   * @returns Result of the command dispatched to its handler.
+   */
+  @Post('bookings/:booking_id/gallery/items')
   @ApiOperation({
     operationId: 'MEDIA-006',
     summary: 'Thêm ảnh vào gallery',
@@ -192,7 +225,7 @@ export class MediaController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiBody({ type: Dto.MediaAddGalleryCommandBodyDto })
   @ApiResponse({
     status: 200,
@@ -202,18 +235,25 @@ export class MediaController {
   @HttpCode(200)
   addGallery(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
     @Body() body: Dto.MediaAddGalleryCommandBodyDto,
   ) {
     return this.commands.execute(
       new MediaAddGalleryCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        id,
+        booking_id,
       }),
     );
   }
 
-  @Post('bookings/:id/gallery/publish')
+  /**
+   * Emit a real-time event to the specified users.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
+  @Post('bookings/:booking_id/gallery/publish')
   @ApiOperation({
     operationId: 'MEDIA-008',
     summary: 'Publish gallery',
@@ -237,7 +277,7 @@ export class MediaController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -246,14 +286,23 @@ export class MediaController {
   @HttpCode(200)
   publish(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
   ) {
     return this.commands.execute(
-      new MediaPublishCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new MediaPublishCommand(req.actor ?? { sub: '', roles: [] }, {
+        booking_id,
+      }),
     );
   }
 
-  @Post('bookings/:id/gallery')
+  /**
+   * Create a photo gallery for the specified booking.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
+  @Post('bookings/:booking_id/gallery')
   @ApiOperation({
     operationId: 'MEDIA-005',
     summary: 'Tạo gallery booking',
@@ -277,7 +326,7 @@ export class MediaController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -286,16 +335,23 @@ export class MediaController {
   @HttpCode(200)
   createGallery(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
   ) {
     return this.commands.execute(
       new MediaCreateGalleryCommand(req.actor ?? { sub: '', roles: [] }, {
-        id,
+        booking_id,
       }),
     );
   }
 
-  @Get('bookings/:id/gallery')
+  /**
+   * Get the published photo gallery for the specified booking.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
+  @Get('bookings/:booking_id/gallery')
   @ApiOperation({
     operationId: 'MEDIA-007',
     summary: 'Xem gallery',
@@ -320,7 +376,7 @@ export class MediaController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -328,14 +384,23 @@ export class MediaController {
   })
   gallery(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
   ) {
     return this.queries.execute(
-      new MediaGalleryQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new MediaGalleryQuery(req.actor ?? { sub: '', roles: [] }, {
+        booking_id,
+      }),
     );
   }
 
-  @Get('media/:id')
+  /**
+   * Get media details by ID after checking access permissions.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the query dispatched to its handler.
+   */
+  @Get('media/:media_id')
   @ApiOperation({
     operationId: 'MEDIA-003',
     summary: 'Lấy metadata media',
@@ -359,7 +424,7 @@ export class MediaController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'media_id', type: String, description: 'Media UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -367,14 +432,23 @@ export class MediaController {
   })
   get(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('media_id', new ParseUUIDPipe()) media_id: string,
   ) {
     return this.queries.execute(
-      new MediaGetQuery(req.actor ?? { sub: '', roles: [] }, { id }),
+      new MediaGetQuery(req.actor ?? { sub: '', roles: [] }, {
+        media_id,
+      }),
     );
   }
 
-  @Delete('media/:id')
+  /**
+   * Delete media by ID after checking ownership.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param id ID of the record to process.
+   * @returns Result of the command dispatched to its handler.
+   */
+  @Delete('media/:media_id')
   @ApiOperation({
     operationId: 'MEDIA-004',
     summary: 'Xóa media',
@@ -398,7 +472,7 @@ export class MediaController {
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
   })
-  @ApiParam({ name: 'id', type: String, description: 'Resource UUID' })
+  @ApiParam({ name: 'media_id', type: String, description: 'Media UUID' })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -406,10 +480,12 @@ export class MediaController {
   })
   remove(
     @Req() req: { actor?: Actor },
-    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('media_id', new ParseUUIDPipe()) media_id: string,
   ) {
     return this.commands.execute(
-      new MediaRemoveCommand(req.actor ?? { sub: '', roles: [] }, { id }),
+      new MediaRemoveCommand(req.actor ?? { sub: '', roles: [] }, {
+        media_id,
+      }),
     );
   }
 }

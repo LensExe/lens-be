@@ -1,0 +1,27 @@
+meta {
+  name: wallet
+  type: http
+  seq: 184
+}
+
+docs {
+  Xem số dư ví
+  Handler: wallet
+  Authentication: role 'customer', 'photographer'
+}
+
+get {
+  url: {{baseUrl}}/wallet
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -13,6 +13,9 @@ import type {
 export class WsResponseService {
   /**
    * Emits a standardized success message to a specific room.
+   *
+   * @param param Object containing the Socket.IO response message, destination, and event name (`message`, `data`, `room`, `namespace`, `eventName`).
+   * @returns No value is returned.
    */
   successToRoom<T = unknown>({
     message,
@@ -30,6 +33,9 @@ export class WsResponseService {
 
   /**
    * Broadcasts a standardized success message to all sockets in a namespace.
+   *
+   * @param param Object containing the Socket.IO response message, destination, and event name (`message`, `data`, `namespace`, `eventName`).
+   * @returns No value is returned.
    */
   broadcast<T = unknown>({
     message,
@@ -46,6 +52,9 @@ export class WsResponseService {
 
   /**
    * Emits a standardized success message directly to a single socket.
+   *
+   * @param param Input object containing the fields message, data, client, eventName cho success.
+   * @returns No value is returned.
    */
   success<T = unknown>({
     message,
@@ -62,6 +71,9 @@ export class WsResponseService {
 
   /**
    * Emits a standardized error message directly to a single socket.
+   *
+   * @param param Input object containing the fields client, error, eventName cho error.
+   * @returns No value is returned.
    */
   error({ client, error, eventName }: ErrorParams): void {
     client.emit(eventName, {

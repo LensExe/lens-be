@@ -9,9 +9,15 @@ import { selectApiFeatureModules } from '../src/features/api/feature-modules';
 import { setupApi } from '../src/features/api/setup';
 import { DataSource } from 'typeorm';
 import { ObjectStorage } from '../src/shared/integrations/s3/storage.port';
-import { PaymentGateway } from '../src/shared/integrations/payment/payment.port';
+import { PaymentGateway } from '../src/shared/integrations/payment/port/payment.port';
 import { KeycloakService } from '../src/shared/integrations/keycloak/keycloak.service';
 
+/**
+ * Build an OpenAPI document from the supplied API modules.
+ *
+ * @param imports Value used by the operation: imports.
+ * @returns Result returned by `compile`.
+ */
 function compileApi(
   imports: Parameters<typeof Test.createTestingModule>[0]['imports'],
 ) {
@@ -38,8 +44,10 @@ void test('every registered HTTP endpoint has a complete Swagger contract', asyn
     const document = setupApi(app);
     const contract = JSON.parse(
       readFileSync('docs/api-tracker.json', 'utf8'),
-    ).filter((row: { method: string }) =>
-      ['GET', 'POST', 'PATCH', 'DELETE'].includes(row.method),
+    ).filter(
+      (row: { method: string; description?: string }) =>
+        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(row.method) &&
+        !row.description?.startsWith('Tạm vô hiệu hoá:'),
     ) as {
       id: string;
       method: string;
@@ -48,7 +56,7 @@ void test('every registered HTTP endpoint has a complete Swagger contract', asyn
     }[];
     const documentedOperations = Object.values(document.paths).flatMap((path) =>
       Object.entries(path ?? {}).filter(([method]) =>
-        ['get', 'post', 'patch', 'delete'].includes(method),
+        ['get', 'post', 'put', 'patch', 'delete'].includes(method),
       ),
     );
 
@@ -103,9 +111,22 @@ void test('disabled feature modules are absent from Swagger', async () => {
       ),
     );
 
+    const expected = (
+      JSON.parse(readFileSync('docs/api-tracker.json', 'utf8')) as {
+        id: string;
+        method: string;
+        description: string;
+      }[]
+    ).filter(
+      (row) =>
+        ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(row.method) &&
+        !row.description.startsWith('Tạm vô hiệu hoá:') &&
+        !row.id.startsWith('MEDIA-'),
+    ).length;
+
     assert.ok(!operationIds.some((id) => id.startsWith('MEDIA-')));
     assert.ok(!operationIds.some((id) => id.startsWith('LOC-')));
-    assert.equal(operationIds.length, 71);
+    assert.equal(operationIds.length, expected);
   } finally {
     await app.close();
   }

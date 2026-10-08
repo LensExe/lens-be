@@ -1,0 +1,27 @@
+meta {
+  name: admin/dashboard
+  type: http
+  seq: 178
+}
+
+docs {
+  Dashboard tổng quan
+  Handler: dashboard
+  Authentication: role 'admin'
+}
+
+get {
+  url: {{baseUrl}}/admin/dashboard
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

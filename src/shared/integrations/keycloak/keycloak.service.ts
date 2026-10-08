@@ -11,6 +11,7 @@ export interface KeycloakUser {
   roles?: string[];
   exp?: number;
   typ?: string;
+  azp?: string;
   resource_access?: Record<string, { roles: string[] }>;
   realm_access?: {
     roles: string[];
@@ -45,7 +46,11 @@ export class KeycloakService {
   }
 
   /**
-   * Xác thực access token từ Keycloak
+   * Validate an access token from Keycloak.
+   *
+   * @param token Token to validate, exchange, or revoke.
+   * @returns Result of the operation described above.
+   * @throws {UnauthorizedException} Thrown when the credentials are invalid or have expired.
    */
   async verifyToken(token: string): Promise<KeycloakUser> {
     // Fail closed: never trust jwt.decode() as authentication.
@@ -75,9 +80,12 @@ export class KeycloakService {
         {
           algorithms: ['RS256'],
           issuer: `${this.authServerUrl}/realms/${this.realm}`,
-          audience: this.audience,
+          // Keycloak currently issues this client token with `aud: account`.
+          // Keep accepting that token while verifying that `azp` is our client.
+          audience: ['account', this.audience],
         },
         (err, decoded) => {
+          // err exist or token expired
           if (err || !decoded) {
             this.logger.warn(
               `Keycloak token verification failed: ${err instanceof Error ? err.message : 'invalid token'}`,
@@ -86,17 +94,26 @@ export class KeycloakService {
               new UnauthorizedException('Token verification failed'),
             );
           }
+
           const user = decoded as KeycloakUser;
-          if (!user.sub || !user.exp || user.typ !== 'Bearer')
+          // missing subject, expired token, or type is not Bearer
+          if (
+            !user.sub ||
+            !user.exp ||
+            user.typ !== 'Bearer' ||
+            user.azp !== this.audience
+          )
             return reject(
               new UnauthorizedException(
-                'A non-expired Keycloak access token is required',
+                'A valid Keycloak access token for this client is required',
               ),
             );
+
+          // extract roles from token
           user.roles = [
             ...new Set([
-              ...(user.realm_access?.roles ?? []),
-              ...(user.resource_access?.[this.audience!]?.roles ?? []),
+              ...(user.realm_access?.roles ?? []), // role in realm
+              ...(user.resource_access?.[this.audience!]?.roles ?? []), // role in client
             ]),
           ];
           resolve(user);

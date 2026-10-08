@@ -1,14 +1,18 @@
 /**
- * scripts/credentials.mjs -- Danh mục bảng định nghĩa thông tin xác thực cho lens-backend
+ * `scripts/credentials.mjs` — credential catalog defining secrets for lens-backend.
  *
- * Chuẩn hóa theo format mảng [CREDENTIALS, DERIVED_CREDENTIALS, REDIS_LANE_ALIASES, APP_CREDENTIALS]
- * để tương thích với các script quản lý hạ tầng (sync, secrets-gen, stack-secret).
+ * Normalized to the array format `[CREDENTIALS, DERIVED_CREDENTIALS, REDIS_LANE_ALIASES, APP_CREDENTIALS]`,
+ * for compatibility with infrastructure-management scripts (sync, secrets-gen, stack-secret).
  */
 
 import { randomBytes } from 'node:crypto';
 
 /**
- * Sinh chuỗi ngẫu nhiên an toàn theo độ dài và định dạng
+ * Generate a cryptographically secure random string with the requested length and format.
+ *
+ * @param length Value used by the operation: length.
+ * @param type Type of object or operation.
+ * @returns Result returned by `slice`.
  */
 export const generateSecret = (length = 32, type = 'hex') => {
   if (type === 'hex') {
@@ -18,7 +22,7 @@ export const generateSecret = (length = 32, type = 'hex') => {
     return randomBytes(length).toString('base64url').slice(0, length);
   }
 
-  // Alphanumeric + ký tự đặc biệt an toàn (tránh dấu nháy và dấu # gây lỗi parse .env)
+  // Safe alphanumeric and special characters (avoid quotes and `#`, which can break `.env` parsing).
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@%^&*()_+~=';
   const bytes = randomBytes(length);
   let result = '';
@@ -28,10 +32,16 @@ export const generateSecret = (length = 32, type = 'hex') => {
   return result;
 };
 
+/**
+ * Generate a random password that meets the required length and character group rules.
+ *
+ * @param length Value used by the operation: length.
+ * @returns Result returned by `generateSecret`.
+ */
 export const generatePassword = (length = 24) => generateSecret(length, 'alphanumeric');
 
 /**
- * Các bí mật / mật khẩu dịch vụ cốt lõi (Database, Cache, MinIO, Keycloak, JWT)
+ * Core service secrets and passwords (database, cache, MinIO, Keycloak, JWT).
  */
 export const CREDENTIALS = [
   // ── Database (PostgreSQL) ──
@@ -89,6 +99,12 @@ export const CREDENTIALS = [
     generator: () => generateSecret(32, 'hex'),
     description: 'Client Secret của lens-backend trên Keycloak',
   },
+  {
+    env: 'KEYCLOAK_ADMIN_CLIENT_SECRET',
+    file: 'keycloak-admin-client-secret.key',
+    generator: () => generateSecret(32, 'hex'),
+    description: 'Client Secret của service account quản trị user Keycloak',
+  },
 
   // ── Security & Authentication ──
   {
@@ -106,7 +122,7 @@ export const CREDENTIALS = [
 ];
 
 /**
- * Danh sách bí mật suy dẫn (Derived credentials)
+ * List of derived credentials.
  */
 export const DERIVED_CREDENTIALS = [
   {
@@ -122,7 +138,7 @@ export const DERIVED_CREDENTIALS = [
 ];
 
 /**
- * Các alias dùng chung mật khẩu Redis cho các tác vụ
+ * Aliases that share the Redis password across services.
  */
 export const REDIS_LANE_ALIASES = [
   'REDIS_CACHE_PASSWORD',
@@ -132,7 +148,7 @@ export const REDIS_LANE_ALIASES = [
 ];
 
 /**
- * Cấu hình tham số môi trường chung của ứng dụng
+ * Shared application environment settings.
  */
 export const APP_CREDENTIALS = [
   // ── App & Server ──
@@ -156,16 +172,123 @@ export const APP_CREDENTIALS = [
   { env: 'REDIS_HOST', default: 'localhost', description: 'Host Redis' },
   { env: 'REDIS_PORT', default: '6380', description: 'Port Redis host' },
 
-  // ── MinIO params ──
-  { env: 'S3_MINIO_ENDPOINT', default: 'http://localhost:9000', description: 'Endpoint S3' },
-  { env: 'S3_MINIO_ACCESS_KEY_ID', default: 'LensMinioAdmin', description: 'S3 Access Key ID' },
-  { env: 'S3_MINIO_BUCKET', default: 'lens', description: 'Bucket ảnh & media' },
+  // ── S3-compatible object storage params ──
+  {
+    env: 'S3_PROVIDER',
+    default: 'minio',
+    description: 'Provider lưu trữ: minio, digitalocean hoặc cloud',
+  },
+  {
+    env: 'S3_MINIO_ENDPOINT',
+    default: 'http://localhost:9000',
+    description: 'MinIO S3 API endpoint',
+  },
+  {
+    env: 'S3_MINIO_PUBLIC_ENDPOINT',
+    default: 'http://localhost:9000',
+    description: 'MinIO endpoint public dùng cho presigned URL',
+  },
+  {
+    env: 'S3_MINIO_REGION',
+    default: 'us-east-1',
+    description: 'MinIO signing region',
+  },
+  {
+    env: 'S3_MINIO_ACCESS_KEY_ID',
+    default: 'LensMinioAdmin',
+    description: 'S3 Access Key ID',
+  },
+  {
+    env: 'S3_MINIO_BUCKET',
+    default: 'lens',
+    description: 'MinIO bucket ảnh & media',
+  },
+  {
+    env: 'S3_MINIO_PRESIGNED_URL_TTL_SECONDS',
+    default: '900',
+    description: 'Thời hạn presigned URL của MinIO',
+  },
+
+  {
+    env: 'S3_DIGITALOCEAN_ENDPOINT',
+    default: '',
+    description: 'Spaces S3 API endpoint; để trống sẽ suy ra từ region',
+  },
+  {
+    env: 'S3_DIGITALOCEAN_PUBLIC_ENDPOINT',
+    default: '',
+    description: 'Spaces S3 API endpoint truy cập được từ client để ký URL',
+  },
+  {
+    env: 'S3_DIGITALOCEAN_CDN_ENDPOINT',
+    default: '',
+    description: 'CDN/custom domain base URL cho object public trong Space',
+  },
+  {
+    env: 'S3_DIGITALOCEAN_REGION',
+    default: '',
+    description: 'DigitalOcean Spaces region, ví dụ sgp1 hoặc nyc3',
+  },
+  {
+    env: 'S3_DIGITALOCEAN_ACCESS_KEY_ID',
+    default: '',
+    description: 'DigitalOcean Spaces access key ID',
+  },
+  {
+    env: 'S3_DIGITALOCEAN_SECRET_ACCESS_KEY',
+    default: '',
+    description: 'DigitalOcean Spaces secret access key',
+  },
+  {
+    env: 'S3_DIGITALOCEAN_BUCKET',
+    default: '',
+    description: 'Tên DigitalOcean Space/bucket',
+  },
+  {
+    env: 'S3_DIGITALOCEAN_PRESIGNED_URL_TTL_SECONDS',
+    default: '900',
+    description: 'Thời hạn presigned URL của Spaces',
+  },
+
+  {
+    env: 'S3_CLOUD_ENDPOINT',
+    default: '',
+    description: 'S3-compatible cloud API endpoint; để trống khi dùng AWS S3',
+  },
+  {
+    env: 'S3_CLOUD_PUBLIC_ENDPOINT',
+    default: '',
+    description:
+      'S3-compatible cloud endpoint truy cập được từ client để ký URL',
+  },
+  {
+    env: 'S3_CLOUD_REGION',
+    default: 'us-east-1',
+    description: 'Cloud S3 signing region',
+  },
+  {
+    env: 'S3_CLOUD_ACCESS_KEY_ID',
+    default: '',
+    description: 'Cloud S3 access key ID (để trống nếu dùng IAM)',
+  },
+  {
+    env: 'S3_CLOUD_SECRET_ACCESS_KEY',
+    default: '',
+    description: 'Cloud S3 secret access key (để trống nếu dùng IAM)',
+  },
+  { env: 'S3_CLOUD_BUCKET', default: '', description: 'Cloud S3 bucket' },
+  {
+    env: 'S3_CLOUD_PRESIGNED_URL_TTL_SECONDS',
+    default: '900',
+    description: 'Thời hạn presigned URL của cloud S3',
+  },
 
   // ── Keycloak params ──
   { env: 'KEYCLOAK_URL', default: 'http://localhost:8089', description: 'URL máy chủ Keycloak' },
   { env: 'KEYCLOAK_AUTH_SERVER_URL', default: 'http://localhost:8089', description: 'Auth server URL Keycloak' },
   { env: 'KEYCLOAK_REALM', default: 'lens', description: 'Realm dự án' },
   { env: 'KEYCLOAK_CLIENT_ID', default: 'lens-backend', description: 'Client ID đăng ký Keycloak' },
+  { env: 'KEYCLOAK_ADMIN_CLIENT_ID', default: 'lens-backend-admin', description: 'Client ID service account quản trị user Keycloak' },
   { env: 'KEYCLOAK_ADMIN_USERNAME', default: 'lens-admin-keycloak', description: 'Tài khoản admin Keycloak' },
 
   // ── Auth params ──
@@ -174,7 +297,7 @@ export const APP_CREDENTIALS = [
 ];
 
 /**
- * Adapter Object Schema (phục vụ tương thích ngược nếu script nào gọi qua key)
+ * Adapter object schema (backward compatibility for scripts that access values by key).
  */
 export const CREDENTIALS_SCHEMA = Object.fromEntries(
   [...CREDENTIALS, ...APP_CREDENTIALS].map((item) => [

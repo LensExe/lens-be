@@ -16,6 +16,13 @@ export class SubscriptionUsageQueryHandler implements IQueryHandler<Subscription
     private readonly dataSource: DataSource,
     private readonly useCases: SubscriptionUseCases,
   ) {}
+
+  /**
+   * Run the current subscription usage query.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: SubscriptionUsageQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.usage(s, message.actor),
@@ -35,6 +42,13 @@ export class SubscriptionMeQueryHandler implements IQueryHandler<SubscriptionMeQ
     private readonly dataSource: DataSource,
     private readonly useCases: SubscriptionUseCases,
   ) {}
+
+  /**
+   * Run the query for the current user’s subscription.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: SubscriptionMeQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.me(s, message.actor),
@@ -54,7 +68,35 @@ export class SubscriptionPlansQueryHandler implements IQueryHandler<Subscription
     private readonly dataSource: DataSource,
     private readonly useCases: SubscriptionUseCases,
   ) {}
+
+  /**
+   * Run the subscription plan list query in the current transaction.
+   *
+   * @returns Result of the operation performed in the transaction.
+   */
   execute() {
     return this.dataSource.transaction((s) => this.useCases.plans(s));
+  }
+}
+
+export class SubscriptionHistoryQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.SubscriptionHistoryQueryInput,
+  ) {}
+}
+
+@QueryHandler(SubscriptionHistoryQuery)
+export class SubscriptionHistoryQueryHandler implements IQueryHandler<SubscriptionHistoryQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: SubscriptionUseCases,
+  ) {}
+
+  /** Run the current photographer's subscription timeline query. */
+  execute(message: SubscriptionHistoryQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.history(s, message.actor),
+    );
   }
 }

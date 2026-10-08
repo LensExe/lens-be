@@ -1,0 +1,27 @@
+meta {
+  name: bookings/:booking_id/payments
+  type: http
+  seq: 198
+}
+
+docs {
+  Lịch sử thanh toán booking
+  Handler: history
+  Authentication: role 'customer', 'photographer'
+}
+
+get {
+  url: {{baseUrl}}/bookings/{{bookingId}}/payments
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

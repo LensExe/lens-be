@@ -4,6 +4,7 @@ import { CookieName } from './enums';
 
 /**
  * Inject a cookie from the REST HTTP request.
+ *
  * @param data - The name of the cookie or CookieName enum.
  * @param context - The execution context.
  * @returns The cookie value from the request.

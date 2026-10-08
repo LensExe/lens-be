@@ -1,97 +1,129 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { bigintColumn } from './utils/column-transformers';
+import {
+  TransactionDirection,
+  TransactionPaymentGateway,
+  TransactionStatus,
+  type TransactionDirection as TransactionDirectionType,
+  type TransactionPaymentGateway as TransactionPaymentGatewayType,
+  type TransactionStatus as TransactionStatusType,
+  type TransactionType,
+} from '@shared/domain/values/payment.values';
+import { timestampTransformer } from './utils/column-transformers';
 
 /**
- * Các loại giao dịch trong hệ thống
- */
-export const TransactionType = {
-  DEPOSIT: 'deposit',
-  REMAINING: 'remaining',
-  SUBSCRIPTION: 'subscription',
-} as const;
-
-export type TransactionType =
-  (typeof TransactionType)[keyof typeof TransactionType];
-
-/**
- * Các loại thực thể tham chiếu gắn liền với giao dịch
- */
-export const TransactionReferenceType = {
-  BOOKING: 'booking',
-  SUBSCRIPTION: 'subscription',
-  WALLET_TOPUP: 'wallet_topup',
-  WALLET_WITHDRAWAL: 'wallet_withdrawal',
-  REFUND: 'refund',
-} as const;
-
-export type TransactionReferenceType =
-  (typeof TransactionReferenceType)[keyof typeof TransactionReferenceType];
-
-/**
- * Entity đại diện cho bảng `transactions`.
- * Quản lý toàn bộ lịch sử biến động số dư và các giao dịch nạp, rút,
- * thanh toán qua cổng trực tuyến (PayOS) hoặc nội bộ.
+ * Entity representing the `transactions` table.
+ * Stores incoming and outgoing payments created in Lens, including bookings, subscriptions, wallet top-ups,
+ * refunds, and provider or internal wallet withdrawals.
  */
 @Entity('transactions')
 export class TransactionEntity extends BaseEntity {
-  /** ID người dùng thực hiện hoặc thụ hưởng giao dịch (khóa ngoại liên kết `users.id`) */
+  /** ID of the user who performed or benefited from the transaction (foreign key referencing `users.id`). */
   @Column('uuid')
   user_id!: string;
 
-  /** Mã giao dịch hiển thị duy nhất trong hệ thống (ví dụ: 'TXN-20261020-001') */
+  /** Unique transaction code displayed in the system (for example, 'TXN-20261020-001'). */
   @Column({ unique: true })
   transaction_code!: string;
 
-  /** Loại giao dịch ('deposit', 'remaining', 'subscription') */
+  /** Transaction type: booking, subscription, wallet top-up, refund, or wallet withdrawal. */
   @Column()
   type!: TransactionType;
 
-  /** Loại tham chiếu ('booking' | 'subscription' | 'wallet_topup' | 'wallet_withdrawal' | 'refund') */
-  @Column('varchar', { nullable: true })
-  referrence_type!: TransactionReferenceType | null;
-
-  /** ID của thực thể liên quan (ví dụ: booking_id, subscription_id...) */
+  /** ID of the related entity (for example, `booking_id` or `subscription_id`). */
   @Column('uuid', { nullable: true })
   reference_id!: string | null;
 
-  /** Chiều dòng tiền: 'in' (tiền vào) hoặc 'out' (tiền ra) */
-  @Column({ default: 'in' })
-  direction!: string;
+  /** Direction of funds: 'in' or 'out'. */
+  @Column({ default: TransactionDirection.IN })
+  direction!: TransactionDirectionType;
 
-  /** Số tiền giao dịch (VND) */
+  /** Transaction amount (VND). */
   @Column(bigintColumn)
   amount!: number;
 
-  /** Loại tiền tệ sử dụng (mặc định: 'VND') */
+  /** Currency used (default: 'VND'). */
   @Column({ default: 'VND' })
   currency!: string;
 
-  /** Nội dung / Diễn giải giao dịch (ví dụ: 'Đặt cọc đơn chụp ảnh #123') */
+  /** Transaction description (for example, 'Deposit for photo shoot #123'). */
   @Column('text', { default: '' })
   description!: string;
 
-  /** Trạng thái giao dịch ('pending' | 'success' | 'failed' | 'cancelled') */
-  @Column({ default: 'pending' })
-  status!: string;
+  /** Transaction status ('pending' | 'paid' | 'failed'). */
+  @Column({ default: TransactionStatus.PENDING })
+  status!: TransactionStatusType;
 
-  /** Cổng thanh toán xử lý ('payos' | 'wallet_internal' | 'bank_transfer') */
-  @Column({ default: 'payos' })
-  payment_gateway!: string;
+  /** Payment provider or method used to record the outgoing payment. */
+  @Column({ default: TransactionPaymentGateway.PAYOS })
+  payment_gateway!: TransactionPaymentGatewayType;
 
-  /** Mã đơn hàng đối soát từ cổng thanh toán bên thứ ba (cho phép null với giao dịch nội bộ) */
+  /** Reconciliation order code from a third-party payment gateway (`null` is allowed for internal transactions). */
   @Column({ ...bigintColumn, nullable: true })
   provider_order_code!: number | null;
 
-  /** Đường dẫn trang thanh toán PayOS chuyển hướng khách hàng */
+  /** Provider checkout URL, if available. */
   @Column('text', { nullable: true })
   checkout_url!: string | null;
 
-  /** Chuỗi mã VietQR thanh toán nhanh */
+  /** QR payment payload or image URL. */
   @Column('text', { nullable: true })
   qr_code!: string | null;
 
-  /** Khóa Idempotency tránh tạo trùng lặp giao dịch khi click nhiều lần */
+  /** Local checkout deadline; this does not determine whether money was received. */
+  @Column('timestamptz', {
+    nullable: true,
+    transformer: timestampTransformer,
+  })
+  checkout_expires_at!: string | null;
+
+  /** Time the local checkout was marked expired by the expiry worker. */
+  @Column('timestamptz', {
+    nullable: true,
+    transformer: timestampTransformer,
+  })
+  checkout_expired_at!: string | null;
+
+  /** Time an operator must reconcile a checkout whose provider cannot be queried automatically. */
+  @Column('timestamptz', {
+    nullable: true,
+    transformer: timestampTransformer,
+  })
+  checkout_review_required_at!: string | null;
+
+  /** Number of provider inspections attempted after the local checkout deadline. */
+  @Column({ type: 'integer', default: 0 })
+  checkout_reconciliation_attempts!: number;
+
+  /** Next scheduled provider inspection; null means manual review is required. */
+  @Column('timestamptz', {
+    nullable: true,
+    transformer: timestampTransformer,
+  })
+  checkout_reconciliation_next_at!: string | null;
+
+  /** Admin/system resolution outcome for a checkout that required manual review. */
+  @Column('text', { nullable: true })
+  checkout_review_resolution!:
+    'paid_activated' | 'paid_refund' | 'unpaid' | null;
+
+  @Column('uuid', { nullable: true })
+  checkout_review_resolved_by!: string | null;
+
+  @Column('timestamptz', {
+    nullable: true,
+    transformer: timestampTransformer,
+  })
+  checkout_review_resolved_at!: string | null;
+
+  @Column('text', { nullable: true })
+  checkout_review_resolution_reference!: string | null;
+
+  @Column('text', { nullable: true })
+  checkout_review_resolution_note!: string | null;
+
+  /** Idempotency key to prevent duplicate transactions when a request is submitted multiple times. */
   @Column()
   idempotency_key!: string;
 }

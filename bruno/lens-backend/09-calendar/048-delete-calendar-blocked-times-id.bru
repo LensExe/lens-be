@@ -1,0 +1,27 @@
+meta {
+  name: calendar/blocked-times/:offline_slot_id
+  type: http
+  seq: 148
+}
+
+docs {
+  Mở khóa thời gian
+  Handler: unblock
+  Authentication: role 'photographer'
+}
+
+delete {
+  url: {{baseUrl}}/calendar/blocked-times/{{offlineSlotId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

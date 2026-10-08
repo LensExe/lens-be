@@ -1,3 +1,3 @@
-export * from './payment.port';
-export * from './payos-gateway.service';
+export * from './port/payment.port';
+export * from './payment-provider.adapter';
 export * from './payment.module';
