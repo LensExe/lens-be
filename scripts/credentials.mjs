@@ -172,10 +172,116 @@ export const APP_CREDENTIALS = [
   { env: 'REDIS_HOST', default: 'localhost', description: 'Host Redis' },
   { env: 'REDIS_PORT', default: '6380', description: 'Port Redis host' },
 
-  // ── MinIO params ──
-  { env: 'S3_MINIO_ENDPOINT', default: 'http://localhost:9000', description: 'Endpoint S3' },
-  { env: 'S3_MINIO_ACCESS_KEY_ID', default: 'LensMinioAdmin', description: 'S3 Access Key ID' },
-  { env: 'S3_MINIO_BUCKET', default: 'lens', description: 'Bucket ảnh & media' },
+  // ── S3-compatible object storage params ──
+  {
+    env: 'S3_PROVIDER',
+    default: 'minio',
+    description: 'Provider lưu trữ: minio, digitalocean hoặc cloud',
+  },
+  {
+    env: 'S3_MINIO_ENDPOINT',
+    default: 'http://localhost:9000',
+    description: 'MinIO S3 API endpoint',
+  },
+  {
+    env: 'S3_MINIO_PUBLIC_ENDPOINT',
+    default: 'http://localhost:9000',
+    description: 'MinIO endpoint public dùng cho presigned URL',
+  },
+  {
+    env: 'S3_MINIO_REGION',
+    default: 'us-east-1',
+    description: 'MinIO signing region',
+  },
+  {
+    env: 'S3_MINIO_ACCESS_KEY_ID',
+    default: 'LensMinioAdmin',
+    description: 'S3 Access Key ID',
+  },
+  {
+    env: 'S3_MINIO_BUCKET',
+    default: 'lens',
+    description: 'MinIO bucket ảnh & media',
+  },
+  {
+    env: 'S3_MINIO_PRESIGNED_URL_TTL_SECONDS',
+    default: '900',
+    description: 'Thời hạn presigned URL của MinIO',
+  },
+
+  {
+    env: 'S3_DIGITALOCEAN_ENDPOINT',
+    default: '',
+    description: 'Spaces S3 API endpoint; để trống sẽ suy ra từ region',
+  },
+  {
+    env: 'S3_DIGITALOCEAN_PUBLIC_ENDPOINT',
+    default: '',
+    description: 'Spaces S3 API endpoint truy cập được từ client để ký URL',
+  },
+  {
+    env: 'S3_DIGITALOCEAN_CDN_ENDPOINT',
+    default: '',
+    description: 'CDN/custom domain base URL cho object public trong Space',
+  },
+  {
+    env: 'S3_DIGITALOCEAN_REGION',
+    default: '',
+    description: 'DigitalOcean Spaces region, ví dụ sgp1 hoặc nyc3',
+  },
+  {
+    env: 'S3_DIGITALOCEAN_ACCESS_KEY_ID',
+    default: '',
+    description: 'DigitalOcean Spaces access key ID',
+  },
+  {
+    env: 'S3_DIGITALOCEAN_SECRET_ACCESS_KEY',
+    default: '',
+    description: 'DigitalOcean Spaces secret access key',
+  },
+  {
+    env: 'S3_DIGITALOCEAN_BUCKET',
+    default: '',
+    description: 'Tên DigitalOcean Space/bucket',
+  },
+  {
+    env: 'S3_DIGITALOCEAN_PRESIGNED_URL_TTL_SECONDS',
+    default: '900',
+    description: 'Thời hạn presigned URL của Spaces',
+  },
+
+  {
+    env: 'S3_CLOUD_ENDPOINT',
+    default: '',
+    description: 'S3-compatible cloud API endpoint; để trống khi dùng AWS S3',
+  },
+  {
+    env: 'S3_CLOUD_PUBLIC_ENDPOINT',
+    default: '',
+    description:
+      'S3-compatible cloud endpoint truy cập được từ client để ký URL',
+  },
+  {
+    env: 'S3_CLOUD_REGION',
+    default: 'us-east-1',
+    description: 'Cloud S3 signing region',
+  },
+  {
+    env: 'S3_CLOUD_ACCESS_KEY_ID',
+    default: '',
+    description: 'Cloud S3 access key ID (để trống nếu dùng IAM)',
+  },
+  {
+    env: 'S3_CLOUD_SECRET_ACCESS_KEY',
+    default: '',
+    description: 'Cloud S3 secret access key (để trống nếu dùng IAM)',
+  },
+  { env: 'S3_CLOUD_BUCKET', default: '', description: 'Cloud S3 bucket' },
+  {
+    env: 'S3_CLOUD_PRESIGNED_URL_TTL_SECONDS',
+    default: '900',
+    description: 'Thời hạn presigned URL của cloud S3',
+  },
 
   // ── Keycloak params ──
   { env: 'KEYCLOAK_URL', default: 'http://localhost:8089', description: 'URL máy chủ Keycloak' },

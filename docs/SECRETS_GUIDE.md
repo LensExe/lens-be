@@ -14,11 +14,19 @@
 | Payout     | `PAYOUT_DESTINATION_ENCRYPTION_KEY` (ít nhất 32 ký tự)                                                                                                                            | Mã hóa thông tin ngân hàng nhận tiền                      |
 | Thông báo  | `NOTIFICATION_SERVICE_URL`                                                                                                                                                        | Email OTP; thiếu thì trả 503                              |
 | Kafka      | `KAFKA_ENABLED`, `KAFKA_BROKERS`, `KAFKA_CLIENT_ID`, `KAFKA_NOTIFICATION_EVENTS_TOPIC`, `KAFKA_USERNAME`, `KAFKA_PASSWORD`, `KAFKA_SSL`                                           | Producer gửi outbox notification tới notification-service |
-| S3/MinIO   | `S3_PROVIDER` (`minio`/`cloud`), `S3_MINIO_*` hoặc `S3_CLOUD_*`                                                                                                                   | Object storage và presigned URL                           |
+| S3         | `S3_PROVIDER` (`minio`/`digitalocean`/`cloud`) và nhóm biến `S3_<PROVIDER>_*`                                                                                                     | Object storage, presigned URL và URL public               |
 
 Google setup còn cần `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `KEYCLOAK_ADMIN_USERNAME`, `KEYCLOAK_ADMIN_PASSWORD`; xem [hướng dẫn Google login](keycloak-google-login.md). Danh sách biến S3 chính xác nằm tại [`s3.config.ts`](../src/shared/integrations/s3/s3.config.ts).
 
-`S3_PROVIDER=minio` dùng MinIO; `S3_PROVIDER=cloud` dùng S3-compatible cloud được cấu hình bằng `S3_CLOUD_*`. Nếu không khai báo `S3_PROVIDER`, ứng dụng mặc định chọn MinIO ở development và cloud ở production.
+`S3_PROVIDER=minio` dùng MinIO; `S3_PROVIDER=digitalocean` (cũng chấp nhận `spaces`) dùng DigitalOcean Spaces; `S3_PROVIDER=cloud` giữ adapter chung cho AWS S3/S3-compatible cloud. Nếu không khai báo `S3_PROVIDER`, ứng dụng mặc định chọn MinIO ở development và `cloud` ở production.
+
+MinIO dùng `S3_MINIO_ENDPOINT`, `S3_MINIO_PUBLIC_ENDPOINT`, `S3_MINIO_REGION`, `S3_MINIO_ACCESS_KEY_ID`, `S3_MINIO_SECRET_ACCESS_KEY`, `S3_MINIO_BUCKET` và tùy chọn `S3_MINIO_PRESIGNED_URL_TTL_SECONDS`. MinIO mặc định dùng path-style URL.
+
+DigitalOcean Spaces cần `S3_DIGITALOCEAN_REGION` (chỉ region slug, ví dụ `sgp1`), `S3_DIGITALOCEAN_BUCKET`, `S3_DIGITALOCEAN_ACCESS_KEY_ID` và `S3_DIGITALOCEAN_SECRET_ACCESS_KEY`. Endpoint mặc định được tạo thành `https://<region>.digitaloceanspaces.com`; có thể override bằng `S3_DIGITALOCEAN_ENDPOINT`. Spaces dùng virtual-hosted URL và AWS SDK signing region `us-east-1`. `S3_DIGITALOCEAN_PUBLIC_ENDPOINT` chỉ dành cho S3 API endpoint mà client bên ngoài truy cập được để tạo presigned URL; không điền URL CDN vào biến này. Nếu bật CDN hoặc dùng domain riêng cho ảnh public, đặt `S3_DIGITALOCEAN_CDN_ENDPOINT` thành base URL của bucket (ví dụ hostname CDN của Space); backend sẽ nối object key vào URL đó. Để trống biến này thì URL public mặc định là `https://<bucket>.<region>.digitaloceanspaces.com/<key>`.
+
+`S3_CLOUD_*` giữ cấu hình generic. Với AWS S3 có thể bỏ endpoint và dùng IAM role/default credential chain; với S3-compatible khác cần cấu hình endpoint và credentials phù hợp. TTL presigned mặc định là 900 giây.
+
+Upload trực tiếp từ trình duyệt còn cần CORS ở bucket/provider: cho phép origin của frontend, method `PUT` và request header `Content-Type`. CORS của NestJS không thay thế CORS trên MinIO/Spaces.
 
 `PAYMENT_PROVIDER` chọn gateway tạo payment intent. Webhook vẫn được route riêng theo URL `/payments/webhooks/:provider`. Với `sepay`, cấu hình đúng số tài khoản/mã ngân hàng nhận tiền và `SEPAY_WEBHOOK_API_KEY` để đối chiếu webhook. `PAYOUT_DESTINATION_ENCRYPTION_KEY` phải ổn định giữa các lần deploy; đổi khóa sẽ khiến thông tin payout đã lưu không giải mã được.
 
