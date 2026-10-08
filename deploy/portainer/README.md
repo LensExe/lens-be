@@ -12,8 +12,9 @@ build from source and it does not contain runtime secrets.
 5. Configure the GitHub Container Registry in Portainer with a token that has
    `read:packages` permission.
 6. In **Environment variables**, load the ignored local `.env.production`
-   file or enter the backend variables manually. Portainer exposes these
-   values to the Compose file as `stack.env` on Docker Standalone.
+   file or enter the backend variables manually. The Compose file maps these
+   Portainer variables into the backend container, so no secret file needs to
+   be committed to Git.
 7. Add the deployment variables below:
 
    ```dotenv
@@ -43,5 +44,6 @@ The immutable `sha-<commit>` tags remain available for a manual rollback by
 setting `IMAGE_TAG` in Portainer.
 
 The backend runtime variables (`DB_*`, `REDIS_*`, `S3_*`, `JWT_*`, payment
-credentials, and so on) stay in Portainer. They are injected through
-`stack.env` and are not copied into the image or stored in GitHub Actions.
+credentials, and so on) stay in Portainer. They are passed through the
+Compose `environment` mapping and are not copied into the image or stored in
+GitHub Actions.
