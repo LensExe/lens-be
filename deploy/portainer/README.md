@@ -66,7 +66,17 @@ GitHub Actions.
 
 Deploy `deploy/portainer/infra-stack.yml` as a separate stack before the
 backend stack. It creates PostgreSQL, Redis, S3-compatible storage, Keycloak,
-and the shared `lens-network` network.
+and joins the shared external `lens-network` network.
+
+The network must exist before deploying the stack. If it does not exist, create
+it once on the Portainer Docker host:
+
+```bash
+docker network create lens-network
+```
+
+Marking it external avoids Compose label conflicts when Portainer or another
+stack created the network first.
 
 The default S3 images use fixed MinIO tags and pull policy `never`. Import both
 images into the Portainer Docker Environment before deploying:
