@@ -62,7 +62,9 @@ services:
     restart: unless-stopped
 
   lens-minio:
-    image: minio/minio:RELEASE.2024-06-13T22-53-53Z
+    # MinIO CE images are no longer pullable from Docker Hub. Silo is a
+    # maintained MinIO-compatible S3 server with the same MINIO_* settings.
+    image: docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z
     command: server /data --console-address ':9001'
     environment:
       MINIO_ROOT_USER: '${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in Portainer}'
@@ -78,7 +80,8 @@ services:
 
   # Creates the Lens bucket and makes only public/ anonymously readable.
   lens-minio-init:
-    image: minio/mc:RELEASE.2024-06-12T14-34-03Z
+    # The classic Silo image includes the compatible mc/mcli client.
+    image: docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z
     depends_on:
       - lens-minio
     environment:
