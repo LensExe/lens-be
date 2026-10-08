@@ -1,0 +1,18 @@
+name: lens-backend-app
+
+services:
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/lensexe/lens-backend:latest}
+    pull_policy: always
+    env_file:
+      - stack.env
+    ports:
+      - '${BACKEND_HOST_PORT:-3000}:3000'
+    networks:
+      - lens-network
+    restart: unless-stopped
+
+networks:
+  lens-network:
+    external: true
+    name: lens-network
