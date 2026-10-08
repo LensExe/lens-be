@@ -14,16 +14,32 @@ build from source and it does not contain runtime secrets.
 6. In **Environment variables**, load the ignored local `.env.production`
    file or enter the backend variables manually. Portainer exposes these
    values to the Compose file as `stack.env` on Docker Standalone.
-7. Set `BACKEND_IMAGE` to the image tag to deploy. The default is
-   `ghcr.io/lensexe/lens-backend:latest`.
-8. Set `BACKEND_HOST_PORT` to the host port (use `3001` if local port `3000`
-   is already occupied).
-9. Deploy the stack.
+7. Add the deployment variables below:
+
+   ```dotenv
+   IMAGE_REGISTRY=ghcr.io
+   IMAGE_OWNER=lensexe
+   IMAGE_TAG=latest
+   BACKEND_HOST_PORT=3000
+   ```
+
+   `BACKEND_HOST_PORT` can be `3001` if local port `3000` is already occupied.
+
+8. Deploy the stack.
 
 The Docker host must already have the external `lens-network` network and the
 shared infrastructure containers (`lens-postgres`, `lens-redis`, `lens-minio`,
 and `lens-keycloak`) attached to that network.
 
 After the stack is healthy, enable **Create a stack webhook** in the stack's
-Editor tab and save the copied URL as the GitHub Actions secret
-`PORTAINER_WEBHOOK_URL`.
+Editor tab and save the copied URL as the GitHub Actions repository/environment
+secret `PORTAINER_WEBHOOK_URL`.
+
+GitHub Actions publishes `latest` plus an immutable `sha-<commit>` tag. After
+publishing, it calls the Portainer webhook with `IMAGE_TAG=sha-<commit>`, so the
+stack redeploys the exact backend image built by that workflow instead of
+relying on a mutable tag.
+
+The backend runtime variables (`DB_*`, `REDIS_*`, `S3_*`, `JWT_*`, payment
+credentials, and so on) stay in Portainer. They are injected through
+`stack.env` and are not copied into the image or stored in GitHub Actions.

@@ -2,7 +2,7 @@ name: lens-backend-app
 
 services:
   backend:
-    image: ${BACKEND_IMAGE:-ghcr.io/lensexe/lens-backend:latest}
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_OWNER:-lensexe}/lens-backend:${IMAGE_TAG:-latest}
     pull_policy: always
     env_file:
       - stack.env
