@@ -62,12 +62,10 @@ services:
     restart: unless-stopped
 
   lens-minio:
-    # MinIO CE images are no longer pullable from Docker Hub. Silo is a
-    # maintained MinIO-compatible S3 server with the same MINIO_* settings.
-    # For an image imported into Portainer, set SILO_IMAGE=lens-silo:local
-    # and SILO_PULL_POLICY=never in the stack environment variables.
-    image: '${SILO_IMAGE:-docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z}'
-    pull_policy: '${SILO_PULL_POLICY:-missing}'
+    # For a local Portainer import, load this exact image tag and set
+    # MINIO_PULL_POLICY=never in the stack environment variables.
+    image: '${MINIO_IMAGE:-minio/minio:RELEASE.2024-06-13T22-53-53Z}'
+    pull_policy: '${MINIO_PULL_POLICY:-missing}'
     command: server /data --console-address ':9001'
     environment:
       MINIO_ROOT_USER: '${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in Portainer}'
@@ -83,9 +81,9 @@ services:
 
   # Creates the Lens bucket and makes only public/ anonymously readable.
   lens-minio-init:
-    # The classic Silo image includes the compatible mc/mcli client.
-    image: '${SILO_IMAGE:-docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z}'
-    pull_policy: '${SILO_PULL_POLICY:-missing}'
+    # MinIO's client is a separate image from the MinIO server image.
+    image: '${MINIO_MC_IMAGE:-minio/mc:RELEASE.2024-06-12T14-34-03Z}'
+    pull_policy: '${MINIO_PULL_POLICY:-missing}'
     depends_on:
       - lens-minio
     environment:
