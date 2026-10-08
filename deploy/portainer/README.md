@@ -47,3 +47,27 @@ The backend runtime variables (`DB_*`, `REDIS_*`, `S3_*`, `JWT_*`, payment
 credentials, and so on) stay in Portainer. They are passed through the
 Compose `environment` mapping and are not copied into the image or stored in
 GitHub Actions.
+
+## Portainer infrastructure stack
+
+Deploy `deploy/portainer/infra-stack.yml` as a separate stack before the
+backend stack. It creates PostgreSQL, Redis, S3-compatible storage, Keycloak,
+and the shared `lens-network` network.
+
+The default S3 image is the public Silo image and uses pull policy `missing`:
+
+```dotenv
+SILO_IMAGE=docker.io/pgsty/silo:RELEASE.2026-09-16T00-00-00Z
+SILO_PULL_POLICY=missing
+```
+
+If the image was imported into the Portainer Docker environment from a local
+`.tar` file, use the imported tag instead and prevent Compose from contacting
+the registry:
+
+```dotenv
+SILO_IMAGE=lens-silo:local
+SILO_PULL_POLICY=never
+```
+
+The imported tag must exist on the same Docker node where this stack runs.
