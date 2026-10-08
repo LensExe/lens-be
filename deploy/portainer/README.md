@@ -21,12 +21,26 @@ build from source and it does not contain runtime secrets.
    IMAGE_REGISTRY=ghcr.io
    IMAGE_OWNER=lensexe
    IMAGE_TAG=latest
+   BACKEND_PULL_POLICY=always
    BACKEND_HOST_PORT=3000
    ```
 
    `BACKEND_HOST_PORT` can be `3001` if local port `3000` is already occupied.
 
 8. Deploy the stack.
+
+For a backend image imported into the Portainer Docker environment from a
+local `.tar` file, use the imported tag instead of the registry variables:
+
+```dotenv
+BACKEND_IMAGE=lens-backend:local
+BACKEND_PULL_POLICY=never
+BACKEND_HOST_PORT=3000
+```
+
+The `lens-backend:local` tag must exist on the same Docker node where this
+stack runs. This local mode is for testing; the GitHub Actions flow should use
+the registry mode above so Portainer can re-pull each published image.
 
 The Docker host must already have the external `lens-network` network and the
 shared infrastructure containers (`lens-postgres`, `lens-redis`, `lens-minio`,
@@ -47,3 +61,30 @@ The backend runtime variables (`DB_*`, `REDIS_*`, `S3_*`, `JWT_*`, payment
 credentials, and so on) stay in Portainer. They are passed through the
 Compose `environment` mapping and are not copied into the image or stored in
 GitHub Actions.
+
+## Portainer infrastructure stack
+
+Deploy `deploy/portainer/infra-stack.yml` as a separate stack before the
+backend stack. It creates PostgreSQL, Redis, S3-compatible storage, Keycloak,
+and the shared `lens-network` network.
+
+The default S3 images use fixed MinIO tags and pull policy `missing`:
+
+```dotenv
+MINIO_IMAGE=minio/minio:RELEASE.2024-06-13T22-53-53Z
+MINIO_MC_IMAGE=minio/mc:RELEASE.2024-06-12T14-34-03Z
+MINIO_PULL_POLICY=missing
+```
+
+If the MinIO server and client images were imported into the Portainer Docker
+environment from local `.tar` files, keep the exact tags and prevent Compose
+from contacting the registry:
+
+```dotenv
+MINIO_IMAGE=minio/minio:RELEASE.2024-06-13T22-53-53Z
+MINIO_MC_IMAGE=minio/mc:RELEASE.2024-06-12T14-34-03Z
+MINIO_PULL_POLICY=never
+```
+
+Import both images, and make sure their tags exist on the same Docker node
+where this stack runs.
