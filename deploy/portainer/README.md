@@ -68,12 +68,13 @@ Deploy `deploy/portainer/infra-stack.yml` as a separate stack before the
 backend stack. It creates PostgreSQL, Redis, S3-compatible storage, Keycloak,
 and the shared `lens-network` network.
 
-The default S3 images use fixed MinIO tags and pull policy `missing`:
+The default S3 images use fixed MinIO tags and pull policy `never`. Import both
+images into the Portainer Docker Environment before deploying:
 
 ```dotenv
 MINIO_IMAGE=minio/minio:RELEASE.2024-06-13T22-53-53Z
 MINIO_MC_IMAGE=minio/mc:RELEASE.2024-06-12T14-34-03Z
-MINIO_PULL_POLICY=missing
+MINIO_PULL_POLICY=never
 ```
 
 If the MinIO server and client images were imported into the Portainer Docker
