@@ -300,6 +300,7 @@ export class MediaUseCases
     const preview = await this.findVariant(s, m.id, MediaVariantType.PREVIEW);
     return {
       id: m.id,
+      status: m.status,
       content_type: m.content_type,
       file_size: m.file_size,
       visibility: m.visibility,
