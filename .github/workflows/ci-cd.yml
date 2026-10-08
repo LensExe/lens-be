@@ -71,7 +71,7 @@ jobs:
           images: ghcr.io/${{ env.IMAGE_OWNER }}/lens-backend
           tags: |
             type=raw,value=latest
-            type=sha,prefix=sha-
+            type=raw,value=sha-${{ github.sha }}
             type=ref,event=branch
 
       - name: Build and push image
