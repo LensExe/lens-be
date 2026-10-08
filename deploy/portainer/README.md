@@ -21,12 +21,26 @@ build from source and it does not contain runtime secrets.
    IMAGE_REGISTRY=ghcr.io
    IMAGE_OWNER=lensexe
    IMAGE_TAG=latest
+   BACKEND_PULL_POLICY=always
    BACKEND_HOST_PORT=3000
    ```
 
    `BACKEND_HOST_PORT` can be `3001` if local port `3000` is already occupied.
 
 8. Deploy the stack.
+
+For a backend image imported into the Portainer Docker environment from a
+local `.tar` file, use the imported tag instead of the registry variables:
+
+```dotenv
+BACKEND_IMAGE=lens-backend:local
+BACKEND_PULL_POLICY=never
+BACKEND_HOST_PORT=3000
+```
+
+The `lens-backend:local` tag must exist on the same Docker node where this
+stack runs. This local mode is for testing; the GitHub Actions flow should use
+the registry mode above so Portainer can re-pull each published image.
 
 The Docker host must already have the external `lens-network` network and the
 shared infrastructure containers (`lens-postgres`, `lens-redis`, `lens-minio`,

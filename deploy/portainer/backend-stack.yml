@@ -2,8 +2,11 @@ name: lens-backend-app
 
 services:
   backend:
-    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_OWNER:-lensexe}/lens-backend:${IMAGE_TAG:-latest}
-    pull_policy: always
+    # Registry mode uses IMAGE_REGISTRY/IMAGE_OWNER/IMAGE_TAG. For a local
+    # image imported into Portainer, set BACKEND_IMAGE and use pull policy
+    # `never` so Compose does not contact the registry.
+    image: '${BACKEND_IMAGE:-${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_OWNER:-lensexe}/lens-backend:${IMAGE_TAG:-latest}}'
+    pull_policy: '${BACKEND_PULL_POLICY:-always}'
     environment:
       COOKIE_DOMAIN: '${COOKIE_DOMAIN:-}'
       COOKIE_SECRET: '${COOKIE_SECRET:-}'
