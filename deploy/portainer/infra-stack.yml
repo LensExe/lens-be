@@ -64,8 +64,8 @@ services:
 
   lens-minio:
     # Override MINIO_IMAGE when Portainer uses a different imported tag.
-    image: '${MINIO_IMAGE:-minio/minio:RELEASE.2024-06-13T22-53-53Z}'
-    pull_policy: '${MINIO_PULL_POLICY:-never}'
+    image: '${MINIO_IMAGE:-docker.io/minio/minio:latest}'
+    pull_policy: '${MINIO_PULL_POLICY:-missing}'
     command: server /data --console-address ':9001'
     environment:
       MINIO_ROOT_USER: '${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in Portainer}'
@@ -81,8 +81,8 @@ services:
 
   # Creates the Lens bucket and makes only public/ anonymously readable.
   lens-minio-init:
-    image: '${MINIO_MC_IMAGE:-minio/mc:RELEASE.2024-06-12T14-34-03Z}'
-    pull_policy: '${MINIO_PULL_POLICY:-never}'
+    image: '${MINIO_MC_IMAGE:-docker.io/minio/mc:latest}'
+    pull_policy: '${MINIO_PULL_POLICY:-missing}'
     depends_on:
       - lens-minio
     environment:
