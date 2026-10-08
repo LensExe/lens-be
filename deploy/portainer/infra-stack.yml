@@ -32,10 +32,11 @@ services:
       PGUSER: '${POSTGRES_USER:-lens-postgres}'
       PGPASSWORD: '${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Portainer}'
     entrypoint: ['/bin/sh', '-ec']
-    command: |
-      if ! psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'keycloak'" | grep -q 1; then
-        psql -d postgres -c 'CREATE DATABASE keycloak';
-      fi
+    command:
+      - |
+        if ! psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'keycloak'" | grep -q 1; then
+          psql -d postgres -c 'CREATE DATABASE keycloak';
+        fi
     networks:
       - lens-network
     restart: 'no'
@@ -89,13 +90,14 @@ services:
       MINIO_ROOT_PASSWORD: '${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in Portainer}'
       MINIO_BUCKET: '${MINIO_BUCKET:-lens}'
     entrypoint: ['/bin/sh', '-ec']
-    command: |
-      until mc alias set local http://lens-minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do
-        sleep 2;
-      done
-      mc mb --ignore-existing "local/$$MINIO_BUCKET"
-      mc anonymous set download "local/$$MINIO_BUCKET/public"
-      echo "MinIO bucket $$MINIO_BUCKET is ready"
+    command:
+      - |
+        until mc alias set local http://lens-minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do
+          sleep 2;
+        done
+        mc mb --ignore-existing "local/$$MINIO_BUCKET"
+        mc anonymous set download "local/$$MINIO_BUCKET/public"
+        echo "MinIO bucket $$MINIO_BUCKET is ready"
     networks:
       - lens-network
     restart: 'no'
