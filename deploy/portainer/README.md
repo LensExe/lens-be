@@ -3,40 +3,6 @@
 This stack runs the backend image published by GitHub Actions. It does not
 build from source and it does not contain runtime secrets.
 
-## Infrastructure stack
-
-Deploy `deploy/portainer/infra-stack.yml` as a separate Portainer stack before
-deploying this backend stack. It starts the shared PostgreSQL, Redis, MinIO and
-Keycloak services, creates the `lens` bucket, and owns the shared
-`lens-network` network. The backend stack then joins that network as an
-external network.
-
-In Portainer, create the infrastructure stack from the same Git repository with
-the compose path `deploy/portainer/infra-stack.yml`. Add the variables listed in
-[`infra-stack.env.example`](./infra-stack.env.example) under **Environment
-variables** and replace every `CHANGE_ME` value with a strong secret. Do not
-commit the real values.
-
-Deploy this stack first, wait until `lens-postgres`, `lens-redis`,
-`lens-minio`, and `lens-keycloak` are running, and then deploy
-`backend-stack.yml`.
-
-The backend must use these internal Docker DNS names and ports:
-
-```dotenv
-DB_HOST=lens-postgres
-DB_PORT=5432
-REDIS_HOST=lens-redis
-REDIS_PORT=6379
-S3_MINIO_ENDPOINT=http://lens-minio:9000
-KEYCLOAK_URL=http://lens-keycloak:8080
-KEYCLOAK_AUTH_SERVER_URL=http://lens-keycloak:8080
-```
-
-For browser-facing presigned URLs and Keycloak redirects, replace the public
-endpoints with the server IP/domain and the published host ports (`9000` and
-`8089`). Internal Docker hostnames are not resolvable by a customer's browser.
-
 ## Portainer setup
 
 1. Open **Stacks → Add stack → Git repository**.
