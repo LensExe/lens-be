@@ -15,8 +15,8 @@ services:
       PORTAL_DOMAIN: '${PORTAL_DOMAIN:-portal.localhost}'
       ADMIN_DOMAIN: '${ADMIN_DOMAIN:-admin.localhost}'
       BACKEND_DOMAIN: '${BACKEND_DOMAIN:-api-direct.localhost}'
-      KONG_DOMAIN: '${KONG_DOMAIN:-api.localhost}'
-      KONG_UPSTREAM: '${KONG_UPSTREAM:-lens-kong:8000}'
+      # KONG_DOMAIN: '${KONG_DOMAIN:-api.localhost}'
+      # KONG_UPSTREAM: '${KONG_UPSTREAM:-lens-kong:8000}'
       KEYCLOAK_DOMAIN: '${KEYCLOAK_DOMAIN:-auth.localhost}'
       MINIO_S3_DOMAIN: '${MINIO_S3_DOMAIN:-s3.localhost}'
       MINIO_CONSOLE_DOMAIN: '${MINIO_CONSOLE_DOMAIN:-minio-console.localhost}'
@@ -44,9 +44,9 @@ services:
           reverse_proxy backend:3000
         }
 
-        {$$KONG_DOMAIN:api.localhost} {
-          reverse_proxy {$$KONG_UPSTREAM:lens-kong:8000}
-        }
+        # {$$KONG_DOMAIN:api.localhost} {
+        #   reverse_proxy {$$KONG_UPSTREAM:lens-kong:8000}
+        # }
 
         {$$KEYCLOAK_DOMAIN:auth.localhost} {
           reverse_proxy lens-keycloak:8080
