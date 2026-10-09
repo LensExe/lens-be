@@ -81,14 +81,15 @@ stack created the network first.
 
 ### Caddy gateway and domain routing
 
-`deploy/Caddyfile` contains the centralized domain routes. Deploy one separate
-Caddy stack from `deploy/docker-compose.caddy.yml`; it binds host ports `80/443`.
+`deploy/portainer/caddy/Caddyfile` contains the centralized domain routes.
+Deploy one separate Caddy stack from `deploy/portainer/lens-caddy.yml`; it binds
+host ports `80/443`.
 The FE, backend, Keycloak, MinIO, and Kong Compose services do not need Caddy
 labels. They only need to join the shared `lens-proxy` network so Caddy can
 reach them by their Docker service names.
 
 In Portainer, add a Git stack from `LensExe/lens-be`, branch `master`, with
-Compose path `deploy/docker-compose.caddy.yml`. Set the domain variables below
+Compose path `deploy/portainer/lens-caddy.yml`. Set the domain variables below
 in that Caddy stack's environment variables. Create `lens-proxy` first, deploy
 infra/backend/FE and Kong, then deploy Caddy. Only this stack should publish
 host ports `80/443`.
@@ -117,6 +118,8 @@ KONG_UPSTREAM=lens-kong:8000
 KEYCLOAK_DOMAIN=auth.example.com
 MINIO_S3_DOMAIN=s3.example.com
 MINIO_CONSOLE_DOMAIN=minio-console.example.com
+PORTAINER_DOMAIN=portainer.example.com
+PORTAINER_UPSTREAM=portainer:9000
 ```
 
 `api.example.com` routes to Kong; `api-direct.example.com` routes directly to
@@ -126,6 +129,15 @@ Kong container on `lens-proxy`; change it if your Kong service has a different
 Docker network alias or proxy port. Missing domain variables default to
 `.localhost` hostnames for testing. Point real domain A records to the VPS IP
 and allow inbound TCP `80` and `443` in the VPS firewall.
+
+To route Portainer, attach the Portainer Server container to the same external
+`lens-proxy` network and set `PORTAINER_UPSTREAM` to its Docker network alias
+and internal HTTP port (usually `portainer:9000`). Do not publish port `9000`
+to the public host; Caddy should be the only public entry point. If Portainer
+has HTTP disabled, configure a trusted HTTPS upstream instead of disabling TLS
+verification. Portainer is an administrative interface: restrict the hostname
+with a VPN, access gateway, or IP allowlist, and keep strong authentication and
+MFA enabled before exposing it publicly.
 
 The current Portainer `infra-stack.yml` does not include a Kong service, so it
 does not create Kong. If Kong is deployed by another stack, attach its proxy
@@ -137,7 +149,8 @@ Keep Kong Admin API ports `8001/8002` private. Keycloak is configured to trust
 URIs to the final HTTPS domain before production login.
 
 The Compose file embeds the Caddyfile content so Portainer can deploy it without
-a host-side config path. Keep that embedded block in sync with `deploy/Caddyfile`
+a host-side config path. Keep that embedded block in sync with
+`deploy/portainer/caddy/Caddyfile`
 when routes change. This avoids relying on Portainer's Git-relative path-volume
 feature, which is available in Business Edition but not Community Edition.
 Unlike Caddy Docker Proxy, this setup does not mount the Docker socket.

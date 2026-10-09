@@ -20,6 +20,8 @@ services:
       KEYCLOAK_DOMAIN: '${KEYCLOAK_DOMAIN:-auth.localhost}'
       MINIO_S3_DOMAIN: '${MINIO_S3_DOMAIN:-s3.localhost}'
       MINIO_CONSOLE_DOMAIN: '${MINIO_CONSOLE_DOMAIN:-minio-console.localhost}'
+      PORTAINER_DOMAIN: '${PORTAINER_DOMAIN:-portainer.localhost}'
+      PORTAINER_UPSTREAM: '${PORTAINER_UPSTREAM:-portainer:9000}'
     entrypoint: ['/bin/sh', '-ec']
     command:
       - |
@@ -58,6 +60,10 @@ services:
 
         {$$MINIO_CONSOLE_DOMAIN:minio-console.localhost} {
           reverse_proxy lens-minio:9001
+        }
+
+        {$$PORTAINER_DOMAIN:portainer.localhost} {
+          reverse_proxy {$$PORTAINER_UPSTREAM:portainer:9000}
         }
         EOF
         exec caddy run --config /tmp/Caddyfile --adapter caddyfile
