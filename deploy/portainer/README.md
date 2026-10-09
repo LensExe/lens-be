@@ -23,7 +23,6 @@ build from source and it does not contain runtime secrets.
    IMAGE_TAG=latest
    BACKEND_PULL_POLICY=always
    BACKEND_HOST_PORT=3000
-   BACKEND_DOMAIN=api-direct.example.com
    ```
 
    `BACKEND_HOST_PORT` can be `3001` if local port `3000` is already occupied.
@@ -68,7 +67,7 @@ GitHub Actions.
 Deploy `deploy/portainer/infra-stack.yml` as a separate stack before the
 backend stack. It creates PostgreSQL, Redis, S3-compatible storage, and
 Keycloak, and joins the shared external `lens-network` network. Caddy is
-deployed separately from `deploy/portainer/caddy-stack.yml`.
+deployed separately from `deploy/docker-compose.caddy.yml`.
 
 The network must exist before deploying the stack. If it does not exist, create
 it once on the Portainer Docker host:
@@ -82,17 +81,21 @@ stack created the network first.
 
 ### Caddy gateway and domain routing
 
-Deploy `deploy/portainer/caddy-stack.yml` as the one dedicated Caddy stack. It
-binds host ports `80/443`; do not run another public proxy on those ports. The
-FE stack, backend stack, and routed infra services keep Caddy labels on their
-own service definitions. Caddy Docker Proxy discovers those labels across
-Portainer stacks and reloads its routes automatically.
+`deploy/Caddyfile` contains the centralized domain routes. Deploy one separate
+Caddy stack from `deploy/docker-compose.caddy.yml`; it binds host ports `80/443`.
+The FE, backend, Keycloak, MinIO, and Kong Compose services do not need Caddy
+labels. They only need to join the shared `lens-proxy` network so Caddy can
+reach them by their Docker service names.
 
 In Portainer, add a Git stack from `LensExe/lens-be`, branch `master`, with
-Compose path `deploy/portainer/caddy-stack.yml`. Set `ACME_EMAIL` in that
-stack's environment variables. Create `lens-proxy` first, then deploy the
-infra, backend, and FE stacks, and deploy Caddy once those services are up.
-Only this stack should publish host ports `80/443`.
+Compose path `deploy/docker-compose.caddy.yml`. Set the domain variables below
+in that Caddy stack's environment variables. Create `lens-proxy` first, deploy
+infra/backend/FE and Kong, then deploy Caddy. Only this stack should publish
+host ports `80/443`.
+
+If the older Caddy stack is already running, update that stack to the new
+Compose path instead of starting a second proxy; two Caddy containers cannot
+both bind `80/443`.
 
 Create a second external Docker network named `lens-proxy` once on the same
 Docker host (Portainer **Networks → Add network**, driver `bridge`, or
@@ -100,41 +103,44 @@ Docker host (Portainer **Networks → Add network**, driver `bridge`, or
 the gateway and services that should receive domain traffic join this network;
 PostgreSQL and Redis stay off it. Do not remove the existing `lens-network`.
 
-Set these variables in the infra stack's Portainer environment:
+Put all domain names in the Caddy stack's Portainer environment, not in the
+individual application stacks:
 
 ```dotenv
+ACME_EMAIL=you@example.com
+LANDING_DOMAIN=www.example.com
+PORTAL_DOMAIN=app.example.com
+ADMIN_DOMAIN=admin.example.com
+BACKEND_DOMAIN=api-direct.example.com
+KONG_DOMAIN=api.example.com
+KONG_UPSTREAM=lens-kong:8000
 KEYCLOAK_DOMAIN=auth.example.com
 MINIO_S3_DOMAIN=s3.example.com
 MINIO_CONSOLE_DOMAIN=minio-console.example.com
 ```
 
-Set `BACKEND_DOMAIN=api-direct.example.com` in the backend stack if you need a
-direct public route to port `3000`. That bypasses Kong; once Kong is ready, use
-the Kong hostname for normal API traffic and restrict the direct backend route.
-Missing domain variables default to `.localhost` hostnames for testing. Point
-real domain A records to the VPS IP and allow inbound TCP `80` and `443` in the
-VPS firewall.
+`api.example.com` routes to Kong; `api-direct.example.com` routes directly to
+the backend and is mainly useful for testing. The direct route can be omitted
+or restricted after confirming Kong works. `KONG_UPSTREAM` must resolve to the
+Kong container on `lens-proxy`; change it if your Kong service has a different
+Docker network alias or proxy port. Missing domain variables default to
+`.localhost` hostnames for testing. Point real domain A records to the VPS IP
+and allow inbound TCP `80` and `443` in the VPS firewall.
 
 The current Portainer `infra-stack.yml` does not include a Kong service, so it
-cannot declare a Kong route yet. When Kong is deployed, attach it to
-`lens-proxy` and add these labels to the Kong service, replacing the hostname
-with the real API domain:
-
-```yaml
-labels:
-  caddy: api.example.com
-  caddy.reverse_proxy: '{{upstreams 8000}}'
-networks:
-  - lens-proxy
-```
+does not create Kong. If Kong is deployed by another stack, attach its proxy
+service to `lens-proxy`; the Caddyfile assumes the network alias `lens-kong` and
+proxy port `8000` by default.
 
 Keep Kong Admin API ports `8001/8002` private. Keycloak is configured to trust
 `X-Forwarded-*` headers from Caddy; set its public hostname and OAuth redirect
 URIs to the final HTTPS domain before production login.
 
-The Caddy gateway mounts `/var/run/docker.sock` so the proxy plugin can discover
-labels in the other stacks. Treat the gateway as highly privileged and keep
-Portainer and the VPS Docker host access restricted.
+The Compose file embeds the Caddyfile content so Portainer can deploy it without
+a host-side config path. Keep that embedded block in sync with `deploy/Caddyfile`
+when routes change. This avoids relying on Portainer's Git-relative path-volume
+feature, which is available in Business Edition but not Community Edition.
+Unlike Caddy Docker Proxy, this setup does not mount the Docker socket.
 
 The default S3 images use public `netiedge` mirrors with fixed release tags and
 pull policy `missing`:

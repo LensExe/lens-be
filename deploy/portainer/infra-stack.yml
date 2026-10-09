@@ -73,11 +73,6 @@ services:
     ports:
       - '${MINIO_HOST_PORT:-9000}:9000'
       - '${MINIO_CONSOLE_HOST_PORT:-9001}:9001'
-    labels:
-      caddy: '${MINIO_S3_DOMAIN:-s3.localhost}'
-      caddy.reverse_proxy: '{{upstreams 9000}}'
-      caddy_1: '${MINIO_CONSOLE_DOMAIN:-minio-console.localhost}'
-      caddy_1.reverse_proxy: '{{upstreams 9001}}'
     volumes:
       - minio-data:/data
     networks:
@@ -126,9 +121,6 @@ services:
       KC_PROXY_HEADERS: xforwarded
     ports:
       - '${KEYCLOAK_HOST_PORT:-8089}:8080'
-    labels:
-      caddy: '${KEYCLOAK_DOMAIN:-auth.localhost}'
-      caddy.reverse_proxy: '{{upstreams 8080}}'
     networks:
       - lens-network
       - lens-proxy

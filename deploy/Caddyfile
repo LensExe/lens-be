@@ -1,0 +1,35 @@
+{
+  email {$ACME_EMAIL}
+}
+
+{$LANDING_DOMAIN:landing.localhost} {
+  reverse_proxy landing:80
+}
+
+{$PORTAL_DOMAIN:portal.localhost} {
+  reverse_proxy portal:80
+}
+
+{$ADMIN_DOMAIN:admin.localhost} {
+  reverse_proxy admin:80
+}
+
+{$BACKEND_DOMAIN:api-direct.localhost} {
+  reverse_proxy backend:3000
+}
+
+{$KONG_DOMAIN:api.localhost} {
+  reverse_proxy {$KONG_UPSTREAM:lens-kong:8000}
+}
+
+{$KEYCLOAK_DOMAIN:auth.localhost} {
+  reverse_proxy lens-keycloak:8080
+}
+
+{$MINIO_S3_DOMAIN:s3.localhost} {
+  reverse_proxy lens-minio:9000
+}
+
+{$MINIO_CONSOLE_DOMAIN:minio-console.localhost} {
+  reverse_proxy lens-minio:9001
+}
