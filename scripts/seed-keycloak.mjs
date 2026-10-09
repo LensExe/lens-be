@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Provision the local Lens demo users and realm roles in Keycloak.
- * Run after `pnpm db:seed`; only the fixed demo user IDs below are changed.
+ * Provision the reviewed local Lens demo users and realm roles in Keycloak.
+ * Run after `pnpm db:seed`; only reviewed seed IDs or legacy review emails are changed.
  */
 
 import axios from 'axios';
@@ -14,25 +14,6 @@ try {
 } catch (error) {
   if (error.code !== 'ENOENT') throw error;
 }
-
-const demoUserIds = [
-  'a0000000-0000-4000-8000-000000000001',
-  'a0000000-0000-4000-8000-000000000002',
-  'b0000000-0000-4000-8000-000000000001',
-  'b0000000-0000-4000-8000-000000000002',
-  'b0000000-0000-4000-8000-000000000003',
-  'b0000000-0000-4000-8000-000000000004',
-  'c0000000-0000-4000-8000-000000000001',
-  'c0000000-0000-4000-8000-000000000002',
-  'c0000000-0000-4000-8000-000000000003',
-  'c0000000-0000-4000-8000-000000000004',
-  'c0000000-0000-4000-8000-000000000005',
-  'c0000000-0000-4000-8000-000000000006',
-  'c0000000-0000-4000-8000-000000000007',
-  'c0000000-0000-4000-8000-000000000008',
-  'c0000000-0000-4000-8000-000000000009',
-  'c0000000-0000-4000-8000-000000000010',
-];
 
 const required = (value, name) => {
   if (!value?.trim()) throw new Error(`${name} is required`);
@@ -57,26 +38,33 @@ const adminPassword = required(
   process.env.KEYCLOAK_ADMIN_PASSWORD,
   'KEYCLOAK_ADMIN_PASSWORD',
 );
-const demoPassword = process.env.MOCK_USER_PASSWORD?.trim() || 'LensDemo@2026!';
-
 const keycloakHost = new URL(baseUrl).hostname.replace(/^\[|\]$/g, '');
-if (
-  !['localhost', '127.0.0.1', '::1'].includes(keycloakHost) &&
-  process.env.ALLOW_NONLOCAL_KEYCLOAK_SEED !== 'true'
-) {
+const isNonLocalKeycloak = !['localhost', '127.0.0.1', '::1'].includes(
+  keycloakHost,
+);
+if (isNonLocalKeycloak && process.env.ALLOW_NONLOCAL_KEYCLOAK_SEED !== 'true') {
   throw new Error(
     'Refusing to seed demo accounts into a non-local Keycloak. Set ALLOW_NONLOCAL_KEYCLOAK_SEED=true only when that is intentional.',
   );
 }
+const demoPassword = process.env.MOCK_USER_PASSWORD?.trim();
+if (isNonLocalKeycloak && !demoPassword) {
+  throw new Error(
+    'MOCK_USER_PASSWORD is required when seeding a non-local Keycloak.',
+  );
+}
+const passwordForNewUsers = demoPassword || 'LensDemo@2026!';
 
-const database = new Client({
-  connectionString: process.env.DATABASE_URL,
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT || 5433),
-  user: process.env.DB_USERNAME || 'lens-postgres',
-  password: process.env.DB_PASSWORD || 'Postgres@#_Lens_EXE202_FPT_FA26',
-  database: process.env.DB_NAME || 'lens',
-});
+const databaseConfig = process.env.DATABASE_URL
+  ? { connectionString: process.env.DATABASE_URL }
+  : {
+      host: process.env.DB_HOST || 'localhost',
+      port: Number(process.env.DB_PORT || 5433),
+      user: process.env.DB_USERNAME || 'lens-postgres',
+      password: process.env.DB_PASSWORD || 'Postgres@#_Lens_EXE202_FPT_FA26',
+      database: process.env.DB_NAME || 'lens',
+    };
+const database = new Client(databaseConfig);
 
 const realmPath = encodeURIComponent(realmName);
 // The admin client already has `${baseUrl}/admin` as its base URL.
@@ -281,9 +269,8 @@ async function provisionUser(admin, user) {
     email: user.email,
     ...splitName(user.fullname),
     enabled: user.status === 'active',
-    ...(!existing
-      ? { emailVerified: user.email.endsWith('.test'), requiredActions: [] }
-      : {}),
+    emailVerified: true,
+    requiredActions: [],
   };
 
   if (existing) {
@@ -292,7 +279,7 @@ async function provisionUser(admin, user) {
     const created = await admin.post(`${adminPath}/users`, {
       ...profile,
       credentials: [
-        { type: 'password', value: demoPassword, temporary: false },
+        { type: 'password', value: passwordForNewUsers, temporary: false },
       ],
     });
     actualId = created.headers.location?.split('/').at(-1) ?? actualId;
@@ -345,10 +332,16 @@ async function seed() {
      LEFT JOIN admins a ON a.user_id = u.id
      LEFT JOIN photographers p ON p.user_id = u.id
      LEFT JOIN customers c ON c.user_id = u.id
-     WHERE u.id = ANY($1::uuid[])
+       WHERE (
+         u.email LIKE 'review.%@seed.test'
+         OR u.id::text LIKE ANY (ARRAY[
+           'a1000000-0000-4000-8000-%',
+           'b1000000-0000-4000-8000-%',
+           'c1000000-0000-4000-8000-%'
+         ])
+       )
        AND (a.user_id IS NOT NULL OR p.user_id IS NOT NULL OR c.user_id IS NOT NULL)
      ORDER BY u.id`,
-    [demoUserIds],
   );
 
   const users = usersResult.rows.map((user) => ({
@@ -363,14 +356,20 @@ async function seed() {
     (counts, user) => ({ ...counts, [user.role]: counts[user.role] + 1 }),
     { admin: 0, customer: 0, photographer: 0 },
   );
+  const expectedCounts = {
+    admin: 1,
+    customer: 20,
+    photographer: 20,
+    total: 41,
+  };
   if (
-    roleCounts.admin !== 1 ||
-    roleCounts.customer !== 5 ||
-    roleCounts.photographer !== 10 ||
-    users.length !== 16
+    roleCounts.admin !== expectedCounts.admin ||
+    roleCounts.customer !== expectedCounts.customer ||
+    roleCounts.photographer !== expectedCounts.photographer ||
+    users.length !== expectedCounts.total
   ) {
     throw new Error(
-      `Expected 1 admin, 5 customers, and 10 photographers; found ${roleCounts.admin} admin, ${roleCounts.customer} customers, and ${roleCounts.photographer} photographers. Run \`pnpm db:seed\` first.`,
+      `Expected ${expectedCounts.admin} admin, ${expectedCounts.customer} customers, and ${expectedCounts.photographer} photographers; found ${roleCounts.admin} admin, ${roleCounts.customer} customers, and ${roleCounts.photographer} photographers. Run \`pnpm db:seed\` first.`,
     );
   }
 
@@ -391,7 +390,7 @@ async function seed() {
     `\nProvisioned ${users.length} demo accounts in Keycloak realm "${realmName}".`,
   );
   console.log(
-    'New local .test accounts use MOCK_USER_PASSWORD (default: LensDemo@2026!); existing Keycloak passwords are unchanged.',
+    'New accounts use MOCK_USER_PASSWORD; existing Keycloak passwords are unchanged.',
   );
 }
 

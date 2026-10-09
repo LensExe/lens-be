@@ -92,6 +92,20 @@ test('DigitalOcean public object URLs use a bucket host or the configured CDN', 
   });
 });
 
+test('external media URLs bypass S3 URL generation', async () => {
+  const externalUrl = 'https://picsum.photos/seed/lens-reviewed-001/1600/1200';
+  const resolver = {
+    resolve: () => {
+      throw new Error('S3 resolver should not be called for external URLs');
+    },
+  } as unknown as S3ClientResolverService;
+  const storage = new S3ObjectStorage(resolver, {} as S3ObjectService);
+
+  assert.equal(await storage.getUrl(externalUrl, 'public'), externalUrl);
+  assert.equal(await storage.downloadUrl(externalUrl), externalUrl);
+  assert.equal(storage.buildPublicObjectUrl(externalUrl), externalUrl);
+});
+
 test('MinIO remains path-style and Spaces aliases are accepted', async () => {
   await withStorageEnv(
     {
