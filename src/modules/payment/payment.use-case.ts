@@ -54,6 +54,11 @@ const CHECKOUT_RECONCILIATION_MAX_ATTEMPTS =
 const PAYOS_WEBHOOK_VALIDATION_ORDER_CODE = 123;
 const PAYOS_WEBHOOK_VALIDATION_AMOUNT = 3000;
 
+// External providers require a positive numeric order code. Keep this in a
+// database sequence so codes remain unique across app instances and retries.
+const PAYMENT_ORDER_CODE_SEQUENCE = 'lens_payment_order_code_seq';
+const PAYMENT_ORDER_CODE_SEQUENCE_START = 1_000_000_000_001;
+
 @Injectable()
 export class PaymentUseCases
   implements SubscriptionPaymentsPort, BookingPaymentSettlementPort
@@ -143,6 +148,16 @@ export class PaymentUseCases
         'This payment attempt failed; contact support to retry',
         'conflict',
       );
+      if (!payFromWallet && existing.provider_order_code === null) {
+        const providerOrderCode = await this.nextProviderOrderCode(manager);
+        const updated = await updateEntity(
+          manager,
+          EntitySchemas.transactions,
+          existing.id,
+          { provider_order_code: providerOrderCode },
+        );
+        Object.assign(existing, updated);
+      }
       return existing;
     }
     if (type === 'remaining')
@@ -175,7 +190,9 @@ export class PaymentUseCases
       direction: payFromWallet ? 'out' : 'in',
       idempotency_key: input.idempotency_key,
       payment_gateway: provider,
-      provider_order_code: payFromWallet ? null : undefined,
+      provider_order_code: payFromWallet
+        ? null
+        : await this.nextProviderOrderCode(manager),
       status: payFromWallet ? 'paid' : 'pending',
       checkout_expires_at: checkoutExpiresAt,
     });
@@ -195,6 +212,30 @@ export class PaymentUseCases
       await this.emitBookingPayment(manager, booking.id, transaction);
     }
     return transaction;
+  }
+
+  /**
+   * Allocate a provider order code that is safe to reuse when a checkout is retried.
+   * The sequence is created lazily because this project currently bootstraps the
+   * database from the reviewed seed SQL instead of numbered migrations.
+   */
+  private async nextProviderOrderCode(manager: EntityManager): Promise<number> {
+    await manager.query(`
+      CREATE SEQUENCE IF NOT EXISTS ${PAYMENT_ORDER_CODE_SEQUENCE}
+        AS bigint
+        START WITH ${PAYMENT_ORDER_CODE_SEQUENCE_START}
+        MINVALUE 1
+    `);
+    const rows = await manager.query(
+      `SELECT nextval('${PAYMENT_ORDER_CODE_SEQUENCE}')::text AS code`,
+    );
+    const code = Number(rows[0]?.code);
+    ensure(
+      Number.isSafeInteger(code) && code > 0,
+      'Unable to generate payment order code',
+      'unavailable',
+    );
+    return code;
   }
 
   /**
