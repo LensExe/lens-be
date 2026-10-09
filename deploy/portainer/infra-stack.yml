@@ -77,6 +77,7 @@ services:
       - minio-data:/data
     networks:
       - lens-network
+      - lens-proxy
     restart: unless-stopped
 
   # Creates the Lens bucket and makes only public/ anonymously readable.
@@ -117,10 +118,12 @@ services:
       KC_DB_URL_DATABASE: keycloak
       KC_DB_USERNAME: '${POSTGRES_USER:-lens-postgres}'
       KC_DB_PASSWORD: '${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Portainer}'
+      KC_PROXY_HEADERS: xforwarded
     ports:
       - '${KEYCLOAK_HOST_PORT:-8089}:8080'
     networks:
       - lens-network
+      - lens-proxy
     restart: unless-stopped
 
 volumes:
@@ -137,3 +140,6 @@ networks:
   lens-network:
     external: true
     name: lens-network
+  lens-proxy:
+    external: true
+    name: lens-proxy

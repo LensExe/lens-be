@@ -22,6 +22,8 @@ services:
       GOOGLE_CLIENT_SECRET: '${GOOGLE_CLIENT_SECRET:-}'
       JWT_EXPIRES_IN: '${JWT_EXPIRES_IN:-}'
       JWT_SECRET: '${JWT_SECRET:-}'
+      KEYCLOAK_ADMIN_CLIENT_ID: '${KEYCLOAK_ADMIN_CLIENT_ID:-}'
+      KEYCLOAK_ADMIN_CLIENT_SECRET: '${KEYCLOAK_ADMIN_CLIENT_SECRET:-}'
       KEYCLOAK_ADMIN_PASSWORD: '${KEYCLOAK_ADMIN_PASSWORD:-}'
       KEYCLOAK_ADMIN_USERNAME: '${KEYCLOAK_ADMIN_USERNAME:-}'
       KEYCLOAK_AUTH_ENDPOINT: '${KEYCLOAK_AUTH_ENDPOINT:-}'
@@ -68,9 +70,13 @@ services:
       - '${BACKEND_HOST_PORT:-3000}:3000'
     networks:
       - lens-network
+      - lens-proxy
     restart: unless-stopped
 
 networks:
   lens-network:
     external: true
     name: lens-network
+  lens-proxy:
+    external: true
+    name: lens-proxy

@@ -1,0 +1,79 @@
+name: lens-caddy
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: lens-caddy
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      ACME_EMAIL: '${ACME_EMAIL:?Set_ACME_EMAIL_in_Portainer}'
+      LANDING_DOMAIN: '${LANDING_DOMAIN:-landing.localhost}'
+      PORTAL_DOMAIN: '${PORTAL_DOMAIN:-portal.localhost}'
+      ADMIN_DOMAIN: '${ADMIN_DOMAIN:-admin.localhost}'
+      BACKEND_DOMAIN: '${BACKEND_DOMAIN:-api-direct.localhost}'
+      KONG_DOMAIN: '${KONG_DOMAIN:-api.localhost}'
+      KONG_UPSTREAM: '${KONG_UPSTREAM:-lens-kong:8000}'
+      KEYCLOAK_DOMAIN: '${KEYCLOAK_DOMAIN:-auth.localhost}'
+      MINIO_S3_DOMAIN: '${MINIO_S3_DOMAIN:-s3.localhost}'
+      MINIO_CONSOLE_DOMAIN: '${MINIO_CONSOLE_DOMAIN:-minio-console.localhost}'
+    entrypoint: ['/bin/sh', '-ec']
+    command:
+      - |
+        cat > /tmp/Caddyfile <<'EOF'
+        {
+          email {$$ACME_EMAIL}
+        }
+
+        {$$LANDING_DOMAIN:landing.localhost} {
+          reverse_proxy landing:80
+        }
+
+        {$$PORTAL_DOMAIN:portal.localhost} {
+          reverse_proxy portal:80
+        }
+
+        {$$ADMIN_DOMAIN:admin.localhost} {
+          reverse_proxy admin:80
+        }
+
+        {$$BACKEND_DOMAIN:api-direct.localhost} {
+          reverse_proxy backend:3000
+        }
+
+        {$$KONG_DOMAIN:api.localhost} {
+          reverse_proxy {$$KONG_UPSTREAM:lens-kong:8000}
+        }
+
+        {$$KEYCLOAK_DOMAIN:auth.localhost} {
+          reverse_proxy lens-keycloak:8080
+        }
+
+        {$$MINIO_S3_DOMAIN:s3.localhost} {
+          reverse_proxy lens-minio:9000
+        }
+
+        {$$MINIO_CONSOLE_DOMAIN:minio-console.localhost} {
+          reverse_proxy lens-minio:9001
+        }
+        EOF
+        exec caddy run --config /tmp/Caddyfile --adapter caddyfile
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - lens-proxy
+
+volumes:
+  caddy-data:
+    name: lens-caddy-data
+  caddy-config:
+    name: lens-caddy-config
+
+networks:
+  lens-proxy:
+    external: true
+    name: lens-proxy

@@ -83,8 +83,22 @@ export class IdentityUseCases {
    * @param actor Actor performing the operation; used for role and access checks.
    * @returns Result returned by `currentUser`.
    */
-  me(s: EntityManager, actor: Actor) {
-    return currentUser(s, actor);
+  async me(s: EntityManager, actor: Actor) {
+    const user = await currentUser(s, actor);
+    const [customerProfile, photographerProfile] = await Promise.all([
+      s.findOneBy(EntitySchemas.customers, { user_id: user.id }),
+      s.findOneBy(EntitySchemas.photographers, { user_id: user.id }),
+    ]);
+
+    // The profile tables are the source of truth for the Lens role. Keycloak
+    // roles can be stale while an account is being provisioned or promoted.
+    const role = photographerProfile
+      ? RegistrationRole.PHOTOGRAPHER
+      : customerProfile
+        ? RegistrationRole.CUSTOMER
+        : undefined;
+
+    return { ...user, ...(role ? { role } : {}) };
   }
 
   /**

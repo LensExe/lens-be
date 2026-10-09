@@ -433,13 +433,14 @@ export class PaymentUseCases
     _actor: Actor,
     input: Inputs.PaymentWebhookCommandInput,
   ) {
+    const providerName = input.provider.trim().toLowerCase();
     ensure(
-      Object.values(ExternalPaymentProvider).includes(input.provider as never),
+      Object.values(ExternalPaymentProvider).includes(providerName as never),
       'Unsupported payment provider',
       'invalid',
     );
     const provider =
-      input.provider as (typeof ExternalPaymentProvider)[keyof typeof ExternalPaymentProvider];
+      providerName as (typeof ExternalPaymentProvider)[keyof typeof ExternalPaymentProvider];
     const verified = await this.gateway.verify(
       input.payload,
       provider,

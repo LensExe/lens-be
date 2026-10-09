@@ -99,12 +99,15 @@ export class KeycloakUserService {
    * @throws {ServiceUnavailableException} Thrown when an external service is not configured or is unavailable.
    */
   async getAdminAccessToken(): Promise<string> {
-    const clientId = this.config.get<string>('auth.keycloakClientId')?.trim();
-    const clientSecret = this.config
-      .get<string>('auth.keycloakClientSecret')
-      ?.trim();
-    console.log('clientId: ', clientId);
-    console.log('clientSecret: ', clientSecret);
+    // Prefer the dedicated admin service account when one is configured. The
+    // normal OIDC client is kept as a local-development fallback because the
+    // Keycloak setup script can grant it the same service-account roles.
+    const clientId =
+      this.config.get<string>('auth.keycloakAdminClientId')?.trim() ||
+      this.config.get<string>('auth.keycloakClientId')?.trim();
+    const clientSecret =
+      this.config.get<string>('auth.keycloakAdminClientSecret')?.trim() ||
+      this.config.get<string>('auth.keycloakClientSecret')?.trim();
 
     if (!clientId || !clientSecret) {
       throw new ServiceUnavailableException(
@@ -243,9 +246,35 @@ export class KeycloakUserService {
    * @returns Result returned by `request`.
    */
   async getRealmRole(roleName: string): Promise<{ id: string; name: string }> {
-    return this.request<{ id: string; name: string }>(
-      `/admin/realms/${this.realm()}/roles/${encodeURIComponent(roleName)}`,
-    );
+    try {
+      return await this.request<{ id: string; name: string }>(
+        `/admin/realms/${this.realm()}/roles/${encodeURIComponent(roleName)}`,
+      );
+    } catch (error) {
+      // Keycloak role names are case-sensitive. Existing realms may contain
+      // CUSTOMER/PHOTOGRAPHER while Lens uses lowercase role values, so fall
+      // back to a case-insensitive lookup before reporting the role missing.
+      if (
+        !(error instanceof KeycloakUpstreamException) ||
+        error.upstreamStatus !== 404
+      ) {
+        throw error;
+      }
+
+      const roles = await this.request<Array<{ id: string; name: string }>>(
+        `/admin/realms/${this.realm()}/roles?first=0&max=1000`,
+      );
+      const normalized = roleName.trim().toLowerCase();
+      const role = roles.find(
+        (candidate) => candidate.name.trim().toLowerCase() === normalized,
+      );
+      if (!role) {
+        throw new BadRequestException(
+          `Keycloak realm role "${roleName}" was not found`,
+        );
+      }
+      return role;
+    }
   }
 
   /**
