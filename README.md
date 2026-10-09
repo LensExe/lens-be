@@ -218,11 +218,11 @@ _(Tùy chọn: Nếu muốn chạy cả Keycloak và Kong cục bộ, sử dụn
 # Apply the latest database schema to PostgreSQL.
 pnpm db:migrate
 
-# Load the demo accounts plus the default medium dataset and local MinIO stock-photo galleries.
+# Load the reviewed local fixture (1 admin, 20 photographers, 20 customers, 140 bookings).
 pnpm db:seed
 ```
 
-`SEED_MEDIA_PHOTOGRAPHERS` controls how many generated photographers receive three demo gallery images (default 250; fixed demo portfolios are always populated). The included images are labeled as stock illustrations. See [local seed accounts and media details](docs/local-api-test-data.md).
+The seed file contains explicit SQL inserts and is intended for local review before execution. Use `pnpm seed:local` to apply migrations, load the fixture, and provision matching local Keycloak users. See [local seed accounts](docs/local-api-test-data.md).
 
 ### 6. Khởi chạy ứng dụng Backend
 

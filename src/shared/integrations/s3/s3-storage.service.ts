@@ -14,6 +14,15 @@ import { S3ObjectService } from './s3-object.service';
 import { isS3NotFound } from './s3-errors';
 import { ObjectStorage, type PresignedUploadUrl } from './storage.port';
 
+const isExternalUrl = (key: string): boolean => {
+  try {
+    const protocol = new URL(key).protocol;
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 @Injectable()
 export class S3ObjectStorage extends ObjectStorage {
   constructor(
@@ -98,6 +107,7 @@ export class S3ObjectStorage extends ObjectStorage {
    * @returns Result of the operation described above.
    */
   async getUrl(key: string, visibility: 'public' | 'private'): Promise<string> {
+    if (isExternalUrl(key)) return key;
     return visibility === 'public'
       ? this.buildPublicObjectUrl(key)
       : this.downloadUrl(key);
@@ -110,6 +120,7 @@ export class S3ObjectStorage extends ObjectStorage {
    * @returns Result returned by `getSignedUrl`.
    */
   async downloadUrl(key: string): Promise<string> {
+    if (isExternalUrl(key)) return key;
     const { config, client: presignClient } = this.resolver.resolve(true);
     return getSignedUrl(
       presignClient,
@@ -126,6 +137,7 @@ export class S3ObjectStorage extends ObjectStorage {
    * @returns Result of the operation described above.
    */
   buildPublicObjectUrl(key: string): string {
+    if (isExternalUrl(key)) return key;
     const provider = getActiveS3Provider();
     const { config } = this.resolver.resolve();
     const encodedKey = key
@@ -159,6 +171,7 @@ export class S3ObjectStorage extends ObjectStorage {
    * @returns No value is returned.
    */
   async delete(key: string): Promise<void> {
+    if (isExternalUrl(key)) return;
     const { config, client } = this.resolver.resolve();
     try {
       await client.send(
@@ -178,6 +191,7 @@ export class S3ObjectStorage extends ObjectStorage {
    * @throws {Error} Thrown when the operation cannot be completed.
    */
   async deleteMany(keys: string[]): Promise<void> {
+    keys = keys.filter((key) => !isExternalUrl(key));
     if (keys.length === 0) return;
     try {
       await this.objects.deleteObjects({ keys });
