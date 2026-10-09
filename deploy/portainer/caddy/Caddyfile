@@ -33,3 +33,7 @@
 {$MINIO_CONSOLE_DOMAIN:minio-console.localhost} {
   reverse_proxy lens-minio:9001
 }
+
+{$PORTAINER_DOMAIN:portainer.localhost} {
+  reverse_proxy {$PORTAINER_UPSTREAM:portainer:9000}
+}
