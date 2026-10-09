@@ -1,0 +1,31 @@
+name: lens-caddy
+
+services:
+  caddy:
+    image: lucaslorentz/caddy-docker-proxy:2.13.1-alpine
+    ports:
+      - '80:80'
+      - '443:443/tcp'
+      - '443:443/udp'
+    environment:
+      CADDY_INGRESS_NETWORKS: lens-proxy
+    labels:
+      caddy.email: '${ACME_EMAIL:?Set ACME_EMAIL in Portainer}'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - lens-proxy
+    restart: unless-stopped
+
+volumes:
+  caddy-data:
+    name: lens-caddy-data
+  caddy-config:
+    name: lens-caddy-config
+
+networks:
+  lens-proxy:
+    external: true
+    name: lens-proxy
