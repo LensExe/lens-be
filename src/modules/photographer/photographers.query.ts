@@ -36,6 +36,27 @@ export class PhotographerMeQuery {
     public readonly input: Inputs.PhotographerMeQueryInput,
   ) {}
 }
+
+export class PhotographerEarningsQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.PhotographerMeQueryInput,
+  ) {}
+}
+
+@QueryHandler(PhotographerEarningsQuery)
+export class PhotographerEarningsQueryHandler implements IQueryHandler<PhotographerEarningsQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: PhotographerUseCases,
+  ) {}
+
+  execute(message: PhotographerEarningsQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.earnings(s, message.actor),
+    );
+  }
+}
 @QueryHandler(PhotographerMeQuery)
 export class PhotographerMeQueryHandler implements IQueryHandler<PhotographerMeQuery> {
   constructor(

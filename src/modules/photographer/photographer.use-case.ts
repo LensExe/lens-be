@@ -277,6 +277,66 @@ export class PhotographerUseCases implements PhotographerSearchPort {
     return this.details(s, (await photographer(s, a)).id, true);
   }
 
+  /** Six-month payout history from wallet escrow releases for the signed-in photographer. */
+  async earnings(s: EntityManager, a: Actor) {
+    role(a, 'photographer');
+    const user = await currentUser(s, a);
+    await photographer(s, a);
+    const now = new Date();
+    const start = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1),
+    );
+    const end = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+    );
+    const amounts = await s
+      .createQueryBuilder(EntitySchemas.wallet_ledger, 'ledger')
+      .innerJoin(
+        EntitySchemas.wallets,
+        'wallet',
+        'wallet.id = ledger.wallet_id',
+      )
+      .select(
+        "to_char(date_trunc('month', ledger.created_at AT TIME ZONE 'UTC'), 'YYYY-MM')",
+        'month',
+      )
+      .addSelect('COALESCE(SUM(ledger.available_delta), 0)', 'amount')
+      .where('wallet.user_id = :userId', { userId: user.id })
+      .andWhere('ledger.entry_type = :entryType', {
+        entryType: 'booking_escrow_release',
+      })
+      .andWhere('ledger.created_at >= :start AND ledger.created_at < :end', {
+        start: start.toISOString(),
+        end: end.toISOString(),
+      })
+      .groupBy('month')
+      .getRawMany<{ month: string; amount: string }>();
+    const amountByMonth = new Map(
+      amounts.map((row) => [row.month, Number(row.amount)]),
+    );
+    const months = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5 + index, 1),
+      );
+      const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+      return {
+        label: `Th${date.getUTCMonth() + 1}`,
+        amount: amountByMonth.get(key) ?? 0,
+      };
+    });
+    const thisMonth = months[5].amount;
+    const lastMonth = months[4].amount;
+    return {
+      months,
+      thisMonth,
+      lastMonth,
+      changePct:
+        lastMonth > 0
+          ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100)
+          : null,
+    };
+  }
+
   /**
    * A photographer edits their profile (description, styles, service areas, etc.). The tax ID is locked after approval.
    *
