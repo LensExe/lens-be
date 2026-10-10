@@ -8,6 +8,7 @@ export interface KeycloakUser {
   email?: string;
   preferred_username?: string;
   name?: string;
+  picture?: string;
   roles?: string[];
   exp?: number;
   typ?: string;

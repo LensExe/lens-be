@@ -22,7 +22,10 @@ import {
   GoogleExchangeQuery,
 } from '../dto/google-auth.dto';
 import { responseSchema } from '../swagger';
-import { IdentityRegisterCommand } from '@modules/identity/identity.command';
+import {
+  IdentityRegisterCommand,
+  IdentityUpdateMeCommand,
+} from '@modules/identity/identity.command';
 import { IdentityMeQuery } from '@modules/identity/identity.query';
 
 @ApiTags('Authentication')
@@ -98,12 +101,27 @@ export class GoogleAuthController {
         fullname: actor.name ?? '',
       }),
     );
-    const user = await this.query.execute(new IdentityMeQuery(actor, {}));
+    let user = await this.query.execute(new IdentityMeQuery(actor, {}));
     const role = user.role;
     if (!role) {
       throw new UnauthorizedException(
         'Google account does not have a customer or photographer profile',
       );
+    }
+
+    // Keep a manually selected avatar. Only import Google's picture when the
+    // Lens profile does not have an avatar yet.
+    if (!user.avatar_url && actor.avatar_url) {
+      const avatarUrl = await this.googleAuth.importAvatar(
+        actor.avatar_url,
+        user.id,
+      );
+      if (avatarUrl) {
+        await this.commands.execute(
+          new IdentityUpdateMeCommand(actor, { avatar_url: avatarUrl }),
+        );
+        user = await this.query.execute(new IdentityMeQuery(actor, {}));
+      }
     }
     const sessionTokenSet = await this.googleAuth.synchronizeRole(
       actor,

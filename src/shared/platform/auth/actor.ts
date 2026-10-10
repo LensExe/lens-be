@@ -21,6 +21,12 @@ export interface Actor {
   name?: string;
 
   /**
+   * Avatar URL supplied by an external identity provider, such as Google.
+   * The Google login flow imports it into Lens object storage before saving it.
+   */
+  avatar_url?: string;
+
+  /**
    * Roles assigned to the user in the Keycloak realm or client (for example, `['admin', 'customer', 'photographer']`).
    * Used for role-based access control (RBAC) through checks such as `role(actor, 'admin')` or a guard.
    */

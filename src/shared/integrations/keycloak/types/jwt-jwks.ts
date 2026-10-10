@@ -34,6 +34,7 @@ export interface KeycloakJwtPayload {
   preferred_username?: string;
   given_name?: string;
   family_name?: string;
+  picture?: string;
   realm_access?: KeycloakRoleClaim;
   resource_access?: Record<string, KeycloakRoleClaim>;
   [key: string]: unknown;
