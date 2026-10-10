@@ -1,13 +1,16 @@
 import { Global, Module } from '@nestjs/common';
-import { AxiosModule } from '../axios/axios.module';
-import { HttpNotificationService } from './http-notification.service';
+import { KafkaNotificationProducer } from './kafka-notification.producer';
+import { KafkaNotificationService } from './kafka-notification.service';
 import { NotificationPort } from './notification.port';
 
-/** Provide `NotificationPort` to the whole application (HTTP adapter). */
+/** Provide notification integrations to the whole Core application. */
 @Global()
 @Module({
-  imports: [AxiosModule],
-  providers: [{ provide: NotificationPort, useClass: HttpNotificationService }],
-  exports: [NotificationPort],
+  providers: [
+    KafkaNotificationProducer,
+    KafkaNotificationService,
+    { provide: NotificationPort, useExisting: KafkaNotificationService },
+  ],
+  exports: [NotificationPort, KafkaNotificationProducer],
 })
 export class NotificationModule {}

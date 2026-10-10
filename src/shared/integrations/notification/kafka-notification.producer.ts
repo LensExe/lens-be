@@ -21,6 +21,14 @@ export interface NotificationKafkaEvent {
   };
 }
 
+export interface NotificationMailCommand {
+  eventId: string;
+  eventType: 'auth.otp.requested.v1';
+  jobName: 'send-otp-email';
+  to: string;
+  variables: Record<string, string>;
+}
+
 /** Publishes notification events to the notification service's Kafka topic. */
 @Injectable()
 export class KafkaNotificationProducer
@@ -38,6 +46,7 @@ export class KafkaNotificationProducer
       brokers: ['localhost:9092'],
       clientId: 'lens-backend',
       notificationEventsTopic: 'notification.events',
+      mailCommandsTopic: 'notification.mail.commands.v1',
       ssl: false,
     };
 
@@ -109,6 +118,21 @@ export class KafkaNotificationProducer
       topic: this.settings.notificationEventsTopic,
       acks: -1,
       messages: [{ key, value: JSON.stringify(event) }],
+    });
+  }
+
+  async publishMailCommand(
+    command: NotificationMailCommand,
+    key: string,
+  ): Promise<void> {
+    if (!this.enabled || !this.producer) {
+      throw new Error('Kafka notification publishing is disabled');
+    }
+    await this.ensureConnected();
+    await this.producer.send({
+      topic: this.settings.mailCommandsTopic,
+      acks: -1,
+      messages: [{ key, value: JSON.stringify(command) }],
     });
   }
 

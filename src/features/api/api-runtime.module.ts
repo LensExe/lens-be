@@ -13,7 +13,6 @@ import {
 import { KeycloakModule } from '@shared/integrations/keycloak/keycloak.module';
 import { KeycloakUserService } from '@shared/integrations/keycloak/user.service';
 import { NotificationModule } from '@shared/integrations/notification/notification.module';
-import { KafkaNotificationProducer } from '@shared/integrations/notification/kafka-notification.producer';
 import { NotificationOutboxPublisher } from '@shared/integrations/notification/notification-outbox.publisher';
 import { PaymentModule } from '@shared/integrations/payment/payment.module';
 import { RealtimePublisher } from '@shared/integrations/realtime/realtime-publisher.port';
@@ -203,7 +202,6 @@ const applicationServices = [
       useClass: TypeOrmErrorFilter,
     },
     LensGateway,
-    KafkaNotificationProducer,
     NotificationOutboxPublisher,
     {
       provide: RealtimePublisher,

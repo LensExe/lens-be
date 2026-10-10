@@ -79,6 +79,7 @@ export interface KafkaConfig {
   brokers: string[];
   clientId: string;
   notificationEventsTopic: string;
+  mailCommandsTopic: string;
   username?: string;
   password?: string;
   ssl: boolean;

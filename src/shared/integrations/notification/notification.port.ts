@@ -8,13 +8,15 @@ export interface OtpEmail {
   event: string;
   /** Number of minutes the OTP remains valid, shown in the email. */
   expiresInMinutes: number;
+  /** Optional display name rendered by the email template. */
+  userName?: string;
 }
 
 /**
  * Port for sending notifications to external services (email; push and SMS may be added later).
  *
  * Business modules inject `NotificationPort` instead of making HTTP calls directly.
- * Current adapter: `HttpNotificationService`.
+ * Current adapter: Kafka mail command producer.
  */
 export abstract class NotificationPort {
   /**
