@@ -9,7 +9,12 @@ import {
   ModerationListQueryHandler,
   ModerationMineQueryHandler,
 } from '@modules/moderation/report/report.query';
-import { ModerationDashboardQueryHandler } from '@modules/moderation/dashboard/dashboard.query';
+import {
+  AdminFinanceSummaryQueryHandler,
+  AdminQueueQueryHandler,
+  AdminStorageQueryHandler,
+  ModerationDashboardQueryHandler,
+} from '@modules/moderation/dashboard/dashboard.query';
 
 @Module({
   controllers: [ModerationController],
@@ -17,6 +22,9 @@ import { ModerationDashboardQueryHandler } from '@modules/moderation/dashboard/d
     ModerationCreateCommandHandler,
     ModerationResolveCommandHandler,
     ModerationDashboardQueryHandler,
+    AdminQueueQueryHandler,
+    AdminStorageQueryHandler,
+    AdminFinanceSummaryQueryHandler,
     ModerationGetQueryHandler,
     ModerationListQueryHandler,
     ModerationMineQueryHandler,
