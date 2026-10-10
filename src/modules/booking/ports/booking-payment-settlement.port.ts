@@ -2,6 +2,14 @@ import type { EntityManager } from 'typeorm';
 
 /** Payment side effects coupled to booking cancellation and completion. */
 export abstract class BookingPaymentSettlementPort {
+  /** Return the remaining paid booking amount eligible for a cancellation refund. */
+  previewCancellationRefund(
+    _manager: EntityManager,
+    _bookingId: string,
+  ): Promise<number> {
+    return Promise.resolve(0);
+  }
+
   /**
    * Start the post-completion escrow review period for a booking.
    *

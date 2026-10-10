@@ -23,6 +23,10 @@ export interface BookingDraftInput {
   planPhotographerId: string;
   planActive: boolean;
   planPrice: number;
+  planName: string;
+  planPhotoCount: number;
+  planRetouchedPhotoCount: number;
+  planDeliveryDays: number | null;
   /** Plan duration; the `from`–`to` interval must be exactly this many minutes. */
   planDurationMinutes: number;
   location: string;
@@ -120,6 +124,13 @@ export class Booking {
       customer_id: input.customerId,
       photographer_id: input.photographerId,
       booking_plan_id: input.planId,
+      package_snapshot: {
+        name: input.planName,
+        photo_count: input.planPhotoCount,
+        retouched_photo_count: input.planRetouchedPhotoCount,
+        duration_minutes: input.planDurationMinutes,
+        delivery_days: input.planDeliveryDays,
+      },
       location: input.location,
       ...range,
       total_amount: total,

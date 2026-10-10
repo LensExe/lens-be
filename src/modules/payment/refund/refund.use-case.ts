@@ -509,7 +509,39 @@ export class RefundUseCases {
       manager,
       bookingId,
     );
-    if (!transactions.length) return;
+    const amount = await this.cancellationRefundAmount(manager, transactions);
+    if (amount <= 0) return;
+
+    await this.createBookingRefundRequest(
+      manager,
+      bookingId,
+      transactions,
+      requestedBy,
+      RefundRequestType.BOOKING_CANCELLATION,
+      amount,
+      reason || 'Booking cancelled; refund requires review',
+      `booking-cancellation:${bookingId}`,
+    );
+  }
+
+  /** Estimate the amount that the cancellation workflow would request for refund right now. */
+  async previewCancellationRefund(manager: EntityManager, bookingId: string) {
+    const transactions = await manager.find(EntitySchemas.transactions, {
+      where: {
+        reference_id: bookingId,
+        status: 'paid',
+        type: In(['deposit', 'remaining']),
+      },
+      order: { created_at: 'ASC', id: 'ASC' },
+    });
+    return this.cancellationRefundAmount(manager, transactions);
+  }
+
+  private async cancellationRefundAmount(
+    manager: EntityManager,
+    transactions: readonly TransactionEntity[],
+  ) {
+    if (!transactions.length) return 0;
     const sourceIds = transactions.map(({ id }) => id);
     const allocations = await manager.find(
       EntitySchemas.refund_request_allocations,
@@ -532,24 +564,12 @@ export class RefundUseCases {
         ? sum
         : sum + Number(allocation.amount);
     }, 0);
-    const amount = Math.max(
+    return Math.max(
       0,
       transactions.reduce(
         (sum, transaction) => sum + Number(transaction.amount),
         0,
       ) - reserved,
-    );
-    if (amount <= 0) return;
-
-    await this.createBookingRefundRequest(
-      manager,
-      bookingId,
-      transactions,
-      requestedBy,
-      RefundRequestType.BOOKING_CANCELLATION,
-      amount,
-      reason || 'Booking cancelled; refund requires review',
-      `booking-cancellation:${bookingId}`,
     );
   }
 

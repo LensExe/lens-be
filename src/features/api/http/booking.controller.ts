@@ -43,6 +43,7 @@ import { BookingRejectCommand } from '@modules/booking/core/bookings.command';
 import { BookingStartCommand } from '@modules/booking/core/bookings.command';
 import { BookingTimelineQuery } from '@modules/booking/core/bookings.query';
 import { BookingGetQuery } from '@modules/booking/core/bookings.query';
+import { BookingCancellationPreviewQuery } from '@modules/booking/core/bookings.query';
 
 @ApiTags('Booking')
 @Controller()
@@ -51,6 +52,28 @@ export class BookingController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  @Get('bookings/:booking_id/cancellation-preview')
+  @ApiOperation({
+    operationId: 'BOOK-020',
+    summary: 'Xem trước số tiền hoàn khi hủy booking',
+    description:
+      'Trả số tiền đã thanh toán còn có thể được yêu cầu hoàn; quyết định hoàn tiền vẫn cần admin xử lý. Role: Customer',
+  })
+  @Access(['customer'])
+  @ApiBearerAuth()
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
+  @ApiResponse({ status: 200, description: 'Cancellation refund estimate' })
+  cancellationPreview(
+    @Req() req: { actor?: Actor },
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
+  ) {
+    return this.queries.execute(
+      new BookingCancellationPreviewQuery(req.actor ?? { sub: '', roles: [] }, {
+        booking_id,
+      }),
+    );
+  }
 
   /**
    * List bookings for the admin view using the supplied filters.

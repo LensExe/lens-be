@@ -36,6 +36,10 @@ export class BookingPlanEntity extends BaseEntity {
   @Column({ default: 5 })
   retouched_photo_count!: number;
 
+  /** Number of days after the shoot by which the gallery should be delivered. */
+  @Column('integer', { nullable: true })
+  delivery_days!: number | null;
+
   /**
    * List of additional benefits or notes included with the plan (string array).
    * For example: ["One outfit included", "Light makeup included", "Photos delivered in 3 days"].

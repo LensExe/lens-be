@@ -87,6 +87,27 @@ export class BookingGetQuery {
     public readonly input: Inputs.BookingGetQueryInput,
   ) {}
 }
+
+export class BookingCancellationPreviewQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.BookingCancellationPreviewQueryInput,
+  ) {}
+}
+
+@QueryHandler(BookingCancellationPreviewQuery)
+export class BookingCancellationPreviewQueryHandler implements IQueryHandler<BookingCancellationPreviewQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: BookingUseCases,
+  ) {}
+
+  execute(message: BookingCancellationPreviewQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.cancellationPreview(s, message.actor, message.input),
+    );
+  }
+}
 @QueryHandler(BookingGetQuery)
 export class BookingGetQueryHandler implements IQueryHandler<BookingGetQuery> {
   constructor(
