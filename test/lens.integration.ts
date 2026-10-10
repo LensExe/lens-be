@@ -94,7 +94,8 @@ async function api(
   token?: string,
   body?: unknown,
 ) {
-  const res = await fetch(base + path, {
+  const publicPath = path.startsWith('/api/v1/') ? path : `/api/v1${path}`;
+  const res = await fetch(base + publicPath, {
     method,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

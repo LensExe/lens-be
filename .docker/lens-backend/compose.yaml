@@ -12,8 +12,12 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ../../.env.production
+    environment:
+      # Kong owns CORS when this service is started by docker:gateway. Keep
+      # direct local runs compatible by leaving this false by default.
+      API_GATEWAY_ENABLED: '${API_GATEWAY_ENABLED:-false}'
     ports:
-      - '${BACKEND_HOST_PORT:-3000}:3000'
+      - '127.0.0.1:${BACKEND_HOST_PORT:-3000}:3000'
     depends_on:
       lens-postgres:
         condition: service_healthy
@@ -132,49 +136,37 @@ services:
       - lens-network
     restart: unless-stopped
 
-  # ── Kong migrations (initialize the Kong Gateway database schema) ──
-  lenskong-migrations:
-    image: kong:3.6
-    container_name: lens-kong-migrations
-    command: kong migrations bootstrap
-    depends_on:
-      lens-postgres:
-        condition: service_healthy
-    environment:
-      KONG_DATABASE: postgres
-      KONG_PG_HOST: lens-postgres
-      KONG_PG_PORT: 5432
-      KONG_PG_USER: lens-postgres
-      KONG_PG_PASSWORD: 'Postgres@#_Lens_EXE202_FPT_FA26'
-      KONG_PG_DATABASE: kong
-    networks:
-      - lens-network
-    restart: 'no'
-
   lens-kong:
-    profiles: ['full']
-    image: kong:3.6
+    profiles: ['gateway']
+    image: kong:3.9.3
     container_name: lens-kong
     depends_on:
-      lenskong-migrations:
-        condition: service_completed_successfully
-      lens-postgres:
-        condition: service_healthy
+      lens-backend:
+        condition: service_started
     ports:
-      - '8000:8000' # Kong Proxy HTTP
-      - '8001:8001' # Kong Admin API
-      - '8002:8002' # Kong Manager GUI
+      - '127.0.0.1:${KONG_PROXY_HOST_PORT:-8000}:8000' # local proxy
+      - '127.0.0.1:${KONG_ADMIN_HOST_PORT:-8001}:8001' # local/private Admin API
+    volumes:
+      - ../kong/kong.generated.yml:/kong/declarative/kong.yml:ro
     environment:
-      KONG_DATABASE: postgres
-      KONG_PG_HOST: lens-postgres
-      KONG_PG_PORT: 5432
-      KONG_PG_USER: lens-postgres
-      KONG_PG_PASSWORD: 'Postgres@#_Lens_EXE202_FPT_FA26'
-      KONG_PG_DATABASE: kong
+      KONG_DATABASE: 'off'
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
       KONG_PROXY_LISTEN: 0.0.0.0:8000
       KONG_ADMIN_LISTEN: 0.0.0.0:8001
-      KONG_ADMIN_GUI_LISTEN: 0.0.0.0:8002
-      KONG_ADMIN_GUI_URL: http://localhost:8002
+      KONG_ADMIN_GUI_LISTEN: 'off'
+      KONG_NGINX_WORKER_PROCESSES: '1'
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+    healthcheck:
+      test: ['CMD', 'kong', 'health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     networks:
       - lens-network
     restart: unless-stopped

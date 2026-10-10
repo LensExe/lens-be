@@ -30,11 +30,20 @@ pnpm db:migrate
 pnpm start:dev
 ```
 
-`pnpm docker:up` dùng Docker Compose mặc định; Keycloak và Kong thuộc profile `full` nên cần `docker compose --env-file .env -f .docker/lens-backend/compose.yaml --profile full up -d` nếu muốn chạy chúng cục bộ. Khi chạy app trên host, đặt port Redis/DB trong `.env` theo các port được expose trong `.docker/lens-backend/compose.yaml`.
+`pnpm docker:up` dùng Docker Compose mặc định. Muốn chạy Core qua Kong DB-less,
+dùng `pnpm docker:gateway`; proxy ở `http://127.0.0.1:8000`, còn Admin API chỉ
+bind ở `127.0.0.1:8001`. Khi chạy app trên host, đặt port Redis/DB trong `.env`
+theo các port được expose trong `.docker/lens-backend/compose.yaml`.
 
 Lệnh và script có trong [`package.json`](../package.json). Migration không tự chạy khi ứng dụng khởi động; local có thể bật TypeORM auto-sync bằng `DB_SYNCHRONIZE=true`. `001_lens.sql` chỉ khởi tạo database mới, không phải migration nâng cấp database đã có dữ liệu.
 
-Swagger UI ở `/docs`, OpenAPI JSON ở `/docs-json`; mặc định server lắng nghe `PORT=3000`. Khi triển khai, `API_PUBLIC_URL` có thể đặt URL server cho Swagger “Try it out”. `CORS_ORIGINS` là danh sách origin cách nhau bằng dấu phẩy. Các route HTTP hiện đặt tại root, ví dụ `POST /bookings`. Request và response dùng snake_case; tiền là số nguyên VND; thời gian gửi vào API là ISO 8601 có múi giờ.
+Swagger UI ở `/docs`, OpenAPI JSON ở `/docs-json`; mặc định server lắng nghe
+`PORT=3000`. API public được version hóa dưới `/api/v1`, ví dụ `POST
+/api/v1/bookings`. Khi chạy sau Kong, đặt `API_PUBLIC_URL` bằng URL proxy để
+Swagger “Try it out” gọi đúng gateway. `CORS_ORIGINS` vẫn dùng cho direct mode;
+Kong là lớp CORS khi `API_GATEWAY_ENABLED=true`. Request và response dùng
+snake_case; tiền là số nguyên VND; thời gian gửi vào API là ISO 8601 có múi giờ.
+Các path business viết ở những mục bên dưới có thể lược bỏ prefix này để ngắn gọn.
 
 ## Bật/tắt HTTP feature
 

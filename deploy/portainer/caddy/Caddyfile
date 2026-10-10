@@ -15,7 +15,7 @@
 }
 
 {$BACKEND_DOMAIN:api-direct.localhost} {
-  reverse_proxy backend:3000
+  reverse_proxy lens-backend:3000
 }
 
 {$KONG_DOMAIN:api.localhost} {

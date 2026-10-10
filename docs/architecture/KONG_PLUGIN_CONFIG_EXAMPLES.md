@@ -1,29 +1,46 @@
 # Ví dụ cấu hình plugin Kong cho Lens
 
-**Mục đích:** cho phép review plugin và config trước khi tích hợp vào gateway. Đây là cấu hình tham khảo, **chưa được Compose mount hoặc bật**. Các path route là ví dụ; phải thay bằng path chính xác trong OpenAPI sau khi Core hoàn tất.
+**Mục đích:** ghi lại chính sách plugin và cấu hình gateway đang dùng. Template
+nằm tại [`.docker/kong/kong.yml`](../../.docker/kong/kong.yml); Compose mount file
+được render theo JWKS cho Kong DB-less. Core và Chat đã có route; Notification
+chưa được thêm cho tới khi contract của service hoàn tất.
 
 ## 1. Plugin nào nên có ở v1?
 
-| Plugin / tính năng      | Mức độ                             | Dùng để làm gì                                                  | Giới hạn cần nhớ                                                                                                            |
-| ----------------------- | ---------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `cors`                  | Cần cho Web chạy khác origin       | Trả CORS headers và xử lý preflight cho browser                 | Dùng origin cụ thể theo môi trường; không dùng `*` khi bật credentials. Mobile native thường không cần CORS.                |
-| `rate-limiting`         | Nên có                             | Hạn chế burst/abuse theo IP hoặc service ở edge                 | `local` đếm riêng trên từng Kong instance. Giới hạn theo tài khoản/email/số điện thoại vẫn phải làm trong service.          |
-| `request-size-limiting` | Nên có                             | Chặn body quá lớn trước khi vào backend                         | Giới hạn mẫu dưới đây là 2 MB cho API JSON; điều chỉnh theo DTO thực tế. Upload file nên dùng object storage có URL ký sẵn. |
-| `request-transformer`   | Nên có như lớp phòng thủ phụ       | Loại các header danh tính giả do client tự gửi                  | Backend vẫn phải bỏ qua các header đó và xác thực JWT. Plugin này không thay guard.                                         |
-| `correlation-id`        | Nên có                             | Gắn request ID để nối log Kong với log service                  | Request ID chỉ dùng tracing, không được dùng làm danh tính hay bằng chứng bảo mật.                                          |
-| `prometheus`            | Khuyến nghị cho staging/production | Xuất metric request, status, latency, bandwidth/upstream health | Chỉ cho Prometheus scrape qua mạng quản trị riêng; không tạo public route `/metrics`.                                       |
+| Plugin / tính năng      | Mức độ                                   | Dùng để làm gì                                                  | Giới hạn cần nhớ                                                                                                            |
+| ----------------------- | ---------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `cors`                  | Cần cho Web chạy khác origin             | Trả CORS headers và xử lý preflight cho browser                 | Dùng origin cụ thể theo môi trường; không dùng `*` khi bật credentials. Mobile native thường không cần CORS.                |
+| `rate-limiting`         | Nên có                                   | Hạn chế burst/abuse theo IP hoặc service ở edge                 | `local` đếm riêng trên từng Kong instance. Giới hạn theo tài khoản/email/số điện thoại vẫn phải làm trong service.          |
+| `request-size-limiting` | Nên có                                   | Chặn body quá lớn trước khi vào backend                         | Giới hạn mẫu dưới đây là 2 MB cho API JSON; điều chỉnh theo DTO thực tế. Upload file nên dùng object storage có URL ký sẵn. |
+| `request-transformer`   | Nên có như lớp phòng thủ phụ             | Loại các header danh tính giả do client tự gửi                  | Backend vẫn phải bỏ qua các header đó và xác thực JWT. Plugin này không thay guard.                                         |
+| `jwt`                   | Đã bật cho Core protected routes và Chat | Kiểm tra chữ ký RS256 theo `kid` và claim `exp` tại edge        | Issuer/audience/role và quyền trên resource vẫn do backend xác minh; public routes không gắn plugin.                        |
+| `correlation-id`        | Nên có                                   | Gắn request ID để nối log Kong với log service                  | Request ID chỉ dùng tracing, không được dùng làm danh tính hay bằng chứng bảo mật.                                          |
+| `prometheus`            | Khuyến nghị cho staging/production       | Xuất metric request, status, latency, bandwidth/upstream health | Chỉ cho Prometheus scrape qua mạng quản trị riêng; không tạo public route `/metrics`.                                       |
 
-### Không bật ở v1
+### Không bật trong baseline hiện tại
 
-- **`jwt`:** chưa dùng làm lớp xác thực chính. Các service đã xác thực Keycloak access token; thêm Kong JWT có thể yêu cầu đăng ký credentials/consumer theo cách khác và tạo hai nơi kiểm token. Chỉ xem xét lại khi đã thiết kế rõ Keycloak/OIDC, cách Kong xác minh token và header trust.
-- **`openid-connect`:** không đưa vào cấu hình mặc định; kiểm tra edition/license và mô hình đăng nhập trước khi chọn.
+- **`openid-connect`:** không đưa vào cấu hình; đây là plugin Enterprise, khác với JWT plugin có sẵn trong Kong OSS. Chỉ chọn khi đã quyết định edition/license và mô hình đăng nhập.
 - **`acl`, `key-auth`:** không dùng thay role/scope Keycloak hoặc object-level authorization của service.
 - **`proxy-cache`, response transformer, bot detection:** chưa có yêu cầu cụ thể; không bật mặc định cho API người dùng/payment.
 - **Logging plugin gửi request/response body:** không bật mặc định vì có thể đưa token, OTP, PII hoặc nội dung email vào hệ thống log. Dùng access/error log đã cấu hình redact.
 
-## 2. Mẫu declarative config để review
+### Cách cấu hình JWT với Keycloak
 
-Plugin ở top-level `plugins` áp dụng toàn cục. Plugin nằm trong một service chỉ áp dụng cho service đó. Với plugin áp dụng đồng thời cho nhiều entity, cấu hình ở top-level và tham chiếu entity bằng tên. Đây là cú pháp Kong declarative config; các service name bên dưới dự kiến là DNS alias trong private Docker network.
+`scripts/render-kong-config.mjs` lấy các RSA signing key đang được Keycloak
+công bố qua JWKS, chuyển thành PEM và khai báo credentials theo `kid` trong
+Consumer `keycloak`. JWT plugin chỉ nhận token từ `Authorization: Bearer`, kiểm
+tra chữ ký RS256 và `exp`; Kong OSS JWT không thay thế việc backend kiểm tra
+issuer/audience và authorization. Public login/forgot-password/Google callback,
+public GET, và payment/subscription webhook được route riêng không gắn JWT;
+backend vẫn xác minh webhook và các guard theo thiết kế.
+
+Keycloak key rotation cần chạy lại `pnpm docker:gateway` để render JWKS mới và
+recreate Kong. Credential chỉ chứa public key, nhưng file render vẫn bị ignore
+để tránh mang cấu hình theo môi trường vào Git.
+
+## 2. Mẫu declarative config và baseline đang chạy
+
+Plugin ở top-level `plugins` áp dụng toàn cục. Plugin nằm trong một service chỉ áp dụng cho service đó. Với plugin áp dụng đồng thời cho nhiều entity, cấu hình ở top-level và tham chiếu entity bằng tên. Đây là cú pháp Kong declarative config; `lens-backend` là DNS alias trong private Docker network ở local. Khối dưới đây giữ vai trò minh họa policy; template chạy thật là `.docker/kong/kong.yml`, được render thành `.docker/kong/kong.generated.yml` trước khi nạp.
 
 ```yaml
 _format_version: '3.0'
@@ -194,7 +211,7 @@ Cho browser gọi API từ Web origin. `origins` phải là danh sách host đ�
 
 ### Rate limiting
 
-Mẫu `120/phút/IP/service` là hàng rào thô để giảm burst. Shared office/NAT có thể khiến nhiều user chung một IP nên cần theo dõi 429 trước khi chốt quota. Do service chưa được xác thực thành Kong Consumer, không đặt `limit_by: consumer` rồi giả định Kong đã nhận ra Keycloak user. Auth/OTP vẫn phải có quota nghiệp vụ trong Core.
+Mẫu `120/phút/IP/service` là hàng rào thô để giảm burst. Shared office/NAT có thể khiến nhiều user chung một IP nên cần theo dõi 429 trước khi chốt quota. JWT plugin hiện ánh xạ mọi token Keycloak về cùng một Kong Consumer; `limit_by: consumer` vì vậy sẽ gom quota của toàn bộ user, không phải quota riêng từng Keycloak user. Auth/OTP vẫn phải có quota nghiệp vụ trong Core.
 
 - Một node dev: `policy: local` thường đủ để xem hành vi.
 - Nhiều Kong node cần bộ đếm chung: cấu hình Redis và `policy: redis`.
@@ -221,7 +238,7 @@ Bật các metric cơ bản để quan sát status, latency, bandwidth và upstr
 1. Chốt OpenAPI Core và path WebSocket; thay các route ví dụ bằng danh sách path đã duyệt.
 2. Điền Web origins thật cho dev/staging/prod, mỗi môi trường một allowlist.
 3. Chốt JSON body size và quota từ yêu cầu nghiệp vụ/load; quota OTP ở cả Kong (IP) lẫn Core (account/destination).
-4. Gộp plugin/service/route entities này vào declarative `kong.yml` duy nhất, mount cho DB-less Kong.
+4. Gộp plugin/service/route entities vào template `kong.yml`, render credentials theo môi trường rồi mount `kong.generated.yml` cho DB-less Kong.
 5. Kiểm tra file bằng Kong CLI cùng phiên bản image sẽ chạy, rồi mới đưa vào Compose/deploy. Admin API DB-less `/config` thay toàn bộ config trong memory, nên artifact cần chứa đủ Service, Route và Plugin; không upload riêng danh sách plugin.
 
 ## 6. Tài liệu Kong chính thức

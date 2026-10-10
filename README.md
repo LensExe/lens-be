@@ -210,7 +210,7 @@ Khởi động cụm dịch vụ cơ bản (PostgreSQL, Redis, MinIO):
 pnpm docker:up
 ```
 
-_(Tùy chọn: Nếu muốn chạy cả Keycloak và Kong cục bộ, sử dụng: `docker compose --env-file .env -f .docker/lens-backend/compose.yaml --profile full up -d`)._
+_(Tùy chọn: Nếu muốn chạy Core API sau Kong DB-less cục bộ, sử dụng `pnpm docker:gateway`; proxy ở `http://127.0.0.1:8000`.)_
 
 ### 5. Áp dụng Database Migration & Seed dữ liệu
 
@@ -309,9 +309,10 @@ Toàn bộ tài liệu kiến trúc và hướng dẫn vận hành chi tiết đ
 
 ## 🚀 Triển khai (Deployment)
 
-<!-- This section is currently empty and reserved for future additions. -->
-
-> _Phần này sẽ được cập nhật quy trình triển khai chi tiết bao gồm: Cấu hình CI/CD Pipelines, Đóng gói Container Production, Cấu hình Gateway/Reverse Proxy (Kong/Nginx), Quản trị hạ tầng Cloud (AWS/DigitalOcean/Kubernetes) và Giám sát vận hành (Prometheus, Grafana, Logging)._
+Gateway local đã có baseline Kong DB-less và các plugin biên tại
+[`.docker/kong/kong.yml`](.docker/kong/kong.yml). Triển khai production vẫn cần
+artifact cấu hình riêng theo environment, TLS ở edge, private Admin API và
+đóng các cổng bypass trực tiếp của service.
 
 ---
 

@@ -427,7 +427,9 @@ Lens ánh xạ `booking.created` thành `order_placed` và một số event than
 
 ## 10. API overview
 
-API hiện được theo dõi trong docs/api-tracker.json với **80 operations**.
+API hiện được theo dõi trong docs/api-tracker.json với **129 operations**. Public
+HTTP paths dùng prefix `/api/v1`; các flow minh họa bên dưới có thể lược bỏ
+prefix để dễ đọc.
 
 ### Identity & User
 
@@ -634,7 +636,7 @@ pnpm start:prod
 pnpm start:cli
 ```
 
-Nếu cần Keycloak/Kong local, bật Docker Compose với profile full và cấu hình .env tương ứng.
+Nếu cần Keycloak/Kong local, dùng `pnpm docker:gateway`; Kong proxy ở `127.0.0.1:8000` và Admin API chỉ ở `127.0.0.1:8001`.
 
 ## 14. Cấu hình môi trường
 
@@ -642,7 +644,7 @@ Các nhóm biến môi trường chính:
 
 | Nhóm       | Ví dụ biến                                                                             |
 | ---------- | -------------------------------------------------------------------------------------- |
-| HTTP       | PORT, CORS_ORIGINS, API_PUBLIC_URL                                                     |
+| HTTP       | PORT, CORS_ORIGINS, API_PUBLIC_URL, API_GATEWAY_ENABLED                                |
 | PostgreSQL | DB_HOST, DB_PORT, DB_USERNAME, DB_PASSWORD, DB_NAME, DATABASE_URL                      |
 | Redis      | REDIS_HOST, REDIS_PORT, REDIS_PASSWORD                                                 |
 | Keycloak   | KEYCLOAK_AUTH_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_CLIENT_ID, KEYCLOAK_SECRET          |
