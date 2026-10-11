@@ -19,6 +19,7 @@ import { AuthService } from '../auth/auth.service';
 import { IdentityRegisterCommand } from '@modules/identity/identity.command';
 import { IdentityMeQuery } from '@modules/identity/identity.query';
 import { type Actor } from '@shared/platform/auth/actor';
+import { RegistrationRole } from '@shared/domain/values/user.values';
 
 @ApiTags('Authentication')
 @Controller()
@@ -81,7 +82,19 @@ export class AuthController {
       }),
     );
 
-    return { ...tokenSet, user };
+    const identity = await this.query.execute(new IdentityMeQuery(actor, {}));
+    // Customers receive their Keycloak role during signup. Photographer access
+    // remains reserved for the existing admin approval flow.
+    const sessionTokenSet =
+      identity.role === RegistrationRole.CUSTOMER
+        ? await this.authService.synchronizeRole(
+            actor,
+            tokenSet,
+            RegistrationRole.CUSTOMER,
+          )
+        : tokenSet;
+
+    return { ...sessionTokenSet, user };
   } // done
 
   /**

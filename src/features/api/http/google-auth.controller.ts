@@ -16,6 +16,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Public } from '../auth/keycloak.guard';
+import { AuthService } from '../auth/auth.service';
 import { GoogleAuthService } from '../auth/google-auth.service';
 import {
   GoogleCallbackQuery,
@@ -35,6 +36,7 @@ export class GoogleAuthController {
     private readonly commands: CommandBus,
     private readonly query: QueryBus,
     private readonly googleAuth: GoogleAuthService,
+    private readonly auth: AuthService,
   ) {}
 
   /**
@@ -123,7 +125,7 @@ export class GoogleAuthController {
         user = await this.query.execute(new IdentityMeQuery(actor, {}));
       }
     }
-    const sessionTokenSet = await this.googleAuth.synchronizeRole(
+    const sessionTokenSet = await this.auth.synchronizeRole(
       actor,
       tokenSet,
       role,

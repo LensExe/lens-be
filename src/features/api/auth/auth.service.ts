@@ -13,8 +13,10 @@ import {
   KeycloakService,
   KeycloakTokenService,
   KeycloakUserService,
+  type KeycloakExchangeCodeForTokenResponse,
 } from '@shared/integrations';
 import type { Actor } from '@shared/platform/auth/actor';
+import type { RegistrationRole } from '@shared/domain/values/user.values';
 import {
   AuthChangePasswordDto,
   AuthLoginQueryDto,
@@ -121,6 +123,30 @@ export class AuthService {
     };
 
     return { tokenSet, actor };
+  }
+
+  /**
+   * Ensure a completed account profile's role is present in Keycloak and in
+   * the returned token.
+   */
+  async synchronizeRole(
+    actor: Actor,
+    tokenSet: KeycloakExchangeCodeForTokenResponse,
+    role: RegistrationRole,
+  ): Promise<KeycloakExchangeCodeForTokenResponse> {
+    if (actor.roles.includes(role)) return tokenSet;
+
+    await this.keyCloakUser.assignRealmRoleToUser(actor.sub, role);
+    const refreshed = await this.tokens.exchangeRefreshTokenForToken({
+      refreshToken: tokenSet.refresh_token,
+    });
+    const claims = await this.keycloak.verifyToken(refreshed.access_token);
+    if (!claims.roles?.includes(role)) {
+      throw new UnauthorizedException(
+        `Keycloak did not issue the ${role} role for the account`,
+      );
+    }
+    return refreshed;
   }
 
   /**
