@@ -178,7 +178,8 @@ export class BookingUseCases
   ) {
     const { booking } = await bookingAccess(s, a, input.booking_id, 'customer');
     ensure(
-      [BookingStatus.PENDING, BookingStatus.ACCEPTED].includes(booking.status),
+      booking.status === BookingStatus.PENDING ||
+        booking.status === BookingStatus.ACCEPTED,
       'Booking cannot be cancelled in its current state',
       'conflict',
     );
