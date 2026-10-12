@@ -9,7 +9,7 @@ services:
     image: '${BACKEND_IMAGE:-${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_OWNER:-lensexe}/lens-backend:${IMAGE_TAG:-latest}}'
     pull_policy: '${BACKEND_PULL_POLICY:-always}'
     environment:
-      API_GATEWAY_ENABLED: '${API_GATEWAY_ENABLED:-false}'
+      API_GATEWAY_ENABLED: '${API_GATEWAY_ENABLED:-true}'
       COOKIE_DOMAIN: '${COOKIE_DOMAIN:-}'
       COOKIE_SECRET: '${COOKIE_SECRET:-}'
       CORS_ORIGINS: '${CORS_ORIGINS:-}'
@@ -78,17 +78,11 @@ services:
       SEPAY_ACCOUNT_NUMBER: '${SEPAY_ACCOUNT_NUMBER:-}'
       SEPAY_BANK_CODE: '${SEPAY_BANK_CODE:-}'
       SEPAY_WEBHOOK_API_KEY: '${SEPAY_WEBHOOK_API_KEY:-}'
-    ports:
-      - '${BACKEND_HOST_PORT:-3000}:3000'
     networks:
       - lens-network
-      - lens-proxy
     restart: unless-stopped
 
 networks:
   lens-network:
     external: true
     name: lens-network
-  lens-proxy:
-    external: true
-    name: lens-proxy

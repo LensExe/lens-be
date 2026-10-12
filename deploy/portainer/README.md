@@ -22,10 +22,7 @@ build from source and it does not contain runtime secrets.
    IMAGE_OWNER=lensexe
    IMAGE_TAG=latest
    BACKEND_PULL_POLICY=always
-   BACKEND_HOST_PORT=3000
    ```
-
-   `BACKEND_HOST_PORT` can be `3001` if local port `3000` is already occupied.
 
 8. Deploy the stack.
 
@@ -35,16 +32,17 @@ local `.tar` file, use the imported tag instead of the registry variables:
 ```dotenv
 BACKEND_IMAGE=lens-backend:local
 BACKEND_PULL_POLICY=never
-BACKEND_HOST_PORT=3000
 ```
 
 The `lens-backend:local` tag must exist on the same Docker node where this
 stack runs. This local mode is for testing; the GitHub Actions flow should use
 the registry mode above so Portainer can re-pull each published image.
 
-The Docker host must already have the external `lens-network` network and the
-shared infrastructure containers (`lens-postgres`, `lens-redis`,
-`lens-mongodb`, `lens-minio`, and `lens-keycloak`) attached to that network.
+The backend has no published host port. It listens only on `lens-network` and
+is reachable through Kong at the public API domain. The Docker host must
+already have the external `lens-network` network and the shared infrastructure
+containers (`lens-postgres`, `lens-redis`, `lens-mongodb`, `lens-minio`, and
+`lens-keycloak`) attached to that network.
 
 After the stack is healthy, open the stack settings, enable **GitOps updates**,
 choose **Webhook**, and enable **Re-pull image**. Save the generated GitOps
@@ -149,9 +147,10 @@ docker compose --env-file deploy/portainer/kafka/env.kafka.local \
 `deploy/portainer/caddy/Caddyfile` contains the centralized domain routes.
 Deploy one separate Caddy stack from
 `deploy/portainer/caddy/lens-caddy.yml`; it binds host ports `80/443`.
-The FE, backend, Keycloak, MinIO, and Kong Compose services do not need Caddy
-labels. They only need to join the shared `lens-proxy` network so Caddy can
-reach them by their Docker service names.
+The FE, Keycloak, MinIO, and Kong Compose services do not need Caddy labels.
+Only edge services (Kong, Keycloak, and MinIO) join `lens-proxy`; backend,
+Chat, and Notification stay on the private `lens-network` and are reachable
+from outside only through Kong.
 
 In Portainer, add a Git stack from `LensExe/lens-be`, branch `master`, with
 Compose path `deploy/portainer/caddy/lens-caddy.yml`. Set the domain variables
@@ -177,7 +176,6 @@ ACME_EMAIL=you@example.com
 LANDING_DOMAIN=www.example.com
 PORTAL_DOMAIN=app.example.com
 ADMIN_DOMAIN=admin.example.com
-BACKEND_DOMAIN=api-direct.example.com
 KONG_DOMAIN=api.example.com
 KONG_UPSTREAM=lens-kong:8000
 KEYCLOAK_DOMAIN=auth.example.com
@@ -187,13 +185,12 @@ PORTAINER_DOMAIN=portainer.example.com
 PORTAINER_UPSTREAM=portainer:9000
 ```
 
-`api.example.com` routes to Kong; `api-direct.example.com` routes directly to
-the backend and is mainly useful for testing. The direct route can be omitted
-or restricted after confirming Kong works. `KONG_UPSTREAM` must resolve to the
-Kong container on `lens-proxy`; change it if your Kong service has a different
-Docker network alias or proxy port. Missing domain variables default to
-`.localhost` hostnames for testing. Point real domain A records to the VPS IP
-and allow inbound TCP `80` and `443` in the VPS firewall.
+`api.example.com` is the only public API route and points to Kong.
+`KONG_UPSTREAM` must resolve to the Kong container on `lens-proxy`; change it
+if your Kong service has a different Docker network alias or proxy port.
+Missing domain variables default to `.localhost` hostnames for testing. Point
+real domain A records to the VPS IP and allow inbound TCP `80` and `443` in
+the VPS firewall.
 
 To route Portainer, attach the Portainer Server container to the same external
 `lens-proxy` network and set `PORTAINER_UPSTREAM` to its Docker network alias

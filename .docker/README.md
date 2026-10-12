@@ -25,9 +25,8 @@ pnpm docker:all
 
 Cổng trong container luôn là `3000`. Nếu cổng `3000` trên máy host đang được dùng, đổi riêng cổng host khi chạy:
 
-```sh
-BACKEND_HOST_PORT=3001 docker compose --env-file .env --profile app -f .docker/lens-backend/compose.yaml up -d --build lens-backend
-```
+Khi bật profile `app`, backend không publish port host; hãy gọi API qua Kong
+ở `http://127.0.0.1:8000`.
 
 Compose đọc `.env.production` bằng `env_file` khi tạo container; file này không được copy vào image và không được commit lên Git. Khi triển khai bằng Portainer, nhập cùng các biến vào phần **Environment variables** của Stack thay vì đưa file secret vào image.
 
@@ -77,7 +76,8 @@ Hoặc dùng script đã nối Chat vào cùng `lens-network`:
 pnpm docker:chat
 ```
 
-Kong route `/api/v1/chat/**` dùng DNS nội bộ `chat:8080`; không cần mở Chat ra Internet. Cổng host mặc định của Chat chỉ bind loopback ở `127.0.0.1:8081` để debug.
+Kong route `/api/v1/chat/**` dùng DNS nội bộ `chat:8080`; Chat không publish
+port host và chỉ nhận traffic từ mạng Docker nội bộ qua Kong.
 
 Build context và Dockerfile của Chat API lấy từ checkout kế bên `../chat-service`; Dockerfile cùng `.dockerignore` vẫn nằm cạnh source code của service.
 
@@ -92,14 +92,15 @@ docker compose -f .docker/notification-system/compose.yaml up -d --remove-orphan
 Có thể chỉ khởi động các service cần thiết bằng cách thêm tên service, ví dụ `kafka kafka-ui`.
 Kafka UI và các container trong `lens-network` kết nối Kafka qua `kafka:9094` (PLAINTEXT); khi dùng listener này, bỏ `KAFKA_USERNAME` và `KAFKA_PASSWORD`. Notification dùng Redis Lens tại `lens-redis:6379`, mật khẩu `REDIS_PASSWORD` và DB `1`; Lens dùng DB mặc định `0`.
 
-Khi chạy Notification bằng `pnpm` trên máy host ở cổng `3001`, Kong local
-dùng upstream `host.docker.internal:3001` cho REST và Socket.IO. Khi đóng gói
-Notification thành container, đổi upstream trong `.docker/kong/kong.yml` sang
-tên DNS của container trên `lens-network`.
+Notification production chạy trong container với DNS `notification:3001` trên
+`lens-network`; Kong là ingress duy nhất cho REST và Socket.IO. Khi phát triển
+Notification bằng `pnpm` trên máy host, đó chỉ là chế độ debug riêng và không
+phải topology production.
 
 ## DNS trong network dùng chung
 
-Trong container gắn vào `lens-network`, dùng cổng nội bộ và DNS sau; cổng host được map riêng để ứng dụng chạy trực tiếp trên máy truy cập:
+Trong container gắn vào `lens-network`, dùng cổng nội bộ và DNS sau. Các API
+application không publish port host; client bên ngoài đi qua Kong:
 
 | Service                              | Host trong `lens-network` | Cổng container |
 | ------------------------------------ | ------------------------- | -------------: |
@@ -119,4 +120,6 @@ Database và volume của từng service vẫn tách riêng; Notification và Le
 
 ## Cổng host
 
-Một số dependency vẫn dùng chung cổng host: MongoDB của Chat và Notification cùng dùng `27017`; PostgreSQL của Notification và Lens Backend cùng dùng `5433`; Kafka UI dùng `8080`, còn Chat API mặc định dùng `8081`. Nếu cần chạy đồng thời các stack có cổng trùng nhau, hãy đổi cổng host ở Compose tương ứng và cập nhật URI/URL kết nối của service đó.
+Chỉ Kong publish proxy cho client (mặc định `127.0.0.1:8000` trong local).
+Các cổng host còn lại là cổng quản trị dependency hoặc UI; backend, Chat và
+Notification không có cổng host trực tiếp.

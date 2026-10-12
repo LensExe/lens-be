@@ -14,7 +14,6 @@ services:
       LANDING_DOMAIN: '${LANDING_DOMAIN:-landing.localhost}'
       PORTAL_DOMAIN: '${PORTAL_DOMAIN:-portal.localhost}'
       ADMIN_DOMAIN: '${ADMIN_DOMAIN:-admin.localhost}'
-      BACKEND_DOMAIN: '${BACKEND_DOMAIN:-api-direct.localhost}'
       KONG_DOMAIN: '${KONG_DOMAIN:-api.localhost}'
       KONG_UPSTREAM: '${KONG_UPSTREAM:-lens-kong:8000}'
       KEYCLOAK_DOMAIN: '${KEYCLOAK_DOMAIN:-auth.localhost}'
@@ -40,10 +39,6 @@ services:
 
         {$$ADMIN_DOMAIN:admin.localhost} {
           reverse_proxy admin:80
-        }
-
-        {$$BACKEND_DOMAIN:api-direct.localhost} {
-          reverse_proxy lens-backend:3000
         }
 
         {$$KONG_DOMAIN:api.localhost} {

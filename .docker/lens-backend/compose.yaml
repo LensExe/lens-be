@@ -13,11 +13,8 @@ services:
     env_file:
       - ../../.env.production
     environment:
-      # Kong owns CORS when this service is started by docker:gateway. Keep
-      # direct local runs compatible by leaving this false by default.
-      API_GATEWAY_ENABLED: '${API_GATEWAY_ENABLED:-false}'
-    ports:
-      - '127.0.0.1:${BACKEND_HOST_PORT:-3000}:3000'
+      # The API is reachable through Kong; CORS is handled at the gateway.
+      API_GATEWAY_ENABLED: '${API_GATEWAY_ENABLED:-true}'
     depends_on:
       lens-postgres:
         condition: service_healthy
