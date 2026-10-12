@@ -73,7 +73,6 @@ plugins:
       credentials: true
       max_age: 3600
       preflight_continue: false
-      allow_origin_absent: true
 
   # Gắn một ID xuyên suốt Kong -> service.
   - name: correlation-id
