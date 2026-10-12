@@ -12,8 +12,8 @@ import {
 } from '@shared/database';
 import { KeycloakModule } from '@shared/integrations/keycloak/keycloak.module';
 import { KeycloakUserService } from '@shared/integrations/keycloak/user.service';
-import { NotificationModule } from '@shared/integrations/notification/notification.module';
-import { NotificationOutboxPublisher } from '@shared/integrations/notification/notification-outbox.publisher';
+import { KafkaModule } from '@shared/integrations/kafka/kafka.module';
+import { NotificationOutboxPublisher } from '@shared/integrations/kafka/notification-outbox.publisher';
 import { PaymentModule } from '@shared/integrations/payment/payment.module';
 import { RealtimePublisher } from '@shared/integrations/realtime/realtime-publisher.port';
 import { S3Module } from '@shared/integrations/s3/s3.module';
@@ -54,7 +54,6 @@ import { PhotographerRolePort } from '@modules/photographer/ports/photographer-r
 import { PhotographerRatingsPort } from '@modules/photographer/ports/photographer-ratings.port';
 import { PlanBookingsPort } from '@modules/photographer/ports/plan-bookings.port';
 import { SubscriptionPortfolioQuotaPort } from '@modules/photographer/ports/subscription-portfolio-quota.port';
-import { LensGateway } from '../socketio/socketio.gateway';
 import { OutboxWorker } from '../workers/outbox.worker';
 import { KeycloakGuard } from './auth/keycloak.guard';
 import { DomainErrorFilter } from '@shared/platform/exceptions/domain-error.filter';
@@ -98,6 +97,7 @@ const applicationServices = [
           connection: {
             host: redis.host,
             port: redis.port,
+            db: redis.bullMqDb,
             password: redis.password,
           },
         };
@@ -109,7 +109,7 @@ const applicationServices = [
     RedisModule,
     LensCacheModule,
     KeycloakModule,
-    NotificationModule,
+    KafkaModule,
     PaymentModule,
     S3Module,
   ],
@@ -201,7 +201,6 @@ const applicationServices = [
       provide: APP_FILTER,
       useClass: TypeOrmErrorFilter,
     },
-    LensGateway,
     NotificationOutboxPublisher,
     {
       provide: RealtimePublisher,

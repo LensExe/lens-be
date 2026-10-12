@@ -31,10 +31,10 @@ export interface NotificationMailCommand {
 
 /** Publishes notification events to the notification service's Kafka topic. */
 @Injectable()
-export class KafkaNotificationProducer
+export class KafkaProducer
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
-  private readonly logger = new Logger(KafkaNotificationProducer.name);
+  private readonly logger = new Logger(KafkaProducer.name);
   private readonly settings: KafkaConfig;
   private readonly producer?: Producer;
   private connecting?: Promise<void>;

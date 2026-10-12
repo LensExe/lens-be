@@ -5,14 +5,14 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AxiosService } from '../axios/axios.service';
-import { NotificationPort, type OtpEmail } from './notification.port';
+import { KafkaPort, type OtpEmail } from './kafka.port';
 
 /** Maximum wait time for a single notification service request (ms). */
 const NOTIFICATION_TIMEOUT_MS = 5000;
 
 /** Call the notification service over HTTP (`notification.serviceUrl`). */
 @Injectable()
-export class HttpNotificationService extends NotificationPort {
+export class HttpNotificationService extends KafkaPort {
   private readonly logger = new Logger(HttpNotificationService.name);
 
   constructor(

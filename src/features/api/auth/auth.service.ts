@@ -31,7 +31,7 @@ import {
 } from '../dto';
 import { SeparateFullname } from '@shared/integrations/keycloak/utils/separate-fullname';
 import { NormalizeEmail } from '@shared/integrations/keycloak/utils/normalize-email';
-import { NotificationPort } from '@shared/integrations/notification/notification.port';
+import { KafkaPort } from '@shared/integrations/kafka/kafka.port';
 
 const OTP_EXPIRED_IN_MINUTES = 5;
 const RESET_TOKEN_EXPIRED_IN_MINUTES = 10;
@@ -51,7 +51,7 @@ export class AuthService {
     private readonly keycloak: KeycloakService,
     private readonly keyCloakUser: KeycloakUserService,
     private readonly tokens: KeycloakTokenService,
-    private readonly notification: NotificationPort,
+    private readonly kafka: KafkaPort,
   ) {}
 
   /**
@@ -290,7 +290,7 @@ export class AuthService {
     try {
       this.logger.log(`Queue OTP email [${body.event}] for ${normalizedEmail}`);
 
-      await this.notification.sendOtpEmail({
+      await this.kafka.sendOtpEmail({
         to: normalizedEmail,
         otp,
         event: body.event,

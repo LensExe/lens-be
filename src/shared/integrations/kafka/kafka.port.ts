@@ -15,10 +15,10 @@ export interface OtpEmail {
 /**
  * Port for sending notifications to external services (email; push and SMS may be added later).
  *
- * Business modules inject `NotificationPort` instead of making HTTP calls directly.
+ * Business modules inject `KafkaPort` instead of making HTTP calls directly.
  * Current adapter: Kafka mail command producer.
  */
-export abstract class NotificationPort {
+export abstract class KafkaPort {
   /**
    * Send an OTP email. Throw `ServiceUnavailableException` if no service is configured or the service does not respond.
    *

@@ -2,23 +2,21 @@ import { Injectable } from '@nestjs/common';
 import { DataSource, In } from 'typeorm';
 import { EntitySchemas } from '@shared/database';
 import { RealtimePublisher } from '@shared/integrations/realtime/realtime-publisher.port';
-import { LensGateway } from '@features/socketio/socketio.gateway';
-import { KafkaNotificationProducer } from './kafka-notification.producer';
+import { KafkaProducer } from './kafka.producer';
 
 interface NotificationDraft {
-  type: 'order_placed' | 'payment_success';
+  type: 'order_placed' | 'payment_success' | 'order_cancelled';
   title: string;
   message: string;
   data: Record<string, unknown>;
 }
 
-/** Routes supported notification types to Kafka and keeps legacy events on Socket.IO. */
+/** Routes supported notification events to the notification service through Kafka. */
 @Injectable()
 export class NotificationOutboxPublisher extends RealtimePublisher {
   constructor(
     private readonly dataSource: DataSource,
-    private readonly kafka: KafkaNotificationProducer,
-    private readonly legacy: LensGateway,
+    private readonly kafka: KafkaProducer,
   ) {
     super();
   }
@@ -30,10 +28,9 @@ export class NotificationOutboxPublisher extends RealtimePublisher {
   ): Promise<void> {
     const data = this.asRecord(payload);
     const draft = this.notificationDraft(topic, data);
-    if (!this.kafka.enabled || !draft) {
-      await this.legacy.publish(userIds, topic, payload);
-      return;
-    }
+    if (!draft) throw new Error(`Unsupported notification topic: ${topic}`);
+    if (!this.kafka.enabled)
+      throw new Error('Kafka notification publishing is disabled');
 
     const recipientIds = [...new Set(userIds)];
     if (recipientIds.length === 0) return;
@@ -93,6 +90,13 @@ export class NotificationOutboxPublisher extends RealtimePublisher {
           type: 'order_placed',
           title: 'Yêu cầu đặt lịch mới',
           message: 'Một yêu cầu đặt lịch chụp mới đã được tạo.',
+          data: this.pick(payload, ['booking_id', 'status']),
+        };
+      case 'booking.cancelled':
+        return {
+          type: 'order_cancelled',
+          title: 'Đặt lịch đã bị hủy',
+          message: 'Yêu cầu đặt lịch chụp đã bị hủy.',
           data: this.pick(payload, ['booking_id', 'status']),
         };
       case 'payment.received':

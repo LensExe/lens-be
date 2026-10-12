@@ -1,14 +1,14 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
-import { KafkaNotificationProducer } from './kafka-notification.producer';
-import { NotificationPort, type OtpEmail } from './notification.port';
+import { KafkaProducer } from './kafka.producer';
+import { KafkaPort, type OtpEmail } from './kafka.port';
 
 /** Sends transactional email commands to Notification through Kafka. */
 @Injectable()
-export class KafkaNotificationService extends NotificationPort {
+export class KafkaNotificationService extends KafkaPort {
   constructor(
-    private readonly producer: KafkaNotificationProducer,
+    private readonly producer: KafkaProducer,
     private readonly config: ConfigService,
   ) {
     super();
