@@ -64,7 +64,7 @@ plugins:
   # The authentication routes below use stricter route-specific limits.
   - name: rate-limiting
     config:
-      minute: 10
+      minute: 200
       limit_by: ip
       policy: local
 
@@ -72,56 +72,56 @@ plugins:
   - name: rate-limiting
     route: core-public-get-static
     config:
-      minute: 5
+      minute: 150
       limit_by: ip
       policy: local
 
   - name: rate-limiting
     route: core-public-photographer-profile
     config:
-      minute: 5
+      minute: 400
       limit_by: ip
       policy: local
 
   - name: rate-limiting
     route: core-public-photographer-resources
     config:
-      minute: 5
+      minute: 400
       limit_by: ip
       policy: local
 
   - name: rate-limiting
     route: core-public-portfolio
     config:
-      minute: 5
+      minute: 200
       limit_by: ip
       policy: local
 
   - name: rate-limiting
     route: core-public-webhooks
     config:
-      minute: 5
+      minute: 60
       limit_by: ip
       policy: local
 
   - name: rate-limiting
     route: core-auth-login
     config:
-      minute: 2
+      minute: 50
       limit_by: ip
       policy: local
 
   - name: rate-limiting
     route: core-auth-password-recovery
     config:
-      minute: 1
+      minute: 5
       limit_by: ip
       policy: local
 
   - name: rate-limiting
     route: core-auth-email
     config:
-      minute: 1
+      minute: 5
       limit_by: ip
       policy: local
 
