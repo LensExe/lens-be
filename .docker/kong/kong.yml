@@ -285,6 +285,15 @@ services:
 
   # Chat owns durable conversation/message APIs. Realtime delivery is handled
   # by Notification's Socket.IO gateway after Chat publishes Kafka events.
+  # This route covers:
+  # POST /api/v1/chat/channels/direct
+  # GET  /api/v1/chat/channels
+  # GET  /api/v1/chat/channels/:channel-id
+  # POST|GET /api/v1/chat/channels/:channel-id/messages
+  # PUT  /api/v1/chat/channels/:channel-id/read-cursor
+  # PATCH /api/v1/chat/messages/:message-id
+  # POST /api/v1/chat/messages/:message-id/recall
+  # Chat health endpoints remain internal to the orchestrator.
   - name: chat-api
     url: http://chat:8080
     connect_timeout: 5000
@@ -294,7 +303,7 @@ services:
     routes:
       - name: chat-api-v1
         paths:
-          - /api/v1/chat
+          - '~^/api/v1/chat(?:/|$)'
         protocols: [http, https]
         strip_path: false
     plugins:
@@ -321,11 +330,11 @@ services:
         protocols: [http, https]
         strip_path: false
 
-      # Socket.IO starts with HTTP polling and upgrades through HTTP Upgrade.
+      # Socket.IO may use HTTP polling or a direct WebSocket upgrade.
       - name: notification-socket-v1
         paths:
           - /api/v1/socket.io
-        protocols: [http, https]
+        protocols: [http, https, ws, wss]
         strip_path: false
     plugins:
       - name: request-size-limiting
