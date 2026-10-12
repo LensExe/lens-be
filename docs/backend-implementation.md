@@ -11,11 +11,10 @@ src/features/api/dto/         Validation và request DTO theo nhóm API
 src/features/api/swagger/     Schema OpenAPI
 src/features/api/modules/     Ghép controller với CQRS handler
 src/features/api/auth/        Guard Keycloak và Google callback service
-src/features/socketio/        Gateway realtime
-src/features/workers/         Outbox worker
+src/features/workers/         Outbox và scheduled workers
 src/modules/                  Domain, use case, command/query handler, port
 src/shared/database/          TypeORM entity và cấu hình PostgreSQL
-src/shared/integrations/      Keycloak, PayOS, S3 và realtime port
+src/shared/integrations/      Keycloak, PayOS, S3 và Kafka notification port
 ```
 
 Controller gọi `CommandBus`/`QueryBus`; handler hiện mở `DataSource.transaction()` và truyền `EntityManager` vào use case. Use case lấy dữ liệu, gọi quy tắc domain thuần, lưu kết quả và ghi outbox nếu có sự kiện. Domain không gọi TypeORM hoặc NestJS. Port liên context được nối tại [`ApiRuntimeModule`](../src/features/api/api-runtime.module.ts).
@@ -80,7 +79,7 @@ Webhook PayOS nhận JSON gốc ở `POST /payments/webhooks/payos` hoặc `POST
 
 Object storage hỗ trợ MinIO và S3-compatible cloud. Presigned URL dùng TTL mặc định 900 giây, có thể cấu hình theo provider; `complete-upload` kiểm tra object với storage. Bucket và CORS phải cho phép upload theo cấu hình frontend. Xem [biến môi trường](SECRETS_GUIDE.md) và [`s3.config.ts`](../src/shared/integrations/s3/s3.config.ts).
 
-Sự kiện nghiệp vụ được ghi vào `outbox_events` trong transaction. Worker quét tối đa 50 event mỗi lượt, cách 2 giây. Khi `KAFKA_ENABLED=true`, `booking.created` được ánh xạ thành `order_placed`; `payment.received`, `payment.wallet_topped_up` và `payment.subscription` được ánh xạ thành `payment_success`. Producer gửi từng recipient thành một Kafka message, ánh xạ `users.id` nội bộ sang Keycloak `sub`, và giữ `eventId` ổn định theo outbox event cùng recipient. Các event khác tiếp tục phát qua Socket.IO namespace `/lens` trong giai đoạn chuyển tiếp.
+Sự kiện nghiệp vụ được ghi vào `outbox_events` trong transaction. Worker quét tối đa 50 event mỗi lượt, cách 2 giây. Khi `KAFKA_ENABLED=true`, `booking.created` được ánh xạ thành `order_placed`; `payment.received`, `payment.wallet_topped_up` và `payment.subscription` được ánh xạ thành `payment_success`. Producer gửi từng recipient thành một Kafka message, ánh xạ `users.id` nội bộ sang Keycloak `sub`, và giữ `eventId` ổn định theo outbox event cùng recipient. Event chưa có mapping hoặc Kafka chưa bật sẽ được retry rồi dead-letter; Lens Backend không còn phát trực tiếp qua Socket.IO.
 
 Notification-service phát notification đã consume qua namespace `/notification`, Socket.IO path `/api/v1/socket.io`, event `notification`; frontend cần kết nối endpoint này cho các notification đi Kafka. Giao nhận là at-least-once; consumer dùng `eventId` làm BullMQ job ID để deduplicate khi job còn được giữ lại. Worker chỉ đánh dấu event đã xử lý sau khi publisher thành công, retry tối đa năm lần rồi chuyển outbox event sang dead letter.
 

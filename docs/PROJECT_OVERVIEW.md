@@ -22,7 +22,7 @@ Ngoài hành trình chính, hệ thống còn hỗ trợ:
 - Đánh giá, xếp hạng và thống kê photographer.
 - Report, dispute, refund và các công cụ quản trị.
 - Subscription/VIP dành cho photographer.
-- Thông báo qua Kafka notification-service và Transactional Outbox; Socket.IO `/lens` tiếp tục phục vụ event chưa có type hỗ trợ.
+- Thông báo qua Kafka notification-service và Transactional Outbox; event chưa có type hỗ trợ sẽ retry rồi dead-letter.
 
 Repository này là **backend**, chưa bao gồm frontend web/mobile.
 
@@ -45,7 +45,7 @@ Repository này là **backend**, chưa bao gồm frontend web/mobile.
 - PayOS làm payment gateway chính.
 - S3/MinIO làm object storage.
 - Redis dùng cho cache và BullMQ queues.
-- Kafka đưa các notification đã ánh xạ tới notification-service; Socket.IO `/lens` giữ vai trò fallback cho event còn lại.
+- Kafka đưa các notification đã ánh xạ tới notification-service; không còn fallback realtime tại Lens Backend.
 - CLI hỗ trợ seed, migration và các tác vụ vận hành.
 
 ## 3. Người dùng và vai trò
@@ -235,7 +235,7 @@ Photographer xem plans
 Nghiệp vụ và outbox event commit cùng transaction
   → Outbox worker quét event chưa xử lý
   → notification type được hỗ trợ: Kafka → notification-service → user
-  → event chưa được ánh xạ: Socket.IO /lens → user room
+  → event chưa được ánh xạ hoặc Kafka lỗi: retry → dead-letter
 ```
 
 Các event tiêu biểu:
@@ -335,7 +335,7 @@ Nằm chủ yếu trong src/shared/:
 - Keycloak adapter.
 - PayOS adapter.
 - S3/MinIO adapter.
-- Redis, BullMQ và Socket.IO gateway fallback.
+- Redis, BullMQ và Kafka notification producer.
 - Cookie, client context, config và error handling.
 
 ## 7. Bounded contexts và module
@@ -372,12 +372,11 @@ lens-backend/
 │   ├── modules/               # Domain và application use cases
 │   ├── features/
 │   │   ├── api/               # Controller, DTO, auth, Swagger, module wiring
-│   │   ├── socketio/          # Realtime gateway
 │   │   └── workers/           # Outbox worker
 │   └── shared/
 │       ├── contracts/         # Input contracts
 │       ├── database/          # Entity, config, helper
-│       ├── integrations/      # Keycloak, PayOS, S3, realtime
+│       ├── integrations/      # Keycloak, PayOS, S3, Kafka notification
 │       └── platform/          # Context, cookie, env, error handling
 ├── migrations/                # SQL migration
 ├── scripts/                   # Seed, migration, secrets, setup
@@ -419,11 +418,11 @@ Khi một nghiệp vụ tạo event realtime:
 2. Lưu event vào outbox_events.
 3. Commit cả hai trong cùng transaction.
 4. Worker đọc event chưa xử lý.
-5. Publisher chuyển event có notification type được hỗ trợ tới Kafka; event chưa được ánh xạ được phát tới Socket.IO user room.
+5. Publisher chuyển event có notification type được hỗ trợ tới Kafka; event chưa được ánh xạ sẽ được retry rồi chuyển dead-letter.
 
 Cơ chế này tránh tình trạng database đã commit nhưng notification bị mất do ghi database và gửi realtime ở hai thao tác độc lập.
 
-Lens ánh xạ `booking.created` thành `order_placed` và một số event thanh toán thành `payment_success`, rồi gửi từng recipient qua `notification.events` với Keycloak `sub` làm user ID. Các event chưa có notification type tương ứng vẫn qua Socket.IO `/lens`. Worker chỉ đánh dấu event đã xử lý sau khi publisher thành công, retry tối đa năm lần rồi dead-letter. Giao nhận là at-least-once; notification-service dùng `eventId` làm BullMQ job ID để deduplicate khi job còn được giữ lại.
+Lens ánh xạ `booking.created` thành `order_placed` và một số event thanh toán thành `payment_success`, rồi gửi từng recipient qua `notification.events` với Keycloak `sub` làm user ID. Các event chưa có notification type tương ứng sẽ được retry rồi dead-letter. Worker chỉ đánh dấu event đã xử lý sau khi publisher thành công, retry tối đa năm lần rồi dead-letter. Giao nhận là at-least-once; notification-service dùng `eventId` làm BullMQ job ID để deduplicate khi job còn được giữ lại.
 
 ## 10. API overview
 
@@ -589,7 +588,7 @@ Redis được dùng cho:
 
 - Cache.
 - BullMQ queues.
-- Redis Socket.IO adapter có sẵn trong source nhưng chưa được gắn vào bootstrap; gateway `/lens` vẫn là fallback trong một instance.
+- Redis Socket.IO adapter còn có sẵn trong source cho các thành phần dùng chung; Lens Backend không còn đăng ký gateway `/lens`.
 
 ## 12. Bảo mật và phân quyền
 
@@ -748,4 +747,4 @@ Integration test cần database riêng, ví dụ lens_test. Không dùng credent
 
 ## 19. Tóm tắt một câu
 
-Lens Backend là một **modular monolith NestJS** dùng PostgreSQL, Keycloak, PayOS, S3/MinIO, Redis và Kafka notification-service để quản lý vòng đời kết nối khách hàng với photographer; Socket.IO `/lens` vẫn nhận các event chưa được notification-service hỗ trợ.
+Lens Backend là một **modular monolith NestJS** dùng PostgreSQL, Keycloak, PayOS, S3/MinIO, Redis và Kafka notification-service để quản lý vòng đời kết nối khách hàng với photographer; notification realtime được xử lý tập trung bởi notification-service.

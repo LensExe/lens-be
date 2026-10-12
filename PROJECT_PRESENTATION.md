@@ -125,9 +125,9 @@ Các endpoint chính: `POST /bookings/:booking_id/payments/deposit`, `POST /book
 
 **Phạm vi payment hiện tại:** `PaymentApiModule` và `ApiRuntimeModule` đăng ký `PaymentUseCases` với `PayOsGateway`, nên endpoint đang chạy theo luồng PayOS. Có file `collection/payment-collection.use-case.ts` chứa hướng mở rộng payment method/provider, nhưng class này chưa được wiring vào runtime; không nên trình bày wallet hoặc thanh toán đa provider như tính năng đang hoạt động.
 
-Một số command ghi sự kiện vào `outbox_events` trong cùng transaction với dữ liệu nghiệp vụ. Outbox Worker tự kích hoạt bằng `setInterval` mỗi 2 giây, poll PostgreSQL tối đa 50 event pending mỗi lượt rồi phát qua Socket.IO namespace `/lens`, vào room riêng của từng user. PostgreSQL không phát tín hiệu đánh thức worker; độ trễ nhận event phụ thuộc chu kỳ poll.
+Một số command ghi sự kiện vào `outbox_events` trong cùng transaction với dữ liệu nghiệp vụ. Outbox Worker tự kích hoạt bằng `setInterval` mỗi 2 giây, poll PostgreSQL tối đa 50 event pending mỗi lượt rồi chuyển notification qua Kafka topic `notification.events` để `lens-notification` xử lý. PostgreSQL không phát tín hiệu đánh thức worker; độ trễ nhận event phụ thuộc chu kỳ poll.
 
-**Giới hạn triển khai hiện tại:** worker cập nhật `processed_at` trước khi phát Socket.IO. Nếu publisher lỗi sau thời điểm đó, event có thể không được tự retry. Nên mô tả đây là luồng outbox bất đồng bộ, không cam kết delivery đúng một lần.
+**Giới hạn triển khai hiện tại:** giao nhận là at-least-once; worker chỉ cập nhật `processed_at` sau khi Kafka producer xác nhận. Nếu broker đã nhận message nhưng transaction cập nhật trạng thái thất bại, event có thể được gửi lại và notification-service dùng `eventId` để chống trùng.
 
 ## 4. Công nghệ trong project
 
@@ -141,7 +141,7 @@ Một số command ghi sự kiện vào `outbox_events` trong cùng transaction 
 | **Redis 7**                      | Lưu PKCE state ngắn hạn; được dùng bởi module tích hợp Keycloak.                  |
 | **PayOS**                        | Tạo checkout/VietQR và xác minh webhook thanh toán.                               |
 | **AWS SDK v3 + MinIO**           | S3-compatible object storage và presigned URL cho ảnh.                            |
-| **Socket.IO**                    | Kênh realtime theo user room, namespace `/lens`.                                  |
+| **Socket.IO**                    | Kênh realtime do `lens-notification` cung cấp, namespace `/notification`.         |
 | **Axios + axios-retry**          | HTTP client dùng cho tích hợp backend với dịch vụ ngoài.                          |
 | **Swagger / OpenAPI**            | Sinh tài liệu và giao diện thử API tại `/docs`.                                   |
 | **Docker Compose**               | Khởi chạy dịch vụ hỗ trợ cho môi trường local.                                    |
@@ -188,7 +188,7 @@ Khi trình bày technology, nên phân biệt thư viện/cấu hình trong repo
 
 - **MongoDB / Mongoose:** có trong Docker Compose và dependencies, nhưng `CoreModule` hiện không khởi tạo kết nối MongoDB; query đang dùng PostgreSQL.
 - **BullMQ:** runtime có cấu hình kết nối BullMQ với Redis, nhưng hiện chưa thấy Queue/Processor nghiệp vụ được đăng ký. Outbox Worker vẫn dùng timer và PostgreSQL.
-- **Redis Socket.IO adapter:** có mã adapter, nhưng Core hiện chưa cài adapter đó vào Socket.IO server. Redis vẫn được dùng trong PKCE flow.
+- **Realtime:** Core không còn đăng ký Socket.IO gateway; notification realtime do `lens-notification` cung cấp sau khi consume Kafka.
 - **Kong:** có thể chạy theo Docker Compose profile `full`, nhưng không bắt buộc để Core API hoạt động.
 
 Điểm phân biệt này giúp phần trình bày phản ánh đúng implementation đang chạy, thay vì chỉ liệt kê mọi package trong `package.json`.
@@ -202,7 +202,6 @@ apps/
 src/
   features/
     api/                Controllers, DTO, auth, Swagger, module wiring
-    socketio/           Socket.IO gateway
     workers/            Outbox worker
   modules/              Domain/use case/command/query theo context
   shared/

@@ -29,7 +29,6 @@ src/
       swagger/                      # Response schema OpenAPI
       api-runtime.module.ts         # Composition root của API
       feature-modules.ts            # Registry bật/tắt API feature
-    socketio/                       # Gateway realtime
     workers/                        # Background worker, ví dụ outbox
 
   modules/                          # Business module theo bounded context

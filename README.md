@@ -43,22 +43,22 @@
 
 ## 🛠️ Công nghệ sử dụng (Tech Stack)
 
-| Phân tầng / Khía cạnh         | Công nghệ & Thư viện                                 | Mô tả vai trò                                                                                                                                       |
-| :---------------------------- | :--------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Framework nền tảng**        | **NestJS 12** (Node.js v20+)                         | Framework backend kiến trúc module, DI (Dependency Injection), Pipes, Interceptors, Guards.                                                         |
-| **Ngôn ngữ**                  | **TypeScript 5.9**                                   | Đảm bảo kiểu dữ liệu tĩnh nghiêm ngặt trên toàn bộ hệ thống.                                                                                        |
-| **Kiến trúc ứng dụng**        | **Pragmatic Clean Architecture + CQRS**              | Tách bạch Domain thuần, Application Use Cases, và Infrastructure qua `@nestjs/cqrs`.                                                                |
-| **Cơ sở dữ liệu chính**       | **PostgreSQL 16**                                    | Lưu trữ dữ liệu quan hệ, đảm bảo tính toàn vẹn và giao dịch ACID.                                                                                   |
-| **ORM & Data Mapping**        | **TypeORM 0.3**                                      | Quản lý Entity, Repository, EntityManager và Pessimistic Locking.                                                                                   |
-| **Migration**                 | **Raw SQL Script** (`scripts/migrate-lens.cjs`)      | Áp dụng schema SQL chủ động, có kiểm soát, không bật auto-sync trên môi trường thật.                                                                |
-| **Identity & Access (IAM)**   | **Keycloak 24**                                      | Quản lý định danh tập trung (OAuth2/OIDC, JWT Bearer Token, Google Identity Broker, RBAC).                                                          |
-| **Cổng thanh toán**           | **PayOS (VietQR)**                                   | Tạo mã thanh toán QR động, liên kết thanh toán tức thời, xác thực chữ ký HMAC Webhook.                                                              |
-| **Lưu trữ tệp (Storage)**     | **AWS S3 / MinIO** (`@aws-sdk/client-s3`)            | Lưu trữ ảnh gốc, ảnh portfolio, ảnh sản phẩm với cơ chế Presigned URL bảo mật có TTL.                                                               |
-| **Thông báo**                 | **KafkaJS** + Transactional Outbox                   | Chuyển các notification type đã hỗ trợ tới notification-service qua topic `notification.events`; event chưa được ánh xạ vẫn dùng Socket.IO `/lens`. |
-| **Background Worker**         | **Transactional Outbox Worker** + **BullMQ / Redis** | Quét sự kiện ngầm, điều phối hàng đợi tác vụ và tác vụ định kỳ.                                                                                     |
-| **API Docs & Contract**       | **OpenAPI 3.0 / Swagger** (`@nestjs/swagger`)        | Tự động sinh tài liệu API tương tác tại `/docs`, kiểm thử hợp đồng tự động.                                                                         |
-| **Bảo mật biến môi trường**   | **Mozilla SOPS & Age**                               | Mã hóa an toàn các biến môi trường nhạy cảm ngay trên Git repo.                                                                                     |
-| **Quản lý gói & Chạy Docker** | **pnpm** & **Docker Compose**                        | Quản lý dependencies tối ưu dung lượng và đóng gói môi trường phát triển cục bộ.                                                                    |
+| Phân tầng / Khía cạnh         | Công nghệ & Thư viện                                 | Mô tả vai trò                                                                                                                                     |
+| :---------------------------- | :--------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Framework nền tảng**        | **NestJS 12** (Node.js v20+)                         | Framework backend kiến trúc module, DI (Dependency Injection), Pipes, Interceptors, Guards.                                                       |
+| **Ngôn ngữ**                  | **TypeScript 5.9**                                   | Đảm bảo kiểu dữ liệu tĩnh nghiêm ngặt trên toàn bộ hệ thống.                                                                                      |
+| **Kiến trúc ứng dụng**        | **Pragmatic Clean Architecture + CQRS**              | Tách bạch Domain thuần, Application Use Cases, và Infrastructure qua `@nestjs/cqrs`.                                                              |
+| **Cơ sở dữ liệu chính**       | **PostgreSQL 16**                                    | Lưu trữ dữ liệu quan hệ, đảm bảo tính toàn vẹn và giao dịch ACID.                                                                                 |
+| **ORM & Data Mapping**        | **TypeORM 0.3**                                      | Quản lý Entity, Repository, EntityManager và Pessimistic Locking.                                                                                 |
+| **Migration**                 | **Raw SQL Script** (`scripts/migrate-lens.cjs`)      | Áp dụng schema SQL chủ động, có kiểm soát, không bật auto-sync trên môi trường thật.                                                              |
+| **Identity & Access (IAM)**   | **Keycloak 24**                                      | Quản lý định danh tập trung (OAuth2/OIDC, JWT Bearer Token, Google Identity Broker, RBAC).                                                        |
+| **Cổng thanh toán**           | **PayOS (VietQR)**                                   | Tạo mã thanh toán QR động, liên kết thanh toán tức thời, xác thực chữ ký HMAC Webhook.                                                            |
+| **Lưu trữ tệp (Storage)**     | **AWS S3 / MinIO** (`@aws-sdk/client-s3`)            | Lưu trữ ảnh gốc, ảnh portfolio, ảnh sản phẩm với cơ chế Presigned URL bảo mật có TTL.                                                             |
+| **Thông báo**                 | **KafkaJS** + Transactional Outbox                   | Chuyển các notification type đã hỗ trợ tới notification-service qua topic `notification.events`; topic chưa được ánh xạ sẽ retry rồi dead-letter. |
+| **Background Worker**         | **Transactional Outbox Worker** + **BullMQ / Redis** | Quét sự kiện ngầm, điều phối hàng đợi tác vụ và tác vụ định kỳ.                                                                                   |
+| **API Docs & Contract**       | **OpenAPI 3.0 / Swagger** (`@nestjs/swagger`)        | Tự động sinh tài liệu API tương tác tại `/docs`, kiểm thử hợp đồng tự động.                                                                       |
+| **Bảo mật biến môi trường**   | **Mozilla SOPS & Age**                               | Mã hóa an toàn các biến môi trường nhạy cảm ngay trên Git repo.                                                                                   |
+| **Quản lý gói & Chạy Docker** | **pnpm** & **Docker Compose**                        | Quản lý dependencies tối ưu dung lượng và đóng gói môi trường phát triển cục bộ.                                                                  |
 
 ---
 
@@ -89,8 +89,8 @@ Hệ thống tuân thủ chặt chẽ các nguyên lý thiết kế nâng cao:
         ▼
 [Infrastructure & Persistence Layer]
    ├── TypeORM Entities & Database Repositories
-   ├── Adapters: Keycloak, PayOS, S3/MinIO, Realtime Gateway
-   └── Transactional Outbox Worker (Gửi notification qua Kafka hoặc Socket.IO dự phòng)
+   ├── Adapters: Keycloak, PayOS, S3/MinIO, Kafka Notification Producer
+   └── Transactional Outbox Worker (Gửi notification qua Kafka tới notification-service)
 ```
 
 ### 1. Phân tách Command - Query (CQRS)
@@ -104,7 +104,7 @@ Khi có sự kiện quan trọng (ví dụ: `booking.created`, `payment.success`
 
 1. Nghiệp vụ lưu dữ liệu chính (bảng `bookings`) và ghi sự kiện vào bảng `outbox_events` **trong cùng một Database Transaction**.
 2. Khi transaction commit thành công, API trả ngay phản hồi `200 OK` cho người dùng mà không bị nghẽn mạng.
-3. [`OutboxWorker`](src/features/workers/outbox.worker.ts) chạy nền định kỳ quét sự kiện chưa xử lý. Event có notification type được notification-service hỗ trợ sẽ được chuyển thành message Kafka; event chưa được ánh xạ vẫn phát qua Socket.IO `/lens`. Worker chỉ đánh dấu hoàn tất sau khi publisher xác nhận, và retry lỗi tối đa năm lần trước khi chuyển dead letter.
+3. [`OutboxWorker`](src/features/workers/outbox.worker.ts) chạy nền định kỳ quét sự kiện chưa xử lý. Event có notification type được notification-service hỗ trợ sẽ được chuyển thành message Kafka; topic chưa được ánh xạ hoặc Kafka chưa bật sẽ được retry tối đa năm lần rồi chuyển dead letter. Worker chỉ đánh dấu hoàn tất sau khi publisher xác nhận.
 
 ### 3. Hexagonal Architecture (Ports & Adapters)
 
@@ -153,7 +153,6 @@ lens-backend/
 │   │   │   ├── auth/          # Keycloak Guards, Decorators và Google Auth Service
 │   │   │   ├── modules/       # NestJS Modules ghép nối Controller với CQRS Handler
 │   │   │   └── setup.ts       # Cấu hình Swagger, CORS và ValidationPipe toàn cục
-│   │   ├── socketio/          # WebSocket Gateway phục vụ thông báo Realtime
 │   │   └── workers/           # Transactional Outbox Worker chạy ngầm
 │   ├── modules/               # Tầng nghiệp vụ cốt lõi (Domain & Application Contexts)
 │   │   ├── booking/           # *.command.ts, *.query.ts, *.use-case.ts, *.domain.ts, ports/
