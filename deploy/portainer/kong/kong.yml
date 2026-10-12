@@ -60,70 +60,70 @@ plugins:
       bandwidth_metrics: true
       upstream_health_metrics: true
 
-  # General quota for every routed API, including public endpoints and chat.
-  # The authentication routes below use stricter route-specific limits.
-  - name: rate-limiting
-    config:
-      minute: 200
-      limit_by: ip
-      policy: local
+  # # General quota for every routed API, including public endpoints and chat.
+  # # The authentication routes below use stricter route-specific limits.
+  # - name: rate-limiting
+  #   config:
+  #     minute: 200
+  #     limit_by: ip
+  #     policy: local
 
-  # Public API routes use a separate, lower quota than JWT-protected routes.
-  - name: rate-limiting
-    route: core-public-get-static
-    config:
-      minute: 150
-      limit_by: ip
-      policy: local
+  # # Public API routes use a separate, lower quota than JWT-protected routes.
+  # - name: rate-limiting
+  #   route: core-public-get-static
+  #   config:
+  #     minute: 150
+  #     limit_by: ip
+  #     policy: local
 
-  - name: rate-limiting
-    route: core-public-photographer-profile
-    config:
-      minute: 400
-      limit_by: ip
-      policy: local
+  # - name: rate-limiting
+  #   route: core-public-photographer-profile
+  #   config:
+  #     minute: 400
+  #     limit_by: ip
+  #     policy: local
 
-  - name: rate-limiting
-    route: core-public-photographer-resources
-    config:
-      minute: 400
-      limit_by: ip
-      policy: local
+  # - name: rate-limiting
+  #   route: core-public-photographer-resources
+  #   config:
+  #     minute: 400
+  #     limit_by: ip
+  #     policy: local
 
-  - name: rate-limiting
-    route: core-public-portfolio
-    config:
-      minute: 200
-      limit_by: ip
-      policy: local
+  # - name: rate-limiting
+  #   route: core-public-portfolio
+  #   config:
+  #     minute: 200
+  #     limit_by: ip
+  #     policy: local
 
-  - name: rate-limiting
-    route: core-public-webhooks
-    config:
-      minute: 60
-      limit_by: ip
-      policy: local
+  # - name: rate-limiting
+  #   route: core-public-webhooks
+  #   config:
+  #     minute: 60
+  #     limit_by: ip
+  #     policy: local
 
-  - name: rate-limiting
-    route: core-auth-login
-    config:
-      minute: 50
-      limit_by: ip
-      policy: local
+  # - name: rate-limiting
+  #   route: core-auth-login
+  #   config:
+  #     minute: 50
+  #     limit_by: ip
+  #     policy: local
 
-  - name: rate-limiting
-    route: core-auth-password-recovery
-    config:
-      minute: 5
-      limit_by: ip
-      policy: local
+  # - name: rate-limiting
+  #   route: core-auth-password-recovery
+  #   config:
+  #     minute: 5
+  #     limit_by: ip
+  #     policy: local
 
-  - name: rate-limiting
-    route: core-auth-email
-    config:
-      minute: 5
-      limit_by: ip
-      policy: local
+  # - name: rate-limiting
+  #   route: core-auth-email
+  #   config:
+  #     minute: 5
+  #     limit_by: ip
+  #     policy: local
 
   # JWT is scoped to protected routes. Explicit public routes below are not
   # bound to this plugin; the backend still performs its own full validation.
