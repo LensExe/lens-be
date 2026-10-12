@@ -182,7 +182,7 @@ services:
       # take precedence over core-api-v1, which requires JWT for everything else.
       - name: core-public-get-static
         paths:
-          - '~/^/api/v1/(?:photographers/?|photographers/top-rated/?|ranks/?|badges/?|subscriptions/plans/?|keycloak/google/(?:login|callback|exchange)/?)$'
+          - '~/api/v1/(?:photographers/?|photographers/top-rated/?|ranks/?|badges/?|subscriptions/plans/?|keycloak/google/(?:login|callback|exchange)/?)$'
         methods: [GET]
         regex_priority: 100
         protocols: [http, https]
@@ -190,7 +190,7 @@ services:
 
       - name: core-public-photographer-profile
         paths:
-          - '~/^/api/v1/photographers/(?!me(?:/|$)|top-rated(?:/|$))[^/]+/?$'
+          - '~/api/v1/photographers/[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/?$'
         methods: [GET]
         regex_priority: 100
         protocols: [http, https]
@@ -198,7 +198,7 @@ services:
 
       - name: core-public-photographer-resources
         paths:
-          - '~/^/api/v1/photographers/(?!me(?:/|$))[^/]+/(?:portfolios|booking-plans|rating-summary|reviews|availability|offline-slots)/?$'
+          - '~/api/v1/photographers/[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/(?:portfolios|booking-plans|rating-summary|reviews|availability|offline-slots)/?$'
         methods: [GET]
         regex_priority: 100
         protocols: [http, https]
@@ -206,7 +206,7 @@ services:
 
       - name: core-public-portfolio
         paths:
-          - '~/^/api/v1/portfolios/[^/]+/?$'
+          - '~/api/v1/portfolios/[^/]+/?$'
         methods: [GET]
         regex_priority: 100
         protocols: [http, https]
@@ -214,7 +214,7 @@ services:
 
       - name: core-public-webhooks
         paths:
-          - '~/^/api/v1/(?:payments|subscriptions)/webhooks/(?:payos|sepay)/?$'
+          - '~/api/v1/(?:payments|subscriptions)/webhooks/(?:payos|sepay)/?$'
         methods: [POST]
         regex_priority: 100
         protocols: [http, https]
@@ -302,7 +302,7 @@ services:
     routes:
       - name: chat-api-v1
         paths:
-          - '~/^/api/v1/chat(?:/|$)'
+          - '~/api/v1/chat(?:/|$)'
         protocols: [http, https]
         strip_path: false
     plugins:
