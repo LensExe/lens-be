@@ -45,6 +45,8 @@ services:
     image: redis:7-alpine
     command:
       - redis-server
+      - --databases
+      - '${REDIS_DATABASES:-16}'
       - --requirepass
       - '${REDIS_PASSWORD:?Set REDIS_PASSWORD in Portainer}'
     environment:
@@ -61,6 +63,104 @@ services:
     networks:
       - lens-network
     restart: unless-stopped
+
+  # One MongoDB instance with separate, least-privilege accounts/databases
+  # for Notification and Chat.
+  lens-mongodb:
+    image: '${MONGO_IMAGE:-mongo:7.0.34-jammy}'
+    pull_policy: '${MONGO_PULL_POLICY:-missing}'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: '${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in Portainer}'
+      MONGO_INITDB_ROOT_PASSWORD: '${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in Portainer}'
+    ports:
+      - '127.0.0.1:${MONGO_HOST_PORT:-27018}:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --username "$$MONGO_INITDB_ROOT_USERNAME"
+          --password "$$MONGO_INITDB_ROOT_PASSWORD"
+          --authenticationDatabase admin
+          --eval "db.adminCommand({ ping: 1 }).ok" | grep -q 1
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      lens-network:
+        aliases:
+          - notification-mongodb
+          - chat-mongodb
+    restart: unless-stopped
+
+  lens-mongodb-init:
+    image: '${MONGO_IMAGE:-mongo:7.0.34-jammy}'
+    pull_policy: '${MONGO_PULL_POLICY:-missing}'
+    depends_on:
+      lens-mongodb:
+        condition: service_healthy
+    environment:
+      MONGO_ROOT_USERNAME: '${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in Portainer}'
+      MONGO_ROOT_PASSWORD: '${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in Portainer}'
+      MONGO_NOTIFICATION_DATABASE: '${MONGO_NOTIFICATION_DATABASE:-noti_system_db}'
+      MONGO_NOTIFICATION_USERNAME: '${MONGO_NOTIFICATION_USERNAME:?Set MONGO_NOTIFICATION_USERNAME in Portainer}'
+      MONGO_NOTIFICATION_PASSWORD: '${MONGO_NOTIFICATION_PASSWORD:?Set MONGO_NOTIFICATION_PASSWORD in Portainer}'
+      MONGO_CHAT_DATABASE: '${MONGO_CHAT_DATABASE:-chat_direct}'
+      MONGO_CHAT_USERNAME: '${MONGO_CHAT_USERNAME:?Set MONGO_CHAT_USERNAME in Portainer}'
+      MONGO_CHAT_PASSWORD: '${MONGO_CHAT_PASSWORD:?Set MONGO_CHAT_PASSWORD in Portainer}'
+    entrypoint: ['/bin/bash', '-ec']
+    command:
+      - |
+        until mongosh --quiet --host lens-mongodb:27017 \
+          --username "$$MONGO_ROOT_USERNAME" \
+          --password "$$MONGO_ROOT_PASSWORD" \
+          --authenticationDatabase admin \
+          --eval 'db.adminCommand({ ping: 1 }).ok' | grep -q 1; do
+          sleep 2
+        done
+
+        mongosh --quiet --host lens-mongodb:27017 \
+          --username "$$MONGO_ROOT_USERNAME" \
+          --password "$$MONGO_ROOT_PASSWORD" \
+          --authenticationDatabase admin <<'MONGO_INIT'
+        const applications = [
+          {
+            database: process.env.MONGO_NOTIFICATION_DATABASE,
+            username: process.env.MONGO_NOTIFICATION_USERNAME,
+            password: process.env.MONGO_NOTIFICATION_PASSWORD,
+          },
+          {
+            database: process.env.MONGO_CHAT_DATABASE,
+            username: process.env.MONGO_CHAT_USERNAME,
+            password: process.env.MONGO_CHAT_PASSWORD,
+          },
+        ];
+
+        for (const application of applications) {
+          if (!application.database || !application.username || !application.password) {
+            throw new Error('Mongo application database credentials are required');
+          }
+
+          const applicationDatabase = db.getSiblingDB(application.database);
+          const roles = [{ role: 'readWrite', db: application.database }];
+          if (applicationDatabase.getUser(application.username)) {
+            applicationDatabase.updateUser(application.username, {
+              pwd: application.password,
+              roles,
+            });
+          } else {
+            applicationDatabase.createUser({
+              user: application.username,
+              pwd: application.password,
+              roles,
+            });
+          }
+        }
+        MONGO_INIT
+    networks:
+      - lens-network
+    restart: 'no'
 
   lens-minio:
     # Override MINIO_IMAGE when Portainer uses a different imported tag.
@@ -131,6 +231,8 @@ volumes:
     name: lens-pg-data
   redis-data:
     name: lens-redis-data
+  mongo-data:
+    name: lens-mongo-data
   minio-data:
     name: lens-minio-data
 

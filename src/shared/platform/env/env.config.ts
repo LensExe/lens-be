@@ -51,6 +51,11 @@ export const envConfig = (): EnvConfig => {
     redis: {
       host: process.env.REDIS_HOST ?? 'localhost',
       port: Number.parseInt(process.env.REDIS_PORT ?? '6380', 10),
+      db: Number.parseInt(process.env.REDIS_DB ?? '0', 10),
+      bullMqDb: Number.parseInt(
+        process.env.BULLMQ_REDIS_DB ?? process.env.REDIS_DB ?? '0',
+        10,
+      ),
       password: process.env.REDIS_PASSWORD || undefined,
     },
     auth: {

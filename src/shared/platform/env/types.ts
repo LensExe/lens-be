@@ -27,6 +27,8 @@ export interface MongoConfig {
 export interface RedisConfig {
   host: string;
   port: number;
+  db: number;
+  bullMqDb: number;
   password?: string;
 }
 
