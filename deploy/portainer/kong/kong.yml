@@ -298,7 +298,7 @@ services:
           require_content_length: false
 
   - name: chat-api
-    url: http://chat:8080
+    url: http://lens-chat:8080
     connect_timeout: 5000
     read_timeout: 30000
     write_timeout: 30000
@@ -318,7 +318,7 @@ services:
           require_content_length: false
 
   - name: notification-api
-    url: http://notification:3001
+    url: http://lens-notification:3001
     connect_timeout: 5000
     read_timeout: 30000
     write_timeout: 30000
