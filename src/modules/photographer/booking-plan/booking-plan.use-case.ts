@@ -56,6 +56,7 @@ export class BookingPlanUseCases {
     BookingPlan.assertPhotoCounts(i.photo_count, i.retouched_photo_count);
     return s.save(EntitySchemas.booking_plans, {
       ...i,
+      delivery_days: i.delivery_days ?? null,
       features: i.features ?? [],
       photographer_id: p.id,
     });

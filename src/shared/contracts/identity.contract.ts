@@ -38,6 +38,12 @@ export interface IdentityUpdateMeCommandInput {
   gender?: Gender;
   /** Date of birth (ISO string or YYYY-MM-DD format). */
   dob?: string;
+  notification_preferences?: {
+    booking_updates: boolean;
+    messages: boolean;
+    promotions: boolean;
+    email_digest: boolean;
+  };
 }
 
 /**

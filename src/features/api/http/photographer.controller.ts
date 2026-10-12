@@ -43,6 +43,7 @@ import {
 import { PhotographerTopQuery } from '@modules/photographer/photographers.query';
 import { PhotographerSearchQuery } from '@modules/photographer/photographers.query';
 import { PhotographerGetQuery } from '@modules/photographer/photographers.query';
+import { PhotographerEarningsQuery } from '@modules/photographer/photographers.query';
 
 @ApiTags('Photographer')
 @Controller()
@@ -51,6 +52,22 @@ export class PhotographerController {
     private readonly commands: CommandBus,
     private readonly queries: QueryBus,
   ) {}
+
+  @Get('photographers/me/earnings')
+  @ApiOperation({
+    operationId: 'PHO-016',
+    summary: 'Báo cáo thu nhập theo tháng',
+    description:
+      'Tổng hợp khoản tiền booking đã được giải ngân vào ví trong 6 tháng gần nhất. Role: Photographer',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiResponse({ status: 200, description: 'Monthly payout summary' })
+  earnings(@Req() req: { actor?: Actor }) {
+    return this.queries.execute(
+      new PhotographerEarningsQuery(req.actor ?? { sub: '', roles: [] }, {}),
+    );
+  }
 
   /**
    * Update the photographer’s location using the supplied data.

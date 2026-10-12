@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { ServiceUnavailableException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import type { AxiosService } from '../src/shared/integrations/axios/axios.service';
-import { HttpNotificationService } from '../src/shared/integrations/notification/http-notification.service';
+import { HttpNotificationService } from '../src/shared/integrations/kafka/http-notification.service';
 
 const email = {
   to: 'a@lens.vn',

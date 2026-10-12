@@ -27,6 +27,8 @@ export interface MongoConfig {
 export interface RedisConfig {
   host: string;
   port: number;
+  db: number;
+  bullMqDb: number;
   password?: string;
 }
 
@@ -79,6 +81,7 @@ export interface KafkaConfig {
   brokers: string[];
   clientId: string;
   notificationEventsTopic: string;
+  mailCommandsTopic: string;
   username?: string;
   password?: string;
   ssl: boolean;

@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{baseUrl}}/auth/register
+  url: {{baseUrl}}/api/v1/auth/register
   body: json
   auth: none
 }
@@ -17,7 +17,7 @@ headers {
 body:json {
   {
     "role": "photographer",
-    "fullname": "Anh Đỗ1",
+    "fullname": "Anh Đỗ2",
     "email": "anhdo1@gmail.com",
     "password": "{{registrationPassword}}"
   }

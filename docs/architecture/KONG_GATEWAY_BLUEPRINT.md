@@ -1,6 +1,6 @@
 # Blueprint triển khai Kong Gateway cho Lens
 
-**Trạng thái:** Baseline kiến trúc để triển khai sau khi Core API và hợp đồng giữa các service đã ổn định  
+**Trạng thái:** Core và Chat REST đã có cấu hình Kong DB-less local; Notification nhận event nội bộ qua Kafka và realtime upstream sẽ thêm sau
 **Phiên bản tài liệu:** 1.0  
 **Cập nhật:** 2026-10-02  
 **Phạm vi:** Kong Gateway đứng trước Lens Core, Notification System và Chat Service; các service tiếp tục tự xác thực và phân quyền.
@@ -9,14 +9,17 @@
 
 Kong là cổng HTTP/HTTPS công khai duy nhất cho API của Lens. Nó định tuyến request tới đúng service, thực thi các chính sách ở biên như TLS, CORS, giới hạn lưu lượng và giới hạn kích thước request. Kong không thay thế Keycloak, guard, phân quyền theo tài nguyên, kiểm tra chữ ký webhook hoặc bảo vệ dữ liệu trong từng service.
 
-Blueprint này là cơ sở triển khai; trước khi đưa cấu hình vào chạy chỉ cần điền các endpoint chính xác từ OpenAPI đã chốt, địa chỉ public và danh sách origin theo môi trường. Không thiết kế lại ranh giới security ở giai đoạn đó.
+Blueprint này là cơ sở triển khai; baseline Core và Chat đã được đưa vào
+[`.docker/kong/kong.yml`](../../.docker/kong/kong.yml). Mail/template nội bộ không được expose qua Kong.
+Notification nhận notification, chat và mail command qua Kafka; Socket.IO realtime sẽ thêm như một upstream riêng
+khi Notification app được chạy trong cùng private network.
 
 ## 2. Các quyết định kiến trúc
 
 1. **Một public API host:** client chỉ gọi API qua Kong; Core, Notification và Chat không mở port ra Internet.
 2. **Keycloak là Identity Provider:** Web/mobile đăng nhập với Authorization Code + PKCE. Service xác thực access token do Keycloak cấp.
-3. **Kong là reverse proxy và lớp bảo vệ biên:** giai đoạn đầu không dùng Kong JWT plugin làm nguồn xác thực chính. Mỗi service vẫn xác thực `iss`, `aud`, chữ ký, `exp`, `sub` và quyền nghiệp vụ.
-4. **Một hợp đồng public:** API HTTP sử dụng `/api/v1/...`; service giữ nguyên prefix này khi nhận request từ Kong. Chat cần chuẩn hóa đường dẫn hiện tại `/v1/api/...` trước khi nối vào gateway.
+3. **Kong là reverse proxy và lớp bảo vệ biên:** JWT plugin kiểm tra chữ ký/expiry sớm trên các route được bảo vệ, nhưng không phải nguồn xác thực chính. Mỗi service vẫn xác thực `iss`, `aud`, chữ ký, `exp`, `sub` và quyền nghiệp vụ.
+4. **Một hợp đồng public:** API HTTP sử dụng `/api/v1/...`; service giữ nguyên prefix này khi nhận request từ Kong. Chat đã thêm `/api/v1/chat/...` và giữ `/v1/api/...` tạm thời cho client cũ.
 5. **Cấu hình Kong được quản lý trong Git:** v1 dùng DB-less/declarative config vì danh sách route và plugin được triển khai theo phiên bản, không cần sửa động qua Admin API.
 6. **Service-to-service đi qua mạng riêng:** Core gọi Notification bằng service identity riêng (OAuth2 client credentials với audience/scope phù hợp) hoặc qua queue/outbox khi phù hợp. Không chuyển tiếp access token của người dùng làm danh tính service.
 7. **Không tin header nhận dạng do client gửi:** service lấy user ID từ JWT đã xác thực (`sub`), không lấy từ `X-User-ID`, `X-User-Role` hoặc header tương tự.
@@ -28,9 +31,9 @@ flowchart LR
     C[Web / Mobile] -->|PKCE login| K[Keycloak]
     C -->|HTTPS + Bearer access token| G[Kong Gateway]
     G -->|HTTP riêng trong Docker network| CORE[Lens Core :3000]
-    G -->|HTTP riêng trong Docker network| NOTIF[Notification :3001]
-    G -->|HTTP hoặc WebSocket riêng| CHAT[Chat :8080]
-    CORE -->|client credentials qua mạng riêng| NOTIF
+    G -->|HTTP riêng trong Docker network| CHAT[Chat :8080]
+    CORE -->|Kafka notification/mail commands| NOTIF[Notification]
+    CHAT -->|Kafka chat events| NOTIF
     CORE --> DB[(Core databases)]
     NOTIF --> NDB[(Notification storage / Redis)]
     CHAT --> CDB[(MongoDB)]
@@ -47,7 +50,7 @@ Kong chỉ khai báo các nhóm path thực sự có trong OpenAPI của từng 
 | Core                             | `/api/v1/auth/**`, `/api/v1/users/**`, `/api/v1/bookings/**`, `/api/v1/payments/**`, `/api/v1/subscriptions/**` và các nhóm còn lại trong OpenAPI Core | Thêm global prefix `/api/v1` vào Core trước khi bật route; `strip_path: false`. Bảng path cuối cùng được sinh từ OpenAPI, không dùng danh sách ví dụ này thay cho hợp đồng thực tế. |
 | Notification                     | `GET /api/v1/notifications` và `POST /api/v1/notifications/mark-read`                                                                                  | Chỉ trả/đánh dấu notification thuộc user trong JWT. Không công khai route tạo notification cho `userId` tùy ý.                                                                      |
 | Chat REST                        | `/api/v1/chat/**`                                                                                                                                      | Chuẩn hóa router Chat sang prefix public này; service kiểm tra JWT subject là participant và có quyền truy cập hội thoại.                                                           |
-| Notification Socket.IO           | `/api/v1/socket.io` (namespace `/notification`)                                                                                                        | Giữ nguyên Upgrade/Connection headers; giới hạn origin; gateway xác thực token lúc handshake và đóng kết nối khi token hết hạn.                                                     |
+| Notification Socket.IO           | `/api/v1/socket.io` (namespace `/notification`)                                                                                                        | Chưa route trong baseline này; khi thêm upstream phải giữ polling/WebSocket upgrade và để Notification xác thực token handshake.                                                    |
 | Health/readiness                 | Endpoint phục vụ health check nội bộ                                                                                                                   | Không route ra Internet; dùng health/status listener hoặc kiểm tra nội bộ từ orchestrator.                                                                                          |
 | Notification mail/template/admin | Không có public route                                                                                                                                  | Chỉ gọi bằng service identity trên mạng riêng; nếu cần endpoint riêng, phải có role/scope machine-to-machine.                                                                       |
 
@@ -58,7 +61,7 @@ Các path phải phân quyền không giao nhau. Core sở hữu các resource p
 | Lớp                | Phải làm                                                                                                                                             | Không được coi là đã giải quyết                                                                                                     |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | Client + Keycloak  | PKCE cho public client; giữ access token an toàn; gửi `Authorization: Bearer ...`                                                                    | Không nhúng client secret vào web/mobile; không gửi user ID tự khai làm danh tính                                                   |
-| Kong               | HTTPS/TLS tại edge; route; CORS; rate limit; request size limit; request ID; log/metric; từ chối path không có route                                 | Không quyết định chủ sở hữu booking/conversation; không thay webhook signature verification; không phải nguồn duy nhất xác thực JWT |
+| Kong               | HTTPS/TLS tại edge; route; CORS; rate limit; request size limit; request ID; log/metric; JWT signature/expiry trên route được bảo vệ                 | Không quyết định chủ sở hữu booking/conversation; không thay webhook signature verification; không phải nguồn duy nhất xác thực JWT |
 | Từng service       | Kiểm tra JWT (`iss`, `aud`, chữ ký, `exp`, `sub`), role/scope; object-level authorization; DTO/schema validation; business limits; webhook signature | Không tin request chỉ vì nó đi qua Kong; không dựa trên `X-User-ID`                                                                 |
 | Mạng nội bộ        | Chỉ Kong nhận traffic public; service và database chỉ nhận traffic từ network được phép                                                              | Docker network dùng chung không tự thay thế authentication giữa service                                                             |
 | Service-to-service | Client credentials riêng cho từng caller; audience và role/scope hẹp; timeout, retry có giới hạn, log correlation ID                                 | Không dùng API key chung cho mọi service; không forward user bearer token để giả danh service                                       |
@@ -66,10 +69,11 @@ Các path phải phân quyền không giao nhau. Core sở hữu các resource p
 ### Yêu cầu cụ thể trước khi bật Kong
 
 - **Core:** hoàn tất danh sách endpoint và OpenAPI; thống nhất `/api/v1`; kiểm tra audience/role/scope theo route; mọi thao tác đọc/ghi resource kiểm tra ownership hoặc quyền admin; webhook thanh toán tự xác minh chữ ký, timestamp và chống replay.
-- **Notification:** thêm authentication/authorization cho lệnh tạo notification và gửi mail/template; ràng buộc người nhận theo caller được phép; thêm DTO validation và giới hạn chống lạm dụng; chốt endpoint service-to-service. Endpoint `/api/v1/emails/send-otp` mà Core hiện gọi chưa khớp controller hiện có của Notification, nên phải sửa hợp đồng này trước khi định tuyến.
-- **Chat:** chuẩn hóa prefix route; xác thực JWT subject; kiểm tra người gọi là participant trước khi đọc/ghi.
+- **Notification:** giữ mail/template/internal command ở mạng riêng; validate Kafka mail command và authorization cho các HTTP thao tác quản trị; không expose `/api/v1/emails/send-otp` qua Kong.
+- **Chat:** chuẩn hóa prefix route `/api/v1/chat`; xác thực JWT subject; kiểm tra người gọi là participant trước khi đọc/ghi; publish outbox lên `chat.conversation.events.v1`.
+- **Kafka:** Core publish `notification.events` và `notification.mail.commands.v1`; Chat publish `chat.conversation.events.v1`; Notification dùng consumer group và DLQ riêng cho từng topic.
 - **Notification realtime:** xác thực JWT lúc Socket.IO handshake; cấu hình origin allowlist; token hết hạn phải kết thúc session; không log bearer token hoặc token nằm trong `Sec-WebSocket-Protocol`.
-- **Keycloak:** access token phải có audience đúng cho API; client web/mobile dùng PKCE; client credentials tách theo service và chỉ cấp role cần thiết. Nếu các service tiếp tục dùng public key tĩnh, quy trình xoay khóa phải được xác định; ưu tiên verifier có JWKS/cache/rotation đã cấu hình rõ.
+- **Keycloak:** access token phải có audience đúng cho API; client web/mobile dùng PKCE; client credentials tách theo service và chỉ cấp role cần thiết. Kong OSS JWT dùng snapshot public key RS256 lấy từ JWKS lúc render cấu hình; sau khi xoay signing key cần render và nạp lại Kong. Core/Chat vẫn tự kiểm tra issuer, audience và quyền; không tin việc request đã qua Kong.
 - **Frontend:** bỏ mock identity/header `X-User-ID`; gọi API public qua Kong và dùng token thật. Mobile thay URL placeholder/localhost bằng base URL theo môi trường.
 
 ## 6. Bố trí triển khai
@@ -91,19 +95,18 @@ Các path phải phân quyền không giao nhau. Core sở hữu các resource p
 
 ### Điều chỉnh trên trạng thái repo hiện tại
 
-Tại thời điểm viết tài liệu, [`.docker/lens-backend/compose.yaml`](../../.docker/lens-backend/compose.yaml) đã có Kong `3.6` ở DB mode, migration job, port proxy `8000`, Admin API `8001`, Manager `8002`, nhưng chưa có route/service cấu hình tới Core và Core chưa nằm trong stack đó. Khi triển khai blueprint:
+Trạng thái hiện tại của [`.docker/lens-backend/compose.yaml`](../../.docker/lens-backend/compose.yaml) đã chuyển Kong sang DB-less, mount declarative config và route tới Core/Chat. Khi triển khai blueprint tiếp:
 
-1. Thay Kong `3.6` bằng một bản Gateway được duy trì tại thời điểm triển khai và pin patch/digest cụ thể; không dùng tag trôi nổi `latest`.
-2. Chuyển Kong sang `KONG_DATABASE=off`, mount declarative config, bỏ migration job và cấu hình PostgreSQL riêng chỉ dùng cho Kong. Các database ứng dụng vẫn giữ nguyên.
-3. Thêm upstream service alias ổn định cho Core, Notification và Chat trên private network; chỉ expose proxy listener.
-4. Bỏ host mapping `8001`/`8002` ở production. Với local debug, giới hạn các port này vào loopback.
-5. Tách mọi password đang ghi trực tiếp trong Compose sang `.env` local không commit hoặc secret store; rotate credential đã từng được sử dụng ngoài local.
+1. Kiểm tra lại bản Kong được duy trì tại thời điểm triển khai và pin patch/digest cụ thể; baseline local hiện dùng `kong:3.9.3`.
+2. Thêm upstream/service Notification sau khi hoàn tất Gate 1; Chat REST đã có route local nhưng cần hoàn tất các Gate về xác thực/participant trước khi public production.
+3. Ở production, bỏ host mapping Admin API; local hiện giới hạn proxy/Admin API vào loopback.
+4. Tách mọi password đang ghi trực tiếp trong Compose sang `.env` local không commit hoặc secret store; rotate credential đã từng được sử dụng ngoài local.
 
 DB-less phù hợp với v1 vì cấu hình route được review/version hóa cùng code. Mỗi Kong node nhận cùng một declarative artifact từ pipeline; mode này không tự đồng bộ state giữa các node. Nếu sau này cần thay đổi cấu hình động qua Admin API hoặc control plane/cluster quản lý state, mở một quyết định kiến trúc mới về DB-backed/decK/Konnect thay vì trộn cách quản lý.
 
-## 7. Cấu trúc cấu hình Kong dự kiến
+## 7. Cấu hình Kong hiện tại
 
-Đặt cấu hình ban đầu tại `.docker/kong/kong.yml` cùng Compose tích hợp. Khi có deployment/platform repository riêng, chuyển nguyên thư mục gateway sang repository đó và giữ cùng contract. Mẫu sau chỉ minh họa hình dạng; thay path bằng danh sách chính xác được sinh từ OpenAPI trước khi chạy:
+Template route/plugin đặt tại `.docker/kong/kong.yml`. Script `scripts/render-kong-config.mjs` lấy các key RS256 từ Keycloak JWKS theo `kid` và tạo `.docker/kong/kong.generated.yml` cho Kong DB-less; file render không được commit. Khi có deployment/platform repository riêng, chuyển template và cơ chế render sang pipeline của môi trường đó. Các route Core hiện được lấy từ route/controller đang có; thêm route mới chỉ sau khi owner và public/private policy được duyệt:
 
 Xem [các ví dụ cấu hình plugin chi tiết](KONG_PLUGIN_CONFIG_EXAMPLES.md) để review cấu hình CORS, rate limiting, request size, header filtering, correlation ID và Prometheus trước khi bật.
 
@@ -154,16 +157,16 @@ Tại lúc tích hợp, xác nhận route prefix của Core đã được cấu 
 
 ## 8. Chính sách Gateway v1
 
-| Chính sách            | Phạm vi đề xuất                                   | Thiết lập cần chốt                                                                                                                                                                                                                                        |
-| --------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TLS                   | Toàn bộ public API                                | HTTPS bắt buộc; redirect HTTP→HTTPS hoặc không mở HTTP public; TLS đến upstream tùy hạ tầng                                                                                                                                                               |
-| CORS                  | Global hoặc các route public cần browser          | Allowlist origin theo env; methods/headers tối thiểu (`Authorization`, `Content-Type`, request ID); không dùng `*` cùng credential; chỉ một lớp chịu trách nhiệm CORS                                                                                     |
-| Rate limit            | Route auth/OTP, upload-init, search và public API | Chọn quota theo yêu cầu nghiệp vụ/load. DB-less: `local` chỉ phù hợp một node/dev và counter không cộng dồn giữa node; dùng Redis nếu cần counter chung. Rate limit theo account/OTP destination vẫn phải ở service, không tin header user do client gửi. |
-| Request size          | API JSON                                          | Đặt giới hạn mặc định; ngoại lệ upload phải được thiết kế riêng, ưu tiên upload thẳng object storage bằng URL có chữ ký                                                                                                                                   |
-| Header trust          | Tất cả route                                      | Xóa inbound `X-User-ID`, `X-User-Role` và header identity nội bộ nếu có; service xác thực JWT. Chỉ nhận forwarded headers từ trusted proxy.                                                                                                               |
-| Request ID/log        | Tất cả route                                      | Sinh hoặc chuẩn hóa correlation ID; không log `Authorization`, cookie, OTP, email body, token query hoặc WebSocket token                                                                                                                                  |
-| Timeout/retry         | Theo service và loại thao tác                     | Timeout rõ ràng; chỉ retry thao tác idempotent hoặc có idempotency key; không retry payment write vô điều kiện                                                                                                                                            |
-| Authentication plugin | Chưa bật làm nguồn auth chính                     | Không bật Kong JWT plugin chỉ để tạo cảm giác đã bảo vệ API; giữ Keycloak token validation tại service cho tới khi có thiết kế thống nhất về OIDC/plugin edition và header trust                                                                          |
+| Chính sách            | Phạm vi đề xuất                                     | Thiết lập cần chốt                                                                                                                                                                                                                                        |
+| --------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TLS                   | Toàn bộ public API                                  | HTTPS bắt buộc; redirect HTTP→HTTPS hoặc không mở HTTP public; TLS đến upstream tùy hạ tầng                                                                                                                                                               |
+| CORS                  | Global hoặc các route public cần browser            | Allowlist origin theo env; methods/headers tối thiểu (`Authorization`, `Content-Type`, request ID); không dùng `*` cùng credential; chỉ một lớp chịu trách nhiệm CORS                                                                                     |
+| Rate limit            | Route auth/OTP, upload-init, search và public API   | Chọn quota theo yêu cầu nghiệp vụ/load. DB-less: `local` chỉ phù hợp một node/dev và counter không cộng dồn giữa node; dùng Redis nếu cần counter chung. Rate limit theo account/OTP destination vẫn phải ở service, không tin header user do client gửi. |
+| Request size          | API JSON                                            | Đặt giới hạn mặc định; ngoại lệ upload phải được thiết kế riêng, ưu tiên upload thẳng object storage bằng URL có chữ ký                                                                                                                                   |
+| Header trust          | Tất cả route                                        | Xóa inbound `X-User-ID`, `X-User-Role` và header identity nội bộ nếu có; service xác thực JWT. Chỉ nhận forwarded headers từ trusted proxy.                                                                                                               |
+| Request ID/log        | Tất cả route                                        | Sinh hoặc chuẩn hóa correlation ID; không log `Authorization`, cookie, OTP, email body, token query hoặc WebSocket token                                                                                                                                  |
+| Timeout/retry         | Theo service và loại thao tác                       | Timeout rõ ràng; chỉ retry thao tác idempotent hoặc có idempotency key; không retry payment write vô điều kiện                                                                                                                                            |
+| Authentication plugin | Core/Chat protected routes; public exceptions riêng | Kong JWT OSS kiểm tra chữ ký RS256 theo `kid` và `exp`; issuer, audience, role và object authorization vẫn do service kiểm tra. Không dùng identity headers do Kong/client gửi làm nguồn danh tính.                                                       |
 
 `local` rate limiting chỉ tăng bảo vệ theo từng instance. Tài liệu Kong nêu DB-less tương thích với `local` hoặc Redis policy; không dùng `cluster` policy với DB-less. Vì vậy khi scale nhiều Kong instance và cần quota dùng chung, chọn Redis policy hoặc rate limiter ở lớp phù hợp.
 
@@ -203,8 +206,9 @@ Tại lúc tích hợp, xác nhận route prefix của Core đã được cấu 
 
 ### Gate 4 — Nạp cấu hình Kong
 
-- Nâng khỏi `3.6`, pin phiên bản hỗ trợ; bật DB-less; tạo `kong.yml` từ path đã xác nhận.
-- Thêm Service/Route cho từng path owner; thêm CORS, rate limit, size limit, request ID và timeout phù hợp.
+- Baseline local đã nâng khỏi `3.6`, pin `kong:3.9.3`, bật DB-less và nạp cấu hình render từ `.docker/kong/kong.yml`; production vẫn cần pin digest theo registry.
+- JWT plugin gắn với Core protected route và Chat route; auth/recovery, Google login/callback, public GET và payment/subscription webhook được tách route riêng. Webhook vẫn tự xác minh chữ ký ở backend.
+- Thêm Service/Route cho Notification sau khi chốt contract; giữ CORS, rate limit, size limit, request ID và timeout phù hợp.
 - Không mở Admin API/Manager ra public; không thêm route internal/mail/health.
 
 **Hoàn tất khi:** Kong khởi động với cấu hình, tất cả upstream healthy và path chưa khai báo trả 404.

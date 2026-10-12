@@ -120,6 +120,10 @@ export class BookingUseCases
       planPhotographerId: plan.photographer_id,
       planActive: plan.is_active,
       planPrice: Number(plan.price),
+      planName: plan.name,
+      planPhotoCount: plan.photo_count,
+      planRetouchedPhotoCount: plan.retouched_photo_count,
+      planDeliveryDays: plan.delivery_days,
       planDurationMinutes: plan.duration_minutes,
       location: input.location,
       from: input.from,
@@ -164,6 +168,30 @@ export class BookingUseCases
    */
   async get(s: EntityManager, a: Actor, input: Inputs.BookingGetQueryInput) {
     return this.viewable(s, a, input.booking_id);
+  }
+
+  /** Preview the refundable balance before a customer cancels an eligible booking. */
+  async cancellationPreview(
+    s: EntityManager,
+    a: Actor,
+    input: Inputs.BookingCancellationPreviewQueryInput,
+  ) {
+    const { booking } = await bookingAccess(s, a, input.booking_id, 'customer');
+    ensure(
+      booking.status === BookingStatus.PENDING ||
+        booking.status === BookingStatus.ACCEPTED,
+      'Booking cannot be cancelled in its current state',
+      'conflict',
+    );
+    return {
+      booking_id: booking.id,
+      refundable_amount_vnd:
+        (await this.paymentSettlement?.previewCancellationRefund(
+          s,
+          booking.id,
+        )) ?? 0,
+      refund_requires_admin_review: true,
+    };
   }
 
   /**

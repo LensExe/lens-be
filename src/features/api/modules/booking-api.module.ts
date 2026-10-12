@@ -17,6 +17,7 @@ import {
 } from '@modules/booking/core/bookings.command';
 import {
   BookingAdminQueryHandler,
+  BookingCancellationPreviewQueryHandler,
   BookingGetQueryHandler,
   BookingListQueryHandler,
   BookingTimelineQueryHandler,
@@ -42,6 +43,7 @@ import { BookingCancelUnpaidJob } from '../../workers/booking-cancel-unpaid.job'
     BookingRejectCommandHandler,
     BookingStartCommandHandler,
     BookingAdminQueryHandler,
+    BookingCancellationPreviewQueryHandler,
     BookingGetQueryHandler,
     BookingListQueryHandler,
     BookingTimelineQueryHandler,

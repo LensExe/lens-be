@@ -47,6 +47,15 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'string',
         description: 'status',
       },
+      notification_preferences: {
+        type: 'object',
+        properties: {
+          booking_updates: { type: 'boolean' },
+          messages: { type: 'boolean' },
+          promotions: { type: 'boolean' },
+          email_digest: { type: 'boolean' },
+        },
+      },
       created_at: {
         type: 'string',
         description: 'created at',

@@ -38,13 +38,8 @@ lerna-debug.log*
 # dotenv environment variable files
 .env
 .env.*
-env.production
-env.infra.production
-env.backend.production
-env.infra.development
-env.backend.development
-env.infra.local
-*.env
+env.*
+!*.env.example
 *.key
 key.txt
 !*.env.example
@@ -58,6 +53,7 @@ key.txt
 .tmp
 
 # Runtime data
+.docker/kong/kong.generated.yml
 pids
 *.pid
 *.seed

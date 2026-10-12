@@ -51,6 +51,11 @@ export const envConfig = (): EnvConfig => {
     redis: {
       host: process.env.REDIS_HOST ?? 'localhost',
       port: Number.parseInt(process.env.REDIS_PORT ?? '6380', 10),
+      db: Number.parseInt(process.env.REDIS_DB ?? '0', 10),
+      bullMqDb: Number.parseInt(
+        process.env.BULLMQ_REDIS_DB ?? process.env.REDIS_DB ?? '0',
+        10,
+      ),
       password: process.env.REDIS_PASSWORD || undefined,
     },
     auth: {
@@ -104,6 +109,9 @@ export const envConfig = (): EnvConfig => {
       clientId: process.env.KAFKA_CLIENT_ID ?? 'lens-backend',
       notificationEventsTopic:
         process.env.KAFKA_NOTIFICATION_EVENTS_TOPIC ?? 'notification.events',
+      mailCommandsTopic:
+        process.env.KAFKA_MAIL_COMMANDS_TOPIC ??
+        'notification.mail.commands.v1',
       username: process.env.KAFKA_USERNAME || undefined,
       password: process.env.KAFKA_PASSWORD || undefined,
       ssl: readBoolean('KAFKA_SSL', false),

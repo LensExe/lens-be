@@ -44,6 +44,8 @@ export const getTypeOrmConfig = (
 export interface RedisConfigOptions {
   host: string;
   port: number;
+  db: number;
+  bullMqDb: number;
   password?: string;
   url: string;
 }
@@ -64,17 +66,32 @@ export const getRedisConfig = (
   const port =
     configService?.get<number>('redis.port') ??
     Number.parseInt(process.env.REDIS_PORT ?? '6380', 10);
+  const db =
+    configService?.get<number>('redis.db') ??
+    Number.parseInt(process.env.REDIS_DB ?? '0', 10);
+  const bullMqDb =
+    configService?.get<number>('redis.bullMqDb') ??
+    Number.parseInt(process.env.BULLMQ_REDIS_DB ?? String(db), 10);
   const password =
     configService?.get<string>('redis.password') ??
     process.env.REDIS_PASSWORD ??
     '';
 
+  if (!Number.isInteger(db) || db < 0) {
+    throw new Error('REDIS_DB must be a non-negative integer');
+  }
+  if (!Number.isInteger(bullMqDb) || bullMqDb < 0) {
+    throw new Error('BULLMQ_REDIS_DB must be a non-negative integer');
+  }
+
   const authPart = password ? `:${encodeURIComponent(password)}@` : '';
-  const url = `redis://${authPart}${host}:${port}`;
+  const url = `redis://${authPart}${host}:${port}/${db}`;
 
   return {
     host,
     port,
+    db,
+    bullMqDb,
     password: password || undefined,
     url,
   };

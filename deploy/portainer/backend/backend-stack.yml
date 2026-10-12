@@ -1,13 +1,15 @@
 name: lens-backend-app
 
 services:
-  backend:
+  lens-backend:
     # Registry mode uses IMAGE_REGISTRY/IMAGE_OWNER/IMAGE_TAG. For a local
     # image imported into Portainer, set BACKEND_IMAGE and use pull policy
     # `never` so Compose does not contact the registry.
+    container_name: lens-backend
     image: '${BACKEND_IMAGE:-${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_OWNER:-lensexe}/lens-backend:${IMAGE_TAG:-latest}}'
     pull_policy: '${BACKEND_PULL_POLICY:-always}'
     environment:
+      API_GATEWAY_ENABLED: '${API_GATEWAY_ENABLED:-true}'
       COOKIE_DOMAIN: '${COOKIE_DOMAIN:-}'
       COOKIE_SECRET: '${COOKIE_SECRET:-}'
       CORS_ORIGINS: '${CORS_ORIGINS:-}'
@@ -20,6 +22,14 @@ services:
       DB_USERNAME: '${DB_USERNAME:-}'
       GOOGLE_CLIENT_ID: '${GOOGLE_CLIENT_ID:-}'
       GOOGLE_CLIENT_SECRET: '${GOOGLE_CLIENT_SECRET:-}'
+      KAFKA_BROKERS: '${KAFKA_BROKERS:-kafka:9094}'
+      KAFKA_CLIENT_ID: '${KAFKA_CLIENT_ID:-lens-backend}'
+      KAFKA_ENABLED: '${KAFKA_ENABLED:-false}'
+      KAFKA_MAIL_COMMANDS_TOPIC: '${KAFKA_MAIL_COMMANDS_TOPIC:-notification.mail.commands.v1}'
+      KAFKA_NOTIFICATION_EVENTS_TOPIC: '${KAFKA_NOTIFICATION_EVENTS_TOPIC:-notification.events}'
+      KAFKA_PASSWORD: '${KAFKA_PASSWORD:-}'
+      KAFKA_SSL: '${KAFKA_SSL:-false}'
+      KAFKA_USERNAME: '${KAFKA_USERNAME:-}'
       JWT_EXPIRES_IN: '${JWT_EXPIRES_IN:-}'
       JWT_SECRET: '${JWT_SECRET:-}'
       KEYCLOAK_ADMIN_CLIENT_ID: '${KEYCLOAK_ADMIN_CLIENT_ID:-}'
@@ -44,7 +54,9 @@ services:
       PAYOS_STANDALONE_TEST_ENABLED: '${PAYOS_STANDALONE_TEST_ENABLED:-false}'
       PAYMENT_PROVIDER: '${PAYMENT_PROVIDER:-}'
       PORT: '${PORT:-3000}'
-      REDIS_HOST: '${REDIS_HOST:-}'
+      BULLMQ_REDIS_DB: '${BULLMQ_REDIS_DB:-2}'
+      REDIS_HOST: '${REDIS_HOST:-lens-redis}'
+      REDIS_DB: '${REDIS_DB:-0}'
       REDIS_PASSWORD: '${REDIS_PASSWORD:-}'
       REDIS_PORT: '${REDIS_PORT:-6379}'
       S3_CLOUD_ACCESS_KEY_ID: '${S3_CLOUD_ACCESS_KEY_ID:-}'
@@ -66,17 +78,11 @@ services:
       SEPAY_ACCOUNT_NUMBER: '${SEPAY_ACCOUNT_NUMBER:-}'
       SEPAY_BANK_CODE: '${SEPAY_BANK_CODE:-}'
       SEPAY_WEBHOOK_API_KEY: '${SEPAY_WEBHOOK_API_KEY:-}'
-    ports:
-      - '${BACKEND_HOST_PORT:-3000}:3000'
     networks:
       - lens-network
-      - lens-proxy
     restart: unless-stopped
 
 networks:
   lens-network:
     external: true
     name: lens-network
-  lens-proxy:
-    external: true
-    name: lens-proxy

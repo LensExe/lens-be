@@ -28,6 +28,7 @@ import {
 } from '@modules/photographer/photographers.command';
 import {
   PhotographerAdminQueryHandler,
+  PhotographerEarningsQueryHandler,
   PhotographerGetQueryHandler,
   PhotographerMeQueryHandler,
   PhotographerSearchQueryHandler,
@@ -51,6 +52,7 @@ import {
     PhotographerStatusCommandHandler,
     PhotographerUpdateCommandHandler,
     PhotographerAdminQueryHandler,
+    PhotographerEarningsQueryHandler,
     PhotographerGetQueryHandler,
     PhotographerMeQueryHandler,
     PhotographerSearchQueryHandler,

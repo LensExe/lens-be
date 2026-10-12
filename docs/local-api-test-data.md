@@ -26,7 +26,7 @@ The SQL inserts placeholder `keycloak_id` values. `pnpm keycloak:seed` creates o
 | Customers     | Full name without accents, joined, followed by `@customer.com`     |
 | Photographers | Full name without accents, joined, followed by `@photographer.com` |
 
-Get an API token with `POST /auth/login`:
+Get an API token with `POST /api/v1/auth/login`:
 
 ```json
 {

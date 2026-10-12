@@ -78,3 +78,7 @@ export interface BookingTimelineQueryInput {
 export interface BookingGetQueryInput {
   booking_id: string;
 }
+
+export interface BookingCancellationPreviewQueryInput {
+  booking_id: string;
+}

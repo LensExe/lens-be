@@ -24,6 +24,16 @@ export class BookingEntity extends BaseEntity {
   @Column('uuid')
   booking_plan_id!: string;
 
+  /** Booking-time copy of the selected plan terms, retained if the plan is later edited. */
+  @Column('jsonb', { nullable: true })
+  package_snapshot!: {
+    name: string;
+    photo_count: number;
+    retouched_photo_count: number;
+    duration_minutes: number;
+    delivery_days: number | null;
+  } | null;
+
   /** Location of the photo shoot. */
   @Column()
   location!: string;

@@ -29,7 +29,6 @@ src/
       swagger/                      # Response schema OpenAPI
       api-runtime.module.ts         # Composition root của API
       feature-modules.ts            # Registry bật/tắt API feature
-    socketio/                       # Gateway realtime
     workers/                        # Background worker, ví dụ outbox
 
   modules/                          # Business module theo bounded context
@@ -186,7 +185,7 @@ Auth provider và local profile là hai trách nhiệm khác nhau:
 ### 4.3. Password login
 
 ```text
-POST /auth/login
+POST /api/v1/auth/login
   -> AuthService.loginWithPassword()
   -> Keycloak exchange password lấy token
   -> verify access token và tạo Actor
@@ -200,12 +199,12 @@ POST /auth/login
 ### 4.4. Google login qua Keycloak
 
 ```text
-GET /keycloak/google/login
+GET /api/v1/keycloak/google/login
   -> GoogleAuthService.buildLoginUrl()
   -> KeycloakOidcRedirectService tạo state + PKCE
   -> redirect tới Google thông qua Keycloak Identity Broker
 
-GET /keycloak/google/callback?code=...&state=...
+GET /api/v1/keycloak/google/callback?code=...&state=...
   -> consume state/PKCE một lần
   -> exchange authorization code lấy Keycloak token
   -> verify token và tạo Actor

@@ -1,11 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsString,
   IsUUID,
   IsInt,
   IsArray,
   IsIn,
+  IsBoolean,
   Min,
   Max,
   MinLength,
@@ -92,6 +93,32 @@ export class ModerationMineQueryQueryDto {
   @Min(0)
   @Max(1000000)
   offset?: number;
+}
+
+export class AdminStorageQueryQueryDto {
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 20 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 1000000, default: 0 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1000000)
+  offset?: number;
+
+  @ApiPropertyOptional({ type: 'boolean' })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Transform(({ value }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  over_quota?: boolean;
 }
 
 export class ModerationCreateCommandBodyDto {

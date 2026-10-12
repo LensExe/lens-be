@@ -1154,6 +1154,10 @@ export class PaymentUseCases
     );
   }
 
+  previewCancellationRefund(manager: EntityManager, bookingId: string) {
+    return this.refunds.previewCancellationRefund(manager, bookingId);
+  }
+
   /**
    * Release the held booking payment using the idempotency key.
    *

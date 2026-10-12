@@ -8,14 +8,15 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { RedisService } from '@shared/database/redis/redis.service';
 import {
   KeycloakService,
   KeycloakTokenService,
   KeycloakUserService,
+  type KeycloakExchangeCodeForTokenResponse,
 } from '@shared/integrations';
 import type { Actor } from '@shared/platform/auth/actor';
+import type { RegistrationRole } from '@shared/domain/values/user.values';
 import {
   AuthChangePasswordDto,
   AuthLoginQueryDto,
@@ -30,6 +31,7 @@ import {
 } from '../dto';
 import { SeparateFullname } from '@shared/integrations/keycloak/utils/separate-fullname';
 import { NormalizeEmail } from '@shared/integrations/keycloak/utils/normalize-email';
+import { KafkaPort } from '@shared/integrations/kafka/kafka.port';
 
 const OTP_EXPIRED_IN_MINUTES = 5;
 const RESET_TOKEN_EXPIRED_IN_MINUTES = 10;
@@ -46,10 +48,10 @@ export class AuthService {
 
   constructor(
     private readonly redis: RedisService,
-    private readonly config: ConfigService,
     private readonly keycloak: KeycloakService,
     private readonly keyCloakUser: KeycloakUserService,
     private readonly tokens: KeycloakTokenService,
+    private readonly kafka: KafkaPort,
   ) {}
 
   /**
@@ -121,6 +123,30 @@ export class AuthService {
     };
 
     return { tokenSet, actor };
+  }
+
+  /**
+   * Ensure a completed account profile's role is present in Keycloak and in
+   * the returned token.
+   */
+  async synchronizeRole(
+    actor: Actor,
+    tokenSet: KeycloakExchangeCodeForTokenResponse,
+    role: RegistrationRole,
+  ): Promise<KeycloakExchangeCodeForTokenResponse> {
+    if (actor.roles.includes(role)) return tokenSet;
+
+    await this.keyCloakUser.assignRealmRoleToUser(actor.sub, role);
+    const refreshed = await this.tokens.exchangeRefreshTokenForToken({
+      refreshToken: tokenSet.refresh_token,
+    });
+    const claims = await this.keycloak.verifyToken(refreshed.access_token);
+    if (!claims.roles?.includes(role)) {
+      throw new UnauthorizedException(
+        `Keycloak did not issue the ${role} role for the account`,
+      );
+    }
+    return refreshed;
   }
 
   /**
@@ -261,39 +287,23 @@ export class AuthService {
     // Cache the OTP by event with a five-minute TTL.
     await this.redis.set(otpKey, otp, OTP_EXPIRED_IN_MINUTES * 60);
 
-    // Get the Notification/Mail microservice URL from the configuration.
-    // const notificationServiceUrl =
-    //   this.config.get<string>('NOTIFICATION_SERVICE_URL') ??
-    //   'http://localhost:3001';
-
     try {
-      // sử dụng notification để gửi mail (sau)
-      this.logger.log(
-        `Gửi OTP [${body.event}] đến microservice cho email: ${body.email} với mã: ${otp}`,
-      );
+      this.logger.log(`Queue OTP email [${body.event}] for ${normalizedEmail}`);
 
-      // Send an HTTP POST to the Notification microservice with the event so it can select a template.
-      // await axios.post(
-      //   `${notificationServiceUrl}/api/v1/emails/send-otp`,
-      //   {
-      //     to: body.email,
-      //     otp,
-      //     event: body.event,
-      //     expired_in_minutes: OTP_EXPIRED_IN_MINUTES,
-      //   },
-      //   {
-      //     headers: {
-      //       'Content-Type': 'application/json',
-      //     },
-      //     timeout: 5000,
-      //   },
-      // );
+      await this.kafka.sendOtpEmail({
+        to: normalizedEmail,
+        otp,
+        event: body.event,
+        expiresInMinutes: OTP_EXPIRED_IN_MINUTES,
+        userName: [user.firstName, user.lastName].filter(Boolean).join(' '),
+      });
 
       return {
         success: true,
         message: 'Mã OTP đã được gửi đến email của bạn',
       };
     } catch (error) {
+      await this.redis.del(otpKey);
       this.logger.error(
         `Lỗi khi gọi sang Notification Microservice: ${error instanceof Error ? error.message : error}`,
       );

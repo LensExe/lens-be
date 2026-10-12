@@ -39,4 +39,16 @@ export class UserEntity extends BaseEntity {
   /** User account status ('active' | 'suspended' | 'banned' | 'inactive'). */
   @Column({ default: UserStatus.ACTIVE })
   status!: UserStatus;
+
+  /** User-controlled notification channels; message notifications are a preference only. */
+  @Column('jsonb', {
+    default: () =>
+      '\'{"booking_updates":true,"messages":true,"promotions":false,"email_digest":false}\'::jsonb',
+  })
+  notification_preferences!: {
+    booking_updates: boolean;
+    messages: boolean;
+    promotions: boolean;
+    email_digest: boolean;
+  };
 }

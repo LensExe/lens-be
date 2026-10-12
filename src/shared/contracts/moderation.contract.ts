@@ -6,6 +6,12 @@ import type {
 
 export type ModerationDashboardQueryInput = Record<string, never>;
 
+export interface AdminStorageQueryInput {
+  limit?: number;
+  offset?: number;
+  over_quota?: boolean;
+}
+
 export interface ModerationListQueryInput {
   limit?: number;
   offset?: number;

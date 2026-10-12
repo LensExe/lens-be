@@ -8,6 +8,10 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
  * @returns Processed document value.
  */
 export function setupApi(app: INestApplication) {
+  // The public contract is versioned at the edge and inside Core so Kong can
+  // proxy without path rewriting. Swagger therefore documents /api/v1/... too.
+  app.setGlobalPrefix('api/v1');
+
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
@@ -17,10 +21,12 @@ export function setupApi(app: INestApplication) {
     }),
   );
 
-  app.enableCors({
-    origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(','),
-    credentials: true,
-  });
+  if (process.env.API_GATEWAY_ENABLED !== 'true') {
+    app.enableCors({
+      origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(','),
+      credentials: true,
+    });
+  }
 
   const builder = new DocumentBuilder()
     .setTitle('Lens API')

@@ -210,6 +210,25 @@ if (!mappers.data.some((mapper) => mapper.name === 'lens-api-audience')) {
   );
 }
 
+if (!mappers.data.some((mapper) => mapper.name === 'lens-google-picture')) {
+  await admin.post(
+    `/clients/${encodeURIComponent(client.id)}/protocol-mappers/models`,
+    {
+      name: 'lens-google-picture',
+      protocol: 'openid-connect',
+      protocolMapper: 'oidc-usermodel-attribute-mapper',
+      config: {
+        'user.attribute': 'picture',
+        'claim.name': 'picture',
+        'jsonType.label': 'String',
+        'access.token.claim': 'true',
+        'id.token.claim': 'true',
+        'userinfo.token.claim': 'true',
+      },
+    },
+  );
+}
+
 const provider = {
   alias: 'google',
   providerId: 'google',
@@ -234,6 +253,22 @@ try {
 } catch (error) {
   if (!axios.isAxiosError(error) || error.response?.status !== 404) throw error;
   await admin.post('/identity-provider/instances', provider);
+}
+
+const googleMappers = await admin.get(
+  '/identity-provider/instances/google/mappers',
+);
+if (!googleMappers.data.some((mapper) => mapper.name === 'google-picture')) {
+  await admin.post('/identity-provider/instances/google/mappers', {
+    name: 'google-picture',
+    identityProviderAlias: 'google',
+    identityProviderMapper: 'oidc-user-attribute-idp-mapper',
+    config: {
+      claim: 'picture',
+      'user.attribute': 'picture',
+      syncMode: 'INHERIT',
+    },
+  });
 }
 
 const brokerCallback = `${baseUrl}/realms/${realm}/broker/google/endpoint`;

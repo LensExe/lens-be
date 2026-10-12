@@ -1,0 +1,348 @@
+_format_version: '3.0'
+_transform: true
+
+# This file is the local/staging baseline for the Core API gateway.
+# Keep origins environment-specific before deploying to production. Do not add
+# a wildcard origin while credentials are enabled.
+plugins:
+  - name: cors
+    config:
+      origins:
+        - https://lens.id.vn # landing page
+        - https://app.lens.id.vn # portal page
+        - https://admin.lens.id.vn # admin page
+        - https://auth.lens.id.vn # lens-keycloak
+      methods:
+        - GET
+        - HEAD
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      headers:
+        - Accept
+        - Authorization
+        - Content-Type
+        - X-Kong-Request-ID
+      exposed_headers:
+        - X-Kong-Request-ID
+      credentials: true
+      max_age: 3600
+      preflight_continue: false
+      allow_origin_absent: false
+
+  # The ID is tracing metadata only. It is never used as an identity claim.
+  - name: correlation-id
+    config:
+      header_name: X-Kong-Request-ID
+      generator: uuid
+      echo_downstream: true
+
+  # Defense in depth: services still must ignore these headers and verify JWTs.
+  - name: request-transformer
+    config:
+      remove:
+        headers:
+          - X-User-ID
+          - X-User-Role
+          - X-Authenticated-User
+
+  # Prometheus scrapes the private Admin API; there is intentionally no public
+  # /metrics route.
+  - name: prometheus
+    config:
+      per_consumer: true
+      status_code_metrics: true
+      latency_metrics: true
+      bandwidth_metrics: true
+      upstream_health_metrics: true
+
+  # General quota for every routed API, including public endpoints and chat.
+  # The authentication routes below use stricter route-specific limits.
+  - name: rate-limiting
+    config:
+      minute: 120
+      limit_by: ip
+      policy: local
+
+  # Public API routes use a separate, lower quota than JWT-protected routes.
+  - name: rate-limiting
+    route: core-public-get-static
+    config:
+      minute: 60
+      limit_by: ip
+      policy: local
+
+  - name: rate-limiting
+    route: core-public-photographer-profile
+    config:
+      minute: 60
+      limit_by: ip
+      policy: local
+
+  - name: rate-limiting
+    route: core-public-photographer-resources
+    config:
+      minute: 60
+      limit_by: ip
+      policy: local
+
+  - name: rate-limiting
+    route: core-public-portfolio
+    config:
+      minute: 60
+      limit_by: ip
+      policy: local
+
+  - name: rate-limiting
+    route: core-public-webhooks
+    config:
+      minute: 60
+      limit_by: ip
+      policy: local
+
+  - name: rate-limiting
+    route: core-auth-login
+    config:
+      minute: 15
+      limit_by: ip
+      policy: local
+
+  - name: rate-limiting
+    route: core-auth-password-recovery
+    config:
+      minute: 5
+      limit_by: ip
+      policy: local
+
+  - name: rate-limiting
+    route: core-auth-email
+    config:
+      minute: 5
+      limit_by: ip
+      policy: local
+
+  # JWT is scoped to protected routes. Explicit public routes below are not
+  # bound to this plugin; the backend still performs its own full validation.
+  - name: jwt
+    route: core-api-v1
+    config:
+      key_claim_name: kid
+      header_names: [authorization]
+      cookie_names: []
+      uri_param_names: []
+      claims_to_verify: [exp]
+      run_on_preflight: false
+
+  - name: jwt
+    route: core-auth-email
+    config:
+      key_claim_name: kid
+      header_names: [authorization]
+      cookie_names: []
+      uri_param_names: []
+      claims_to_verify: [exp]
+      run_on_preflight: false
+
+  - name: jwt
+    route: chat-api-v1
+    config:
+      key_claim_name: kid
+      header_names: [authorization]
+      cookie_names: []
+      uri_param_names: []
+      claims_to_verify: [exp]
+      run_on_preflight: false
+
+  - name: jwt
+    route: notification-http-v1
+    config:
+      key_claim_name: kid
+      header_names: [authorization]
+      cookie_names: []
+      uri_param_names: []
+      claims_to_verify: [exp]
+      run_on_preflight: false
+
+# Keycloak realm signing key. Keep the public key only; never copy Keycloak's
+# private key into Kong. Add the next key here during Keycloak key rotation
+# before removing the old key.
+consumers:
+  - username: keycloak
+    jwt_secrets:
+      - key: EQWCcBpQdfTslnxOmyGfvIjfLxiC3s-yVs9dHVOlu3A
+        algorithm: RS256
+        secret: kong-does-not-use-this-for-rs256
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlYynkYmpksFtyBi5Hqkf
+          yg9b7PoWKdD0IcePbSybq/BlRSL+I09bD2umsdEtGU/AJSV227Tka2Pvn1JGPQmc
+          MHJpR51l7h45PA0gN7G6jj4OnoJ54QITWWzZhs2dYjDWu10yUZMb8soowuDFp42d
+          +eOWFKBzcmBc8DXH39Zf69GLMEpXhpuadOIo9h91J+uCbC05BAoTC8v6lqPFXnJw
+          W9TvpkPFc++S2nQtOtOa2EeztOYmcqK+x2gBnzYfA369nh6MB+TImkzHPvTH2epY
+          Cq1K7yaurtDk5lPvMts+96vKQDaO1tUd6XRMXIWRer6/DORwHT/G8XKc4B7HowHk
+          MwIDAQAB
+          -----END PUBLIC KEY-----
+
+services:
+  - name: lens-backend
+    url: http://lens-backend:3000
+    connect_timeout: 5000
+    read_timeout: 30000
+    write_timeout: 30000
+    # Avoid retrying payment and other non-idempotent writes at the gateway.
+    retries: 0
+    routes:
+      # These public routes are deliberately method- and path-specific. They
+      # take precedence over core-api-v1, which requires JWT for everything else.
+      - name: core-public-get-static
+        paths:
+          - '~^/api/v1/(?:photographers/?|photographers/top-rated/?|ranks/?|badges/?|subscriptions/plans/?|keycloak/google/(?:login|callback|exchange)/?)$'
+        methods: [GET]
+        regex_priority: 100
+        protocols: [http, https]
+        strip_path: false
+
+      - name: core-public-photographer-profile
+        paths:
+          - '~^/api/v1/photographers/(?!me(?:/|$)|top-rated(?:/|$))[^/]+/?$'
+        methods: [GET]
+        regex_priority: 100
+        protocols: [http, https]
+        strip_path: false
+
+      - name: core-public-photographer-resources
+        paths:
+          - '~^/api/v1/photographers/(?!me(?:/|$))[^/]+/(?:portfolios|booking-plans|rating-summary|reviews|availability|offline-slots)/?$'
+        methods: [GET]
+        regex_priority: 100
+        protocols: [http, https]
+        strip_path: false
+
+      - name: core-public-portfolio
+        paths:
+          - '~^/api/v1/portfolios/[^/]+/?$'
+        methods: [GET]
+        regex_priority: 100
+        protocols: [http, https]
+        strip_path: false
+
+      - name: core-public-webhooks
+        paths:
+          - '~^/api/v1/(?:payments|subscriptions)/webhooks/(?:payos|sepay)/?$'
+        methods: [POST]
+        regex_priority: 100
+        protocols: [http, https]
+        strip_path: false
+
+      - name: core-auth-password-recovery
+        paths:
+          - /api/v1/auth/forgot-password/send-otp
+          - /api/v1/auth/forgot-password/verify
+          - /api/v1/auth/forgot-password/reset
+        methods: [POST]
+        protocols: [http, https]
+        strip_path: false
+
+      # Email verification is authenticated; do not put these routes in the
+      # public password-recovery route above.
+      - name: core-auth-email
+        paths:
+          - /api/v1/auth/email/send-otp
+          - /api/v1/auth/email/verify
+        methods: [POST]
+        protocols: [http, https]
+        strip_path: false
+
+      - name: core-api-v1
+        paths:
+          - /api/v1/auth
+          - /api/v1/users
+          - /api/v1/keycloak
+          - /api/v1/customers
+          - /api/v1/admin
+          - /api/v1/photographers
+          - /api/v1/booking-plans
+          - /api/v1/ranks
+          - /api/v1/badges
+          - /api/v1/portfolios
+          - /api/v1/calendar
+          - /api/v1/bookings
+          - /api/v1/payments
+          - /api/v1/wallet
+          - /api/v1/me
+          - /api/v1/media
+          - /api/v1/reviews
+          - /api/v1/subscriptions
+          - /api/v1/reports
+        protocols: [http, https]
+        strip_path: false
+
+      # Public authentication endpoints need a lower edge quota than the
+      # general API. Account/email cooldowns remain service responsibilities.
+      - name: core-auth-login
+        paths:
+          - /api/v1/auth/register
+          - /api/v1/auth/login
+          - /api/v1/auth/refresh
+          - /api/v1/auth/logout
+        methods: [POST]
+        protocols: [http, https]
+        strip_path: false
+
+    plugins:
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 3
+          size_unit: megabytes
+          require_content_length: false
+
+  - name: chat-api
+    url: http://chat:8080
+    connect_timeout: 5000
+    read_timeout: 30000
+    write_timeout: 30000
+    retries: 0
+    routes:
+      - name: chat-api-v1
+        paths:
+          - '~^/api/v1/chat(?:/|$)'
+        protocols: [http, https]
+        strip_path: false
+
+    plugins:
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 3
+          size_unit: megabytes
+          require_content_length: false
+
+  - name: notification-api
+    url: http://notification:3001
+    connect_timeout: 5000
+    read_timeout: 30000
+    write_timeout: 30000
+    retries: 0
+    routes:
+      - name: notification-http-v1
+        paths:
+          - /api/v1/notifications
+          - /api/v1/mail
+          - /api/v1/metrics
+        protocols: [http, https]
+        strip_path: false
+
+      # Socket.IO first uses HTTP polling, then upgrades the same session to
+      # WebSocket. Both protocol families must be accepted by this route.
+      - name: notification-socket-v1
+        paths:
+          - /api/v1/socket.io
+        protocols: [http, https, ws, wss]
+        strip_path: false
+    plugins:
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 3
+          size_unit: megabytes
+          require_content_length: false

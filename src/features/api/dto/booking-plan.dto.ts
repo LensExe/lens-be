@@ -67,6 +67,19 @@ export class BookingPlanCreateCommandBodyDto {
   retouched_photo_count!: number;
 
   @ApiPropertyOptional({
+    description: 'delivery days after the shoot',
+    type: 'integer',
+    minimum: 1,
+    maximum: 365,
+    nullable: true,
+  })
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  delivery_days?: number | null;
+
+  @ApiPropertyOptional({
     description: 'features',
     type: 'array',
     items: { type: 'string' },
@@ -97,7 +110,7 @@ export class BookingPlanUpdateCommandBodyDto {
   description?: string;
 
   @ApiPropertyOptional({ description: 'price (VND)', type: 'integer' })
-  @ValidateIf((_object, value) => value !== undefined)
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
   @IsInt()
   @Min(1)
   @Max(9000000000000)
@@ -126,6 +139,19 @@ export class BookingPlanUpdateCommandBodyDto {
   @Min(0)
   @Max(10000)
   retouched_photo_count?: number;
+
+  @ApiPropertyOptional({
+    description: 'delivery days after the shoot',
+    type: 'integer',
+    minimum: 1,
+    maximum: 365,
+    nullable: true,
+  })
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  delivery_days?: number | null;
 
   @ApiPropertyOptional({
     description: 'features',

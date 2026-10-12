@@ -14,10 +14,6 @@
   reverse_proxy admin:80
 }
 
-{$BACKEND_DOMAIN:api-direct.localhost} {
-  reverse_proxy backend:3000
-}
-
 {$KONG_DOMAIN:api.localhost} {
   reverse_proxy {$KONG_UPSTREAM:lens-kong:8000}
 }

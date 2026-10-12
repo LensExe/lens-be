@@ -29,7 +29,12 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { Access } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
-import { ModerationDashboardQuery } from '@modules/moderation/dashboard/dashboard.query';
+import {
+  AdminFinanceSummaryQuery,
+  AdminQueueQuery,
+  AdminStorageQuery,
+  ModerationDashboardQuery,
+} from '@modules/moderation/dashboard/dashboard.query';
 import {
   ModerationGetQuery,
   ModerationListQuery,
@@ -86,6 +91,60 @@ export class ModerationController {
   dashboard(@Req() req: { actor?: Actor }) {
     return this.queries.execute(
       new ModerationDashboardQuery(req.actor ?? { sub: '', roles: [] }, {}),
+    );
+  }
+
+  @Get('admin/queue')
+  @ApiOperation({
+    operationId: 'ADM-013',
+    summary: 'Hàng đợi công việc quản trị',
+    description:
+      'Đếm hồ sơ chờ duyệt, yêu cầu rút tiền, tài khoản vượt quota và user bị tạm khóa. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiResponse({ status: 200, description: 'Admin work queue counts' })
+  adminQueue(@Req() req: { actor?: Actor }) {
+    return this.queries.execute(
+      new AdminQueueQuery(req.actor ?? { sub: '', roles: [] }),
+    );
+  }
+
+  @Get('admin/storage')
+  @ApiOperation({
+    operationId: 'ADM-014',
+    summary: 'Báo cáo dung lượng lưu trữ',
+    description:
+      'Tổng hợp dung lượng đã dùng và quota hiện tại theo photographer. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiQuery({ name: 'limit', required: false, type: 'number' })
+  @ApiQuery({ name: 'offset', required: false, type: 'number' })
+  @ApiQuery({ name: 'over_quota', required: false, type: 'boolean' })
+  @ApiResponse({ status: 200, description: 'Photographer storage report' })
+  adminStorage(
+    @Req() req: { actor?: Actor },
+    @Query() query: Dto.AdminStorageQueryQueryDto,
+  ) {
+    return this.queries.execute(
+      new AdminStorageQuery(req.actor ?? { sub: '', roles: [] }, { ...query }),
+    );
+  }
+
+  @Get('admin/finance/summary')
+  @ApiOperation({
+    operationId: 'ADM-015',
+    summary: 'Tổng hợp số dư ví và yêu cầu rút tiền',
+    description:
+      'Tổng số dư khả dụng và đang giữ trong ví, cùng hàng chờ rút tiền. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiResponse({ status: 200, description: 'Wallet and withdrawal summary' })
+  adminFinanceSummary(@Req() req: { actor?: Actor }) {
+    return this.queries.execute(
+      new AdminFinanceSummaryQuery(req.actor ?? { sub: '', roles: [] }),
     );
   }
 
