@@ -186,7 +186,7 @@ consumers:
           -----END PUBLIC KEY-----
 
 services:
-  - name: core-backend
+  - name: lens-backend
     url: http://lens-backend:3000
     connect_timeout: 5000
     read_timeout: 30000
@@ -298,17 +298,6 @@ services:
           size_unit: megabytes
           require_content_length: false
 
-  # Chat owns durable conversation/message APIs. Realtime delivery is handled
-  # by Notification's Socket.IO gateway after Chat publishes Kafka events.
-  # This route covers:
-  # POST /api/v1/chat/channels/direct
-  # GET  /api/v1/chat/channels
-  # GET  /api/v1/chat/channels/:channel-id
-  # POST|GET /api/v1/chat/channels/:channel-id/messages
-  # PUT  /api/v1/chat/channels/:channel-id/read-cursor
-  # PATCH /api/v1/chat/messages/:message-id
-  # POST /api/v1/chat/messages/:message-id/recall
-  # Chat health endpoints remain internal to the orchestrator.
   - name: chat-api
     url: http://chat:8080
     connect_timeout: 5000
@@ -329,9 +318,6 @@ services:
           size_unit: megabytes
           require_content_length: false
 
-  # Notification exposes REST endpoints and a Socket.IO gateway. The
-  # notification service must be attached to the external lens-network with
-  # the Docker DNS name "notification" and listen on port 3001.
   - name: notification-api
     url: http://notification:3001
     connect_timeout: 5000
