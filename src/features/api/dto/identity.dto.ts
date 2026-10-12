@@ -66,6 +66,24 @@ export class IdentityAdminUsersQueryQueryDto {
   keyword?: string;
 }
 
+export class IdentityNotificationPreferencesDto {
+  @ApiProperty({ type: 'boolean' })
+  @IsBoolean()
+  booking_updates!: boolean;
+
+  @ApiProperty({ type: 'boolean' })
+  @IsBoolean()
+  messages!: boolean;
+
+  @ApiProperty({ type: 'boolean' })
+  @IsBoolean()
+  promotions!: boolean;
+
+  @ApiProperty({ type: 'boolean' })
+  @IsBoolean()
+  email_digest!: boolean;
+}
+
 export class IdentityUpdateMeCommandBodyDto {
   @ApiPropertyOptional({ description: 'fullname', type: 'string' })
   @ValidateIf((_object, value) => value !== undefined)
@@ -113,24 +131,6 @@ export class IdentityUpdateMeCommandBodyDto {
   @ValidateNested()
   @Type(() => IdentityNotificationPreferencesDto)
   notification_preferences?: IdentityNotificationPreferencesDto;
-}
-
-export class IdentityNotificationPreferencesDto {
-  @ApiProperty({ type: 'boolean' })
-  @IsBoolean()
-  booking_updates!: boolean;
-
-  @ApiProperty({ type: 'boolean' })
-  @IsBoolean()
-  messages!: boolean;
-
-  @ApiProperty({ type: 'boolean' })
-  @IsBoolean()
-  promotions!: boolean;
-
-  @ApiProperty({ type: 'boolean' })
-  @IsBoolean()
-  email_digest!: boolean;
 }
 
 export class IdentityStatusCommandBodyDto {
