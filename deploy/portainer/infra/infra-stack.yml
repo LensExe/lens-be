@@ -2,7 +2,8 @@ name: lens-infra
 
 services:
   lens-postgres:
-    image: postgres:16-alpine
+    # pgvector is required by the AI database used by ai-worker.
+    image: '${POSTGRES_IMAGE:-pgvector/pgvector:pg16-bookworm}'
     environment:
       POSTGRES_DB: '${POSTGRES_DB:-lens}'
       POSTGRES_USER: '${POSTGRES_USER:-lens-postgres}'
@@ -20,7 +21,8 @@ services:
       - lens-network
     restart: unless-stopped
 
-  # Keycloak uses a separate database from the Lens application database.
+  # Create databases that are not created by POSTGRES_DB. This service is
+  # idempotent, so it is safe to run again after the PostgreSQL volume exists.
   lens-postgres-init:
     image: postgres:16-alpine
     depends_on:
@@ -37,6 +39,12 @@ services:
         if ! psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'keycloak'" | grep -q 1; then
           psql -d postgres -c 'CREATE DATABASE keycloak';
         fi
+
+        if ! psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'lens_ai'" | grep -q 1; then
+          psql -d postgres -c 'CREATE DATABASE lens_ai';
+        fi
+
+        psql -d lens_ai -c 'CREATE EXTENSION IF NOT EXISTS vector';
     networks:
       - lens-network
     restart: 'no'
