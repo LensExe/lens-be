@@ -35,6 +35,7 @@ import { MediaAddGalleryCommand } from '@modules/media/media.command';
 import { MediaPublishCommand } from '@modules/media/media.command';
 import { MediaCreateGalleryCommand } from '@modules/media/media.command';
 import { MediaGalleryQuery } from '@modules/media/media.query';
+import { MediaMyGalleriesQuery } from '@modules/media/media.query';
 import { MediaGetQuery } from '@modules/media/media.query';
 import { MediaRemoveCommand } from '@modules/media/media.command';
 
@@ -257,7 +258,8 @@ export class MediaController {
   @ApiOperation({
     operationId: 'MEDIA-008',
     summary: 'Publish gallery',
-    description: 'Đánh dấu gallery sẵn sàng cho khách. Role: Photographer',
+    description:
+      'Chỉ publish khi khách đã thanh toán đủ và gallery có ít nhất số ảnh theo gói. Role: Photographer',
   })
   @Access(['photographer'])
   @ApiBearerAuth()
@@ -341,6 +343,33 @@ export class MediaController {
       new MediaCreateGalleryCommand(req.actor ?? { sub: '', roles: [] }, {
         booking_id,
       }),
+    );
+  }
+
+  @Get('photographers/me/galleries')
+  @ApiOperation({
+    operationId: 'MEDIA-010',
+    summary: 'Danh sách gallery của tôi',
+    description:
+      'Lấy danh sách gallery kèm thumbnail cho trang kho photographer trong một request. Role: Photographer',
+  })
+  @Access(['photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({ description: 'Photographer role required' })
+  @ApiServiceUnavailableResponse({
+    description: 'External integration is not configured or unavailable',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'All delivery galleries for the current photographer',
+    schema: responseSchema('MEDIA-010'),
+  })
+  myGalleries(@Req() req: { actor?: Actor }) {
+    return this.queries.execute(
+      new MediaMyGalleriesQuery(req.actor ?? { sub: '', roles: [] }),
     );
   }
 

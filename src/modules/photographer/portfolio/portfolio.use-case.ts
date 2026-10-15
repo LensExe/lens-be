@@ -2,16 +2,20 @@ import { In, type EntityManager } from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import { Injectable } from '@nestjs/common';
 import {
+  currentUser,
   photographer,
   publicPhotographer,
   required,
+  role,
 } from '@shared/common/access';
 import { ObjectStorage } from '@shared/integrations/s3/storage.port';
+import { MediaVariantType } from '@shared/database/entities/media-variant.entity';
 import type { Actor } from '@shared/platform/auth/actor';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import type * as Inputs from '@shared/contracts/contracts';
 import { MediaOwnershipPort } from '../ports/media-ownership.port';
 import { Portfolio } from './portfolio.domain';
+import type { PortfolioEntity } from '@shared/database/entities/portfolio.entity';
 import { SubscriptionPortfolioQuotaPort } from '../ports/subscription-portfolio-quota.port';
 
 @Injectable()
@@ -21,6 +25,72 @@ export class PortfolioUseCases {
     private readonly storage: ObjectStorage,
     private readonly subscriptionQuota?: SubscriptionPortfolioQuotaPort,
   ) {}
+
+  /** Add signed image URLs to a page of albums with one media lookup. */
+  private async withDetails(
+    s: EntityManager,
+    albums: readonly PortfolioEntity[],
+  ) {
+    const mediaIds = [
+      ...new Set(
+        albums.flatMap((album) => [
+          ...album.items,
+          ...(album.cover_media_id ? [album.cover_media_id] : []),
+        ]),
+      ),
+    ];
+    const [mediaRows, previewRows] = mediaIds.length
+      ? await Promise.all([
+          s.findBy(EntitySchemas.media, { id: In(mediaIds) }),
+          s.find(EntitySchemas.media_variants, {
+            where: {
+              media_id: In(mediaIds),
+              variant: MediaVariantType.PREVIEW,
+            },
+          }),
+        ])
+      : [[], []];
+    const media = new Map(mediaRows.map((item) => [item.id, item] as const));
+    const previews = new Map(
+      previewRows.map((preview) => [preview.media_id, preview] as const),
+    );
+
+    return Promise.all(
+      albums.map(async (album) => {
+        const items = await Promise.all(
+          album.items.map(async (mediaId, position) => {
+            const item = media.get(mediaId);
+            ensure(item, 'media not found', 'missing');
+            return {
+              id: mediaId,
+              portfolio_id: album.id,
+              media_id: mediaId,
+              position,
+              preview_url: await this.storage.downloadUrl(
+                previews.get(mediaId)?.file_key ?? item.file_key,
+              ),
+              download_url: await this.storage.downloadUrl(item.file_key),
+            };
+          }),
+        );
+        const cover = album.cover_media_id
+          ? media.get(album.cover_media_id)
+          : null;
+        if (album.cover_media_id) ensure(cover, 'media not found', 'missing');
+        const coverPreview = cover ? previews.get(cover.id) : undefined;
+        return {
+          ...album,
+          cover_url: cover
+            ? await this.storage.downloadUrl(
+                coverPreview?.file_key ?? cover.file_key,
+              )
+            : null,
+          items,
+          expires_in: 900,
+        };
+      }),
+    );
+  }
 
   /**
    * The signed-in photographer's portfolio; lock its row so concurrent image edits do not overwrite each other.
@@ -93,7 +163,32 @@ export class PortfolioUseCases {
       skip: offset,
       take: limit,
     });
-    return { items, total, offset, limit };
+    return { items: await this.withDetails(s, items), total, offset, limit };
+  }
+
+  /** Admin review of albums from pending, rejected, or public profiles. */
+  async listAdmin(
+    s: EntityManager,
+    a: Actor,
+    i: Inputs.PortfolioListQueryInput,
+  ) {
+    role(a, 'admin');
+    await currentUser(s, a);
+    await required(s, 'photographers', i.photographer_id);
+    const offset = i.offset ?? 0;
+    const limit = i.limit ?? 20;
+    const [albums, total] = await s.findAndCount(EntitySchemas.portfolios, {
+      where: { photographer_id: i.photographer_id },
+      order: { created_at: 'ASC', id: 'ASC' },
+      skip: offset,
+      take: limit,
+    });
+    return {
+      items: await this.withDetails(s, albums),
+      total,
+      offset,
+      limit,
+    };
   }
 
   /** List all portfolios owned by the authenticated photographer, including non-public profiles. */
@@ -111,7 +206,7 @@ export class PortfolioUseCases {
       skip: offset,
       take: limit,
     });
-    return { items, total, offset, limit };
+    return { items: await this.withDetails(s, items), total, offset, limit };
   }
 
   /**
@@ -126,38 +221,7 @@ export class PortfolioUseCases {
   async get(s: EntityManager, _a: Actor, i: Inputs.PortfolioGetQueryInput) {
     const album = await required(s, 'portfolios', i.portfolio_id);
     await publicPhotographer(s, album.photographer_id);
-    const items = [] as {
-      id: string;
-      portfolio_id: string;
-      media_id: string;
-      position: number;
-      download_url: string;
-    }[];
-    const media = new Map(
-      (await s.findBy(EntitySchemas.media, { id: In([...album.items]) })).map(
-        (m) => [m.id, m],
-      ),
-    );
-    for (const [position, mediaId] of album.items.entries()) {
-      const m = media.get(mediaId);
-      ensure(m, 'media not found', 'missing');
-      items.push({
-        id: mediaId,
-        portfolio_id: album.id,
-        media_id: mediaId,
-        position,
-        download_url: await this.storage.downloadUrl(m.file_key),
-      });
-    }
-    const cover = album.cover_media_id
-      ? await required(s, 'media', album.cover_media_id)
-      : null;
-    return {
-      ...album,
-      cover_url: cover ? await this.storage.downloadUrl(cover.file_key) : null,
-      items,
-      expires_in: 900,
-    };
+    return (await this.withDetails(s, [album]))[0];
   }
 
   /**

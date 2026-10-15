@@ -2,19 +2,18 @@ name: kong-gateway
 
 services:
   lens-kong:
-    profiles: ['gateway']
     image: kong:3.9.3
     container_name: lens-kong
     ports:
-      - '127.0.0.1:${KONG_PROXY_HOST_PORT:-8000}:8000' # local proxy
-      - '127.0.0.1:${KONG_ADMIN_HOST_PORT:-8001}:8001' # local/private Admin API
+      - '127.0.0.1:8000:8000' # local proxy
+      - '127.0.0.1:8001:8001' # local/private Admin API
     volumes:
       # Generate this file first with `pnpm docker:gateway:check` or
       # `pnpm docker:gateway`; it contains the current Keycloak JWKS keys.
-      - ./kong.generated.yml:/kong/declarative/kong.yml:ro
+      - ./:/kong/declarative:ro
     environment:
       KONG_DATABASE: 'off'
-      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.generated.yml
       KONG_PROXY_LISTEN: 0.0.0.0:8000
       KONG_ADMIN_LISTEN: 0.0.0.0:8001
       KONG_ADMIN_GUI_LISTEN: 'off'

@@ -7,6 +7,7 @@ import {
   type FindOptionsWhere,
 } from 'typeorm';
 import { EntitySchemas, overlapWhere } from '@shared/database';
+import { chatPeerForUser } from '@shared/common/chat-peer';
 import type * as Inputs from '@shared/contracts/contracts';
 import { Injectable, Optional } from '@nestjs/common';
 import type { Actor } from '@shared/platform/auth/actor';
@@ -168,6 +169,23 @@ export class BookingUseCases
    */
   async get(s: EntityManager, a: Actor, input: Inputs.BookingGetQueryInput) {
     return this.viewable(s, a, input.booking_id);
+  }
+
+  /** Resolve the other participant in a booking to Chat Service's Keycloak subject. */
+  async chatPeer(
+    s: EntityManager,
+    a: Actor,
+    input: Inputs.BookingGetQueryInput,
+  ) {
+    role(a, 'customer', 'photographer');
+    const { user, customer, photographer } = await bookingAccess(
+      s,
+      a,
+      input.booking_id,
+    );
+    const peerUserId =
+      customer.user_id === user.id ? photographer.user_id : customer.user_id;
+    return chatPeerForUser(s, peerUserId);
   }
 
   /** Preview the refundable balance before a customer cancels an eligible booking. */
@@ -1072,6 +1090,136 @@ export class BookingUseCases
       skip: offset,
       take: limit,
     });
-    return paged(items, total, query);
+
+    // Return the list-card projection in a handful of batched queries. The
+    // browser previously had to load photographer, plan, and payment details
+    // separately for every booking, which produced an N+1 request burst.
+    const photographerIds = [
+      ...new Set(items.map((booking) => booking.photographer_id)),
+    ];
+    const customerIds = [
+      ...new Set(items.map((booking) => booking.customer_id)),
+    ];
+    const planIds = [
+      ...new Set(
+        items
+          .filter((booking) => !booking.package_snapshot)
+          .map((booking) => booking.booking_plan_id),
+      ),
+    ];
+    const bookingIds = items.map((booking) => booking.id);
+
+    const [photographers, customers, plans, paidAmounts, deliveries] =
+      await Promise.all([
+        photographerIds.length
+          ? s.find(EntitySchemas.photographers, {
+              where: { id: In(photographerIds) },
+              select: { id: true, user_id: true, styles: true },
+            })
+          : Promise.resolve([]),
+        customerIds.length
+          ? s.find(EntitySchemas.customers, {
+              where: { id: In(customerIds) },
+              select: { id: true, user_id: true },
+            })
+          : Promise.resolve([]),
+        planIds.length
+          ? s.find(EntitySchemas.booking_plans, {
+              where: { id: In(planIds) },
+              select: {
+                id: true,
+                name: true,
+                photo_count: true,
+                retouched_photo_count: true,
+                duration_minutes: true,
+                delivery_days: true,
+              },
+            })
+          : Promise.resolve([]),
+        this.payments.paidAmounts(s, bookingIds),
+        bookingIds.length
+          ? s.find(EntitySchemas.booking_deliveries, {
+              where: { booking_id: In(bookingIds) },
+              select: { booking_id: true, media_ids: true },
+            })
+          : Promise.resolve([]),
+      ]);
+
+    const userIds = [
+      ...new Set([
+        ...photographers.map((photographer) => photographer.user_id),
+        ...customers.map((customer) => customer.user_id),
+      ]),
+    ];
+    const users = userIds.length
+      ? await s.find(EntitySchemas.users, {
+          where: { id: In(userIds) },
+          select: { id: true, fullname: true, avatar_url: true },
+        })
+      : [];
+
+    const photographersById = new Map(
+      photographers.map((photographer) => [photographer.id, photographer]),
+    );
+    const customersById = new Map(
+      customers.map((customer) => [customer.id, customer]),
+    );
+    const plansById = new Map(plans.map((plan) => [plan.id, plan]));
+    const usersById = new Map(users.map((user) => [user.id, user]));
+    const galleryPhotoCounts = new Map<string, number>();
+    for (const delivery of deliveries) {
+      galleryPhotoCounts.set(
+        delivery.booking_id,
+        (galleryPhotoCounts.get(delivery.booking_id) ?? 0) +
+          delivery.media_ids.length,
+      );
+    }
+    const projectedItems = items.map((booking) => {
+      const photographer = photographersById.get(booking.photographer_id);
+      const photographerUser = photographer
+        ? usersById.get(photographer.user_id)
+        : undefined;
+      const customer = customersById.get(booking.customer_id);
+      const customerUser = customer
+        ? usersById.get(customer.user_id)
+        : undefined;
+      const plan = plansById.get(booking.booking_plan_id);
+
+      return {
+        ...booking,
+        paid_amount: paidAmounts[booking.id] ?? 0,
+        gallery_photo_count: galleryPhotoCounts.get(booking.id) ?? 0,
+        ...(photographerUser && photographer
+          ? {
+              photographer: {
+                fullname: photographerUser.fullname,
+                avatar_url: photographerUser.avatar_url,
+                styles: photographer.styles,
+              },
+            }
+          : {}),
+        ...(customerUser
+          ? {
+              customer: {
+                fullname: customerUser.fullname,
+                avatar_url: customerUser.avatar_url,
+              },
+            }
+          : {}),
+        ...(plan
+          ? {
+              booking_plan: {
+                name: plan.name,
+                photo_count: plan.photo_count,
+                retouched_photo_count: plan.retouched_photo_count,
+                duration_minutes: plan.duration_minutes,
+                delivery_days: plan.delivery_days,
+              },
+            }
+          : {}),
+      };
+    });
+
+    return paged(projectedItems, total, query);
   }
 }

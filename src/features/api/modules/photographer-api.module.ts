@@ -28,10 +28,12 @@ import {
 } from '@modules/photographer/photographers.command';
 import {
   PhotographerAdminQueryHandler,
+  PhotographerChatPeerQueryHandler,
   PhotographerEarningsQueryHandler,
   PhotographerGetQueryHandler,
   PhotographerMeQueryHandler,
   PhotographerSearchQueryHandler,
+  PhotographerStylesFeaturedQueryHandler,
   PhotographerTopQueryHandler,
 } from '@modules/photographer/photographers.query';
 
@@ -52,10 +54,12 @@ import {
     PhotographerStatusCommandHandler,
     PhotographerUpdateCommandHandler,
     PhotographerAdminQueryHandler,
+    PhotographerChatPeerQueryHandler,
     PhotographerEarningsQueryHandler,
     PhotographerGetQueryHandler,
     PhotographerMeQueryHandler,
     PhotographerSearchQueryHandler,
+    PhotographerStylesFeaturedQueryHandler,
     PhotographerTopQueryHandler,
     BookingPlanCreateCommandHandler,
     BookingPlanRemoveCommandHandler,

@@ -42,7 +42,10 @@ import { BookingDisputeCommand } from '@modules/booking/core/bookings.command';
 import { BookingRejectCommand } from '@modules/booking/core/bookings.command';
 import { BookingStartCommand } from '@modules/booking/core/bookings.command';
 import { BookingTimelineQuery } from '@modules/booking/core/bookings.query';
-import { BookingGetQuery } from '@modules/booking/core/bookings.query';
+import {
+  BookingChatPeerQuery,
+  BookingGetQuery,
+} from '@modules/booking/core/bookings.query';
 import { BookingCancellationPreviewQuery } from '@modules/booking/core/bookings.query';
 
 @ApiTags('Booking')
@@ -765,6 +768,40 @@ export class BookingController {
     return this.queries.execute(
       new BookingGetQuery(req.actor ?? { sub: '', roles: [] }, {
         booking_id: booking_id,
+      }),
+    );
+  }
+
+  @Get('bookings/:booking_id/chat-peer')
+  @ApiOperation({
+    operationId: 'BOOK-021',
+    summary: 'Lấy người còn lại trong booking để mở chat',
+    description:
+      'Chỉ customer hoặc photographer thuộc booking mới lấy được Keycloak subject và thông tin hiển thị tối thiểu của người còn lại.',
+  })
+  @Access(['customer', 'photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Caller is not a participant in this booking',
+  })
+  @ApiNotFoundResponse({
+    description: 'Booking or participant profile not found',
+  })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Peer identity required by Chat Service',
+  })
+  chatPeer(
+    @Req() req: { actor?: Actor },
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
+  ) {
+    return this.queries.execute(
+      new BookingChatPeerQuery(req.actor ?? { sub: '', roles: [] }, {
+        booking_id,
       }),
     );
   }

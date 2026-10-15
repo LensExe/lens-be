@@ -14,11 +14,14 @@ import {
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { RefundStatus } from '@shared/domain/values/payment.values';
 import type { PaidAmountsPort } from '@modules/booking/ports/paid-amounts.port';
+import type { BookingPaymentReadPort } from '@modules/media/ports/booking-payment-read.port';
 import { PaymentTransaction } from './transaction.domain';
 
 /** Read-side operations and accounting projections for payment transactions. */
 @Injectable()
-export class TransactionUseCases implements PaidAmountsPort {
+export class TransactionUseCases
+  implements PaidAmountsPort, BookingPaymentReadPort
+{
   /**
    * Check whether the caller may access the requested transaction.
    *

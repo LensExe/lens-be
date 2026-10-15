@@ -34,6 +34,7 @@ import { responseSchema } from '../swagger';
 import { PortfolioCreateCommand } from '@modules/photographer/portfolio/portfolios.command';
 import { PortfolioReorderCommand } from '@modules/photographer/portfolio/portfolios.command';
 import {
+  PortfolioAdminListQuery,
   PortfolioListQuery,
   PortfolioMyListQuery,
 } from '@modules/photographer/portfolio/portfolios.query';
@@ -259,6 +260,48 @@ export class PortfolioController {
   ) {
     return this.queries.execute(
       new PortfolioListQuery(req.actor ?? { sub: '', roles: [] }, {
+        ...query,
+        photographer_id,
+      }),
+    );
+  }
+
+  @Get('admin/photographers/:photographer_id/portfolios')
+  @ApiOperation({
+    operationId: 'ADM-016',
+    summary: 'Xem portfolio khi duyệt hồ sơ photographer',
+    description:
+      'Admin xem ảnh portfolio của hồ sơ kể cả khi photographer chưa được duyệt. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({ description: 'Admin role required' })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Photographer profile not found' })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer UUID',
+  })
+  @ApiQuery({ name: 'limit', required: false, type: 'number' })
+  @ApiQuery({ name: 'offset', required: false, type: 'number' })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated albums with signed image URLs',
+    schema: responseSchema('PORT-002'),
+  })
+  adminList(
+    @Req() req: { actor?: Actor },
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
+    @Query() query: Dto.PortfolioListQueryQueryDto,
+  ) {
+    return this.queries.execute(
+      new PortfolioAdminListQuery(req.actor ?? { sub: '', roles: [] }, {
         ...query,
         photographer_id,
       }),

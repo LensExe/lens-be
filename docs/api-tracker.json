@@ -432,6 +432,30 @@
     "kind": "Query"
   },
   {
+    "id": "PHO-016",
+    "module": "Photographer",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/api/v1/photographers/me/earnings",
+    "summary": "Báo cáo thu nhập theo tháng",
+    "description": "Tổng hợp khoản tiền booking đã được giải ngân vào ví trong 6 tháng gần nhất.",
+    "role": "Photographer",
+    "priority": "Should",
+    "kind": "Query"
+  },
+  {
+    "id": "PHO-017",
+    "module": "Photographer",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/api/v1/photographers/styles/featured",
+    "summary": "Danh sách style và photographer nổi bật",
+    "description": "Trả về toàn bộ style chụp ảnh cùng photographer nổi bật nhất của từng style.",
+    "role": "Public",
+    "priority": "Should",
+    "kind": "Query"
+  },
+  {
     "id": "PORT-001",
     "module": "Portfolio",
     "service": "Core Backend",
@@ -1222,6 +1246,18 @@
     "role": "Admin",
     "priority": "Should",
     "kind": "Command"
+  },
+  {
+    "id": "REV-010",
+    "module": "Review",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/api/v1/customers/me/reviews",
+    "summary": "Danh sách đánh giá của tôi",
+    "description": "Phân trang review của customer hiện tại, gồm cả review đã ẩn hoặc tự xóa để ghép trạng thái booking.",
+    "role": "Customer",
+    "priority": "Must",
+    "kind": "Query"
   },
   {
     "id": "SUB-001",

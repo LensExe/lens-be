@@ -9,6 +9,7 @@ import {
   PortfolioUpdateCommandHandler,
 } from '@modules/photographer/portfolio/portfolios.command';
 import {
+  PortfolioAdminListQueryHandler,
   PortfolioGetQueryHandler,
   PortfolioListQueryHandler,
   PortfolioMyListQueryHandler,
@@ -24,6 +25,7 @@ import {
     PortfolioReorderCommandHandler,
     PortfolioUpdateCommandHandler,
     PortfolioGetQueryHandler,
+    PortfolioAdminListQueryHandler,
     PortfolioListQueryHandler,
     PortfolioMyListQueryHandler,
   ],

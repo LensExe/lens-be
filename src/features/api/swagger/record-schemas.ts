@@ -164,6 +164,19 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'user id',
         format: 'uuid',
       },
+      fullname: {
+        type: 'string',
+        description: 'Account name (included in admin list responses)',
+      },
+      email: {
+        type: 'string',
+        description: 'Account email (included in admin list responses)',
+      },
+      avatar_url: {
+        type: 'string',
+        description: 'Account avatar URL',
+        nullable: true,
+      },
       tax_code: {
         type: 'string',
         description: 'tax code',
@@ -203,6 +216,20 @@ export const recordSchemas: Record<string, SchemaObject> = {
       location: {
         type: 'string',
         description: 'location',
+      },
+      starting_price: {
+        type: 'number',
+        description: 'Lowest price among active booking plans',
+      },
+      cover_url: {
+        type: 'string',
+        description: 'Signed URL for the first portfolio cover',
+        nullable: true,
+      },
+      portfolio_count: {
+        type: 'number',
+        description:
+          'Number of portfolio photos (included in admin list responses)',
       },
       is_available: {
         type: 'boolean',
@@ -579,6 +606,58 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'string',
         description: 'booking plan id',
         format: 'uuid',
+      },
+      package_snapshot: {
+        type: 'object',
+        nullable: true,
+        description: 'Booking-time copy of the selected plan terms',
+        properties: {
+          name: { type: 'string' },
+          photo_count: { type: 'number' },
+          retouched_photo_count: { type: 'number' },
+          duration_minutes: { type: 'number' },
+          delivery_days: { type: 'number', nullable: true },
+        },
+      },
+      paid_amount: {
+        type: 'number',
+        description: 'Net amount paid for the booking after completed refunds',
+      },
+      gallery_photo_count: {
+        type: 'number',
+        description:
+          'Number of delivery gallery photos included in booking-list responses',
+      },
+      photographer: {
+        type: 'object',
+        description:
+          'Photographer display fields included in booking-list responses',
+        properties: {
+          fullname: { type: 'string' },
+          avatar_url: { type: 'string', nullable: true },
+          styles: { type: 'array', items: { type: 'string' } },
+        },
+      },
+      customer: {
+        type: 'object',
+        description:
+          'Customer display fields included in booking-list responses',
+        properties: {
+          fullname: { type: 'string' },
+          avatar_url: { type: 'string', nullable: true },
+        },
+      },
+      booking_plan: {
+        type: 'object',
+        description:
+          'Plan display fields for older bookings without a package snapshot',
+        properties: {
+          name: { type: 'string' },
+          photo_count: { type: 'number' },
+          retouched_photo_count: { type: 'number' },
+          duration_minutes: { type: 'number' },
+          delivery_days: { type: 'number', nullable: true },
+        },
       },
       location: {
         type: 'string',
@@ -1186,7 +1265,31 @@ export const recordSchemas: Record<string, SchemaObject> = {
       },
       items: {
         type: 'array',
-        items: { type: 'string', format: 'uuid' },
+        items: {
+          oneOf: [
+            { type: 'string', format: 'uuid' },
+            {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                portfolio_id: { type: 'string', format: 'uuid' },
+                media_id: { type: 'string', format: 'uuid' },
+                position: { type: 'number' },
+                preview_url: { type: 'string' },
+                download_url: { type: 'string' },
+              },
+            },
+          ],
+        },
+      },
+      cover_url: {
+        type: 'string',
+        description: 'Signed cover image URL',
+        nullable: true,
+      },
+      expires_in: {
+        type: 'number',
+        description: 'Signed URL lifetime in seconds',
       },
       created_at: {
         type: 'string',

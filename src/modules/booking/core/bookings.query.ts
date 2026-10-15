@@ -88,6 +88,13 @@ export class BookingGetQuery {
   ) {}
 }
 
+export class BookingChatPeerQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.BookingGetQueryInput,
+  ) {}
+}
+
 export class BookingCancellationPreviewQuery {
   constructor(
     public readonly actor: Actor,
@@ -124,6 +131,20 @@ export class BookingGetQueryHandler implements IQueryHandler<BookingGetQuery> {
   execute(message: BookingGetQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.get(s, message.actor, message.input),
+    );
+  }
+}
+
+@QueryHandler(BookingChatPeerQuery)
+export class BookingChatPeerQueryHandler implements IQueryHandler<BookingChatPeerQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: BookingUseCases,
+  ) {}
+
+  execute(message: BookingChatPeerQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.chatPeer(s, message.actor, message.input),
     );
   }
 }

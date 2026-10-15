@@ -43,6 +43,7 @@ import {
 import {
   ReviewAdminListQuery,
   ReviewListQuery,
+  ReviewMineListQuery,
   ReviewSummaryQuery,
 } from '@modules/feedback/review/reviews.query';
 
@@ -210,6 +211,43 @@ export class ReviewController {
       new ReviewListQuery(req.actor ?? { sub: '', roles: [] }, {
         ...query,
         photographer_id,
+      }),
+    );
+  }
+
+  /** List all reviews written by the authenticated customer. */
+  @Get('customers/me/reviews')
+  @ApiOperation({
+    operationId: 'REV-010',
+    summary: 'Danh sách đánh giá của tôi',
+    description:
+      'Phân trang các review của customer hiện tại, gồm cả review đã ẩn hoặc khách tự xóa để đối chiếu trạng thái booking. Role: Customer',
+  })
+  @Access(['customer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiQuery({ name: 'limit', required: false, type: 'number' })
+  @ApiQuery({ name: 'offset', required: false, type: 'number' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successful result',
+    schema: responseSchema('REV-010'),
+  })
+  myReviews(
+    @Req() req: { actor?: Actor },
+    @Query() query: Dto.ReviewListQueryQueryDto,
+  ) {
+    return this.queries.execute(
+      new ReviewMineListQuery(req.actor ?? { sub: '', roles: [] }, {
+        ...query,
       }),
     );
   }

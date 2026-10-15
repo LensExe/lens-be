@@ -40,10 +40,14 @@ import {
   PhotographerApproveCommand,
   PhotographerRejectCommand,
 } from '@modules/photographer/photographers.command';
-import { PhotographerTopQuery } from '@modules/photographer/photographers.query';
-import { PhotographerSearchQuery } from '@modules/photographer/photographers.query';
-import { PhotographerGetQuery } from '@modules/photographer/photographers.query';
-import { PhotographerEarningsQuery } from '@modules/photographer/photographers.query';
+import {
+  PhotographerChatPeerQuery,
+  PhotographerEarningsQuery,
+  PhotographerGetQuery,
+  PhotographerSearchQuery,
+  PhotographerStylesFeaturedQuery,
+  PhotographerTopQuery,
+} from '@modules/photographer/photographers.query';
 
 @ApiTags('Photographer')
 @Controller()
@@ -62,7 +66,11 @@ export class PhotographerController {
   })
   @Access(['photographer'])
   @ApiBearerAuth()
-  @ApiResponse({ status: 200, description: 'Monthly payout summary' })
+  @ApiResponse({
+    status: 200,
+    description: 'Monthly payout summary',
+    schema: responseSchema('PHO-016'),
+  })
   earnings(@Req() req: { actor?: Actor }) {
     return this.queries.execute(
       new PhotographerEarningsQuery(req.actor ?? { sub: '', roles: [] }, {}),
@@ -536,6 +544,28 @@ export class PhotographerController {
   }
 
   /**
+   * List supported photography styles with one featured representative per style.
+   *
+   * @returns All supported styles and their highest-ranked public photographer, if available.
+   */
+  @Get('photographers/styles/featured')
+  @ApiOperation({
+    operationId: 'PHO-017',
+    summary: 'Danh sách style và photographer nổi bật',
+    description:
+      'Trả về toàn bộ style chụp ảnh cùng photographer nổi bật nhất của từng style. Role: Public',
+  })
+  @Public()
+  @ApiResponse({
+    status: 200,
+    description: 'Danh sách style và photographer đại diện',
+    schema: responseSchema('PHO-017'),
+  })
+  featuredStyles() {
+    return this.queries.execute(new PhotographerStylesFeaturedQuery());
+  }
+
+  /**
    * Search photographers by keyword, location, and the supplied filters.
    *
    * @param req HTTP request containing authentication information and request data.
@@ -646,6 +676,42 @@ export class PhotographerController {
   ) {
     return this.queries.execute(
       new PhotographerGetQuery(req.actor ?? { sub: '', roles: [] }, {
+        photographer_id,
+      }),
+    );
+  }
+
+  @Get('photographers/:photographer_id/chat-peer')
+  @ApiOperation({
+    operationId: 'PHO-018',
+    summary: 'Lấy danh tính photographer để mở chat',
+    description:
+      'Customer đã đăng nhập lấy Keycloak subject và thông tin hiển thị tối thiểu của photographer công khai.',
+  })
+  @Access(['customer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({ description: 'Customer role required' })
+  @ApiNotFoundResponse({
+    description: 'Photographer profile not found or not public',
+  })
+  @ApiParam({
+    name: 'photographer_id',
+    type: String,
+    description: 'Photographer profile UUID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Peer identity required by Chat Service',
+  })
+  chatPeer(
+    @Req() req: { actor?: Actor },
+    @Param('photographer_id', new ParseUUIDPipe()) photographer_id: string,
+  ) {
+    return this.queries.execute(
+      new PhotographerChatPeerQuery(req.actor ?? { sub: '', roles: [] }, {
         photographer_id,
       }),
     );

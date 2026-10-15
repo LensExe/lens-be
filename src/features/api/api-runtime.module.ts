@@ -24,6 +24,7 @@ import { ReviewUseCases } from '@modules/feedback/review/review.use-case';
 import { MediaUseCases } from '@modules/media/media.use-case';
 import { MediaStorageUsageService } from '@modules/media/media-storage-usage.service';
 import { MediaImageProcessingService } from '@modules/media/media-image-processing.service';
+import { BookingPaymentReadPort } from '@modules/media/ports/booking-payment-read.port';
 import { ModerationDashboardUseCases } from '@modules/moderation/dashboard/dashboard.use-case';
 import { ModerationReportUseCases } from '@modules/moderation/report/report.use-case';
 import { PaymentUseCases } from '@modules/payment/payment.use-case';
@@ -121,6 +122,10 @@ const applicationServices = [
     },
     {
       provide: PaidAmountsPort,
+      useExisting: TransactionUseCases,
+    },
+    {
+      provide: BookingPaymentReadPort,
       useExisting: TransactionUseCases,
     },
     {

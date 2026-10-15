@@ -25,6 +25,7 @@ import {
   required,
   bookingAccess,
   emit,
+  photographer,
   role,
 } from '@shared/common/access';
 import { ensure } from '@shared/platform/exceptions/domain.error';
@@ -34,6 +35,7 @@ import type {
   ModerationEvidenceMedia,
   ReportEvidenceMediaPort,
 } from '@modules/moderation/ports/report-evidence-media.port';
+import { BookingPaymentReadPort } from './ports/booking-payment-read.port';
 import { SubscriptionStorageQuotaPort } from './ports/subscription-storage-quota.port';
 import { MediaStorageUsageService } from './media-storage-usage.service';
 
@@ -45,6 +47,7 @@ export class MediaUseCases
     private readonly storage: ObjectStorage,
     private readonly subscriptionQuota: SubscriptionStorageQuotaPort,
     private readonly storageUsage: MediaStorageUsageService,
+    private readonly bookingPayments: BookingPaymentReadPort,
   ) {}
 
   /**
@@ -502,6 +505,7 @@ export class MediaUseCases
       !delivery.media_ids.includes(m.id),
       'Media already added to gallery',
     );
+    Media.assertPrivateDeliveryMedia(m.visibility);
     return updateEntity(s, EntitySchemas.booking_deliveries, delivery.id, {
       media_ids: [...delivery.media_ids, m.id],
     });
@@ -585,11 +589,87 @@ export class MediaUseCases
     };
   }
 
+  /** Batch the photographer's delivery galleries for the storage overview. */
+  async myGalleries(s: EntityManager, a: Actor) {
+    role(a, 'photographer');
+    const p = await photographer(s, a);
+    const bookings = await s.find(EntitySchemas.bookings, {
+      where: { photographer_id: p.id },
+    });
+    const bookingIds = bookings.map((booking) => booking.id);
+    if (!bookingIds.length) return { items: [] };
+
+    const deliveries = await s.find(EntitySchemas.booking_deliveries, {
+      where: { booking_id: In(bookingIds) },
+    });
+    const mediaIds = [
+      ...new Set(deliveries.flatMap((delivery) => delivery.media_ids)),
+    ];
+    const [mediaRows, variants] = mediaIds.length
+      ? await Promise.all([
+          s.findBy(EntitySchemas.media, { id: In(mediaIds) }),
+          s.find(EntitySchemas.media_variants, {
+            where: {
+              media_id: In(mediaIds),
+              variant: MediaVariantType.THUMBNAIL,
+            },
+          }),
+        ])
+      : [[], []];
+    const media = new Map(mediaRows.map((item) => [item.id, item] as const));
+    const thumbnails = new Map(
+      variants.map((variant) => [variant.media_id, variant] as const),
+    );
+    const bookingsById = new Map(
+      bookings.map((booking) => [booking.id, booking] as const),
+    );
+
+    return {
+      items: await Promise.all(
+        deliveries.map(async (delivery) => {
+          const booking = bookingsById.get(delivery.booking_id);
+          ensure(booking, 'Booking not found', 'missing');
+          const items = await Promise.all(
+            delivery.media_ids.map(async (mediaId) => {
+              const item = media.get(mediaId);
+              ensure(item, 'media not found', 'missing');
+              const thumbnail = thumbnails.get(mediaId);
+              return {
+                id: mediaId,
+                media_id: mediaId,
+                file_size: item.file_size,
+                content_type: item.content_type,
+                thumbnail_url: await this.storage.getUrl(
+                  thumbnail?.file_key ?? item.file_key,
+                  item.visibility,
+                ),
+                width: thumbnail?.width ?? null,
+                height: thumbnail?.height ?? null,
+              };
+            }),
+          );
+          return {
+            ...delivery,
+            published_at: booking.gallery_published_at,
+            items,
+            expires_in: items.some((item) => {
+              const mediaItem = media.get(item.media_id);
+              return mediaItem?.visibility === MediaVisibility.PRIVATE;
+            })
+              ? 900
+              : null,
+          };
+        }),
+      ),
+    };
+  }
+
   /**
    * Publish the image gallery for a booking's customer.
    * - Verify authorization: the caller must be the photographer assigned to the booking.
    * - Check that the booking is in a status that allows image delivery.
-   * - Ensure the gallery contains at least one image before publishing.
+   * - Ensure the gallery contains the package's required number of distinct, private images.
+   * - Ensure the customer has paid the full booking amount after refunds.
    * - Update the booking's `gallery_published_at` timestamp.
    * - Emit the `'gallery.ready'` event so the system can notify the customer.
    * - Return the published gallery data.
@@ -605,18 +685,47 @@ export class MediaUseCases
     a: Actor,
     i: Inputs.MediaPublishCommandInput,
   ) {
-    const { booking: b, recipients } = await bookingAccess(
+    const { booking: accessibleBooking, recipients } = await bookingAccess(
       s,
       a,
       i.booking_id,
       'photographer',
     );
+    // Payment callbacks lock the booking before settling a transaction. Lock it
+    // here too so the paid-amount check and publication are serialized with them.
+    const b = await s.findOne(EntitySchemas.bookings, {
+      where: { id: accessibleBooking.id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    ensure(b, 'Booking not found', 'missing');
     Media.assertBookingReadyForPublish(b.status);
     const [delivery] = await s.findBy(EntitySchemas.booking_deliveries, {
       booking_id: i.booking_id,
     });
     ensure(delivery, 'Gallery not found', 'missing');
     Media.assertGalleryNotEmpty(delivery.media_ids.length);
+    const distinctPhotoCount = new Set(delivery.media_ids).size;
+    const requiredPhotoCount =
+      b.package_snapshot?.photo_count ??
+      (await required(s, 'booking_plans', b.booking_plan_id)).photo_count;
+    Media.assertGalleryMeetsPhotoCount(
+      distinctPhotoCount,
+      Number(requiredPhotoCount),
+    );
+    const galleryMedia = await s.findBy(EntitySchemas.media, {
+      id: In([...new Set(delivery.media_ids)]),
+    });
+    ensure(
+      galleryMedia.length === distinctPhotoCount,
+      'One or more gallery photos are missing',
+      'missing',
+    );
+    galleryMedia.forEach((media) =>
+      Media.assertPrivateDeliveryMedia(media.visibility),
+    );
+    const paidAmount =
+      (await this.bookingPayments.paidAmounts(s, [b.id]))[b.id] ?? 0;
+    Media.assertBookingFullyPaid(paidAmount, Number(b.total_amount));
     if (!b.gallery_published_at) {
       await updateEntity(s, EntitySchemas.bookings, b.id, {
         gallery_published_at: new Date().toISOString(),

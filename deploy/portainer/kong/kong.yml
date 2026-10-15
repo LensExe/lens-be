@@ -30,6 +30,16 @@ plugins:
         - X-Kong-Request-ID
       exposed_headers:
         - X-Kong-Request-ID
+        - RateLimit-Limit
+        - RateLimit-Remaining
+        - RateLimit-Reset
+        - X-RateLimit-Limit-Second
+        - X-RateLimit-Remaining-Second
+        - X-RateLimit-Limit-Minute
+        - X-RateLimit-Remaining-Minute
+        - X-RateLimit-Limit-Hour
+        - X-RateLimit-Remaining-Hour
+        - Retry-After
       credentials: true
       max_age: 3600
       preflight_continue: false
@@ -60,12 +70,23 @@ plugins:
       bandwidth_metrics: true
       upstream_health_metrics: true
 
-  # General quota for every routed API, including public endpoints and chat.
-  # The authentication routes below use stricter route-specific limits.
+  # IP-based fallback for routes without an authenticated Kong Consumer.
   - name: rate-limiting
     config:
       minute: 120
       limit_by: ip
+      policy: local
+
+  # Default API client profile for JWT-authenticated requests. JWT credentials
+  # currently resolve to the shared `keycloak` Consumer, so this quota is
+  # shared by all clients in that Keycloak realm.
+  - name: rate-limiting
+    consumer: keycloak
+    config:
+      second: 10
+      minute: 300
+      hour: 10000
+      limit_by: consumer
       policy: local
 
   # Public API routes use a separate, lower quota than JWT-protected routes.
@@ -120,6 +141,16 @@ plugins:
 
   - name: rate-limiting
     route: core-auth-email
+    config:
+      minute: 5
+      limit_by: ip
+      policy: local
+
+  # Consumer-scoped plugins take precedence over route-scoped plugins. Keep
+  # the stricter email OTP limit when a Keycloak JWT is present.
+  - name: rate-limiting
+    route: core-auth-email
+    consumer: keycloak
     config:
       minute: 5
       limit_by: ip

@@ -56,6 +56,27 @@ export class ReviewListQueryHandler implements IQueryHandler<ReviewListQuery> {
   }
 }
 
+export class ReviewMineListQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.ReviewMineListQueryInput,
+  ) {}
+}
+@QueryHandler(ReviewMineListQuery)
+export class ReviewMineListQueryHandler implements IQueryHandler<ReviewMineListQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: ReviewUseCases,
+  ) {}
+
+  /** Run the current customer's review list query in a transaction. */
+  execute(message: ReviewMineListQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.mine(s, message.actor, message.input),
+    );
+  }
+}
+
 export class ReviewAdminListQuery {
   constructor(
     public readonly actor: Actor,
