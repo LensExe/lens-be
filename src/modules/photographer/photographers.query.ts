@@ -83,6 +83,22 @@ export class PhotographerTopQuery {
     public readonly input: Inputs.PhotographerTopQueryInput,
   ) {}
 }
+
+export class PhotographerStylesFeaturedQuery {}
+
+@QueryHandler(PhotographerStylesFeaturedQuery)
+export class PhotographerStylesFeaturedQueryHandler implements IQueryHandler<PhotographerStylesFeaturedQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: PhotographerUseCases,
+  ) {}
+
+  /** Run the public featured-photographer lookup for each photography style. */
+  execute() {
+    return this.dataSource.transaction((s) => this.useCases.featuredByStyle(s));
+  }
+}
+
 @QueryHandler(PhotographerTopQuery)
 export class PhotographerTopQueryHandler implements IQueryHandler<PhotographerTopQuery> {
   constructor(
@@ -135,6 +151,28 @@ export class PhotographerGetQuery {
     public readonly input: Inputs.PhotographerGetQueryInput,
   ) {}
 }
+
+export class PhotographerChatPeerQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.PhotographerGetQueryInput,
+  ) {}
+}
+
+@QueryHandler(PhotographerChatPeerQuery)
+export class PhotographerChatPeerQueryHandler implements IQueryHandler<PhotographerChatPeerQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: PhotographerUseCases,
+  ) {}
+
+  execute(message: PhotographerChatPeerQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.chatPeer(s, message.actor, message.input),
+    );
+  }
+}
+
 @QueryHandler(PhotographerGetQuery)
 export class PhotographerGetQueryHandler implements IQueryHandler<PhotographerGetQuery> {
   constructor(

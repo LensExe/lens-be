@@ -2,6 +2,7 @@ import { KeycloakUserService } from '@shared/integrations/keycloak/user.service'
 import { NormalizeEmail } from '@shared/integrations/keycloak/utils/normalize-email';
 import { Injectable } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
+import { chatPeerByKeycloakId } from '@shared/common/chat-peer';
 import { currentUser, required, role } from '@shared/common/access';
 import type * as Inputs from '@shared/contracts/identity.contract';
 import { EntitySchemas, updateEntity } from '@shared/database';
@@ -138,6 +139,17 @@ export class IdentityUseCases {
       fullname: user.fullname,
       avatar_url: user.avatar_url,
     };
+  }
+
+  /** Resolve a Chat Service participant subject to the minimal profile shown in the inbox. */
+  async chatPeer(
+    s: EntityManager,
+    actor: Actor,
+    input: Inputs.IdentityChatPeerQueryInput,
+  ) {
+    role(actor, 'customer', 'photographer');
+    await currentUser(s, actor);
+    return chatPeerByKeycloakId(s, input.peer_id);
   }
 
   /**

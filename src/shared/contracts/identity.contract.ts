@@ -54,6 +54,11 @@ export interface IdentityGetUserQueryInput {
   user_id: string;
 }
 
+/** Input for resolving a Chat Service subject to minimal display information. */
+export interface IdentityChatPeerQueryInput {
+  peer_id: string;
+}
+
 /**
  * Input for querying the user list (for admins).
  * Supports pagination, status filtering, and keyword search.

@@ -59,6 +59,7 @@ const portfolioItem = obj({
   portfolio_id: str,
   media_id: str,
   position: num,
+  preview_url: str,
   download_url: str,
 });
 
@@ -133,6 +134,22 @@ const photographer = obj({
   location: str,
   is_available: bool,
   description: str,
+  starting_price: num,
+  starting_plan: {
+    ...obj({
+      id: str,
+      name: str,
+      description: { ...str, nullable: true },
+      price: num,
+      duration_minutes: num,
+      photo_count: num,
+      retouched_photo_count: num,
+      delivery_days: { ...num, nullable: true },
+      features: array(str),
+    }),
+    nullable: true,
+  },
+  cover_url: { ...str, nullable: true },
   rating: obj({
     average_rating: num,
     total_feedbacks: num,
@@ -264,6 +281,18 @@ const schemas: Record<string, SchemaObject> = {
   'PHO-013': items(records.booking_plans),
   'PHO-014': items(rank),
   'PHO-015': items(badge),
+  'PHO-016': obj({
+    months: array(obj({ label: str, amount: num })),
+    thisMonth: num,
+    lastMonth: num,
+    changePct: { ...num, nullable: true },
+  }),
+  'PHO-017': items(
+    obj({
+      style: photographyStyle,
+      representative: { ...photographer, nullable: true },
+    }),
+  ),
   'PORT-001': records.portfolios,
   'PORT-002': paged(records.portfolios),
   'PORT-003': portfolio,
@@ -354,6 +383,29 @@ const schemas: Record<string, SchemaObject> = {
   'MEDIA-007': gallery,
   'MEDIA-008': gallery,
   'MEDIA-009': gallery,
+  'MEDIA-010': obj({
+    items: array(
+      obj({
+        id: str,
+        booking_id: str,
+        title: str,
+        media_ids: array(str),
+        published_at: { ...str, nullable: true },
+        expires_in: { ...num, nullable: true },
+        items: array(
+          obj({
+            id: str,
+            media_id: str,
+            file_size: num,
+            content_type: str,
+            thumbnail_url: str,
+            width: { ...num, nullable: true },
+            height: { ...num, nullable: true },
+          }),
+        ),
+      }),
+    ),
+  }),
   'REV-001': records.feedbacks,
   'REV-002': paged(publicReview),
   'REV-003': obj({
@@ -367,6 +419,7 @@ const schemas: Record<string, SchemaObject> = {
   'REV-007': records.feedbacks,
   'REV-008': paged(records.feedbacks),
   'REV-009': records.feedbacks,
+  'REV-010': paged(records.feedbacks),
   'SUB-001': obj({
     items: array(
       obj({

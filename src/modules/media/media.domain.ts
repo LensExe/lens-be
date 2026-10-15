@@ -3,6 +3,7 @@ import {
   ALLOWED_MEDIA_CONTENT_TYPES,
   MediaContentType,
   MediaStatus,
+  MediaVisibility,
 } from '@shared/domain/values/media.values';
 import { BookingStatus } from '@shared/domain/values/booking.values';
 
@@ -90,6 +91,41 @@ export class Media {
    */
   static assertGalleryNotEmpty(itemCount: number) {
     ensure(itemCount > 0, 'Gallery must contain images', 'conflict');
+  }
+
+  /** A delivery gallery must meet the photo count promised by the booking's package. */
+  static assertGalleryMeetsPhotoCount(
+    itemCount: number,
+    requiredCount: number,
+  ) {
+    ensure(
+      Number.isSafeInteger(requiredCount) && requiredCount > 0,
+      'Booking package photo count is invalid',
+      'conflict',
+    );
+    ensure(
+      itemCount >= requiredCount,
+      `Gallery must contain at least ${requiredCount} photos`,
+      'conflict',
+    );
+  }
+
+  /** Customers may only receive a gallery after the booking has been fully paid. */
+  static assertBookingFullyPaid(paidAmount: number, totalAmount: number) {
+    ensure(
+      paidAmount >= totalAmount,
+      'Booking must be fully paid before the gallery can be published',
+      'conflict',
+    );
+  }
+
+  /** Delivery media must remain private until the paid gallery is published. */
+  static assertPrivateDeliveryMedia(visibility: string) {
+    ensure(
+      visibility === MediaVisibility.PRIVATE,
+      'Booking delivery photos must use private visibility',
+      'conflict',
+    );
   }
 
   /**

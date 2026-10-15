@@ -81,6 +81,29 @@ export class ReviewUseCases implements RatingUpdaterPort {
   }
 
   /**
+   * List all reviews written by the current customer, including reviews hidden
+   * or soft-deleted later, so they remain matched to their booking and cannot
+   * be submitted again.
+   */
+  async mine(s: EntityManager, a: Actor, i: Inputs.ReviewMineListQueryInput) {
+    role(a, 'customer');
+    const user = await currentUser(s, a);
+    const [customer] = await s.findBy(EntitySchemas.customers, {
+      user_id: user.id,
+    });
+    ensure(customer, 'customers not found', 'missing');
+
+    const { offset, limit } = pageWindow(i);
+    const [items, total] = await s.findAndCount(EntitySchemas.feedbacks, {
+      where: { customer_id: customer.id },
+      order: { created_at: 'DESC', id: 'ASC' },
+      skip: offset,
+      take: limit,
+    });
+    return paged(items, total, i);
+  }
+
+  /**
    * Admins can view all reviews (including deleted or hidden ones), filter by status and photographer, sort newest first, and paginate
    * in SQL. Use this to find reviews that need to be hidden or restored.
    *

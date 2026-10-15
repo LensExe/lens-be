@@ -18,6 +18,11 @@ export interface ReviewListQueryInput {
   offset?: number;
 }
 
+export interface ReviewMineListQueryInput {
+  limit?: number;
+  offset?: number;
+}
+
 export interface ReviewUpdateCommandInput {
   feedback_id: string;
   rating?: number;

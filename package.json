@@ -28,7 +28,7 @@
     "docker:backend": "pnpm docker:network && docker compose --env-file .env --profile app -f .docker/lens-backend/compose.yaml up -d --build lens-backend",
     "docker:chat": "pnpm docker:network && docker compose -f .docker/chat-service/compose.yaml up -d && docker compose -f .docker/chat-service/docker-compose.backend.yaml up -d --build chat",
     "docker:gateway": "pnpm docker:network && docker compose --env-file .env --profile app -f .docker/lens-backend/compose.yaml up -d lens-postgres lens-keycloak && node --env-file=.env scripts/render-kong-config.mjs && API_GATEWAY_ENABLED=true docker compose --env-file .env --profile app --profile gateway -f .docker/lens-backend/compose.yaml up -d --build lens-backend && API_GATEWAY_ENABLED=true docker compose --env-file .env --profile app --profile gateway -f .docker/lens-backend/compose.yaml up -d --force-recreate lens-kong",
-    "docker:gateway:check": "node --env-file=.env scripts/render-kong-config.mjs && docker run --rm --entrypoint kong -v \"${PWD}/.docker/kong:/kong/declarative:ro\" kong:3.9.3 kong config parse /kong/declarative/kong.generated.yml",
+    "docker:gateway:check": "node --env-file=.env scripts/render-kong-config.mjs && docker run --rm --entrypoint kong -e KONG_DATABASE=off -v \"${PWD}/.docker/kong:/kong/declarative:ro\" kong:3.9.3 config parse /kong/declarative/kong.generated.yml",
     "docker:all": "pnpm docker:network && docker compose --env-file .env --profile app -f .docker/lens-backend/compose.yaml up -d --build",
     "docker:down": "docker compose --env-file .env -f .docker/lens-backend/compose.yaml down",
     "docker:restart": "docker compose --env-file .env -f .docker/lens-backend/compose.yaml restart",

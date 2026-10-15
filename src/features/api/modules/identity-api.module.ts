@@ -17,6 +17,7 @@ import {
   IdentityLogoutCommandHandler,
 } from '@modules/identity/identity.command';
 import {
+  IdentityChatPeerQueryHandler,
   IdentityAdminUserQueryHandler,
   IdentityAdminUsersQueryHandler,
   IdentityGetUserQueryHandler,
@@ -47,6 +48,7 @@ import { AuthService } from '../auth/auth.service';
     IdentityForcePasswordResetCommandHandler,
     IdentityLogoutCommandHandler,
     IdentityAdminUserQueryHandler,
+    IdentityChatPeerQueryHandler,
     IdentityAdminUsersQueryHandler,
     IdentityGetUserQueryHandler,
     IdentityMeQueryHandler,

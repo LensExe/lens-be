@@ -57,6 +57,24 @@ export class MediaGalleryQueryHandler implements IQueryHandler<MediaGalleryQuery
   }
 }
 
+export class MediaMyGalleriesQuery {
+  constructor(public readonly actor: Actor) {}
+}
+
+@QueryHandler(MediaMyGalleriesQuery)
+export class MediaMyGalleriesQueryHandler implements IQueryHandler<MediaMyGalleriesQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: MediaUseCases,
+  ) {}
+
+  execute(message: MediaMyGalleriesQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.myGalleries(s, message.actor),
+    );
+  }
+}
+
 export class MediaGetQuery {
   constructor(
     public readonly actor: Actor,

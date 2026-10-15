@@ -28,6 +28,7 @@ import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
 import { IdentityUpdateMeCommand } from '@modules/identity/identity.command';
 import {
+  IdentityChatPeerQuery,
   IdentityGetUserQuery,
   IdentityMeQuery,
 } from '@modules/identity/identity.query';
@@ -175,6 +176,36 @@ export class UserController {
     return this.queries.execute(
       new IdentityGetUserQuery(req.actor ?? { sub: '', roles: [] }, {
         user_id,
+      }),
+    );
+  }
+
+  @Get('users/chat-peers/:peer_id')
+  @ApiOperation({
+    operationId: 'AUTH-005',
+    summary: 'Lấy thông tin hiển thị của người trong hội thoại',
+    description:
+      'Customer hoặc photographer đã đăng nhập phân giải Keycloak subject từ channel thành thông tin hồ sơ tối thiểu.',
+  })
+  @Access(['customer', 'photographer'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Customer or photographer role required',
+  })
+  @ApiNotFoundResponse({ description: 'Chat participant not found' })
+  @ApiParam({
+    name: 'peer_id',
+    type: String,
+    description: 'Peer Keycloak subject',
+  })
+  @ApiResponse({ status: 200, description: 'Minimal chat participant profile' })
+  chatPeer(@Req() req: { actor?: Actor }, @Param('peer_id') peer_id: string) {
+    return this.queries.execute(
+      new IdentityChatPeerQuery(req.actor ?? { sub: '', roles: [] }, {
+        peer_id,
       }),
     );
   }

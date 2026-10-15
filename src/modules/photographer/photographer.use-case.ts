@@ -1,5 +1,6 @@
 import { In, type EntityManager } from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
+import { chatPeerForUser } from '@shared/common/chat-peer';
 import type * as Inputs from '@shared/contracts/contracts';
 import { Injectable } from '@nestjs/common';
 import type { Actor } from '@shared/platform/auth/actor';
@@ -14,7 +15,10 @@ import {
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import type { PhotographerEntity } from '@shared/database/entities/photographer.entity';
 import { VerificationStatus } from '@shared/domain/values/photographer.values';
+import { PhotographyStyle } from '@shared/domain/values/photography-style.values';
+import { UserStatus } from '@shared/domain/values/user.values';
 import type { UserEntity } from '@shared/database/entities/user.entity';
+import { ObjectStorage } from '@shared/integrations/s3/storage.port';
 import {
   PhotographerApplication,
   PhotographerProfile,
@@ -35,6 +39,7 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   constructor(
     private readonly roles: PhotographerRolePort,
     private readonly ratings: PhotographerRatingsPort,
+    private readonly storage: ObjectStorage,
   ) {}
 
   /**
@@ -216,6 +221,103 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   ) {
     const ids = pairs.map((pair) => pair.photographer.id);
     const ratings = await this.ratings.ratingsOf(s, ids);
+    // Project each photographer's cheapest bookable plan in one grouped query.
+    const startingPlanRows: Array<{
+      photographer_id: string;
+      id: string;
+      name: string;
+      description: string | null;
+      price: number | string;
+      duration_minutes: number;
+      photo_count: number;
+      retouched_photo_count: number;
+      delivery_days: number | null;
+      features: string[] | null;
+    }> = ids.length
+      ? await s
+          .createQueryBuilder(EntitySchemas.booking_plans, 'plan')
+          .distinctOn(['plan.photographer_id'])
+          .select('plan.photographer_id', 'photographer_id')
+          .addSelect('plan.id', 'id')
+          .addSelect('plan.name', 'name')
+          .addSelect('plan.description', 'description')
+          .addSelect('plan.price', 'price')
+          .addSelect('plan.duration_minutes', 'duration_minutes')
+          .addSelect('plan.photo_count', 'photo_count')
+          .addSelect('plan.retouched_photo_count', 'retouched_photo_count')
+          .addSelect('plan.delivery_days', 'delivery_days')
+          .addSelect('plan.features', 'features')
+          .where('plan.photographer_id IN (:...photographerIds)', {
+            photographerIds: ids,
+          })
+          .andWhere('plan.is_active = :isActive', { isActive: true })
+          .orderBy('plan.photographer_id', 'ASC')
+          .addOrderBy('plan.price', 'ASC')
+          .addOrderBy('plan.created_at', 'ASC')
+          .addOrderBy('plan.id', 'ASC')
+          .getRawMany<{
+            photographer_id: string;
+            id: string;
+            name: string;
+            description: string | null;
+            price: number | string;
+            duration_minutes: number;
+            photo_count: number;
+            retouched_photo_count: number;
+            delivery_days: number | null;
+            features: string[] | null;
+          }>()
+      : [];
+    const startingPlans = new Map(
+      startingPlanRows.map(
+        (row) =>
+          [
+            row.photographer_id,
+            {
+              id: row.id,
+              name: row.name,
+              description: row.description,
+              price: Number(row.price),
+              duration_minutes: row.duration_minutes,
+              photo_count: row.photo_count,
+              retouched_photo_count: row.retouched_photo_count,
+              delivery_days: row.delivery_days,
+              features: row.features ?? [],
+            },
+          ] as const,
+      ),
+    );
+    const albums = ids.length
+      ? await s.find(EntitySchemas.portfolios, {
+          where: { photographer_id: In(ids) },
+          order: { created_at: 'ASC', id: 'ASC' },
+        })
+      : [];
+    const coverMediaByPhotographer = new Map<string, string>();
+    for (const album of albums) {
+      if (coverMediaByPhotographer.has(album.photographer_id)) continue;
+      const mediaId = album.cover_media_id ?? album.items[0];
+      if (mediaId) coverMediaByPhotographer.set(album.photographer_id, mediaId);
+    }
+    const coverMediaIds = [...new Set(coverMediaByPhotographer.values())];
+    const coverMedia = new Map(
+      (coverMediaIds.length
+        ? await s.findBy(EntitySchemas.media, { id: In(coverMediaIds) })
+        : []
+      ).map((media) => [media.id, media]),
+    );
+    const coverUrls = new Map<string, string>();
+    await Promise.all(
+      [...coverMediaByPhotographer].map(async ([photographerId, mediaId]) => {
+        const media = coverMedia.get(mediaId);
+        if (media) {
+          coverUrls.set(
+            photographerId,
+            await this.storage.downloadUrl(media.file_key),
+          );
+        }
+      }),
+    );
     const ranks = await s.find(EntitySchemas.ranks);
     const names = new Map(
       (await s.find(EntitySchemas.badges)).map((d) => [d.code, d.name]),
@@ -227,6 +329,7 @@ export class PhotographerUseCases implements PhotographerSearchPort {
     return pairs.map(({ photographer: p, user: u }) => {
       const rating = ratings[p.id];
       const rank = Rank.of(rating.total_bookings, ranks);
+      const startingPlan = startingPlans.get(p.id) ?? null;
       return {
         commissionPercent: rank.commission_percent,
         profile: {
@@ -241,6 +344,9 @@ export class PhotographerUseCases implements PhotographerSearchPort {
           is_available: p.is_available,
           description: p.description,
           rating,
+          starting_price: startingPlan?.price ?? 0,
+          starting_plan: startingPlan,
+          cover_url: coverUrls.get(p.id) ?? null,
           rank: { code: rank.code, name: rank.name },
           badges: earned
             .filter((b) => b.photographer_id === p.id)
@@ -264,6 +370,18 @@ export class PhotographerUseCases implements PhotographerSearchPort {
    */
   get(s: EntityManager, _a: Actor, input: Inputs.PhotographerGetQueryInput) {
     return this.details(s, input.photographer_id);
+  }
+
+  /** Resolve a public photographer profile to Chat Service's Keycloak subject. */
+  async chatPeer(
+    s: EntityManager,
+    a: Actor,
+    input: Inputs.PhotographerGetQueryInput,
+  ) {
+    role(a, 'customer');
+    await currentUser(s, a);
+    const { user } = await publicPhotographer(s, input.photographer_id);
+    return chatPeerForUser(s, user.id);
   }
 
   /**
@@ -573,6 +691,83 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
+   * Return every supported photography style with its highest-ranked public photographer.
+   *
+   * @param s EntityManager for the current transaction.
+   * @returns One item per style; the representative is null when no public photographer offers that style.
+   */
+  async featuredByStyle(s: EntityManager) {
+    const styles = Object.values(PhotographyStyle);
+    const rows = await s.query(
+      `
+        WITH photographer_styles AS (
+          SELECT DISTINCT
+            p.id AS photographer_id,
+            p.is_available,
+            photographer_style.style,
+            COALESCE(r.average_rating, 0) AS average_rating,
+            COALESCE(r.total_feedbacks, 0) AS total_feedbacks,
+            COALESCE(r.total_bookings, 0) AS total_bookings
+          FROM photographers p
+          INNER JOIN users u ON u.id = p.user_id
+          CROSS JOIN LATERAL jsonb_array_elements_text(p.styles)
+            AS photographer_style(style)
+          LEFT JOIN photographer_ratings r ON r.photographer_id = p.id
+          WHERE u.status = $2
+            AND p.verification_status = $3
+            AND photographer_style.style = ANY($1::text[])
+        ), ranked_photographers AS (
+          SELECT
+            style,
+            photographer_id,
+            ROW_NUMBER() OVER (
+              PARTITION BY style
+              ORDER BY is_available DESC, average_rating DESC,
+                total_feedbacks DESC, total_bookings DESC, photographer_id ASC
+            ) AS position
+          FROM photographer_styles
+        )
+        SELECT style, photographer_id
+        FROM ranked_photographers
+        WHERE position = 1
+      `,
+      [styles, UserStatus.ACTIVE, VerificationStatus.VERIFIED],
+    );
+
+    const photographerIdByStyle = new Map<string, string>(
+      rows.map(
+        ({ style, photographer_id }) => [style, photographer_id] as const,
+      ),
+    );
+    const photographerIds = [...new Set(photographerIdByStyle.values())];
+    const profileByPhotographerId = new Map<string, object>();
+
+    if (photographerIds.length) {
+      const photographers = await s.findBy(EntitySchemas.photographers, {
+        id: In(photographerIds),
+      });
+      const userIds = photographers.map((photographer) => photographer.user_id);
+      const users = await s.findBy(EntitySchemas.users, { id: In(userIds) });
+      const usersById = new Map(users.map((user) => [user.id, user]));
+      const pairs = photographers.map((photographer) => ({
+        photographer,
+        user: usersById.get(photographer.user_id)!,
+      }));
+      const profiles = await this.profiles(s, pairs);
+      for (const { profile } of profiles) {
+        profileByPhotographerId.set(profile.id, profile);
+      }
+    }
+
+    return styles.map((style) => ({
+      style,
+      representative:
+        profileByPhotographerId.get(photographerIdByStyle.get(style) ?? '') ??
+        null,
+    }));
+  }
+
+  /**
    * Search photographers by keyword, location, and the supplied filters.
    *
    * @param s EntityManager for the current transaction.
@@ -684,6 +879,50 @@ export class PhotographerUseCases implements PhotographerSearchPort {
       skip: offset,
       take: limit,
     });
-    return { items, total, offset, limit };
+    const ids = items.map((item) => item.id);
+    const userIds = items.map((item) => item.user_id);
+    const [users, plans, portfolios] = ids.length
+      ? await Promise.all([
+          s.find(EntitySchemas.users, { where: { id: In(userIds) } }),
+          s.find(EntitySchemas.booking_plans, {
+            where: { photographer_id: In(ids), is_active: true },
+          }),
+          s.find(EntitySchemas.portfolios, {
+            where: { photographer_id: In(ids) },
+          }),
+        ])
+      : [[], [], []];
+    const usersById = new Map(users.map((user) => [user.id, user] as const));
+    const startingPrices = new Map<string, number>();
+    for (const plan of plans) {
+      const current = startingPrices.get(plan.photographer_id);
+      if (current === undefined || plan.price < current) {
+        startingPrices.set(plan.photographer_id, plan.price);
+      }
+    }
+    const portfolioCounts = new Map<string, number>();
+    for (const portfolio of portfolios) {
+      portfolioCounts.set(
+        portfolio.photographer_id,
+        (portfolioCounts.get(portfolio.photographer_id) ?? 0) +
+          portfolio.items.length,
+      );
+    }
+    return {
+      items: items.map((item) => {
+        const user = usersById.get(item.user_id);
+        return {
+          ...item,
+          fullname: user?.fullname,
+          email: user?.email,
+          avatar_url: user?.avatar_url,
+          starting_price: startingPrices.get(item.id) ?? 0,
+          portfolio_count: portfolioCounts.get(item.id) ?? 0,
+        };
+      }),
+      total,
+      offset,
+      limit,
+    };
   }
 }

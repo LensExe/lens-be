@@ -88,6 +88,27 @@ export class IdentityGetUserQuery {
     public readonly input: Inputs.IdentityGetUserQueryInput,
   ) {}
 }
+
+export class IdentityChatPeerQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.IdentityChatPeerQueryInput,
+  ) {}
+}
+
+@QueryHandler(IdentityChatPeerQuery)
+export class IdentityChatPeerQueryHandler implements IQueryHandler<IdentityChatPeerQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: IdentityUseCases,
+  ) {}
+
+  execute(message: IdentityChatPeerQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.chatPeer(s, message.actor, message.input),
+    );
+  }
+}
 @QueryHandler(IdentityGetUserQuery)
 export class IdentityGetUserQueryHandler implements IQueryHandler<IdentityGetUserQuery> {
   constructor(

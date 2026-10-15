@@ -14,6 +14,7 @@ import {
   MediaDownloadQueryHandler,
   MediaGalleryQueryHandler,
   MediaGetQueryHandler,
+  MediaMyGalleriesQueryHandler,
 } from '@modules/media/media.query';
 import { MediaVariantsProcessor } from '@modules/media/queue/media.processor';
 import {
@@ -41,6 +42,7 @@ import { MediaPendingUploadExpiryJob } from '../../workers/media-pending-upload-
     MediaDownloadQueryHandler,
     MediaGalleryQueryHandler,
     MediaGetQueryHandler,
+    MediaMyGalleriesQueryHandler,
     MediaProcessingQueueService,
     MediaVariantsProcessor,
     MediaPendingUploadExpiryJob,

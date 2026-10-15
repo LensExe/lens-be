@@ -11,6 +11,13 @@ export class PortfolioListQuery {
   ) {}
 }
 
+export class PortfolioAdminListQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.PortfolioListQueryInput,
+  ) {}
+}
+
 export class PortfolioMyListQuery {
   constructor(
     public readonly actor: Actor,
@@ -48,6 +55,20 @@ export class PortfolioListQueryHandler implements IQueryHandler<PortfolioListQue
   execute(message: PortfolioListQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.list(s, message.actor, message.input),
+    );
+  }
+}
+
+@QueryHandler(PortfolioAdminListQuery)
+export class PortfolioAdminListQueryHandler implements IQueryHandler<PortfolioAdminListQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: PortfolioUseCases,
+  ) {}
+
+  execute(message: PortfolioAdminListQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.listAdmin(s, message.actor, message.input),
     );
   }
 }

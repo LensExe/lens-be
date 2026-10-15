@@ -54,6 +54,31 @@ phân quyền. Sau khi xoay signing key Keycloak, chạy lại `pnpm docker:gate
 lấy JWKS mới và nạp lại Kong. Trước khi dùng staging/production, thay allowlist
 CORS/upstream theo environment; không đưa Admin API hoặc Kong Manager ra Internet.
 
+Trong chế độ phát triển, Chat Service chạy trên host theo `config/local.yaml` ở
+cổng `3002`; Kong chuyển tiếp `/api/v1/chat/**` tới
+`http://host.docker.internal:3002`. Khi Chat chạy cùng Kong trong Docker, dùng
+DNS nội bộ `chat:8080` như cấu hình stack triển khai.
+
+### Rate limit cho API client
+
+Gateway có profile mặc định cho request JWT đã xác thực: tối đa **10 request/giây,
+300 request/phút và 10.000 request/giờ** trên Consumer `keycloak`. Public route có
+quota riêng theo IP (mặc định 60/phút); quota IP chung là 120/phút; login là
+15/phút và các route gửi/khôi phục email là 5/phút. Client browser đọc được các
+header `X-RateLimit-*`, `RateLimit-*` và `Retry-After` qua CORS để tự giãn request
+và chờ khi nhận `429`.
+
+Các quota dùng `policy: local`, phù hợp với Kong DB-less đang chạy một instance.
+Counter nằm trong bộ nhớ từng instance và reset khi Kong khởi động lại; nếu scale
+nhiều Kong instance, cần chuyển rate-limit policy sang Redis để các instance dùng
+chung counter.
+
+JWT plugin hiện ánh xạ signing-key `kid` vào một Consumer `keycloak` (cấu hình này
+cũng cho phép nạp nhiều signing key khi xoay khóa). Vì vậy profile trên là quota
+chung cho JWT client trong realm, không phải quota độc lập theo từng OAuth `azp`
+hoặc từng user. Muốn tách quota theo từng client app cần cấp cho Kong một identity
+riêng theo client; không nên dùng header client tự gửi làm identity rate-limit.
+
 ## Chat Service
 
 Khởi động MongoDB replica set cho Chat:

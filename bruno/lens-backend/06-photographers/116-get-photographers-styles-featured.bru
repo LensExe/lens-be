@@ -1,0 +1,17 @@
+meta {
+  name: photographers/styles/featured
+  type: http
+  seq: 216
+}
+
+docs {
+  Danh sách toàn bộ style chụp ảnh và photographer nổi bật đại diện cho từng style.
+  Handler: featuredStyles
+  Authentication: public
+}
+
+get {
+  url: {{baseUrl}}/photographers/styles/featured
+  body: none
+  auth: none
+}

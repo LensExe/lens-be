@@ -74,6 +74,16 @@ export class PayOsGateway implements PaymentProviderAdapter {
               status?: unknown;
               code?: unknown;
               desc?: unknown;
+              message?: unknown;
+              error?: unknown;
+            })
+          : undefined;
+      const nestedError =
+        providerError?.error && typeof providerError.error === 'object'
+          ? (providerError.error as {
+              code?: unknown;
+              desc?: unknown;
+              message?: unknown;
             })
           : undefined;
       const status =
@@ -83,13 +93,20 @@ export class PayOsGateway implements PaymentProviderAdapter {
       const code =
         typeof providerError?.code === 'string'
           ? providerError.code
-          : 'unknown';
-      const description =
-        typeof providerError?.desc === 'string'
-          ? providerError.desc
-          : 'No provider description';
+          : typeof nestedError?.code === 'string'
+            ? nestedError.code
+            : 'unknown';
+      const description = [
+        providerError?.desc,
+        nestedError?.desc,
+        providerError?.message,
+        nestedError?.message,
+        error instanceof Error ? error.message : undefined,
+      ].find(
+        (value): value is string => typeof value === 'string' && Boolean(value),
+      );
       this.logger.error(
-        `PayOS payment-link creation failed (status=${status}, code=${code}): ${description}`,
+        `PayOS payment-link creation failed (status=${status}, code=${code}): ${description ?? 'Unknown provider error'}`,
       );
 
       // Reconcile a retried create after an ambiguous network response.

@@ -11,6 +11,7 @@ import {
 import {
   ReviewAdminListQueryHandler,
   ReviewListQueryHandler,
+  ReviewMineListQueryHandler,
   ReviewSummaryQueryHandler,
 } from '@modules/feedback/review/reviews.query';
 
@@ -25,6 +26,7 @@ import {
     ReviewUpdateCommandHandler,
     ReviewAdminListQueryHandler,
     ReviewListQueryHandler,
+    ReviewMineListQueryHandler,
     ReviewSummaryQueryHandler,
   ],
 })
