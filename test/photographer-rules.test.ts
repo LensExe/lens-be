@@ -112,6 +112,11 @@ test('viewing a portfolio costs the same number of queries for 1 or 3 photos', a
         reads++;
         return items.map((id) => ({ id, file_key: `key-${id}` }));
       },
+      find: async (_entity: unknown, options: { where?: unknown }) => {
+        reads++;
+        if (!options?.where) throw new Error('must not load a whole table');
+        return [];
+      },
     } as unknown as EntityManager;
     const storage = {
       downloadUrl: async (key: string) => `https://files/${key}`,
