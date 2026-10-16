@@ -11,6 +11,7 @@ import { DataSource } from 'typeorm';
 import { ObjectStorage } from '../src/shared/integrations/s3/storage.port';
 import { PaymentGateway } from '../src/shared/integrations/payment/port/payment.port';
 import { KeycloakService } from '../src/shared/integrations/keycloak/keycloak.service';
+import { AI_DATABASE_DATA_SOURCE } from '../src/shared/database/ai-database.module';
 
 /**
  * Build an OpenAPI document from the supplied API modules.
@@ -33,8 +34,12 @@ function compileApi(
     .useValue({
       verifyToken: () => Promise.resolve({ sub: 'swagger-test', roles: [] }),
     })
+    .overrideProvider(AI_DATABASE_DATA_SOURCE)
+    .useValue({ isInitialized: false, query: () => Promise.resolve([]) })
     .compile();
 }
+
+const isAiApiEnabled = () => process.env.AI_API_ENABLED === 'true';
 
 void test('every registered HTTP endpoint has a complete Swagger contract', async () => {
   const moduleRef = await compileApi([ApiModule]);
@@ -47,7 +52,8 @@ void test('every registered HTTP endpoint has a complete Swagger contract', asyn
     ).filter(
       (row: { method: string; description?: string }) =>
         ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(row.method) &&
-        !row.description?.startsWith('Tạm vô hiệu hoá:'),
+        !row.description?.startsWith('Tạm vô hiệu hoá:') &&
+        (isAiApiEnabled() || !row.id.startsWith('PHO-AI-')),
     ) as {
       id: string;
       method: string;
@@ -121,6 +127,7 @@ void test('disabled feature modules are absent from Swagger', async () => {
       (row) =>
         ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(row.method) &&
         !row.description.startsWith('Tạm vô hiệu hoá:') &&
+        (isAiApiEnabled() || !row.id.startsWith('PHO-AI-')) &&
         !row.id.startsWith('MEDIA-'),
     ).length;
 

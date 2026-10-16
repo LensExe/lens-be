@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:22-bookworm-slim AS build
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=${PNPM_HOME}:${PATH}
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@11.1.2 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml nest-cli.json tsconfig.json tsconfig.build.json ./
+COPY apps/ai-worker/tsconfig.app.json apps/ai-worker/tsconfig.app.json
+
+RUN pnpm install --frozen-lockfile
+
+COPY apps/ai-worker apps/ai-worker
+COPY src src
+
+RUN pnpm build:ai-worker
+
+FROM node:22-bookworm-slim AS runtime
+
+ENV NODE_ENV=production
+WORKDIR /app
+
+RUN groupadd --system --gid 1001 lens \
+  && useradd --system --uid 1001 --gid lens --create-home lens
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN corepack enable \
+  && corepack prepare pnpm@11.1.2 --activate \
+  && pnpm install --prod --frozen-lockfile --ignore-scripts \
+  && rm -rf /root/.cache /root/.local/share/pnpm
+
+COPY --from=build --chown=lens:lens /app/dist/apps/ai-worker ./dist/apps/ai-worker
+RUN chown -R lens:lens /app/node_modules
+
+USER lens
+
+EXPOSE 3001
+
+CMD ["node", "dist/apps/ai-worker/apps/ai-worker/src/main.js"]

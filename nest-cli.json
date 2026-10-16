@@ -26,6 +26,15 @@
       "compilerOptions": {
         "tsConfigPath": "apps/cli/tsconfig.app.json"
       }
+    },
+    "ai-worker": {
+      "type": "application",
+      "root": "apps/ai-worker",
+      "entryFile": "main",
+      "sourceRoot": "apps/ai-worker/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/ai-worker/tsconfig.app.json"
+      }
     }
   }
 }
