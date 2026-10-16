@@ -60,6 +60,14 @@ credentials, and so on) stay in Portainer. They are passed through the
 Compose `environment` mapping and are not copied into the image or stored in
 GitHub Actions.
 
+To enable the photographer AI API, set `AI_API_ENABLED=true` in this backend
+stack's Portainer environment and provide the AI database connection with
+`AI_DATABASE_URL` or `AI_DB_HOST`, `AI_DB_PORT`, `AI_DB_USERNAME`,
+`AI_DB_PASSWORD`, and `AI_DB_NAME`. The stack passes these values to the
+backend container. Provision the AI database and apply `pnpm db:migrate:ai`
+before enabling the API; otherwise the routes may register but their database
+requests will fail.
+
 ## AI worker stack
 
 Deploy Ollama first from `deploy/portainer/ollama/ollama-stack.yml` and wait for
