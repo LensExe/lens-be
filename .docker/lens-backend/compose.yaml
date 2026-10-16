@@ -15,6 +15,8 @@ services:
     environment:
       # The API is reachable through Kong; CORS is handled at the gateway.
       API_GATEWAY_ENABLED: '${API_GATEWAY_ENABLED:-true}'
+      # Keep the core API independent from the AI database by default.
+      AI_API_ENABLED: '${AI_API_ENABLED:-false}'
     depends_on:
       lens-postgres:
         condition: service_healthy
@@ -28,9 +30,9 @@ services:
       - lens-network
     restart: unless-stopped
 
-  # ── PostgreSQL (primary data source; automatically creates lens, kong, and keycloak via init.sql) ──
+  # ── PostgreSQL (primary and AI databases; init.sql also enables pgvector in lens_ai) ──
   lens-postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16-bookworm
     container_name: lens-postgres
     environment:
       POSTGRES_USER: lens-postgres

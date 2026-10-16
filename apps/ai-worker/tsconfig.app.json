@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "declaration": false,
+    "outDir": "../../dist/apps/ai-worker"
+  },
+  "include": ["src/**/*", "../../src/modules/ai-assistant/**/*"],
+  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
+}

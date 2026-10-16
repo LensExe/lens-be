@@ -1,4 +1,5 @@
 export * from './auth.dto';
+export * from './ai-assistant.dto';
 export * from './google-auth.dto';
 export * from './booking.dto';
 export * from './booking-plan.dto';

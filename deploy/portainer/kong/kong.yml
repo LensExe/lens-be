@@ -179,6 +179,26 @@ plugins:
       run_on_preflight: false
 
   - name: jwt
+    route: core-photographer-ai-assistant
+    config:
+      key_claim_name: kid
+      header_names: [authorization]
+      cookie_names: []
+      uri_param_names: []
+      claims_to_verify: [exp]
+      run_on_preflight: false
+
+  - name: jwt
+    route: core-photographer-ai-reply-suggestions
+    config:
+      key_claim_name: kid
+      header_names: [authorization]
+      cookie_names: []
+      uri_param_names: []
+      claims_to_verify: [exp]
+      run_on_preflight: false
+
+  - name: jwt
     route: chat-api-v1
     config:
       key_claim_name: kid
@@ -231,7 +251,7 @@ services:
       # take precedence over core-api-v1, which requires JWT for everything else.
       - name: core-public-get-static
         paths:
-          - '~/api/v1/(?:photographers/?|photographers/top-rated/?|ranks/?|badges/?|subscriptions/plans/?|keycloak/google/(?:login|callback|exchange)/?)$'
+          - '~/api/v1/(?:photographers/?|photographers/top-rated/?|photographers/styles/featured/?|ranks/?|badges/?|subscriptions/plans/?|keycloak/google/(?:login|callback|exchange)/?)$'
         methods: [GET]
         regex_priority: 100
         protocols: [http, https]
@@ -285,6 +305,22 @@ services:
           - /api/v1/auth/email/send-otp
           - /api/v1/auth/email/verify
         methods: [POST]
+        protocols: [http, https]
+        strip_path: false
+
+      # Photographer AI settings and audit history are private Core APIs.
+      # Keep these explicit so the AI endpoints are routed and JWT-protected.
+      - name: core-photographer-ai-assistant
+        paths:
+          - /api/v1/photographers/me/ai-assistant
+        methods: [GET, PATCH, POST, DELETE]
+        protocols: [http, https]
+        strip_path: false
+
+      - name: core-photographer-ai-reply-suggestions
+        paths:
+          - /api/v1/photographers/me/ai-reply-suggestions
+        methods: [GET]
         protocols: [http, https]
         strip_path: false
 

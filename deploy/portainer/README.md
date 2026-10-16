@@ -60,6 +60,18 @@ credentials, and so on) stay in Portainer. They are passed through the
 Compose `environment` mapping and are not copied into the image or stored in
 GitHub Actions.
 
+## AI worker stack
+
+Deploy Ollama first from `deploy/portainer/ollama/ollama-stack.yml` and wait for
+its model download to finish. Then deploy the worker from
+`deploy/portainer/ai-worker/ai-worker-stack.yml`. The model settings and
+Portainer steps are documented in `deploy/portainer/ollama/README.md`; the
+worker's shared secrets, database and Kafka prerequisites, auto-reply controls,
+and GitOps webhook instructions are in
+`deploy/portainer/ai-worker/README.md`. The GitHub Actions publish job builds
+both `lens-backend` and `lens-ai-worker`; configure the optional secret
+`PORTAINER_AI_WORKER_WEBHOOK_URL` to redeploy the worker stack after publishing.
+
 ## Shared data and Kafka stacks
 
 Deploy `deploy/portainer/infra/infra-stack.yml` as the `lens-infra` stack. It

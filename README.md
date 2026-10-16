@@ -143,7 +143,8 @@ Toàn bộ hệ thống được chia thành 10 Bounded Contexts cốt lõi tạ
 lens-backend/
 ├── apps/
 │   ├── core/                  # Ứng dụng chính: Bootstrap NestJS, cấu hình server HTTP
-│   └── cli/                   # Công cụ dòng lệnh hỗ trợ quản trị và tác vụ nội bộ
+│   ├── cli/                   # Công cụ dòng lệnh hỗ trợ quản trị và tác vụ nội bộ
+│   └── ai-worker/             # Worker nhận chat event, kiểm tra offline và auto-reply an toàn
 ├── src/
 │   ├── features/              # Tầng giao diện và kết nối ngoại vi (Delivery / Features)
 │   │   ├── api/
@@ -174,7 +175,8 @@ lens-backend/
 │   ├── chat-service/           # Chat MongoDB and optional Chat API
 │   └── notification-system/    # MongoDB, PostgreSQL, Kafka; shares Lens Redis
 ├── docs/                      # Tài liệu kỹ thuật chuyên sâu và hướng dẫn chi tiết
-├── migrations/                # Các tập lệnh SQL khởi tạo và chuyển đổi schema
+│   └── AI_WORKER.md            # Cài đặt và vận hành AI reply worker
+├── migrations/                # SQL migrations cho Lens; migrations/ai/ dành cho lens_ai
 ├── scripts/                   # Scripts quản trị: seed dữ liệu, cấu hình Keycloak, migration runner
 └── test/                      # Kiểm thử hợp đồng OpenAPI, kiểm thử tích hợp, kiểm thử ranh giới domain
 ```
@@ -214,8 +216,9 @@ _(Tùy chọn: Nếu muốn chạy Core API sau Kong DB-less cục bộ, sử d�
 ### 5. Áp dụng Database Migration & Seed dữ liệu
 
 ```bash
-# Apply the latest database schema to PostgreSQL.
+# Apply the primary Lens database schema and the dedicated AI database schema.
 pnpm db:migrate
+pnpm db:migrate:ai
 
 # Load the reviewed local fixture (1 admin, 20 photographers, 20 customers, 140 bookings).
 pnpm db:seed
