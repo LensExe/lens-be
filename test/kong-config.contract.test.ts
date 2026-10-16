@@ -54,5 +54,5 @@ test('Kong exposes Chat under the canonical public prefix', () => {
   const config = readFileSync(configPath, 'utf8');
   assert.match(config, /name: chat-api/);
   assert.match(config, /name: chat-api-v1[\s\S]*?\/api\/v1\/chat/);
-  assert.match(config, /url: http:\/\/localhost:8080/);
+  assert.match(config, /url: http:\/\/host\.docker\.internal:3002/);
 });
