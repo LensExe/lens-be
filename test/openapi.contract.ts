@@ -50,7 +50,7 @@ void test('every registered HTTP endpoint has a complete Swagger contract', asyn
     const contract = JSON.parse(
       readFileSync('docs/api-tracker.json', 'utf8'),
     ).filter(
-      (row: { method: string; description?: string }) =>
+      (row: { id: string; method: string; description?: string }) =>
         ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(row.method) &&
         !row.description?.startsWith('Tạm vô hiệu hoá:') &&
         (isAiApiEnabled() || !row.id.startsWith('PHO-AI-')),
