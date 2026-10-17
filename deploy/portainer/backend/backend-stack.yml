@@ -8,9 +8,25 @@ services:
     pull_policy: '${BACKEND_PULL_POLICY:-always}'
     environment:
       API_GATEWAY_ENABLED: '${API_GATEWAY_ENABLED:-true}'
+      API_PUBLIC_URL: '${API_PUBLIC_URL:-}'
+      AI_API_ENABLED: '${AI_API_ENABLED:-false}'
+      OLLAMA_BASE_URL: '${OLLAMA_BASE_URL:-http://ollama:11434}'
+      AI_EMBEDDING_MODEL: '${AI_EMBEDDING_MODEL:-qwen3-embedding:0.6b}'
+      AI_MODEL_TIMEOUT_MS: '${AI_MODEL_TIMEOUT_MS:-120000}'
+      # AI uses a separate database (lens_ai) on the primary PostgreSQL server
+      # by default. Override AI_DATABASE_URL or AI_DB_* for another server.
+      AI_DATABASE_URL: '${AI_DATABASE_URL:-}'
+      AI_DB_HOST: '${AI_DB_HOST:-${DB_HOST:-}}'
+      AI_DB_PORT: '${AI_DB_PORT:-${DB_PORT:-5432}}'
+      AI_DB_USERNAME: '${AI_DB_USERNAME:-${DB_USERNAME:-}}'
+      AI_DB_PASSWORD: '${AI_DB_PASSWORD:-${DB_PASSWORD:-}}'
+      AI_DB_NAME: '${AI_DB_NAME:-lens_ai}'
+      AI_DB_LOGGING: '${AI_DB_LOGGING:-false}'
+      AI_DB_POOL_MAX: '${AI_DB_POOL_MAX:-10}'
       COOKIE_DOMAIN: '${COOKIE_DOMAIN:-}'
       COOKIE_SECRET: '${COOKIE_SECRET:-}'
       CORS_ORIGINS: '${CORS_ORIGINS:-}'
+      # Primary application database. Portainer supplies these values.
       DB_HOST: '${DB_HOST:-}'
       DB_LOGGING: '${DB_LOGGING:-false}'
       DB_NAME: '${DB_NAME:-}'
@@ -51,6 +67,7 @@ services:
       PAYOS_RETURN_URL: '${PAYOS_RETURN_URL:-}'
       PAYOS_STANDALONE_TEST_ENABLED: '${PAYOS_STANDALONE_TEST_ENABLED:-false}'
       PAYMENT_PROVIDER: '${PAYMENT_PROVIDER:-}'
+      PAYOUT_DESTINATION_ENCRYPTION_KEY: '${PAYOUT_DESTINATION_ENCRYPTION_KEY:-}'
       PORT: '${PORT:-3000}'
       BULLMQ_REDIS_DB: '${BULLMQ_REDIS_DB:-2}'
       REDIS_HOST: '${REDIS_HOST:-lens-redis}'
