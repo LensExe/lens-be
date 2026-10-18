@@ -1755,3 +1755,85 @@ Các dòng còn lại (1, 3, 6–7, 10, 13, 16, 20, 30, 34, 37–38, 41, 43–46
 | Một file trong `docs/`, `test/`, `deploy/`   | Không layer nào đổi nội dung                         | Không được `COPY`; nhưng CI vẫn chạy đủ (xem 21.4). |
 
 ---
+
+## Phụ lục D. Bảng tra cứu lỗi nhanh
+
+Bảng này gom lỗi theo **job/step** để tra nhanh khi nhìn log. Mục [16.4](#164-lỗi-hay-gặp) có thêm nguyên nhân chi tiết.
+
+| Job / step                         | Thông báo / triệu chứng điển hình              | Nguyên nhân khả dĩ                                         | Cách sửa                                                                                              |
+| ---------------------------------- | ---------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `quality` / Setup pnpm             | Không tải được pnpm                            | Mạng runner hoặc phiên bản không tồn tại                   | Re-run; kiểm tra `version` ở [ci-cd.yml:27](../.github/workflows/ci-cd.yml).                          |
+| `quality` / Setup Node.js          | Lỗi liên quan cache pnpm                       | `pnpm` chưa có trong PATH khi `setup-node` chạy            | Giữ step Setup pnpm đứng trước Setup Node.js.                                                         |
+| `quality` / Install dependencies   | Lockfile không khớp `package.json`             | Quên commit `pnpm-lock.yaml`                               | `pnpm install` ở local, commit lockfile.                                                              |
+| `quality` / Install dependencies   | Lỗi build script của package                   | Package cần build script nhưng chưa được cho phép          | Xem `allowBuilds` trong [pnpm-workspace.yaml](../pnpm-workspace.yaml).                                |
+| `quality` / Typecheck              | `error TSxxxx` trong `test/*.ts`               | Test dùng kiểu cũ sau khi đổi domain                       | Sửa test; chạy `pnpm typecheck` ở local.                                                              |
+| `quality` / Unit tests             | `not ok ...` từ `node --test`                  | Test đỏ                                                    | `pnpm test:unit` ở local, đọc assertion fail.                                                         |
+| `quality` / Unit tests             | `Cannot find module '@shared/...'`             | Alias không resolve                                        | Kiểm tra `paths` trong [tsconfig.json](../tsconfig.json) và `-r tsconfig-paths/register`.             |
+| `validate-images` / Build          | `COPY failed: ... not found`                   | File bị `.dockerignore` chặn hoặc đổi tên                  | Đối chiếu [.dockerignore](../.dockerignore) và các dòng `COPY`.                                       |
+| `validate-images` / Build          | `pnpm build` lỗi import trong Docker, local OK | Code ngoài `apps/<app>` và `src/`                          | Chuyển code vào `src/` hoặc thêm `COPY`.                                                              |
+| `validate-images` / Build          | Một job con fail, job con kia "cancelled"      | `fail-fast` mặc định                                       | Sửa job fail; job bị cancel không có lỗi riêng.                                                       |
+| `publish` / Login GHCR             | `denied` / `unauthorized`                      | Quyền package hoặc `permissions` bị đổi                    | Kiểm tra quyền package trên GHCR và [ci-cd.yml:12–14](../.github/workflows/ci-cd.yml).                |
+| `publish` / Build and push         | `denied: permission_denied: write_package`     | Package không cho repo này ghi                             | Cấp quyền ghi cho repo trong cài đặt package trên GitHub.                                             |
+| `publish` / Build and push         | `repository name must be lowercase`            | Owner không được đổi chữ thường                            | Kiểm tra step Normalize image owner ([ci-cd.yml:85–86](../.github/workflows/ci-cd.yml)).              |
+| `publish` / (cả job)               | Treo ở "Waiting for review"                    | Environment `production` yêu cầu duyệt (nếu được cấu hình) | Người có quyền approve.                                                                               |
+| `deploy` / Trigger webhook         | `curl: (22) ... 404` hoặc 4xx                  | Webhook URL sai/hết hiệu lực                               | Tạo lại webhook trên Portainer, cập nhật secret.                                                      |
+| `deploy` / Trigger webhook         | `curl: (6)` / `(7)` / timeout                  | Không resolve DNS / không kết nối được Portainer           | Kiểm tra domain, Caddy, Portainer trên VPS.                                                           |
+| `deploy` / Skip ... not configured | Job xanh nhưng server không đổi                | Secret webhook chưa tạo                                    | Tạo secret theo [README.md:47–50](../deploy/portainer/README.md).                                     |
+| Sau deploy (Portainer)             | Container `unhealthy`                          | `/docs` không trả 2xx, app crash khi start, thiếu env      | Xem log container trong Portainer; kiểm tra env của stack.                                            |
+| Sau deploy (Portainer)             | Lỗi SQL "column does not exist"                | Có migration mới chưa chạy                                 | Chạy migration theo quy trình vận hành ([mục 15](#15-những-gì-ci-không-làm)).                         |
+| Sau deploy (AI worker)             | Stack không deploy, báo thiếu biến             | Thiếu biến bắt buộc `${VAR:?...}`                          | Set `KAFKA_PASSWORD`, `REDIS_PASSWORD`, `POSTGRES_PASSWORD`, `CHAT_SERVICE_AI_TOKEN` trong Portainer. |
+
+Mã lỗi `curl` (22, 6, 7) là mã chuẩn của curl: 22 = HTTP trả lỗi khi dùng `--fail`/`--fail-with-body`, 6 = không resolve được host, 7 = không kết nối được.
+
+---
+
+## Phụ lục E. Glossary
+
+| Thuật ngữ                           | Nghĩa trong ngữ cảnh tài liệu này                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| CI (Continuous Integration)         | Tự động kiểm tra (typecheck, test, build) mỗi khi có thay đổi. Ở đây: job `quality`, `validate-images`. |
+| CD (Continuous Delivery/Deployment) | Tự động đưa bản đã kiểm tra lên môi trường chạy thật. Ở đây: `publish` + `deploy`.                      |
+| Workflow                            | File YAML định nghĩa pipeline, nằm ở `.github/workflows/`.                                              |
+| Run                                 | Một lần thực thi workflow.                                                                              |
+| Job                                 | Nhóm step chạy trên một runner.                                                                         |
+| Step                                | Một bước trong job: một lệnh `run` hoặc một action `uses`.                                              |
+| Action                              | Đơn vị tái sử dụng, gọi bằng `uses: owner/repo@ref`.                                                    |
+| Runner                              | Máy chạy job. `ubuntu-latest` là máy ảo do GitHub cung cấp.                                             |
+| Event / trigger                     | Sự kiện kích hoạt workflow (`push`, `pull_request`, `workflow_dispatch`).                               |
+| Expression `${{ }}`                 | Cú pháp để GitHub tính giá trị (context, so sánh) trước khi chạy.                                       |
+| Context                             | Đối tượng dữ liệu đọc được trong expression: `github`, `env`, `secrets`, `matrix`, `steps`.             |
+| Matrix                              | Cơ chế nhân một job thành nhiều job con theo bộ biến.                                                   |
+| `needs`                             | Khai báo job phụ thuộc, tạo thứ tự chạy.                                                                |
+| Secret                              | Giá trị nhạy cảm lưu trên GitHub, được che trong log.                                                   |
+| Environment (GitHub)                | Nhóm secret + protection rule, gắn vào job bằng `environment:`. Ở đây là `production`.                  |
+| `GITHUB_TOKEN`                      | Token tự động cho mỗi job, quyền do `permissions` quyết định.                                           |
+| `GITHUB_ENV`                        | File đặc biệt; ghi `KEY=VALUE` vào đó để truyền biến cho step sau.                                      |
+| Concurrency                         | Key giới hạn số run đồng thời trong một nhóm. Workflow này không dùng.                                  |
+| Image                               | Gói chứa filesystem + metadata để chạy container.                                                       |
+| Container                           | Một tiến trình chạy từ image.                                                                           |
+| Layer                               | Một lớp của image, sinh ra từ mỗi instruction như `RUN`, `COPY`. Được cache theo hash input.            |
+| Tag                                 | Nhãn trỏ tới một image trong repository (`latest`, `sha-...`, `master`).                                |
+| Registry                            | Kho chứa image. Ở đây là GHCR (`ghcr.io`).                                                              |
+| GHCR                                | GitHub Container Registry.                                                                              |
+| Multi-stage build                   | Dockerfile có nhiều `FROM`; stage cuối là image xuất ra, stage trước chỉ để build.                      |
+| Build context                       | Tập file gửi cho Docker khi build (`context: .`), đã lọc qua `.dockerignore`.                           |
+| `.dockerignore`                     | Danh sách file không đưa vào build context.                                                             |
+| BuildKit                            | Engine build của Docker, hỗ trợ cache nâng cao.                                                         |
+| Buildx                              | CLI để dùng BuildKit.                                                                                   |
+| Cache `gha`                         | Backend cache của BuildKit lưu vào GitHub Actions cache.                                                |
+| `mode=max`                          | Lưu cache cho layer của mọi stage, không chỉ stage cuối.                                                |
+| Scope (cache)                       | Tên tách vùng cache để các image không ghi đè cache của nhau.                                           |
+| OCI label                           | Metadata chuẩn gắn vào image (nguồn, revision, thời điểm).                                              |
+| Healthcheck                         | Lệnh Docker chạy định kỳ để biết container còn khỏe.                                                    |
+| Portainer                           | Giao diện quản lý Docker trên VPS; deploy stack từ Git.                                                 |
+| Stack                               | Một nhóm service khai báo trong một file Compose, quản lý bằng Portainer.                               |
+| Webhook (Portainer)                 | URL mà gọi POST vào sẽ khiến Portainer redeploy stack.                                                  |
+| GitOps updates                      | Tính năng Portainer: stack lấy compose file từ Git và cập nhật khi có webhook hoặc theo lịch.           |
+| `pull_policy: always`               | Compose luôn pull image từ registry khi deploy, để tag cố định như `latest` vẫn nhận bản mới.           |
+| Rollback                            | Quay về bản image cũ bằng tag `sha-<commit>`.                                                           |
+| Migration                           | Script SQL đổi schema DB. Repo dùng `pnpm db:migrate` và `pnpm db:migrate:ai`, chạy tay.                |
+| Husky                               | Công cụ cài git hook vào repo.                                                                          |
+| lint-staged                         | Chạy lệnh (prettier, eslint) chỉ trên file đang staged.                                                 |
+| commitlint                          | Kiểm tra commit message theo chuẩn Conventional Commits.                                                |
+| `--frozen-lockfile`                 | Cờ của pnpm: lockfile phải khớp `package.json`, không tự cập nhật.                                      |
+| Least privilege                     | Nguyên tắc chỉ cấp đúng quyền cần thiết.                                                                |
