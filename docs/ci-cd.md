@@ -598,3 +598,195 @@ Hai webhook gọi **tuần tự**: backend trước, AI worker sau. Nếu webhoo
 Sau `curl` không có step nào chờ container healthy hay gọi thử API. Job xanh chỉ có nghĩa là "Portainer đã nhận request", không có nghĩa là "bản mới đang chạy ổn".
 
 ---
+
+## 9. Hai Dockerfile
+
+Cả hai đều là **multi-stage build**: stage `build` có đủ devDependencies để compile TypeScript, stage `runtime` chỉ chứa production dependencies và code đã build. Image cuối nhỏ hơn và không chứa source `.ts`.
+
+### 9.1 [Dockerfile](../Dockerfile) (lens-backend, app `core`)
+
+**Stage `build`** (dòng 3–28):
+
+| Dòng  | Lệnh                                                                              | Vì sao                                                                                                                                                  |
+| ----- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | `# syntax=docker/dockerfile:1.7`                                                  | Chọn phiên bản cú pháp Dockerfile cho BuildKit.                                                                                                         |
+| 3     | `FROM node:22-bookworm-slim AS build`                                             | Node 22 trên Debian Bookworm bản slim.                                                                                                                  |
+| 6–7   | `ENV PNPM_HOME`, `ENV PATH`                                                       | Đưa thư mục pnpm vào PATH.                                                                                                                              |
+| 13    | `corepack enable && corepack prepare pnpm@11.1.2 --activate`                      | Cài pnpm qua corepack, **cùng** phiên bản với CI ([ci-cd.yml:27](../.github/workflows/ci-cd.yml)).                                                      |
+| 16–18 | `COPY package.json pnpm-lock.yaml ... tsconfig*.json`, `apps/*/tsconfig.app.json` | Chỉ copy file khai báo dependency trước. Comment ở dòng 15 nói rõ mục đích: giữ layer install cache được.                                               |
+| 21    | `pnpm install --frozen-lockfile`                                                  | Cài đủ dependencies (kể cả dev).                                                                                                                        |
+| 24–25 | `COPY apps/core apps/core`, `COPY src src`                                        | Giờ mới copy source. Sửa code mà không đổi lockfile → layer dòng 21 vẫn dùng cache.                                                                     |
+| 28    | `pnpm build`                                                                      | → `nest build core` ([package.json:9](../package.json)), output vào `dist/apps/core` ([apps/core/tsconfig.app.json:5](../apps/core/tsconfig.app.json)). |
+
+Vì sao tách COPY làm 2 lần (dòng 16–18 rồi 24–25)? Docker cache từng layer theo nội dung input. Nếu copy hết source trước rồi mới `pnpm install`, thì mỗi lần sửa một file `.ts` sẽ làm mất cache của bước install (bước chậm nhất). Tách ra thì chỉ khi `package.json`/lockfile đổi mới phải install lại.
+
+**Stage `runtime`** (dòng 30–68):
+
+| Dòng  | Lệnh                                                                   | Vì sao                                                                                                                                                                                          |
+| ----- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 30    | `FROM node:22-bookworm-slim AS runtime`                                | Bắt đầu lại từ image sạch. Không mang theo gì từ stage `build` trừ khi `COPY --from=build`.                                                                                                     |
+| 33–34 | `ENV NODE_ENV=production`, `ENV PORT=3000`                             | Giá trị mặc định, stack Portainer có thể ghi đè ([backend-stack.yml:62](../deploy/portainer/backend/backend-stack.yml), [backend-stack.yml:71](../deploy/portainer/backend/backend-stack.yml)). |
+| 40–41 | `groupadd`/`useradd` uid/gid 1001 tên `lens`                           | Tạo user không phải root.                                                                                                                                                                       |
+| 44    | `COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./`              | Chỉ cần file khai báo để cài production deps.                                                                                                                                                   |
+| 47–50 | `pnpm install --prod --frozen-lockfile --ignore-scripts` rồi xóa cache | Chỉ cài `dependencies`, bỏ `devDependencies`. `--ignore-scripts` để không chạy lifecycle script (vd `prepare: husky`, mà husky là devDependency nên không có). Xóa cache cho image nhỏ.         |
+| 53    | `COPY --from=build --chown=lens:lens /app/dist ./dist`                 | Lấy code đã build từ stage trước, đổi owner thành `lens`.                                                                                                                                       |
+| 56    | `chown -R lens:lens /app/node_modules`                                 | Cho user `lens` sở hữu `node_modules`.                                                                                                                                                          |
+| 59    | `USER lens`                                                            | Từ đây process chạy bằng user `lens`, không phải root.                                                                                                                                          |
+| 61    | `EXPOSE 3000`                                                          | Chỉ là metadata, không mở port ra host. Stack backend cũng không publish port (README dòng 41).                                                                                                 |
+| 64–65 | `HEALTHCHECK ... fetch('http://127.0.0.1:' + PORT + '/docs')`          | Docker gọi `/docs` mỗi 30s; fail 3 lần liên tiếp thì container bị đánh dấu `unhealthy`. Dùng `fetch` có sẵn của Node 22 nên không cần cài `curl`.                                               |
+| 68    | `CMD ["node", "dist/apps/core/apps/core/src/main.js"]`                 | Lệnh chạy app. Đường dẫn lặp `apps/core` hai lần vì `outDir` là `dist/apps/core` và cấu trúc thư mục nguồn được giữ nguyên bên dưới.                                                            |
+
+Về healthcheck `/docs`: Swagger được mount bằng `SwaggerModule.setup('docs', ...)` ([src/features/api/setup.ts:58](../src/features/api/setup.ts)). App có global prefix `api/v1` ([setup.ts:13](../src/features/api/setup.ts)), nhưng theo tài liệu `@nestjs/swagger`, `setup()` mặc định **không** áp global prefix, nên đường dẫn vẫn là `/docs`. Comment ở [Dockerfile:63](../Dockerfile) và [deploy/portainer/README.md:213–215](../deploy/portainer/README.md) cũng nói `/docs` không cần auth.
+
+### 9.2 [Dockerfile.ai-worker](../Dockerfile.ai-worker) (lens-ai-worker)
+
+Cấu trúc giống hệt, khác ở:
+
+| Điểm khác                 | Dockerfile (core)                      | Dockerfile.ai-worker                                                                                                                                                  |
+| ------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| tsconfig app được copy    | `apps/core`, `apps/cli` (dòng 17–18)   | `apps/ai-worker` (dòng 17)                                                                                                                                            |
+| Source được copy          | `apps/core`, `src` (dòng 24–25)        | `apps/ai-worker`, `src` (dòng 23, 25)                                                                                                                                 |
+| Lệnh build                | `pnpm build` (dòng 28)                 | `pnpm build:ai-worker` → `nest build ai-worker` (dòng 28, [package.json:11](../package.json))                                                                         |
+| Copy sang runtime         | cả `/app/dist` (dòng 53)               | chỉ `/app/dist/apps/ai-worker` (dòng 49)                                                                                                                              |
+| `ENV PORT`                | `3000` (dòng 34)                       | không đặt                                                                                                                                                             |
+| `EXPOSE`                  | `3000` (dòng 61)                       | `3001` (dòng 57)                                                                                                                                                      |
+| `HEALTHCHECK` trong image | Có, `/docs` (dòng 64–65)               | **Không**. Healthcheck nằm trong stack Portainer, gọi `http://127.0.0.1:3001/health` ([ai-worker-stack.yml:48–57](../deploy/portainer/ai-worker/ai-worker-stack.yml)) |
+| `CMD`                     | `dist/apps/core/apps/core/src/main.js` | `dist/apps/ai-worker/apps/ai-worker/src/main.js` (dòng 60)                                                                                                            |
+
+App `ai-worker` compile cả `src/modules/ai-assistant/**` ngoài `apps/ai-worker/src` ([apps/ai-worker/tsconfig.app.json:7](../apps/ai-worker/tsconfig.app.json)).
+
+### 9.3 Những gì **không** có trong image
+
+Dựa trên các lệnh `COPY` ở trên, image chỉ chứa `package.json`, lockfile, `pnpm-workspace.yaml`, `node_modules` (prod) và `dist/`. Tức là image **không có**:
+
+- `migrations/` (SQL migration),
+- `scripts/` (gồm `migrate-lens.cjs`, `migrate-ai.cjs`, `seed.mjs`),
+- `test/`, `docs/`, `deploy/`.
+
+Hệ quả: không thể vào container rồi chạy `pnpm db:migrate`. Xem [mục 15](#15-những-gì-ci-không-làm).
+
+---
+
+## 10. `.dockerignore`
+
+[.dockerignore](../.dockerignore) quyết định file nào **không** được gửi vào build context (`context: .`):
+
+| Dòng | Pattern                           | Ý nghĩa                                            |
+| ---- | --------------------------------- | -------------------------------------------------- |
+| 1    | `node_modules`                    | Không gửi `node_modules` của runner; image tự cài. |
+| 2    | `dist`                            | Không gửi build cũ.                                |
+| 3    | `.git`                            | Không gửi lịch sử git.                             |
+| 4    | `.turbo`                          | Cache Turbo.                                       |
+| 5    | `coverage`                        | Báo cáo coverage.                                  |
+| 6    | `*.log`                           | File log.                                          |
+| 7–9  | `.env`, `.env.*`, `!.env.example` | Chặn mọi file env (secret), trừ `.env.example`.    |
+| 10   | `bruno`                           | Collection API client.                             |
+| 11   | `ngrok`                           |                                                    |
+| 12   | `scripts/assets`                  |                                                    |
+| 13   | `test`                            | Thư mục test.                                      |
+
+Hai lớp bảo vệ chồng nhau: Dockerfile chỉ `COPY` đúng vài thư mục, và `.dockerignore` chặn thêm file nhạy cảm. Ngay cả khi ai đó lỡ viết `COPY . .`, file `.env` vẫn không lọt vào image.
+
+---
+
+## 11. Image tag strategy
+
+Mỗi lần `publish` chạy, **mỗi** image nhận 3 tag ([ci-cd.yml:103–106](../.github/workflows/ci-cd.yml), [ci-cd.yml:124–127](../.github/workflows/ci-cd.yml)):
+
+| Rule                                   | Tag sinh ra (vd push `master`) | Có thay đổi theo thời gian?                  |
+| -------------------------------------- | ------------------------------ | -------------------------------------------- |
+| `type=raw,value=latest`                | `latest`                       | Có. Luôn trỏ tới bản push gần nhất.          |
+| `type=raw,value=sha-${{ github.sha }}` | `sha-<40 ký tự SHA đầy đủ>`    | Không. Mỗi commit một tag, dùng để rollback. |
+| `type=ref,event=branch`                | `master` (tên branch)          | Có. Trỏ tới bản mới nhất của branch đó.      |
+
+Ghi chú:
+
+- `github.sha` là SHA **đầy đủ** 40 ký tự, nên tag là `sha-` + 40 ký tự, không phải SHA rút gọn 7 ký tự. (Nếu dùng `type=sha` có sẵn của metadata-action thì mặc định sẽ là SHA rút gọn, theo tài liệu action. Workflow này không dùng cách đó.)
+- `type=ref,event=branch` chỉ sinh tag khi ref là một branch. Với `workflow_dispatch` chạy trên branch `feature-x`, tag sẽ là `feature-x` (theo tài liệu metadata-action, rule này áp dụng khi `GITHUB_REF` là `refs/heads/*`).
+- Tên đầy đủ sau khi push: `ghcr.io/lensexe/lens-backend:<tag>` và `ghcr.io/lensexe/lens-ai-worker:<tag>`.
+
+Server dùng tag nào? Stack Portainer đọc `IMAGE_TAG`, mặc định `latest` ([backend-stack.yml:7](../deploy/portainer/backend/backend-stack.yml), [ai-worker-stack.yml:3](../deploy/portainer/ai-worker/ai-worker-stack.yml)). README khuyến nghị `IMAGE_TAG=latest` ([deploy/portainer/README.md:23](../deploy/portainer/README.md)) và giữ tag `sha-<commit>` để rollback ([README.md:52–56](../deploy/portainer/README.md)).
+
+---
+
+## 12. Cache
+
+Pipeline có **hai loại cache** khác nhau hoàn toàn:
+
+### 12.1 Cache pnpm store (job `quality`)
+
+- Bật bằng `cache: pnpm` ([ci-cd.yml:33](../.github/workflows/ci-cd.yml)).
+- Lưu package đã tải để `pnpm install` trên runner nhanh hơn.
+- Key dựa trên `pnpm-lock.yaml` (theo tài liệu `setup-node`).
+
+### 12.2 Cache Docker layer (`type=gha`)
+
+- Bật bằng `cache-from` / `cache-to` trong `build-push-action`.
+- Lưu **layer** của Docker build vào GitHub Actions cache. Lần sau build, layer nào input không đổi (vd layer `pnpm install` khi lockfile không đổi) được lấy lại thay vì chạy lại.
+- `mode=max`: lưu cả layer của stage `build`. Đây là chỗ đáng cache nhất, vì `pnpm install` đầy đủ và `nest build` nằm ở stage này. Với `mode=min` (mặc định), chỉ layer của image cuối được lưu.
+- `scope=...`: tách cache theo tên, để cache backend và AI worker không ghi đè nhau.
+
+Bảng scope hiện tại:
+
+| Job               | Backend scope  | AI worker scope  | Dòng             |
+| ----------------- | -------------- | ---------------- | ---------------- |
+| `validate-images` | `lens-backend` | `lens-ai-worker` | 72–73            |
+| `publish`         | `backend`      | `ai-worker`      | 116–117, 137–138 |
+
+Vì tên scope khác nhau, cache do PR tạo ra **không** được job `publish` dùng lại và ngược lại. Xem [mục 21](#21-điểm-cần-lưu-ý).
+
+Một quy tắc của GitHub Actions cache (theo tài liệu GitHub): run trên nhánh PR đọc được cache của base branch (`master`), nhưng cache do PR ghi ra chỉ dùng được trong phạm vi PR đó. Dung lượng cache có giới hạn mỗi repo; cache cũ bị xóa dần khi vượt hạn mức.
+
+---
+
+## 13. Phía server: Portainer dùng image thế nào
+
+CI kết thúc ở bước gọi webhook. Phần còn lại diễn ra trên VPS, do Portainer điều khiển, theo [deploy/portainer/README.md](../deploy/portainer/README.md).
+
+### 13.1 Stack backend
+
+- Portainer tạo stack từ **Git repository** `LensExe/lens-be`, branch `master`, compose path `deploy/portainer/backend/backend-stack.yml` ([README.md:8–11](../deploy/portainer/README.md)).
+- Portainer cần đăng ký GHCR với token có quyền `read:packages` để pull image ([README.md:12–13](../deploy/portainer/README.md)).
+- Biến triển khai ([README.md:20–25](../deploy/portainer/README.md)):
+
+  ```dotenv
+  IMAGE_REGISTRY=ghcr.io
+  IMAGE_OWNER=lensexe
+  IMAGE_TAG=latest
+  BACKEND_PULL_POLICY=always
+  ```
+
+- Compose ghép tên image ([backend-stack.yml:7](../deploy/portainer/backend/backend-stack.yml)):
+
+  ```yaml
+  image: '${BACKEND_IMAGE:-${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_OWNER:-lensexe}/lens-backend:${IMAGE_TAG:-latest}}'
+  pull_policy: '${BACKEND_PULL_POLICY:-always}'
+  ```
+
+  Cú pháp `${A:-B}` nghĩa là "dùng A, nếu A rỗng thì dùng B". Có `BACKEND_IMAGE` thì dùng thẳng nó (chế độ image local import từ `.tar`, [README.md:29–39](../deploy/portainer/README.md)); không có thì ghép `ghcr.io/lensexe/lens-backend:latest`.
+
+- `pull_policy: always` ([backend-stack.yml:8](../deploy/portainer/backend/backend-stack.yml)): mỗi lần deploy, Compose luôn hỏi registry xem tag có bản mới không. Đây là lý do tag `latest` dùng được: cùng một tên tag nhưng nội dung đã đổi, và `always` ép pull lại.
+- Container có `restart: unless-stopped` ([backend-stack.yml:98](../deploy/portainer/backend/backend-stack.yml)), chỉ nối vào network external `lens-network` ([backend-stack.yml:96–103](../deploy/portainer/backend/backend-stack.yml)) và không publish port nào ra host ([README.md:41–45](../deploy/portainer/README.md)).
+- Secret runtime (`DB_*`, `JWT_*`, `PAYOS_*`...) nằm trong environment của stack trên Portainer, được map vào container qua khối `environment` ([backend-stack.yml:9–95](../deploy/portainer/backend/backend-stack.yml)). Chúng **không** nằm trong image và **không** nằm trong GitHub Actions ([README.md:58–61](../deploy/portainer/README.md)).
+
+### 13.2 Webhook
+
+[README.md:47–50](../deploy/portainer/README.md): sau khi stack chạy healthy, vào stack settings, bật **GitOps updates**, chọn **Webhook**, bật **Re-pull image**, rồi lưu URL webhook vào secret GitHub `PORTAINER_WEBHOOK_URL`.
+
+Theo [README.md:52–56](../deploy/portainer/README.md), khi webhook được gọi, Portainer:
+
+1. checkout commit mới nhất của `master` (để lấy compose file mới, nếu có đổi),
+2. pull lại image `latest`,
+3. redeploy service.
+
+Vì stack đọc compose file từ Git, sửa `deploy/portainer/backend/backend-stack.yml` rồi merge `master` cũng có hiệu lực ở lần webhook kế tiếp.
+
+### 13.3 Stack AI worker
+
+- Compose: [deploy/portainer/ai-worker/ai-worker-stack.yml](../deploy/portainer/ai-worker/ai-worker-stack.yml).
+- Image ghép tương tự với biến `AI_WORKER_IMAGE` và `AI_WORKER_PULL_POLICY` (mặc định `always`) ([ai-worker-stack.yml:3–4](../deploy/portainer/ai-worker/ai-worker-stack.yml)).
+- Một số biến bắt buộc, thiếu là Compose báo lỗi ngay khi deploy, nhờ cú pháp `${VAR:?message}`: `KAFKA_PASSWORD` (dòng 17), `REDIS_PASSWORD` (dòng 21), `POSTGRES_PASSWORD` (dòng 29, 34), `CHAT_SERVICE_AI_TOKEN` (dòng 37).
+- Webhook riêng: secret `PORTAINER_AI_WORKER_WEBHOOK_URL` ([README.md:79–81](../deploy/portainer/README.md)).
+- Thứ tự triển khai theo README: Ollama trước, chờ tải model xong, rồi mới tới worker ([README.md:73–75](../deploy/portainer/README.md)).
+
+---
