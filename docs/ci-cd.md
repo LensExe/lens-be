@@ -790,3 +790,218 @@ Vì stack đọc compose file từ Git, sửa `deploy/portainer/backend/backend-
 - Thứ tự triển khai theo README: Ollama trước, chờ tải model xong, rồi mới tới worker ([README.md:73–75](../deploy/portainer/README.md)).
 
 ---
+
+## 14. Secret, variable và env được dùng
+
+Chỉ liệt kê **tên**. Không bao giờ ghi giá trị secret vào tài liệu, issue hay chat.
+
+### 14.1 Trong workflow
+
+| Tên                                               | Loại                                | Ai tạo                       | Dùng ở                                                         | Thiếu thì sao                              |
+| ------------------------------------------------- | ----------------------------------- | ---------------------------- | -------------------------------------------------------------- | ------------------------------------------ |
+| `GITHUB_TOKEN`                                    | Secret tự động                      | GitHub, mỗi run              | Login GHCR ([ci-cd.yml:96](../.github/workflows/ci-cd.yml))    | Luôn có.                                   |
+| `PORTAINER_WEBHOOK_URL`                           | Secret (repo hoặc env `production`) | Người quản trị               | Job `deploy` ([ci-cd.yml:147](../.github/workflows/ci-cd.yml)) | Step skip, chỉ in thông báo, job vẫn xanh. |
+| `PORTAINER_AI_WORKER_WEBHOOK_URL`                 | Secret (repo hoặc env `production`) | Người quản trị               | Job `deploy` ([ci-cd.yml:148](../.github/workflows/ci-cd.yml)) | Như trên.                                  |
+| `IMAGE_OWNER`                                     | Env do step tự sinh                 | Step "Normalize image owner" | Tên image ([ci-cd.yml:86](../.github/workflows/ci-cd.yml))     | —                                          |
+| `GITHUB_REPOSITORY_OWNER`                         | Env mặc định của runner             | GitHub                       | Tính `IMAGE_OWNER`                                             | —                                          |
+| `github.actor`, `github.sha`, `github.event_name` | Context của GitHub                  | GitHub                       | Login, tag, điều kiện job                                      | —                                          |
+
+Workflow **không** dùng `vars.*` (GitHub Variables) nào.
+
+README ghi webhook là "repository/environment secret" ([README.md:49–50](../deploy/portainer/README.md)). Vì hai job `publish`/`deploy` đều gắn `environment: production`, secret đặt ở cấp repo hay ở environment `production` đều đọc được.
+
+### 14.2 Trên Portainer (không phải GitHub)
+
+Biến triển khai: `IMAGE_REGISTRY`, `IMAGE_OWNER`, `IMAGE_TAG`, `BACKEND_IMAGE`, `BACKEND_PULL_POLICY`, `AI_WORKER_IMAGE`, `AI_WORKER_PULL_POLICY`. Biến runtime của app: xem khối `environment` trong hai file stack và [core-env-audit.md](./core-env-audit.md).
+
+---
+
+## 15. Những gì CI KHÔNG làm
+
+Đã đối chiếu toàn bộ [ci-cd.yml](../.github/workflows/ci-cd.yml) (168 dòng). Các việc sau **không** có trong pipeline:
+
+| Việc                                        | Bằng chứng / hệ quả                                                                                                                                                                                                                                                   |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chạy migration DB (`pnpm db:migrate`)       | Không step nào gọi. [scripts/migrate-lens.cjs:1](../scripts/migrate-lens.cjs) ghi rõ "No automatic migration during application startup". `CMD` của image chỉ chạy `node .../main.js` ([Dockerfile:68](../Dockerfile)). Image không chứa `migrations/` và `scripts/`. |
+| Chạy migration AI (`pnpm db:migrate:ai`)    | Không step nào gọi. README yêu cầu chạy tay trước khi bật `AI_API_ENABLED=true` ([README.md:67–69](../deploy/portainer/README.md)).                                                                                                                                   |
+| Tự đồng bộ schema                           | Stack đặt `DB_SYNCHRONIZE` mặc định `false` ([backend-stack.yml:35](../deploy/portainer/backend/backend-stack.yml)); DB AI cứng `synchronize: false` ([src/shared/database/ai-database.module.ts:64](../src/shared/database/ai-database.module.ts)).                  |
+| Seed dữ liệu (`db:seed`, `keycloak:seed`)   | Không step nào gọi.                                                                                                                                                                                                                                                   |
+| ESLint, Prettier                            | Không step nào gọi `pnpm lint` / `pnpm format`. Chỉ có ở hook local.                                                                                                                                                                                                  |
+| Contract test OpenAPI (`pnpm test:openapi`) | Không step nào gọi. AGENTS.md yêu cầu chạy khi đổi route/schema, nên phải chạy tay.                                                                                                                                                                                   |
+| Integration test (`pnpm test:integration`)  | Không step nào gọi; cần DB `lens_test` riêng.                                                                                                                                                                                                                         |
+| Build app `cli`                             | Không Dockerfile nào build `apps/cli`, không có image cho nó.                                                                                                                                                                                                         |
+| Build/push image Kong, Caddy, infra...      | Workflow chỉ build `lens-backend` và `lens-ai-worker`. Các stack khác dùng image công khai hoặc deploy tay.                                                                                                                                                           |
+| Redeploy stack Kong khi đổi cấu hình Kong   | Chỉ có 2 webhook: backend và AI worker.                                                                                                                                                                                                                               |
+| SSH vào VPS                                 | Không có step SSH; chỉ `curl` webhook.                                                                                                                                                                                                                                |
+| Kiểm tra health sau deploy / smoke test     | Không có step nào sau `curl`.                                                                                                                                                                                                                                         |
+| Quét bảo mật image / dependency             | Không có step scan.                                                                                                                                                                                                                                                   |
+| Tạo GitHub Release / tag git                | Không có.                                                                                                                                                                                                                                                             |
+
+### Vậy khi có migration mới thì sao?
+
+Migration phải được chạy **tay**, ngoài CI, từ một máy có source code và kết nối tới DB production. Script đọc kết nối DB từ biến môi trường hoặc file `.env` (`process.loadEnvFile?.()` ở [migrate-lens.cjs:7–11](../scripts/migrate-lens.cjs)). Thứ tự an toàn và ai được phép chạy trên production là quyết định vận hành, repo không quy định, nên hãy hỏi người phụ trách trước khi làm.
+
+Hệ quả cần nhớ: merge một PR vừa thêm migration vừa thêm code dùng cột mới → CI deploy code mới ngay, nhưng DB chưa có cột → lỗi runtime cho tới khi có người chạy migration.
+
+---
+
+## 16. Chạy lại và debug một run fail
+
+### 16.1 Xem run
+
+GitHub repo → tab **Actions** → chọn workflow **Lens Backend CI/CD** → chọn run. Mỗi job hiện dưới dạng một ô; bấm vào để xem log từng step.
+
+### 16.2 Chạy lại
+
+- **Re-run failed jobs**: chạy lại job fail và các job phụ thuộc nó, giữ nguyên job đã xanh.
+- **Re-run all jobs**: chạy lại toàn bộ.
+- **Run workflow** (nút trên trang workflow, nhờ `workflow_dispatch` ở [ci-cd.yml:10](../.github/workflows/ci-cd.yml)): tạo run mới. Chọn branch `master`. Chạy trên branch khác cũng sẽ push `latest` và gọi webhook production, xem [mục 21](#21-điểm-cần-lưu-ý).
+- Bật **Enable debug logging** khi re-run để có log chi tiết hơn (tính năng có sẵn của GitHub).
+
+### 16.3 Tái hiện ở máy local theo từng job
+
+| Job fail ở step           | Chạy ở local                                                     |
+| ------------------------- | ---------------------------------------------------------------- |
+| Install dependencies      | `pnpm install --frozen-lockfile`                                 |
+| Typecheck                 | `pnpm typecheck`                                                 |
+| Unit tests                | `pnpm test:unit`                                                 |
+| Build image backend       | `docker build -f Dockerfile -t lens-backend:local .`             |
+| Build image AI worker     | `docker build -f Dockerfile.ai-worker -t lens-ai-worker:local .` |
+| Trigger Portainer webhook | Không tái hiện ở local được; xem bảng lỗi bên dưới.              |
+
+Dùng Node 22 và pnpm 11.1.2 cho giống CI.
+
+### 16.4 Lỗi hay gặp
+
+| Triệu chứng                                                 | Nguyên nhân thường gặp                                                                                                                | Cách xử lý                                                                               |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `Install dependencies` báo lockfile không khớp              | Sửa `package.json` nhưng không commit `pnpm-lock.yaml` mới.                                                                           | `pnpm install` ở local rồi commit lockfile.                                              |
+| `Typecheck` fail nhưng `pnpm start:dev` vẫn chạy            | `tsc --noEmit` kiểm **cả** `test/` và mọi file `.ts`, còn `nest build core` chỉ kiểm `apps/core/src`.                                 | Chạy `pnpm typecheck` ở local trước khi push.                                            |
+| Build image fail ở `COPY ... not found`                     | Dockerfile tham chiếu file bị `.dockerignore` chặn hoặc đã bị đổi tên.                                                                | Đối chiếu [mục 10](#10-dockerignore).                                                    |
+| Build image fail ở `pnpm build` trong Docker nhưng local OK | Code import file nằm ngoài thư mục được `COPY` (chỉ `apps/<app>` và `src`).                                                           | Đặt code vào `src/` hoặc thêm `COPY` (xem [mục 18](#18-checklist-khi-đổi-dockerfile)).   |
+| `Login to GitHub Container Registry` / push bị `denied`     | Package trên GHCR không cấp quyền cho repo này, hoặc quyền `packages: write` bị gỡ.                                                   | Kiểm tra cài đặt package trên GHCR và [ci-cd.yml:12–14](../.github/workflows/ci-cd.yml). |
+| `Trigger Portainer webhook` fail kèm HTTP 4xx               | URL webhook sai/hết hạn (vd stack bị tạo lại).                                                                                        | Tạo lại webhook trong Portainer, cập nhật secret.                                        |
+| `Trigger Portainer webhook` fail kèm lỗi kết nối            | Portainer không truy cập được từ Internet.                                                                                            | Kiểm tra Portainer/Caddy trên VPS.                                                       |
+| Job `deploy` xanh nhưng server vẫn chạy bản cũ              | Secret webhook chưa cấu hình (xem log có dòng "is not configured"), hoặc Portainer redeploy fail, hoặc stack không bật Re-pull image. | Xem log của step, rồi xem log stack trong Portainer.                                     |
+| Job chờ mãi ở trạng thái "Waiting"                          | Environment `production` có thể có rule cần người duyệt.                                                                              | Người có quyền vào run và bấm Approve.                                                   |
+
+---
+
+## 17. Cách thêm một step hoặc job mới
+
+### 17.1 Thêm một kiểm tra vào `quality`
+
+Ví dụ thêm ESLint (chỉ là ví dụ minh họa, chưa có trong workflow):
+
+```yaml
+- name: Lint
+  run: pnpm exec eslint "{src,apps,test}/**/*.ts"
+```
+
+Đặt **sau** step `Install dependencies` ([ci-cd.yml:35–36](../.github/workflows/ci-cd.yml)), vì cần `node_modules`. Không nên gọi `pnpm lint`, vì script đó có `--fix` ([package.json:26](../package.json)): trên CI nó sửa file trong runner rồi bỏ đi, có thể làm lỗi bị che.
+
+Mọi step thêm vào `quality` sẽ chặn cả `validate-images` lẫn `publish`.
+
+### 17.2 Thêm một job mới
+
+```yaml
+openapi:
+  name: OpenAPI contract
+  needs: quality
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 11.1.2
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+    - run: pnpm test:openapi
+```
+
+Nhớ: mỗi job là một máy mới, nên phải lặp lại checkout + setup pnpm + setup node + install. Muốn job mới chặn deploy thì thêm nó vào `needs` của `publish`, vd `needs: [quality, openapi]`.
+
+### 17.3 Thêm một image mới vào publish
+
+Copy cặp step metadata + build-push ([ci-cd.yml:119–138](../.github/workflows/ci-cd.yml)), đổi `id`, tên image, `file` và `scope` của cache. Thêm cùng service đó vào matrix của `validate-images` ([ci-cd.yml:51–57](../.github/workflows/ci-cd.yml)) để PR cũng build thử. Nếu cần redeploy, thêm secret webhook mới vào `env` của job `deploy` và một cặp step trigger/skip.
+
+### 17.4 Quy tắc chung
+
+- Ghim version action theo major (`@v4`, `@v6`) như các step hiện có.
+- Không `echo` giá trị secret. Đưa secret qua `env:` rồi dùng `"$VAR"`.
+- Step cần secret → job phải đọc được secret đó (repo hoặc environment), và nhớ PR từ fork không có secret.
+- Sửa workflow trên một nhánh và mở PR: workflow trong PR chạy bằng **phiên bản trong PR**, nên kiểm tra được trước khi merge (riêng job `publish`/`deploy` thì không chạy trên PR).
+
+---
+
+## 18. Checklist khi đổi Dockerfile
+
+- [ ] Phiên bản pnpm vẫn khớp ở cả 3 chỗ: [ci-cd.yml:27](../.github/workflows/ci-cd.yml), [Dockerfile:13](../Dockerfile) + [Dockerfile:48](../Dockerfile), [Dockerfile.ai-worker:13](../Dockerfile.ai-worker) + [Dockerfile.ai-worker:44](../Dockerfile.ai-worker).
+- [ ] Phiên bản Node vẫn khớp: `node-version: 22` ([ci-cd.yml:32](../.github/workflows/ci-cd.yml)) và `node:22-bookworm-slim` (2 stage × 2 file).
+- [ ] Giữ thứ tự "copy file khai báo dependency → install → copy source → build" để không mất cache layer install.
+- [ ] Code mới nằm trong thư mục đã được `COPY` (`apps/<app>`, `src`). Thêm thư mục mới thì thêm `COPY` và kiểm tra `.dockerignore` không chặn nó.
+- [ ] Thêm app mới vào monorepo? Dockerfile core copy `apps/cli/tsconfig.app.json` ([Dockerfile:18](../Dockerfile)); kiểm tra xem `nest build` có cần tsconfig của app khác không.
+- [ ] Đổi `outDir` hoặc cấu trúc thư mục → cập nhật `CMD` ([Dockerfile:68](../Dockerfile), [Dockerfile.ai-worker:60](../Dockerfile.ai-worker)) và `start:prod` ([package.json:20](../package.json)).
+- [ ] Đổi port → cập nhật `ENV PORT`, `EXPOSE`, `HEALTHCHECK`, và biến `PORT` trong stack ([backend-stack.yml:71](../deploy/portainer/backend/backend-stack.yml)).
+- [ ] Đổi đường dẫn Swagger → healthcheck `/docs` ([Dockerfile:64–65](../Dockerfile)) sẽ fail, container bị `unhealthy`.
+- [ ] Thêm dependency native (cần build script khi install) → runtime stage dùng `--ignore-scripts` ([Dockerfile:49](../Dockerfile)); kiểm tra package đó vẫn chạy được, và xem `allowBuilds` ([pnpm-workspace.yaml](../pnpm-workspace.yaml)).
+- [ ] Vẫn `USER lens` ở cuối, không chạy root.
+- [ ] Không `COPY` file `.env` hay secret vào image. Secret runtime đi qua environment của stack Portainer.
+- [ ] Build thử ở local cho **cả hai** file: `docker build -f Dockerfile .` và `docker build -f Dockerfile.ai-worker .`.
+- [ ] Mở PR để job `validate-images` build lại cả hai image trên CI.
+
+---
+
+## 19. Rollback
+
+Theo [README.md:55–56](../deploy/portainer/README.md): mỗi bản đều có tag bất biến `sha-<commit>`. Để quay về một bản cũ:
+
+1. Tìm SHA đầy đủ của commit muốn quay về (tab Actions hoặc `git log`).
+2. Trong Portainer, sửa environment của stack: `IMAGE_TAG=sha-<SHA đầy đủ>`.
+3. Redeploy stack.
+
+Lưu ý:
+
+- Tag là SHA **đầy đủ** 40 ký tự ([ci-cd.yml:105](../.github/workflows/ci-cd.yml)).
+- Khi `IMAGE_TAG` đang ghim một SHA, lần webhook tiếp theo vẫn kéo đúng SHA đó chứ không kéo `latest`. Nhớ đổi lại `IMAGE_TAG=latest` khi đã sửa xong.
+- Rollback image **không** rollback DB. Nếu bản mới đã chạy migration, bản cũ phải tương thích với schema mới.
+- Cách khác: `git revert` commit lỗi rồi push `master` để CI build và deploy bản revert.
+
+---
+
+## 20. Câu hỏi thường gặp
+
+**Mở PR thì có deploy không?**
+Không. `publish` và `deploy` có `if: github.event_name != 'pull_request'` ([ci-cd.yml:77](../.github/workflows/ci-cd.yml), [ci-cd.yml:142](../.github/workflows/ci-cd.yml)).
+
+**Merge PR thì bao lâu lên server?**
+Sau khi `quality` → `publish` → `deploy` xong, Portainer mới bắt đầu pull image. Workflow không đo hay chờ thời gian này.
+
+**Push thẳng lên `master` có chạy không?**
+Có, như merge PR. Việc có được push thẳng hay không do branch protection trên GitHub quyết định, repo không chứa cấu hình đó.
+
+**Sửa mỗi file docs có deploy lại không?**
+Có, vì không có `paths-ignore` ([ci-cd.yml:3–10](../.github/workflows/ci-cd.yml)).
+
+**Tại sao PR build image mà không push?**
+Để bắt lỗi Dockerfile trước khi merge mà không làm bẩn registry. Việc push dùng token có quyền ghi, còn PR (nhất là từ fork) không nên có quyền đó.
+
+**Image nằm ở đâu?**
+`ghcr.io/lensexe/lens-backend` và `ghcr.io/lensexe/lens-ai-worker`. Xem ở trang **Packages** của tổ chức/user `LensExe` trên GitHub.
+
+**Tại sao không dùng SSH vào VPS cho đơn giản?**
+Với webhook, CI không cần giữ SSH key hay quyền shell trên server. Secret duy nhất là URL webhook, và URL đó chỉ làm được một việc: redeploy một stack.
+
+**Có cần làm gì khi thêm biến môi trường mới cho app?**
+CI không đụng tới biến runtime. Phải thêm biến vào khối `environment` của file stack ([backend-stack.yml:9–95](../deploy/portainer/backend/backend-stack.yml)) **và** set giá trị trong Portainer. Compose chỉ đưa vào container những biến được liệt kê trong `environment`.
+
+**Workflow có dùng `pnpm test` hay `pnpm test:unit`?**
+`pnpm test:unit` ([ci-cd.yml:42](../.github/workflows/ci-cd.yml)). Hai script có câu lệnh giống hệt nhau ([package.json:27](../package.json), [package.json:56](../package.json)).
+
+**AI worker có healthcheck không?**
+Có, nhưng nằm trong file stack ([ai-worker-stack.yml:48–57](../deploy/portainer/ai-worker/ai-worker-stack.yml)), không nằm trong image. Chạy image AI worker bằng `docker run` trần thì không có healthcheck.
+
+---
