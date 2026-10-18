@@ -1069,3 +1069,413 @@ Các điểm dưới đây là quan sát kèm bằng chứng. Tài liệu này *
 - `11.1.2` xuất hiện ở [ci-cd.yml:27](../.github/workflows/ci-cd.yml), [Dockerfile:13](../Dockerfile), [Dockerfile:48](../Dockerfile), [Dockerfile.ai-worker:13](../Dockerfile.ai-worker), [Dockerfile.ai-worker:44](../Dockerfile.ai-worker); [package.json](../package.json) không có trường `packageManager`. Nâng pnpm mà quên một chỗ thì CI và image dùng hai phiên bản khác nhau.
 
 ---
+
+## Phụ lục A. Đọc `ci-cd.yml` từng dòng
+
+Phụ lục này đi qua [ci-cd.yml](../.github/workflows/ci-cd.yml) theo đúng thứ tự trong file. Mỗi khối được trích nguyên văn, kèm số dòng, rồi giải thích **từng key và từng value**. Phần thân bài (mục 3–8) giải thích "vì sao"; phụ lục này giải thích "từng chữ nghĩa là gì".
+
+### A.1 Dòng 1 — `name`
+
+```yaml
+name: Lens Backend CI/CD
+```
+
+| Key    | Value                | Giải thích                                                                                                                                                   |
+| ------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name` | `Lens Backend CI/CD` | Tên workflow hiển thị trên tab Actions và trong danh sách check của PR. Không ảnh hưởng tới logic. Không khai báo `name` thì GitHub hiển thị đường dẫn file. |
+
+### A.2 Dòng 3–10 — `on`
+
+```yaml
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+```
+
+| Dòng | Key / value          | Giải thích                                                                                                                                           |
+| ---- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3    | `on:`                | Danh sách sự kiện kích hoạt workflow. Mỗi key con là một loại sự kiện.                                                                               |
+| 4    | `pull_request:`      | Sự kiện liên quan tới PR. Không khai báo `types`, nên dùng tập mặc định của GitHub (`opened`, `synchronize`, `reopened`).                            |
+| 5–6  | `branches: [master]` | Với `pull_request`, filter `branches` so với **base branch** (nhánh đích) của PR, không phải nhánh nguồn. PR vào nhánh khác `master` thì không chạy. |
+| 7    | `push:`              | Sự kiện có commit được push lên repo.                                                                                                                |
+| 8–9  | `branches: [master]` | Với `push`, filter so với nhánh nhận commit. Push lên nhánh feature không chạy workflow.                                                             |
+| 10   | `workflow_dispatch:` | Cho phép chạy tay. Value để trống, nghĩa là không có `inputs` nào; form chạy tay chỉ có ô chọn branch.                                               |
+
+### A.3 Dòng 12–14 — `permissions`
+
+```yaml
+permissions:
+  contents: read
+  packages: write
+```
+
+| Dòng | Key / value       | Giải thích                                                                                            |
+| ---- | ----------------- | ----------------------------------------------------------------------------------------------------- |
+| 12   | `permissions:`    | Đặt ở gốc file → áp cho **mọi** job. Có thể ghi đè ở từng job, file này không làm vậy.                |
+| 13   | `contents: read`  | `GITHUB_TOKEN` đọc được nội dung repo (cần cho checkout). Không được push code, tạo tag, tạo release. |
+| 14   | `packages: write` | `GITHUB_TOKEN` đọc/ghi GitHub Packages, trong đó có GHCR. Cần cho `docker push`.                      |
+
+Mọi scope khác (`issues`, `pull-requests`, `actions`, `id-token`...) không được liệt kê nên là `none`.
+
+### A.4 Dòng 16–19 — mở đầu `jobs` và job `quality`
+
+```yaml
+jobs:
+  quality:
+    name: Validate backend
+    runs-on: ubuntu-latest
+```
+
+| Dòng | Key / value              | Giải thích                                                                                                                                       |
+| ---- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 16   | `jobs:`                  | Map các job. Key con là **job id** (dùng trong `needs`), value là định nghĩa job.                                                                |
+| 17   | `quality:`               | Job id. Các job khác tham chiếu bằng tên này (`needs: quality`).                                                                                 |
+| 18   | `name: Validate backend` | Tên hiển thị. Đây là tên xuất hiện trong danh sách status check của PR; nếu branch protection yêu cầu check này thì phải dùng đúng tên hiển thị. |
+| 19   | `runs-on: ubuntu-latest` | Chọn runner: máy ảo Ubuntu do GitHub host, nhãn `latest` trỏ tới bản Ubuntu mà GitHub đang chọn làm mặc định.                                    |
+
+Job `quality` không có `if:` và không có `needs:`, nên luôn chạy đầu tiên với mọi sự kiện.
+
+### A.5 Dòng 20–22 — `steps` và checkout
+
+```yaml
+steps:
+  - name: Checkout
+    uses: actions/checkout@v4
+```
+
+| Dòng | Key / value                 | Giải thích                                                                                                                                                                                     |
+| ---- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 20   | `steps:`                    | Danh sách step, chạy **tuần tự** từ trên xuống, trên cùng một runner, chung filesystem.                                                                                                        |
+| 21   | `- name: Checkout`          | `-` mở một phần tử mới của list. `name` là nhãn hiển thị trong log.                                                                                                                            |
+| 22   | `uses: actions/checkout@v4` | Gọi action `checkout` của tổ chức `actions`, ref `v4` (tag major). Không truyền `with`, nên dùng mặc định: checkout ref của sự kiện, `fetch-depth: 1` (chỉ commit cuối, theo tài liệu action). |
+
+Một step có `uses:` (gọi action có sẵn) hoặc `run:` (chạy lệnh shell), không có cả hai.
+
+### A.6 Dòng 24–27 — setup pnpm
+
+```yaml
+- name: Setup pnpm
+  uses: pnpm/action-setup@v4
+  with:
+    version: 11.1.2
+```
+
+| Dòng | Key / value                  | Giải thích                                                                                       |
+| ---- | ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| 25   | `uses: pnpm/action-setup@v4` | Action chính chủ của pnpm, cài pnpm vào PATH của runner.                                         |
+| 26   | `with:`                      | Input truyền cho action. Mỗi action tự định nghĩa input của nó.                                  |
+| 27   | `version: 11.1.2`            | Phiên bản pnpm. Bắt buộc phải khai báo ở đây vì `package.json` không có trường `packageManager`. |
+
+### A.7 Dòng 29–33 — setup Node.js
+
+```yaml
+- name: Setup Node.js
+  uses: actions/setup-node@v4
+  with:
+    node-version: 22
+    cache: pnpm
+```
+
+| Dòng | Key / value                   | Giải thích                                                                                                           |
+| ---- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 30   | `uses: actions/setup-node@v4` | Cài Node.js vào runner.                                                                                              |
+| 32   | `node-version: 22`            | Chỉ ghi major → action chọn bản 22.x mới nhất có sẵn. Hai lần chạy cách xa nhau có thể nhận patch version khác nhau. |
+| 33   | `cache: pnpm`                 | Bật cache pnpm store. Action tự restore cache ở đầu job và tự lưu ở cuối job (post step).                            |
+
+### A.8 Dòng 35–42 — install, typecheck, test
+
+```yaml
+- name: Install dependencies
+  run: pnpm install --frozen-lockfile
+
+- name: Typecheck
+  run: pnpm typecheck
+
+- name: Unit tests
+  run: pnpm test:unit
+```
+
+| Dòng | Key / value                           | Giải thích                                                                                             |
+| ---- | ------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 36   | `run: pnpm install --frozen-lockfile` | `run` chạy lệnh trong shell mặc định của runner Linux (bash). Exit code khác 0 → step fail → job fail. |
+| 39   | `run: pnpm typecheck`                 | Gọi script `typecheck` = `tsc --noEmit` ([package.json:59](../package.json)).                          |
+| 42   | `run: pnpm test:unit`                 | Gọi script `test:unit` ([package.json:56](../package.json)).                                           |
+
+Các dòng trống (34, 37, 40) chỉ để dễ đọc, YAML bỏ qua.
+
+### A.9 Dòng 44–48 — mở đầu job `validate-images`
+
+```yaml
+validate-images:
+  name: Validate ${{ matrix.service }} Docker image
+  if: ${{ github.event_name == 'pull_request' }}
+  needs: quality
+  runs-on: ubuntu-latest
+```
+
+| Dòng | Key / value                                         | Giải thích                                                                                                                    |
+| ---- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 44   | `validate-images:`                                  | Job id.                                                                                                                       |
+| 45   | `name: Validate ${{ matrix.service }} Docker image` | `${{ ... }}` là **expression**: GitHub thay bằng giá trị lúc chạy. `matrix.service` lấy từ phần tử matrix hiện tại.           |
+| 46   | `if: ${{ github.event_name == 'pull_request' }}`    | Điều kiện ở cấp job. False thì job bị đánh dấu **skipped** (không phải failed). `github.event_name` là tên sự kiện kích hoạt. |
+| 47   | `needs: quality`                                    | Chỉ bắt đầu sau khi `quality` thành công. `quality` fail thì job này bị skip.                                                 |
+| 48   | `runs-on: ubuntu-latest`                            | Runner mới, không dùng chung máy với `quality`.                                                                               |
+
+### A.10 Dòng 49–57 — `strategy.matrix`
+
+```yaml
+strategy:
+  matrix:
+    include:
+      - service: lens-backend
+        dockerfile: ./Dockerfile
+        tag: lens-backend:pr-validation
+      - service: lens-ai-worker
+        dockerfile: ./Dockerfile.ai-worker
+        tag: lens-ai-worker:pr-validation
+```
+
+| Dòng  | Key / value                                | Giải thích                                                                                         |
+| ----- | ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| 49    | `strategy:`                                | Cấu hình cách nhân bản job.                                                                        |
+| 50    | `matrix:`                                  | Mỗi tổ hợp giá trị sinh một job con.                                                               |
+| 51    | `include:`                                 | Liệt kê **từng tổ hợp đầy đủ**. Không có trục nào khác, nên số job con = số phần tử `include` = 2. |
+| 52–54 | `service`, `dockerfile`, `tag` (phần tử 1) | Ba biến đọc được qua `matrix.service`, `matrix.dockerfile`, `matrix.tag` trong job con thứ nhất.   |
+| 55–57 | `service`, `dockerfile`, `tag` (phần tử 2) | Tương tự cho job con thứ hai.                                                                      |
+
+Không khai báo `fail-fast` và `max-parallel`, nên dùng mặc định của GitHub (`fail-fast: true`, chạy song song tối đa có thể).
+
+### A.11 Dòng 58–63 — checkout và Buildx
+
+```yaml
+steps:
+  - name: Checkout
+    uses: actions/checkout@v4
+
+  - name: Setup Docker Buildx
+    uses: docker/setup-buildx-action@v3
+```
+
+| Dòng | Key / value                           | Giải thích                                                                                                                                           |
+| ---- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 60   | `uses: actions/checkout@v4`           | Lấy source, vì Docker build cần build context là thư mục repo.                                                                                       |
+| 63   | `uses: docker/setup-buildx-action@v3` | Action chính chủ của Docker. Tạo builder BuildKit (driver `docker-container` theo mặc định của action) và đặt làm builder mặc định cho các step sau. |
+
+### A.12 Dòng 65–73 — build không push
+
+```yaml
+- name: Build image without publishing
+  uses: docker/build-push-action@v6
+  with:
+    context: .
+    file: ${{ matrix.dockerfile }}
+    push: false
+    tags: ${{ matrix.tag }}
+    cache-from: type=gha,scope=${{ matrix.service }}
+    cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+```
+
+| Dòng | Key / value                                               | Giải thích                                                                                                   |
+| ---- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 66   | `uses: docker/build-push-action@v6`                       | Action chạy `docker buildx build` với các input bên dưới.                                                    |
+| 68   | `context: .`                                              | Build context là thư mục hiện tại (gốc repo đã checkout). Dùng `.` thì action dùng file trên đĩa của runner. |
+| 69   | `file: ${{ matrix.dockerfile }}`                          | Đường dẫn Dockerfile, khác nhau theo job con.                                                                |
+| 70   | `push: false`                                             | Không push lên registry.                                                                                     |
+| 71   | `tags: ${{ matrix.tag }}`                                 | Tên + tag gán cho image kết quả.                                                                             |
+| 72   | `cache-from: type=gha,scope=${{ matrix.service }}`        | Nguồn cache: backend `gha` (GitHub Actions cache), scope theo tên service.                                   |
+| 73   | `cache-to: type=gha,mode=max,scope=${{ matrix.service }}` | Đích ghi cache. `mode=max` ghi layer của mọi stage.                                                          |
+
+### A.13 Dòng 75–80 — mở đầu job `publish`
+
+```yaml
+publish:
+  name: Publish backend and AI worker images
+  if: ${{ github.event_name != 'pull_request' }}
+  needs: quality
+  runs-on: ubuntu-latest
+  environment: production
+```
+
+| Dòng | Key / value                                      | Giải thích                                                                                                                                             |
+| ---- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 77   | `if: ${{ github.event_name != 'pull_request' }}` | Chạy với `push` và `workflow_dispatch`.                                                                                                                |
+| 78   | `needs: quality`                                 | Không phụ thuộc `validate-images` (job đó vốn bị skip ở các sự kiện này).                                                                              |
+| 80   | `environment: production`                        | Gắn job vào environment `production`: dùng secret của environment, chịu protection rule, và tạo bản ghi deployment trên GitHub (theo tài liệu GitHub). |
+
+### A.14 Dòng 81–86 — checkout và chuẩn hóa owner
+
+```yaml
+steps:
+  - name: Checkout
+    uses: actions/checkout@v4
+
+  - name: Normalize image owner
+    run: echo "IMAGE_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+```
+
+| Phần                           | Giải thích                                                                                                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `echo "..."`                   | In ra một dòng `IMAGE_OWNER=<giá trị>`.                                                                                                                                              |
+| `${GITHUB_REPOSITORY_OWNER,,}` | Bash parameter expansion: `,,` đổi toàn bộ chuỗi thành chữ thường. Đây là cú pháp shell (`$VAR`), không phải expression `${{ }}`.                                                    |
+| `>> "$GITHUB_ENV"`             | Nối dòng đó vào file mà GitHub chỉ định qua biến `GITHUB_ENV`. Sau khi step kết thúc, GitHub đọc file và đặt biến cho các step **sau** trong job. Step hiện tại không thấy biến mới. |
+
+### A.15 Dòng 88–96 — Buildx và login GHCR
+
+```yaml
+- name: Setup Docker Buildx
+  uses: docker/setup-buildx-action@v3
+
+- name: Login to GitHub Container Registry
+  uses: docker/login-action@v3
+  with:
+    registry: ghcr.io
+    username: ${{ github.actor }}
+    password: ${{ secrets.GITHUB_TOKEN }}
+```
+
+| Dòng | Key / value                             | Giải thích                                                                    |
+| ---- | --------------------------------------- | ----------------------------------------------------------------------------- |
+| 92   | `uses: docker/login-action@v3`          | Chạy `docker login`. Theo tài liệu action, nó tự logout ở post step cuối job. |
+| 94   | `registry: ghcr.io`                     | Registry đích. Không khai báo thì action mặc định login Docker Hub.           |
+| 95   | `username: ${{ github.actor }}`         | Context `github.actor` = login của user kích hoạt run.                        |
+| 96   | `password: ${{ secrets.GITHUB_TOKEN }}` | Token tự động của run. Hết hạn khi job kết thúc.                              |
+
+### A.16 Dòng 98–106 — metadata backend
+
+```yaml
+- name: Docker metadata
+  id: meta
+  uses: docker/metadata-action@v5
+  with:
+    images: ghcr.io/${{ env.IMAGE_OWNER }}/lens-backend
+    tags: |
+      type=raw,value=latest
+      type=raw,value=sha-${{ github.sha }}
+      type=ref,event=branch
+```
+
+| Dòng | Key / value                                           | Giải thích                                                                     |
+| ---- | ----------------------------------------------------- | ------------------------------------------------------------------------------ |
+| 99   | `id: meta`                                            | Id của step, để step khác đọc output qua `steps.meta.outputs.*`.               |
+| 100  | `uses: docker/metadata-action@v5`                     | Sinh tag và label theo rule.                                                   |
+| 102  | `images: ghcr.io/${{ env.IMAGE_OWNER }}/lens-backend` | Tên image gốc. `env.IMAGE_OWNER` đọc biến vừa ghi vào `$GITHUB_ENV` ở dòng 86. |
+| 103  | `tags: \|`                                            | `\|` là YAML literal block: giữ nguyên xuống dòng, mỗi dòng là một rule.       |
+| 104  | `type=raw,value=latest`                               | Tag cố định `latest`.                                                          |
+| 105  | `type=raw,value=sha-${{ github.sha }}`                | Tag `sha-` + SHA commit đầy đủ.                                                |
+| 106  | `type=ref,event=branch`                               | Tag = tên branch khi run được kích hoạt từ branch.                             |
+
+Output được dùng: `tags` (danh sách tag đầy đủ, mỗi tag một dòng, dạng `ghcr.io/lensexe/lens-backend:latest`) và `labels`.
+
+### A.17 Dòng 108–117 — build và push backend
+
+```yaml
+- name: Build and push image
+  uses: docker/build-push-action@v6
+  with:
+    context: .
+    file: ./Dockerfile
+    push: true
+    tags: ${{ steps.meta.outputs.tags }}
+    labels: ${{ steps.meta.outputs.labels }}
+    cache-from: type=gha,scope=backend
+    cache-to: type=gha,mode=max,scope=backend
+```
+
+| Dòng | Key / value                                 | Giải thích                           |
+| ---- | ------------------------------------------- | ------------------------------------ |
+| 112  | `file: ./Dockerfile`                        | Dockerfile của app core.             |
+| 113  | `push: true`                                | Push mọi tag lên GHCR sau khi build. |
+| 114  | `tags: ${{ steps.meta.outputs.tags }}`      | Lấy danh sách tag từ step `meta`.    |
+| 115  | `labels: ${{ steps.meta.outputs.labels }}`  | Gắn label OCI.                       |
+| 116  | `cache-from: type=gha,scope=backend`        | Đọc cache scope `backend`.           |
+| 117  | `cache-to: type=gha,mode=max,scope=backend` | Ghi cache scope `backend`.           |
+
+### A.18 Dòng 119–138 — metadata và build/push AI worker
+
+```yaml
+- name: AI worker Docker metadata
+  id: ai_worker_meta
+  uses: docker/metadata-action@v5
+  with:
+    images: ghcr.io/${{ env.IMAGE_OWNER }}/lens-ai-worker
+    tags: |
+      type=raw,value=latest
+      type=raw,value=sha-${{ github.sha }}
+      type=ref,event=branch
+
+- name: Build and push AI worker image
+  uses: docker/build-push-action@v6
+  with:
+    context: .
+    file: ./Dockerfile.ai-worker
+    push: true
+    tags: ${{ steps.ai_worker_meta.outputs.tags }}
+    labels: ${{ steps.ai_worker_meta.outputs.labels }}
+    cache-from: type=gha,scope=ai-worker
+    cache-to: type=gha,mode=max,scope=ai-worker
+```
+
+Cấu trúc giống A.16–A.17. Điểm cần đọc kỹ: `id` là `ai_worker_meta` (dùng gạch dưới; trong expression, id có dấu gạch ngang sẽ phải viết kiểu `steps['ai-worker-meta']`, nên gạch dưới tiện hơn), và step build tham chiếu đúng `steps.ai_worker_meta.outputs.*`. Nếu copy-paste mà quên đổi thành `steps.meta`, image AI worker sẽ bị push với tên `lens-backend`.
+
+### A.19 Dòng 140–148 — mở đầu job `deploy`
+
+```yaml
+deploy:
+  name: Redeploy Portainer stack
+  if: ${{ github.event_name != 'pull_request' }}
+  needs: publish
+  runs-on: ubuntu-latest
+  environment: production
+  env:
+    PORTAINER_WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
+    PORTAINER_AI_WORKER_WEBHOOK_URL: ${{ secrets.PORTAINER_AI_WORKER_WEBHOOK_URL }}
+```
+
+| Dòng    | Key / value               | Giải thích                                            |
+| ------- | ------------------------- | ----------------------------------------------------- |
+| 143     | `needs: publish`          | Chuỗi phụ thuộc: `quality` → `publish` → `deploy`.    |
+| 145     | `environment: production` | Đọc được secret của environment `production`.         |
+| 146     | `env:`                    | Biến môi trường cấp job, mọi step trong job đều thấy. |
+| 147–148 | `${{ secrets.X }}`        | Context `secrets`. Secret không tồn tại → chuỗi rỗng. |
+
+### A.20 Dòng 149–168 — bốn step
+
+```yaml
+steps:
+  - name: Trigger Portainer webhook
+    if: ${{ env.PORTAINER_WEBHOOK_URL != '' }}
+    run: >-
+      curl --fail-with-body --silent --show-error --retry 3
+      --retry-all-errors --request POST "$PORTAINER_WEBHOOK_URL"
+
+  - name: Skip Portainer redeploy when webhook is not configured
+    if: ${{ env.PORTAINER_WEBHOOK_URL == '' }}
+    run: echo "PORTAINER_WEBHOOK_URL is not configured; image was published only."
+
+  - name: Trigger AI worker Portainer webhook
+    if: ${{ env.PORTAINER_AI_WORKER_WEBHOOK_URL != '' }}
+    run: >-
+      curl --fail-with-body --silent --show-error --retry 3
+      --retry-all-errors --request POST "$PORTAINER_AI_WORKER_WEBHOOK_URL"
+
+  - name: Skip AI worker redeploy when webhook is not configured
+    if: ${{ env.PORTAINER_AI_WORKER_WEBHOOK_URL == '' }}
+    run: echo "PORTAINER_AI_WORKER_WEBHOOK_URL is not configured; AI worker image was published only."
+```
+
+| Dòng    | Key / value                                  | Giải thích                                                                                      |
+| ------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 151     | `if: ${{ env.PORTAINER_WEBHOOK_URL != '' }}` | Điều kiện ở cấp step. False → step skipped, job vẫn tiếp tục.                                   |
+| 152     | `run: >-`                                    | YAML folded block: hai dòng 153–154 được nối bằng dấu cách thành một lệnh; `-` bỏ newline cuối. |
+| 153–154 | `curl ... "$PORTAINER_WEBHOOK_URL"`          | `$VAR` ở đây là biến shell (lấy từ `env` của job), không phải expression `${{ }}`.              |
+| 157–158 | `if: ... == ''` + `echo`                     | Nhánh ngược lại: chỉ in thông báo.                                                              |
+| 160–168 | Hai step AI worker                           | Y hệt, với secret `PORTAINER_AI_WORKER_WEBHOOK_URL`.                                            |
+
+Vì sao dùng `"$VAR"` trong shell thay vì nhúng `${{ secrets.X }}` thẳng vào lệnh? Expression `${{ }}` được thay **trước** khi shell chạy, nên giá trị sẽ thành một phần của script được ghi ra file tạm. Đi qua biến môi trường thì giá trị chỉ nằm trong env của process, và dấu ngoặc kép ngăn shell tách chuỗi nếu URL có ký tự đặc biệt.
+
+---
