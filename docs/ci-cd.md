@@ -1574,3 +1574,184 @@ concurrency:
 5. Export cache mới lên `gha`.
 
 ---
+
+## Phụ lục C. Đọc hai Dockerfile từng instruction
+
+### C.1 [Dockerfile](../Dockerfile) — stage `build`
+
+```dockerfile
+# syntax=docker/dockerfile:1.7
+```
+
+Dòng 1. **Parser directive**, phải nằm ở dòng đầu. BuildKit tải frontend `docker/dockerfile:1.7` để hiểu cú pháp. Ghim `1.7` giúp cú pháp không đổi khi Docker trên máy build nâng cấp.
+
+```dockerfile
+FROM node:22-bookworm-slim AS build
+```
+
+Dòng 3. Image gốc: Node 22, Debian 12 "bookworm", bản `slim` (ít package hệ thống). `AS build` đặt tên stage để stage sau `COPY --from=build`.
+
+```dockerfile
+ENV PNPM_HOME=/pnpm
+ENV PATH=${PNPM_HOME}:${PATH}
+```
+
+Dòng 6–7. `ENV` đặt biến môi trường, tồn tại trong các instruction sau của **stage này** và trong container nếu đây là stage cuối. `PNPM_HOME` là thư mục pnpm dùng cho binary toàn cục; thêm vào `PATH` để gọi được.
+
+```dockerfile
+WORKDIR /app
+```
+
+Dòng 10. Tạo (nếu chưa có) và chuyển vào `/app`. Mọi đường dẫn tương đối sau đó tính từ `/app`.
+
+```dockerfile
+RUN corepack enable && corepack prepare pnpm@11.1.2 --activate
+```
+
+Dòng 13. `corepack` đi kèm Node, quản lý phiên bản package manager. `enable` tạo shim `pnpm`; `prepare ... --activate` tải pnpm 11.1.2 và đặt làm mặc định. Mỗi `RUN` tạo một layer.
+
+```dockerfile
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml nest-cli.json tsconfig.json tsconfig.build.json ./
+COPY apps/core/tsconfig.app.json apps/core/tsconfig.app.json
+COPY apps/cli/tsconfig.app.json apps/cli/tsconfig.app.json
+```
+
+Dòng 16–18. Copy từ build context vào image. Chỉ copy file cấu hình, chưa copy source. Mục đích (comment dòng 15): layer `pnpm install` phía sau chỉ bị build lại khi một trong các file này đổi.
+
+```dockerfile
+RUN pnpm install --frozen-lockfile
+```
+
+Dòng 21. Cài **toàn bộ** dependencies (gồm devDependencies như `@nestjs/cli`, `typescript`) vì stage này cần compile.
+
+```dockerfile
+COPY apps/core apps/core
+COPY src src
+```
+
+Dòng 24–25. Copy source của app core và code dùng chung trong `src/`. Không copy `apps/cli`, `apps/ai-worker` (app core không cần).
+
+```dockerfile
+RUN pnpm build
+```
+
+Dòng 28. `nest build core` ([package.json:9](../package.json)). Nest CLI đọc [nest-cli.json](../nest-cli.json) → project `core` dùng `apps/core/tsconfig.app.json` (dòng 18 của nest-cli.json), `deleteOutDir: true` (dòng 9) nên xóa output cũ trước khi build. Kết quả ở `/app/dist/apps/core/...`.
+
+### C.2 [Dockerfile](../Dockerfile) — stage `runtime`
+
+```dockerfile
+FROM node:22-bookworm-slim AS runtime
+```
+
+Dòng 30. Stage mới, bắt đầu từ image gốc sạch. Đây là stage **cuối**, nên image xuất ra chính là stage này. Mọi thứ của stage `build` (devDependencies, source `.ts`) bị bỏ lại.
+
+```dockerfile
+ENV NODE_ENV=production
+ENV PORT=3000
+```
+
+Dòng 33–34. `NODE_ENV=production` là quy ước của hệ sinh thái Node để thư viện chạy chế độ production. `PORT` là port app nghe nếu không có `CORE_PORT` ([apps/core/src/main.ts:16](../apps/core/src/main.ts)).
+
+```dockerfile
+WORKDIR /app
+```
+
+Dòng 37.
+
+```dockerfile
+RUN groupadd --system --gid 1001 lens \
+  && useradd --system --uid 1001 --gid lens --create-home lens
+```
+
+Dòng 40–41. Tạo group và user hệ thống `lens` với id cố định 1001. Dấu `\` nối dòng; `&&` để lệnh sau chỉ chạy khi lệnh trước thành công. Id cố định giúp phân quyền volume trên host dự đoán được.
+
+```dockerfile
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+```
+
+Dòng 44. Chỉ cần ba file này để cài production dependencies.
+
+```dockerfile
+RUN corepack enable \
+  && corepack prepare pnpm@11.1.2 --activate \
+  && pnpm install --prod --frozen-lockfile --ignore-scripts \
+  && rm -rf /root/.cache /root/.local/share/pnpm
+```
+
+Dòng 47–50. Gộp vào **một** `RUN` để cache của pnpm bị xóa ngay trong cùng layer. Nếu tách `rm -rf` ra `RUN` riêng, dữ liệu vẫn nằm trong layer trước và image không nhỏ đi.
+
+- `--prod`: bỏ `devDependencies`.
+- `--frozen-lockfile`: lockfile phải khớp.
+- `--ignore-scripts`: không chạy lifecycle script của package lẫn của project.
+
+```dockerfile
+COPY --from=build --chown=lens:lens /app/dist ./dist
+```
+
+Dòng 53. Copy thư mục `dist` từ stage `build`. `--chown` đặt owner ngay khi copy, không cần `RUN chown` thêm layer.
+
+```dockerfile
+RUN chown -R lens:lens /app/node_modules
+```
+
+Dòng 56. `node_modules` được cài bằng root ở dòng 49, nên phải đổi owner. Lệnh này tạo thêm một layer chứa bản sao metadata của `node_modules`.
+
+```dockerfile
+USER lens
+```
+
+Dòng 59. Các instruction sau và process chính của container chạy bằng user `lens`. Nếu app bị khai thác, kẻ tấn công không có quyền root trong container.
+
+```dockerfile
+EXPOSE 3000
+```
+
+Dòng 61. Tài liệu hóa port. Không mở port ra host; muốn mở phải `-p` hoặc `ports:` trong Compose (stack backend không làm).
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/docs').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+```
+
+Dòng 64–65.
+
+| Tham số              | Ý nghĩa                                                                                       |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| `--interval=30s`     | Chạy kiểm tra mỗi 30 giây.                                                                    |
+| `--timeout=5s`       | Một lần kiểm tra quá 5 giây thì tính là fail.                                                 |
+| `--start-period=30s` | 30 giây đầu sau khi start, fail không bị tính vào số lần retry (thời gian cho app khởi động). |
+| `--retries=3`        | Fail 3 lần liên tiếp → trạng thái `unhealthy`.                                                |
+| `CMD node -e ...`    | Chạy đoạn JS: gọi `/docs`, status 2xx → exit 0 (healthy), còn lại → exit 1.                   |
+
+```dockerfile
+CMD ["node", "dist/apps/core/apps/core/src/main.js"]
+```
+
+Dòng 68. Lệnh mặc định khi container start. Dạng JSON array (exec form) nên `node` là PID 1 và nhận trực tiếp tín hiệu `SIGTERM` khi Docker dừng container. App có `app.enableShutdownHooks()` ([apps/core/src/main.ts:15](../apps/core/src/main.ts)) để xử lý tín hiệu đó.
+
+### C.3 [Dockerfile.ai-worker](../Dockerfile.ai-worker) — các dòng khác Dockerfile core
+
+| Dòng | Instruction                                                                          | Khác gì so với core                                                                                                                      |
+| ---- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 17   | `COPY apps/ai-worker/tsconfig.app.json apps/ai-worker/tsconfig.app.json`             | Chỉ cần tsconfig của ai-worker.                                                                                                          |
+| 23   | `COPY apps/ai-worker apps/ai-worker`                                                 | Source của worker.                                                                                                                       |
+| 25   | `COPY src src`                                                                       | Code chung; tsconfig của worker include `src/modules/ai-assistant/**`.                                                                   |
+| 28   | `RUN pnpm build:ai-worker`                                                           | `nest build ai-worker`.                                                                                                                  |
+| 33   | `ENV NODE_ENV=production`                                                            | Không có `ENV PORT`. Stack truyền `AI_WORKER_PORT: '3001'` ([ai-worker-stack.yml:8](../deploy/portainer/ai-worker/ai-worker-stack.yml)). |
+| 49   | `COPY --from=build --chown=lens:lens /app/dist/apps/ai-worker ./dist/apps/ai-worker` | Chỉ copy output của worker.                                                                                                              |
+| 57   | `EXPOSE 3001`                                                                        | Port worker.                                                                                                                             |
+| —    | (không có `HEALTHCHECK`)                                                             | Healthcheck khai báo trong stack.                                                                                                        |
+| 60   | `CMD ["node", "dist/apps/ai-worker/apps/ai-worker/src/main.js"]`                     | Entry của worker.                                                                                                                        |
+
+Các dòng còn lại (1, 3, 6–7, 10, 13, 16, 20, 30, 34, 37–38, 41, 43–46, 52, 55) giống ý nghĩa với Dockerfile core.
+
+### C.4 Layer nào bị build lại khi bạn sửa gì
+
+| Bạn sửa                                      | Layer bị build lại (stage `build`)                   | Ghi chú                                             |
+| -------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------- |
+| Một file `.ts` trong `src/` hoặc `apps/core` | Từ `COPY apps/core` / `COPY src` trở đi (dòng 24–28) | `pnpm install` dùng cache → build nhanh.            |
+| `package.json` hoặc `pnpm-lock.yaml`         | Từ dòng 16 trở đi, gồm `pnpm install`                | Chậm nhất. Stage `runtime` cũng install lại.        |
+| `tsconfig.json`                              | Từ dòng 16 trở đi                                    | Vì `tsconfig.json` được copy cùng lockfile.         |
+| Một file trong `docs/`, `test/`, `deploy/`   | Không layer nào đổi nội dung                         | Không được `COPY`; nhưng CI vẫn chạy đủ (xem 21.4). |
+
+---
