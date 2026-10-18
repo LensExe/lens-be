@@ -432,3 +432,169 @@ Job này **không cần secret nào**, nên PR từ fork vẫn chạy được (
 Cache scope ở đây (`lens-backend`, `lens-ai-worker`) **khác** với scope ở job `publish` (`backend`, `ai-worker`). Xem [mục 12](#12-cache).
 
 ---
+
+## 7. Job `publish` — build và push image lên GHCR
+
+([ci-cd.yml:75–138](../.github/workflows/ci-cd.yml))
+
+```yaml
+publish:
+  if: ${{ github.event_name != 'pull_request' }}
+  needs: quality
+  runs-on: ubuntu-latest
+  environment: production
+```
+
+- `environment: production` ([dòng 80](../.github/workflows/ci-cd.yml)): gắn job vào GitHub Environment tên `production`. Theo tài liệu GitHub, điều này cho phép (a) đọc secret khai báo riêng ở environment đó, và (b) áp các protection rule của environment (người duyệt, giới hạn branch được deploy, wait timer). Repo **không** chứa cấu hình của environment; các rule này nằm trong **Settings → Environments** trên GitHub, nên tài liệu này không xác minh được environment `production` hiện có rule gì.
+
+Job này build **tuần tự** hai image trong cùng một job (backend trước, AI worker sau), không dùng matrix.
+
+### Step 1 — Checkout
+
+([dòng 82–83](../.github/workflows/ci-cd.yml))
+
+### Step 2 — Normalize image owner
+
+```yaml
+run: echo "IMAGE_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+```
+
+([dòng 85–86](../.github/workflows/ci-cd.yml))
+
+- `GITHUB_REPOSITORY_OWNER` là biến môi trường có sẵn: tên owner của repo. Remote của repo là `LensExe/lens-be`, nên owner là `LensExe`.
+- `${VAR,,}` là cú pháp **bash** để đổi chuỗi thành chữ thường → `lensexe`. Lý do: tên image trên registry phải viết thường, `ghcr.io/LensExe/...` sẽ bị từ chối.
+- Ghi `KEY=VALUE` vào file `$GITHUB_ENV` là cách GitHub Actions truyền biến môi trường cho **các step sau trong cùng job**. Từ đây, `env.IMAGE_OWNER` dùng được ở dòng 102 và 123.
+- Giá trị `lensexe` khớp với mặc định `IMAGE_OWNER:-lensexe` trong stack Portainer ([backend-stack.yml:7](../deploy/portainer/backend/backend-stack.yml)) và với hướng dẫn ở [deploy/portainer/README.md:22](../deploy/portainer/README.md).
+
+### Step 3 — Setup Docker Buildx
+
+([dòng 88–89](../.github/workflows/ci-cd.yml)) Giống `validate-images`.
+
+### Step 4 — Login to GitHub Container Registry
+
+```yaml
+uses: docker/login-action@v3
+with:
+  registry: ghcr.io
+  username: ${{ github.actor }}
+  password: ${{ secrets.GITHUB_TOKEN }}
+```
+
+([dòng 91–96](../.github/workflows/ci-cd.yml))
+
+- `github.actor`: user đã kích hoạt run (người push hoặc người bấm Run workflow).
+- `secrets.GITHUB_TOKEN`: token tự động, **không** phải secret bạn tự tạo. Nó có quyền `packages: write` nhờ khối permissions ở [mục 4](#4-permissions).
+- Không cần Personal Access Token nào cho bước push.
+
+### Step 5 — Docker metadata (backend)
+
+```yaml
+id: meta
+uses: docker/metadata-action@v5
+with:
+  images: ghcr.io/${{ env.IMAGE_OWNER }}/lens-backend
+  tags: |
+    type=raw,value=latest
+    type=raw,value=sha-${{ github.sha }}
+    type=ref,event=branch
+```
+
+([dòng 98–106](../.github/workflows/ci-cd.yml))
+
+Action này không build gì. Nó chỉ **tính ra danh sách tag và label** rồi đưa vào output `steps.meta.outputs.tags` / `steps.meta.outputs.labels`. `id: meta` là tên để step sau tham chiếu. Chi tiết từng tag ở [mục 11](#11-image-tag-strategy).
+
+### Step 6 — Build and push image (backend)
+
+```yaml
+uses: docker/build-push-action@v6
+with:
+  context: .
+  file: ./Dockerfile
+  push: true
+  tags: ${{ steps.meta.outputs.tags }}
+  labels: ${{ steps.meta.outputs.labels }}
+  cache-from: type=gha,scope=backend
+  cache-to: type=gha,mode=max,scope=backend
+```
+
+([dòng 108–117](../.github/workflows/ci-cd.yml))
+
+- `push: true`: build xong đẩy lên `ghcr.io/lensexe/lens-backend` với mọi tag từ step trước.
+- `labels`: gắn label OCI do metadata-action sinh (theo tài liệu action: nguồn repo, revision, thời điểm tạo...). Label giúp GHCR liên kết package với repo.
+- Cache scope `backend`.
+
+### Step 7, 8 — Metadata và build/push AI worker
+
+([dòng 119–138](../.github/workflows/ci-cd.yml)) Lặp lại y hệt hai step trên, khác ở:
+
+| Khác biệt   | Backend            | AI worker                |
+| ----------- | ------------------ | ------------------------ |
+| `id`        | `meta`             | `ai_worker_meta`         |
+| Image       | `.../lens-backend` | `.../lens-ai-worker`     |
+| Dockerfile  | `./Dockerfile`     | `./Dockerfile.ai-worker` |
+| Cache scope | `backend`          | `ai-worker`              |
+
+Vì hai image build tuần tự trong một job: nếu image backend build fail, step AI worker **không chạy** (mặc định step fail thì các step sau bị skip). Ngược lại, nếu backend đã push xong mà AI worker fail, thì trên GHCR `lens-backend:latest` **đã là bản mới** còn `lens-ai-worker:latest` vẫn là bản cũ, và job `deploy` sẽ không chạy vì `publish` fail.
+
+---
+
+## 8. Job `deploy` — gọi webhook Portainer
+
+([ci-cd.yml:140–168](../.github/workflows/ci-cd.yml))
+
+```yaml
+deploy:
+  if: ${{ github.event_name != 'pull_request' }}
+  needs: publish
+  runs-on: ubuntu-latest
+  environment: production
+  env:
+    PORTAINER_WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
+    PORTAINER_AI_WORKER_WEBHOOK_URL: ${{ secrets.PORTAINER_AI_WORKER_WEBHOOK_URL }}
+```
+
+- `needs: publish`: chỉ chạy khi cả hai image đã push thành công.
+- Khối `env` ở cấp job ([dòng 146–148](../.github/workflows/ci-cd.yml)) copy hai secret thành biến môi trường. Lý do làm vậy: trong `if:` của **step**, GitHub không cho đọc trực tiếp `secrets.*`, nhưng đọc được `env.*`. Nhờ thế, step có thể kiểm "secret có được cấu hình không".
+- Secret chưa được tạo thì biểu thức `secrets.X` trả chuỗi rỗng, nên `env.X == ''`.
+- GitHub tự che (mask) giá trị secret trong log, kể cả khi nó đi qua biến môi trường.
+
+Job **không** checkout code: nó không cần file nào, chỉ cần `curl`.
+
+### 4 step, đi thành 2 cặp
+
+| Step                                                   | Điều kiện                                   | Làm gì                                             | Dòng    |
+| ------------------------------------------------------ | ------------------------------------------- | -------------------------------------------------- | ------- |
+| Trigger Portainer webhook                              | `env.PORTAINER_WEBHOOK_URL != ''`           | `curl ... --request POST "$PORTAINER_WEBHOOK_URL"` | 150–154 |
+| Skip Portainer redeploy when webhook is not configured | `env.PORTAINER_WEBHOOK_URL == ''`           | In dòng thông báo, không fail                      | 156–158 |
+| Trigger AI worker Portainer webhook                    | `env.PORTAINER_AI_WORKER_WEBHOOK_URL != ''` | `curl ... POST "$PORTAINER_AI_WORKER_WEBHOOK_URL"` | 160–164 |
+| Skip AI worker redeploy when webhook is not configured | `env.PORTAINER_AI_WORKER_WEBHOOK_URL == ''` | In dòng thông báo, không fail                      | 166–168 |
+
+Mỗi cặp có điều kiện ngược nhau, nên trong mỗi cặp luôn có đúng một step chạy. Thiếu secret thì job **vẫn xanh**: image đã lên GHCR nhưng server không được báo.
+
+### Giải nghĩa lệnh `curl`
+
+```sh
+curl --fail-with-body --silent --show-error --retry 3 \
+  --retry-all-errors --request POST "$PORTAINER_WEBHOOK_URL"
+```
+
+`run: >-` trong YAML ([dòng 152](../.github/workflows/ci-cd.yml)) là folded block: các dòng được nối lại bằng dấu cách thành một lệnh, `-` bỏ ký tự xuống dòng cuối.
+
+| Cờ                   | Ý nghĩa                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `--fail-with-body`   | HTTP status ≥ 400 thì curl trả exit code khác 0 (step fail), nhưng vẫn in body lỗi ra log. |
+| `--silent`           | Tắt thanh tiến trình.                                                                      |
+| `--show-error`       | Dù `--silent`, vẫn in thông báo lỗi.                                                       |
+| `--retry 3`          | Thử lại tối đa 3 lần.                                                                      |
+| `--retry-all-errors` | Thử lại với **mọi** lỗi (mặc định curl chỉ retry vài loại lỗi tạm thời).                   |
+| `--request POST`     | Gửi POST. Webhook Portainer nhận POST, không có body.                                      |
+
+URL được đặt trong `"..."` và đọc từ biến môi trường, nên giá trị secret không bị nhúng vào nội dung lệnh trong file YAML.
+
+Hai webhook gọi **tuần tự**: backend trước, AI worker sau. Nếu webhook backend fail sau 3 lần retry, step AI worker bị skip.
+
+### Workflow không kiểm tra sau deploy
+
+Sau `curl` không có step nào chờ container healthy hay gọi thử API. Job xanh chỉ có nghĩa là "Portainer đã nhận request", không có nghĩa là "bản mới đang chạy ổn".
+
+---
