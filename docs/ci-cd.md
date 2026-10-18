@@ -1479,3 +1479,98 @@ steps:
 Vì sao dùng `"$VAR"` trong shell thay vì nhúng `${{ secrets.X }}` thẳng vào lệnh? Expression `${{ }}` được thay **trước** khi shell chạy, nên giá trị sẽ thành một phần của script được ghi ra file tạm. Đi qua biến môi trường thì giá trị chỉ nằm trong env của process, và dấu ngoặc kép ngăn shell tách chuỗi nếu URL có ký tự đặc biệt.
 
 ---
+
+## Phụ lục B. Khái niệm GitHub Actions dùng trong workflow
+
+### B.1 Workflow, job, step, action
+
+| Khái niệm | Trong repo này                                    | Giải thích                                                                                                  |
+| --------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Workflow  | `ci-cd.yml`                                       | Một file YAML trong `.github/workflows/`. Mỗi lần được kích hoạt sinh ra một **run**.                       |
+| Job       | `quality`, `validate-images`, `publish`, `deploy` | Đơn vị chạy trên **một runner**. Các job mặc định chạy song song, trừ khi có `needs`.                       |
+| Step      | Mỗi phần tử trong `steps:`                        | Chạy tuần tự trong job, chung filesystem và chung biến `$GITHUB_ENV`.                                       |
+| Action    | `actions/checkout`, `docker/build-push-action`... | Đoạn code tái sử dụng, gọi bằng `uses: owner/repo@ref`. Có input (`with`) và output (`steps.<id>.outputs`). |
+
+### B.2 Runner
+
+- Runner là máy chạy job. `ubuntu-latest` là runner do GitHub host (GitHub-hosted runner): máy ảo mới cho mỗi job, bị hủy khi job xong.
+- Hệ quả quan trọng: **file không đi từ job này sang job khác**. Vì vậy `validate-images` và `publish` phải checkout lại, và image build ở `validate-images` không được dùng lại ở đâu cả.
+- Runner Ubuntu có sẵn Docker, `curl`, bash (theo tài liệu GitHub về phần mềm cài sẵn), nên workflow không cài thêm.
+
+### B.3 `needs` và trạng thái skipped
+
+- `needs: X` tạo thứ tự: job chỉ chạy khi X **thành công**.
+- Nếu X fail hoặc bị skip, job phụ thuộc mặc định cũng bị skip. Ví dụ: trong run PR, `publish` bị skip vì `if`, kéo theo `deploy` (needs `publish`) cũng không chạy. Dù `deploy` có `if` riêng, nó cũng không có cơ hội đánh giá vì `publish` không thành công.
+
+Đồ thị phụ thuộc của file này:
+
+```text
+quality ──► validate-images        (chỉ PR)
+   │
+   └─────► publish ──► deploy      (không phải PR)
+```
+
+### B.4 Expression `${{ }}` và context
+
+- `${{ <biểu thức> }}` được GitHub tính **trước** khi giao việc cho runner (với `if`, `name`, `with`, `env`...).
+- Ở key `if:`, có thể bỏ `${{ }}`; file này vẫn viết đầy đủ cho rõ.
+- Context được dùng trong file:
+
+| Context              | Dùng ở dòng       | Giá trị                                             |
+| -------------------- | ----------------- | --------------------------------------------------- |
+| `github.event_name`  | 46, 77, 142       | `pull_request`, `push`, `workflow_dispatch`         |
+| `github.actor`       | 95                | Login của người kích hoạt                           |
+| `github.sha`         | 105, 126          | SHA đầy đủ của commit                               |
+| `matrix.*`           | 45, 69, 71–73     | Giá trị của phần tử matrix hiện tại                 |
+| `env.*`              | 102, 123, 151–167 | Biến môi trường (từ `$GITHUB_ENV` hoặc khối `env:`) |
+| `secrets.*`          | 96, 147–148       | Secret của repo/environment, và `GITHUB_TOKEN`      |
+| `steps.<id>.outputs` | 114–115, 135–136  | Output của step có `id`                             |
+
+- Phân biệt với biến shell: `$GITHUB_ENV`, `$PORTAINER_WEBHOOK_URL`, `${GITHUB_REPOSITORY_OWNER,,}` là cú pháp **bash**, được tính lúc lệnh chạy trên runner.
+
+### B.5 `GITHUB_TOKEN`
+
+- GitHub tự tạo token này cho mỗi job, hết hạn khi job xong. Không cần (và không thể) tạo tay.
+- Quyền của nó do khối `permissions` quyết định ([ci-cd.yml:12–14](../.github/workflows/ci-cd.yml)).
+- Với PR từ fork, theo tài liệu GitHub, token chỉ có quyền đọc bất kể khai báo `packages: write`.
+- Push lên GHCR bằng `GITHUB_TOKEN` yêu cầu package trên GHCR cho phép repo này ghi (cài đặt "Manage Actions access" của package). Cài đặt này nằm trên GitHub, không trong repo.
+
+### B.6 Secret và environment
+
+- **Repository secret**: mọi job trong repo đọc được (trừ PR từ fork).
+- **Environment secret**: chỉ job có `environment: <tên>` đọc được. Environment còn có protection rule: required reviewers, wait timer, deployment branches.
+- GitHub che giá trị secret trong log bằng `***`.
+- Thêm/sửa secret: **Settings → Secrets and variables → Actions** (repo) hoặc **Settings → Environments → production** (environment).
+
+### B.7 `concurrency` (workflow này KHÔNG dùng)
+
+`concurrency` là key cho phép gom các run vào một nhóm để chỉ một run chạy tại một thời điểm, có thể kèm `cancel-in-progress: true` để hủy run cũ. Workflow hiện tại không khai báo key này; hệ quả xem [mục 21.2](#212-không-có-concurrency-hai-run-có-thể-đè-nhau). Ví dụ cú pháp (chỉ để hiểu khái niệm, chưa áp dụng):
+
+```yaml
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+```
+
+### B.8 GHCR (GitHub Container Registry)
+
+- Registry chứa Docker image tại `ghcr.io`, gắn với user/tổ chức GitHub.
+- Tên image: `ghcr.io/<owner viết thường>/<tên image>:<tag>`.
+- Image đầu tiên push lên mặc định là private (theo tài liệu GitHub), nên Portainer cần token `read:packages` để pull ([deploy/portainer/README.md:12–13](../deploy/portainer/README.md)).
+
+### B.9 Buildx, BuildKit và cache `gha`
+
+- **BuildKit** là engine build thế hệ mới của Docker: build song song các stage độc lập, cache tốt hơn, hỗ trợ `# syntax=` ở dòng đầu Dockerfile.
+- **Buildx** là CLI plugin để điều khiển BuildKit (`docker buildx build`).
+- `setup-buildx-action` tạo builder; `build-push-action` gọi `docker buildx build`.
+- **Cache `type=gha`**: BuildKit export layer cache vào kho GitHub Actions cache qua API của Actions. Nhờ vậy, máy runner mới (không có layer nào) vẫn tái sử dụng được layer của lần build trước.
+
+### B.10 Thứ tự tự nhiên của một lần build trong job `publish`
+
+1. BuildKit đọc Dockerfile, tính hash input của từng instruction.
+2. Hỏi cache `gha` scope `backend`: layer nào có hash khớp thì tải về, bỏ qua bước chạy.
+3. Chạy các instruction còn lại.
+4. Push image (manifest + layer) lên GHCR với từng tag.
+5. Export cache mới lên `gha`.
+
+---
