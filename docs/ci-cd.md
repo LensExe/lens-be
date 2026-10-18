@@ -1005,3 +1005,67 @@ CI không đụng tới biến runtime. Phải thêm biến vào khối `environ
 Có, nhưng nằm trong file stack ([ai-worker-stack.yml:48–57](../deploy/portainer/ai-worker/ai-worker-stack.yml)), không nằm trong image. Chạy image AI worker bằng `docker run` trần thì không có healthcheck.
 
 ---
+
+## 21. Điểm cần lưu ý
+
+Các điểm dưới đây là quan sát kèm bằng chứng. Tài liệu này **không** sửa workflow; cần đổi thì tạo task riêng.
+
+### 21.1 `workflow_dispatch` trên branch bất kỳ vẫn push `latest` và redeploy production
+
+- `publish`/`deploy` chỉ kiểm `event_name != 'pull_request'` ([ci-cd.yml:77](../.github/workflows/ci-cd.yml), [ci-cd.yml:142](../.github/workflows/ci-cd.yml)), không kiểm branch.
+- Tag `latest` là `type=raw` ([ci-cd.yml:104](../.github/workflows/ci-cd.yml)), luôn được gắn bất kể branch.
+- Hệ quả: chạy tay workflow trên `feature-x` sẽ ghi đè `latest` bằng code của `feature-x`, rồi gọi webhook. Portainer pull `latest` ([README.md:52–54](../deploy/portainer/README.md)), nên production chạy code chưa merge.
+- Lớp chặn duy nhất có thể có là rule "deployment branches" của environment `production`. Repo không chứa cấu hình đó nên tài liệu này không xác minh được.
+
+### 21.2 Không có `concurrency`, hai run có thể đè nhau
+
+- Workflow không khai báo `concurrency` (đã đọc toàn bộ [ci-cd.yml](../.github/workflows/ci-cd.yml)).
+- Hai lần push `master` sát nhau → hai run `publish` song song. Run của commit cũ nếu xong sau sẽ đẩy `latest` trỏ về commit cũ, và webhook của nó deploy bản cũ.
+
+### 21.3 Cache scope PR và publish không trùng nhau
+
+- `validate-images` dùng scope `lens-backend` / `lens-ai-worker` ([ci-cd.yml:72–73](../.github/workflows/ci-cd.yml)); `publish` dùng `backend` / `ai-worker` ([ci-cd.yml:116–117](../.github/workflows/ci-cd.yml), [ci-cd.yml:137–138](../.github/workflows/ci-cd.yml)).
+- Hệ quả: PR không tận dụng được cache do `master` tạo ra, nên build image trên PR chậm hơn mức cần thiết. Không sai về kết quả, chỉ tốn thời gian.
+
+### 21.4 Mọi push `master` đều redeploy, kể cả chỉ sửa docs
+
+- Không có `paths-ignore` ([ci-cd.yml:7–9](../.github/workflows/ci-cd.yml)). Mỗi lần redeploy là container backend và AI worker bị tạo lại.
+
+### 21.5 Deploy xanh không có nghĩa là app đang chạy ổn
+
+- Job `deploy` kết thúc ngay sau `curl` ([ci-cd.yml:150–168](../.github/workflows/ci-cd.yml)). Thiếu secret thì job vẫn xanh ([ci-cd.yml:156–158](../.github/workflows/ci-cd.yml)).
+- Muốn biết bản mới có chạy không phải xem Portainer (trạng thái healthy của container).
+
+### 21.6 Migration không tự chạy nhưng code thì tự deploy
+
+- Xem [mục 15](#15-những-gì-ci-không-làm). PR có migration + code dùng schema mới sẽ gây lỗi runtime trong khoảng thời gian giữa lúc deploy và lúc có người chạy migration tay.
+
+### 21.7 ESLint / Prettier / commitlint chỉ ở local
+
+- Hook có thể bị bỏ qua (`--no-verify`) và CI không chạy lại ([mục 2.5](#25-so-sánh-lớp-local-và-lớp-ci)).
+- `test:openapi` cũng không có trên CI, dù AGENTS.md yêu cầu chạy khi đổi API.
+
+### 21.8 `packages: write` cấp cho cả các job không cần
+
+- Khai báo ở cấp workflow ([ci-cd.yml:12–14](../.github/workflows/ci-cd.yml)) nên `quality` và `validate-images` cũng có quyền ghi package. Chỉ `publish` cần. Theo nguyên tắc least privilege có thể chuyển `packages: write` xuống riêng job `publish`.
+
+### 21.9 Publish nửa chừng
+
+- Backend và AI worker push tuần tự trong một job ([ci-cd.yml:108–138](../.github/workflows/ci-cd.yml)). AI worker fail sau khi backend đã push → `lens-backend:latest` đã mới nhưng `deploy` không chạy. Lần redeploy kế tiếp vì lý do khác (restart stack thủ công, webhook từ run khác) sẽ kéo bản backend mới đó mà có thể không ai để ý.
+
+### 21.10 Healthcheck backend đọc `PORT` nhưng app ưu tiên `CORE_PORT`
+
+- App listen trên `process.env.CORE_PORT ?? process.env.PORT ?? 3000` ([apps/core/src/main.ts:16](../apps/core/src/main.ts)).
+- Healthcheck gọi `process.env.PORT || 3000` ([Dockerfile:65](../Dockerfile)).
+- Nếu ai đó đặt `CORE_PORT` khác `PORT` trong container, app nghe một port còn healthcheck gọi port khác → container `unhealthy`. Hiện stack backend không khai báo `CORE_PORT` trong `environment` ([backend-stack.yml:9–95](../deploy/portainer/backend/backend-stack.yml)), nên chưa xảy ra.
+
+### 21.11 README Portainer trỏ tới file không tồn tại
+
+- [deploy/portainer/README.md:76](../deploy/portainer/README.md) nhắc `deploy/portainer/ollama/README.md`, và [README.md:79](../deploy/portainer/README.md) nhắc `deploy/portainer/ai-worker/README.md` (nơi được cho là có hướng dẫn webhook GitOps của worker).
+- Thực tế `deploy/portainer/ollama/` chỉ có `ollama-stack.yml` và `deploy/portainer/ai-worker/` chỉ có `ai-worker-stack.yml`. Hướng dẫn tạo webhook cho stack AI worker hiện chỉ suy ra được từ phần của backend ([README.md:47–50](../deploy/portainer/README.md)).
+
+### 21.12 Phiên bản pnpm ghim ở nhiều nơi
+
+- `11.1.2` xuất hiện ở [ci-cd.yml:27](../.github/workflows/ci-cd.yml), [Dockerfile:13](../Dockerfile), [Dockerfile:48](../Dockerfile), [Dockerfile.ai-worker:13](../Dockerfile.ai-worker), [Dockerfile.ai-worker:44](../Dockerfile.ai-worker); [package.json](../package.json) không có trường `packageManager`. Nâng pnpm mà quên một chỗ thì CI và image dùng hai phiên bản khác nhau.
+
+---
