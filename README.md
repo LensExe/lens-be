@@ -229,8 +229,11 @@ The seed file contains explicit SQL inserts and is intended for local review bef
 ### 6. Khởi chạy ứng dụng Backend
 
 ```bash
-# Start in development mode with hot reload.
+# Core API in development mode with hot reload.
 pnpm start:dev
+
+# Equivalent explicit Core command.
+pnpm start:core:dev
 
 # Start in debug mode.
 pnpm start:debug
@@ -238,6 +241,29 @@ pnpm start:debug
 # Build and run in production.
 pnpm build
 pnpm start:prod
+```
+
+AI Worker là một Nest application riêng, nên chạy ở terminal thứ hai từ thư
+mục `lens-backend`:
+
+```bash
+# AI Worker in development mode with hot reload.
+pnpm start:ai-worker:dev
+
+# Equivalent explicit command.
+pnpm start:worker:dev
+```
+
+Các script alias (`start:core:dev`, `start:worker:dev`) dùng tên project trong
+`nest-cli.json` (`core`, `ai-worker`, `cli`). Riêng dispatcher `start` hỗ trợ
+cả tên project và đường dẫn `apps/...` để tương thích với lệnh cũ.
+
+Script `start` cũng hỗ trợ cả tên project và đường dẫn app để tương thích với
+các lệnh cũ:
+
+```bash
+pnpm start apps/core -w
+pnpm start apps/ai-worker -w
 ```
 
 ### 7. Truy cập Swagger UI
