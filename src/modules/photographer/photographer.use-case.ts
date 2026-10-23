@@ -88,7 +88,7 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * An admin approves a photographer application: set it to `verified`, record the approver, assign the `photographer` role, and notify the applicant in real time.
+   * An admin approves a photographer application: set it to `verified`, record the approver, grant the Keycloak photographer role, and notify the applicant in real time.
    *
    * @param s EntityManager for the current transaction.
    * @param a Admin actor; must have an `admins` record.

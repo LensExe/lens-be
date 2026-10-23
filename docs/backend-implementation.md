@@ -65,7 +65,7 @@ Danh sách và logic chọn module ở [`feature-modules.ts`](../src/features/ap
 
 ## Xác thực và tài khoản
 
-API dùng Keycloak access token. `POST /auth/register` nhận `role` là `customer` hoặc `photographer`, tạo user cùng profile tương ứng và tạo wallet. Photographer mới có trạng thái `unverified`; gửi hồ sơ qua `/photographers/profile` sẽ chuyển sang `pending` để admin duyệt. Tài khoản Google tiếp tục khởi tạo theo luồng customer. Lệnh có tính idempotent với tài khoản đang `active`; tài khoản bị đình chỉ/ban không được đăng ký lại. Các thao tác trạng thái admin (`active`, `suspended`, `banned`) đi qua `identity.domain.ts`; admin không thể tự khóa/ban chính mình. Google login đi qua Keycloak theo [hướng dẫn riêng](keycloak-google-login.md).
+API dùng Keycloak access token. `POST /auth/register` nhận `role` là `customer` hoặc `photographer`, tạo user cùng profile tương ứng và tạo wallet. Tài khoản customer nhận role `customer` ngay khi đăng ký; photographer mới có trạng thái `unverified`, gửi hồ sơ qua `/photographers/profile` sẽ chuyển sang `pending` để admin duyệt và chỉ được cấp role `photographer` sau khi được duyệt. Tài khoản Google tiếp tục khởi tạo theo luồng customer. Lệnh có tính idempotent với tài khoản đang `active`; tài khoản bị đình chỉ/ban không được đăng ký lại. Các thao tác trạng thái admin (`active`, `suspended`, `banned`) đi qua `identity.domain.ts`; admin không thể tự khóa/ban chính mình. Google login đi qua Keycloak theo [hướng dẫn riêng](keycloak-google-login.md).
 
 ## Booking, payment và subscription
 

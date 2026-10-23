@@ -129,6 +129,7 @@ export class GoogleAuthController {
       actor,
       tokenSet,
       role,
+      { ensureRealmMapping: true },
     );
     const code = await this.googleAuth.createFrontendHandoff({
       tokenSet: sessionTokenSet,

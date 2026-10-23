@@ -42,7 +42,7 @@ export class AuthController {
     operationId: 'AUTH-001',
     summary: 'Đăng ký tài khoản',
     description:
-      'Đăng ký bằng email, mật khẩu, họ tên và role customer hoặc photographer. Photographer được tạo hồ sơ chưa xác minh để hoàn tất ứng tuyển; admin duyệt mới cấp quyền photographer. Gửi lại cùng thông tin có thể hoàn tất hồ sơ nếu lần trước bị gián đoạn. Role: Public',
+      'Đăng ký bằng email, mật khẩu, họ tên và role customer hoặc photographer. Role được gán ngay khi tạo tài khoản; hồ sơ photographer vẫn ở trạng thái chưa xác minh cho đến khi được admin duyệt. Gửi lại cùng thông tin có thể hoàn tất hồ sơ nếu lần trước bị gián đoạn. Role: Public',
   })
   @ApiConflictResponse({
     description: 'Email hoặc tài khoản đã tồn tại',
@@ -83,16 +83,16 @@ export class AuthController {
     );
 
     const identity = await this.query.execute(new IdentityMeQuery(actor, {}));
-    // Customers receive their Keycloak role during signup. Photographer access
-    // remains reserved for the existing admin approval flow.
-    const sessionTokenSet =
-      identity.role === RegistrationRole.CUSTOMER
-        ? await this.authService.synchronizeRole(
-            actor,
-            tokenSet,
-            RegistrationRole.CUSTOMER,
-          )
-        : tokenSet;
+    // The selected profile role is granted during signup. Photographer
+    // verification remains an independent admin-review state.
+    const registrationRole =
+      identity.role ?? body.role ?? RegistrationRole.CUSTOMER;
+    const sessionTokenSet = await this.authService.synchronizeRole(
+      actor,
+      tokenSet,
+      registrationRole,
+      { ensureRealmMapping: true },
+    );
 
     return { ...sessionTokenSet, user };
   } // done
