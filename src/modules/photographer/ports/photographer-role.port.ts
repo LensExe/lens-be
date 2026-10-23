@@ -1,5 +1,5 @@
 /**
- * Ability to assign or remove the `photographer` role in Keycloak, as required by the photographer context when an admin approves an application.
+ * Ability to assign or remove the `photographer` role in Keycloak for the photographer account lifecycle.
  *
  * Provided by the API runtime through the Keycloak Admin API.
  * The user must refresh their token or sign in again to receive the new role in the token.

@@ -133,10 +133,15 @@ export class AuthService {
     actor: Actor,
     tokenSet: KeycloakExchangeCodeForTokenResponse,
     role: RegistrationRole,
+    options: { ensureRealmMapping?: boolean } = {},
   ): Promise<KeycloakExchangeCodeForTokenResponse> {
-    if (actor.roles.includes(role)) return tokenSet;
+    if (actor.roles.includes(role) && !options.ensureRealmMapping) {
+      return tokenSet;
+    }
 
     await this.keyCloakUser.assignRealmRoleToUser(actor.sub, role);
+    if (actor.roles.includes(role)) return tokenSet;
+
     const refreshed = await this.tokens.exchangeRefreshTokenForToken({
       refreshToken: tokenSet.refresh_token,
     });

@@ -6,7 +6,7 @@
     "method": "POST",
     "path": "/api/v1/auth/register",
     "summary": "Đăng ký tài khoản",
-    "description": "Tạo tài khoản Lens theo role customer hoặc photographer; photographer bắt đầu ở trạng thái chưa xác minh.",
+    "description": "Tạo tài khoản Lens theo role customer hoặc photographer; customer nhận role customer ngay, photographer bắt đầu chưa xác minh và chỉ nhận role photographer sau khi admin duyệt.",
     "role": "Public",
     "priority": "Must",
     "kind": "Command"
