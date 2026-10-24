@@ -26,11 +26,14 @@ export interface PaymentWithdrawalCommandInput {
   amount: number;
   reason: string;
   idempotency_key: string;
-  payout_destination: {
-    bank_code: string;
-    account_number: string;
-    account_name: string;
-  };
+  /** Temporary compatibility for older clients; new clients should use the saved destination. */
+  payout_destination?: PaymentPayoutDestinationInput;
+}
+
+export interface PaymentPayoutDestinationInput {
+  bank_code: string;
+  account_number: string;
+  account_name: string;
 }
 
 export interface PaymentGetQueryInput {

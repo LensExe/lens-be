@@ -96,6 +96,31 @@ export class PaymentTopUpCommandBodyDto {
   idempotency_key!: string;
 }
 
+export class PaymentPayoutDestinationBodyDto {
+  @ApiProperty({
+    description: 'Mã BIN hoặc mã ngân hàng dùng cho lệnh chuyển khoản.',
+    example: '970436',
+  })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(32)
+  bank_code!: string;
+
+  @ApiProperty({
+    description: 'Số tài khoản nhận tiền.',
+    example: '0123456789',
+  })
+  @IsString()
+  @Matches(/^[0-9]{4,34}$/)
+  account_number!: string;
+
+  @ApiProperty({ description: 'Tên chủ tài khoản.', example: 'NGUYEN VAN A' })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  account_name!: string;
+}
+
 export class PayOsStandaloneTestPaymentBodyDto {
   @ApiProperty({
     description: 'Số tiền thử tạo payment link PayOS, tối đa 1.000.000 VND.',
@@ -144,10 +169,16 @@ export class PaymentWithdrawalCommandBodyDto {
   @MaxLength(1000)
   reason!: string;
 
-  @ApiProperty({ type: PayoutDestinationDto })
+  @ApiPropertyOptional({
+    type: PayoutDestinationDto,
+    deprecated: true,
+    description:
+      'Temporary compatibility: saved on first legacy withdrawal and must match the saved destination afterward.',
+  })
+  @IsOptional()
   @ValidateNested()
   @Type(() => PayoutDestinationDto)
-  payout_destination!: PayoutDestinationDto;
+  payout_destination?: PayoutDestinationDto;
 
   @ApiProperty({ type: 'string' })
   @IsString()

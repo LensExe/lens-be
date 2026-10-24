@@ -11,6 +11,7 @@ import {
   RefundStatus,
 } from '@shared/domain/values/payment.values';
 import type { RefundRequestEntity } from '@shared/database/entities/refund-request.entity';
+import type { WalletPayoutDestinationEntity } from '@shared/database/entities/wallet-payout-destination.entity';
 import { Wallet } from './wallet.domain';
 import {
   encryptPayoutDestination,
@@ -55,6 +56,47 @@ export class WalletUseCases {
     const { limit, offset } = pageWindow(query);
     return this.ledger(s, user.id, limit, offset);
   }
+
+  /** Return the current user's saved payout destination with the account number masked. */
+  async currentPayoutDestination(s: EntityManager, actor: Actor) {
+    role(actor, 'customer', 'photographer');
+    const user = await currentUser(s, actor);
+    const destination = await s.findOneBy(
+      EntitySchemas.wallet_payout_destinations,
+      { user_id: user.id },
+    );
+    return this.presentPayoutDestination(destination);
+  }
+
+  /** Save or replace the current user's encrypted default payout destination. */
+  async savePayoutDestination(
+    s: EntityManager,
+    actor: Actor,
+    input: Inputs.PaymentPayoutDestinationInput,
+  ) {
+    role(actor, 'customer', 'photographer');
+    const user = await currentUser(s, actor);
+    // Serialize destination changes with withdrawals through the wallet row lock.
+    await this.lockWallet(s, user.id);
+    const existing = await s.findOneBy(
+      EntitySchemas.wallet_payout_destinations,
+      { user_id: user.id },
+    );
+    const destination = await s.save(
+      EntitySchemas.wallet_payout_destinations,
+      existing
+        ? {
+            ...existing,
+            payout_destination_encrypted: encryptPayoutDestination(input),
+          }
+        : {
+            user_id: user.id,
+            payout_destination_encrypted: encryptPayoutDestination(input),
+          },
+    );
+    return this.presentPayoutDestination(destination);
+  }
+
   /**
    * Create a wallet deposit transaction and payment URL for the current user.
    *
@@ -122,27 +164,63 @@ export class WalletUseCases {
       idempotency_key: input.idempotency_key,
     });
     if (existing) {
-      const existingDestination = decryptPayoutDestination(
-        existing.payout_destination_encrypted,
-      );
       ensure(
         existing.request_type === RefundRequestType.WALLET_WITHDRAWAL &&
           Number(existing.amount) === input.amount &&
-          existing.reason === input.reason &&
-          existingDestination?.bank_code ===
-            input.payout_destination.bank_code &&
-          existingDestination?.account_number ===
-            input.payout_destination.account_number &&
-          existingDestination?.account_name ===
-            input.payout_destination.account_name,
+          existing.reason === input.reason,
         'Idempotency key was already used for another request',
         'conflict',
       );
+      if (input.payout_destination) {
+        const existingDestination = decryptPayoutDestination(
+          existing.payout_destination_encrypted,
+        );
+        ensure(
+          existingDestination?.bank_code ===
+            input.payout_destination.bank_code &&
+            existingDestination?.account_number ===
+              input.payout_destination.account_number &&
+            existingDestination?.account_name ===
+              input.payout_destination.account_name,
+          'Idempotency key was already used with another payout destination',
+          'conflict',
+        );
+      }
       return this.presentWithdrawalRequest(existing);
     }
-    const encryptedDestination = encryptPayoutDestination(
-      input.payout_destination,
+    let savedDestination = await manager.findOneBy(
+      EntitySchemas.wallet_payout_destinations,
+      { user_id: user.id },
     );
+    if (!savedDestination && input.payout_destination) {
+      savedDestination = await manager.save(
+        EntitySchemas.wallet_payout_destinations,
+        {
+          user_id: user.id,
+          payout_destination_encrypted: encryptPayoutDestination(
+            input.payout_destination,
+          ),
+        },
+      );
+    }
+    ensure(
+      savedDestination,
+      'Register a payout destination before requesting a withdrawal',
+      'conflict',
+    );
+    if (input.payout_destination) {
+      const savedDetails = decryptPayoutDestination(
+        savedDestination.payout_destination_encrypted,
+      );
+      ensure(
+        savedDetails?.bank_code === input.payout_destination.bank_code &&
+          savedDetails?.account_number ===
+            input.payout_destination.account_number &&
+          savedDetails?.account_name === input.payout_destination.account_name,
+        'Update the saved payout destination before requesting a withdrawal',
+        'conflict',
+      );
+    }
     const request = await manager.save(EntitySchemas.refund_requests, {
       request_type: RefundRequestType.WALLET_WITHDRAWAL,
       transaction_id: null,
@@ -153,7 +231,9 @@ export class WalletUseCases {
       amount: input.amount,
       reserved_amount: 0,
       reason: input.reason,
-      payout_destination_encrypted: encryptedDestination,
+      // Snapshot the destination so later profile edits cannot redirect this request.
+      payout_destination_encrypted:
+        savedDestination.payout_destination_encrypted,
       idempotency_key: input.idempotency_key,
       status: RefundStatus.REQUESTED,
       processing_due_at: Payment.requestProcessingDueAt(),
@@ -687,6 +767,31 @@ export class WalletUseCases {
       payout_destination: decryptPayoutDestination(
         payout_destination_encrypted,
       ),
+    };
+  }
+
+  /** Remove the full account number from the saved destination response. */
+  private presentPayoutDestination(
+    destination: WalletPayoutDestinationEntity | null,
+  ) {
+    if (!destination)
+      return {
+        is_configured: false,
+        bank_code: null,
+        account_name: null,
+        account_number_masked: null,
+        updated_at: null,
+      };
+    const payoutDestination = decryptPayoutDestination(
+      destination.payout_destination_encrypted,
+    );
+    ensure(payoutDestination, 'Saved payout destination is missing');
+    return {
+      is_configured: true,
+      bank_code: payoutDestination.bank_code,
+      account_name: payoutDestination.account_name,
+      account_number_masked: `••••${payoutDestination.account_number.slice(-4)}`,
+      updated_at: destination.updated_at,
     };
   }
 }

@@ -54,3 +54,22 @@ export class PaymentWalletLedgerQueryHandler implements IQueryHandler<PaymentWal
     );
   }
 }
+
+export class PaymentPayoutDestinationQuery {
+  constructor(public readonly actor: Actor) {}
+}
+
+@QueryHandler(PaymentPayoutDestinationQuery)
+export class PaymentPayoutDestinationQueryHandler implements IQueryHandler<PaymentPayoutDestinationQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: WalletUseCases,
+  ) {}
+
+  /** Read the current user's masked payout destination. */
+  execute(message: PaymentPayoutDestinationQuery) {
+    return this.dataSource.transaction((manager) =>
+      this.useCases.currentPayoutDestination(manager, message.actor),
+    );
+  }
+}

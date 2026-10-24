@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Param,
   Query,
   Req,
@@ -55,10 +56,12 @@ import {
   PaymentMyRefundsQuery,
 } from '@modules/payment/refund/refund.query';
 import {
+  PaymentSavePayoutDestinationCommand,
   PaymentTopUpCommand,
   PaymentWithdrawalCommand,
 } from '@modules/payment/wallet/wallet.command';
 import {
+  PaymentPayoutDestinationQuery,
   PaymentWalletQuery,
   PaymentWalletLedgerQuery,
 } from '@modules/payment/wallet/wallet.query';
@@ -557,6 +560,55 @@ export class PaymentController {
     );
   }
 
+  /** Get the current user's saved payout destination with the account number masked. */
+  @Get('wallet/payout-destination')
+  @ApiOperation({
+    operationId: 'PAY-021',
+    summary: 'Xem tài khoản nhận tiền rút ví',
+    description:
+      'Trả về tài khoản nhận tiền đã lưu; số tài khoản chỉ hiển thị bốn số cuối.',
+  })
+  @Access(['customer', 'photographer'])
+  @ApiBearerAuth()
+  @ApiResponse({
+    status: 200,
+    description: 'Saved payout destination with a masked account number',
+    schema: responseSchema('PAY-021'),
+  })
+  payoutDestination(@Req() req: { actor?: Actor }) {
+    return this.queries.execute(
+      new PaymentPayoutDestinationQuery(req.actor ?? { sub: '', roles: [] }),
+    );
+  }
+
+  /** Save or replace the current user's default payout destination. */
+  @Put('wallet/payout-destination')
+  @ApiOperation({
+    operationId: 'PAY-022',
+    summary: 'Đăng ký tài khoản nhận tiền rút ví',
+    description:
+      'Lưu tài khoản nhận tiền đã mã hóa; chỉ trả về bốn số cuối sau khi lưu.',
+  })
+  @Access(['customer', 'photographer'])
+  @ApiBearerAuth()
+  @ApiBody({ type: Dto.PaymentPayoutDestinationBodyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Payout destination saved',
+    schema: responseSchema('PAY-022'),
+  })
+  savePayoutDestination(
+    @Req() req: { actor?: Actor },
+    @Body() body: Dto.PaymentPayoutDestinationBodyDto,
+  ) {
+    return this.commands.execute(
+      new PaymentSavePayoutDestinationCommand(
+        req.actor ?? { sub: '', roles: [] },
+        body,
+      ),
+    );
+  }
+
   /**
    * Create a wallet deposit request.
    *
@@ -599,7 +651,8 @@ export class PaymentController {
   @ApiOperation({
     operationId: 'PAY-012',
     summary: 'Yêu cầu rút tiền từ ví',
-    description: 'Tạo request rút tiền và giữ số dư cho đến khi admin xử lý.',
+    description:
+      'Tạo request dùng tài khoản nhận tiền đã lưu và giữ số dư đến khi admin xử lý.',
   })
   @Access(['customer', 'photographer'])
   @ApiBearerAuth()

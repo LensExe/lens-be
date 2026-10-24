@@ -34,3 +34,4 @@ export * from './utils/column-transformers';
 export * from './user.entity';
 export * from './wallet.entity';
 export * from './wallet-ledger.entity';
+export * from './wallet-payout-destination.entity';

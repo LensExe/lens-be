@@ -227,6 +227,14 @@ const subscriptionHistory = obj({
 
 const webhook = obj({ received: bool, duplicate: bool });
 
+const payoutDestination = obj({
+  is_configured: bool,
+  bank_code: { ...str, nullable: true },
+  account_name: { ...str, nullable: true },
+  account_number_masked: { ...str, nullable: true },
+  updated_at: { ...str, nullable: true },
+});
+
 const tokenSet = obj({
   access_token: str,
   expires_in: num,
@@ -364,6 +372,8 @@ const schemas: Record<string, SchemaObject> = {
     created_at: str,
     updated_at: str,
   }),
+  'PAY-021': payoutDestination,
+  'PAY-022': payoutDestination,
   'MEDIA-001': obj({ media: records.media, upload_url: str, expires_in: num }),
   'MEDIA-002': records.media,
   'MEDIA-003': obj({
@@ -466,6 +476,37 @@ const schemas: Record<string, SchemaObject> = {
     photographers: num,
     open_reports: num,
     paid_volume_vnd: num,
+  }),
+  'ADM-017': obj({
+    monthly: array(obj({ month: str, bookings: num, paid_volume_vnd: num })),
+    booking_by_style: array(obj({ style: str, bookings: num })),
+    booking_by_location: array(obj({ location: str, bookings: num })),
+    recent_activity: array(
+      obj({
+        id: str,
+        kind: { type: 'string', enum: ['booking', 'report'] },
+        title: str,
+        detail: str,
+        status: str,
+        created_at: str,
+      }),
+    ),
+  }),
+  'ADM-018': obj({
+    ...records.bookings.properties!,
+    photographer: obj({
+      fullname: str,
+      avatar_url: { ...str, nullable: true },
+      styles: array(str),
+      email: str,
+      phone_number: { ...str, nullable: true },
+    }),
+    customer: obj({
+      fullname: str,
+      avatar_url: { ...str, nullable: true },
+      email: str,
+      phone_number: { ...str, nullable: true },
+    }),
   }),
   'ADM-002': paged(records.users),
   'ADM-003': records.users,

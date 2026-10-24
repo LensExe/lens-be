@@ -31,6 +31,7 @@ import { TransactionEntity } from './transaction.entity';
 import { UserEntity } from './user.entity';
 import { WalletEntity } from './wallet.entity';
 import { WalletLedgerEntity } from './wallet-ledger.entity';
+import { WalletPayoutDestinationEntity } from './wallet-payout-destination.entity';
 
 export const databaseEntities = [
   UserEntity,
@@ -50,6 +51,7 @@ export const databaseEntities = [
   BookingEntity,
   WalletEntity,
   WalletLedgerEntity,
+  WalletPayoutDestinationEntity,
   TransactionEntity,
   PaymentWebhookEntity,
   PaymentEscrowSettlementEntity,
@@ -86,6 +88,7 @@ export const EntitySchemas = {
   booking_status_history: BookingStatusHistoryEntity,
   wallets: WalletEntity,
   wallet_ledger: WalletLedgerEntity,
+  wallet_payout_destinations: WalletPayoutDestinationEntity,
   transactions: TransactionEntity,
   payment_webhooks: PaymentWebhookEntity,
   payment_escrow_settlements: PaymentEscrowSettlementEntity,

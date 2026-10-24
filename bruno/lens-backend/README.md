@@ -1,6 +1,6 @@
 # Lens Backend API — Bruno collection
 
-This folder is a Bruno collection generated from the NestJS HTTP controllers in `src/features/api/http`. It contains **136 endpoint smoke requests** and a focused set of **6 Keycloak registration cases**.
+This folder is a Bruno collection generated from the NestJS HTTP controllers in `src/features/api/http`. It contains **138 endpoint smoke requests** and a focused set of **6 Keycloak registration cases**.
 
 ## Import
 

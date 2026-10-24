@@ -26,6 +26,7 @@ import { MediaStorageUsageService } from '@modules/media/media-storage-usage.ser
 import { MediaImageProcessingService } from '@modules/media/media-image-processing.service';
 import { BookingPaymentReadPort } from '@modules/media/ports/booking-payment-read.port';
 import { ModerationDashboardUseCases } from '@modules/moderation/dashboard/dashboard.use-case';
+import { AdminDashboardAnalyticsUseCases } from '@modules/moderation/dashboard/dashboard-analytics.use-case';
 import { ModerationReportUseCases } from '@modules/moderation/report/report.use-case';
 import { PaymentUseCases } from '@modules/payment/payment.use-case';
 import { RefundUseCases } from '@modules/payment/refund/refund.use-case';
@@ -71,6 +72,7 @@ const applicationServices = [
   MediaStorageUsageService,
   MediaImageProcessingService,
   ModerationDashboardUseCases,
+  AdminDashboardAnalyticsUseCases,
   ModerationReportUseCases,
   PaymentUseCases,
   RefundUseCases,

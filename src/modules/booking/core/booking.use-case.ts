@@ -1070,6 +1070,70 @@ export class BookingUseCases
     );
   }
 
+  /** Admin booking detail using the same participant, plan, payment, and gallery projection as the list. */
+  async adminGet(
+    s: EntityManager,
+    a: Actor,
+    input: Inputs.BookingGetQueryInput,
+  ) {
+    role(a, 'admin');
+    await currentUser(s, a);
+    const result = await this.pageOfBookings(
+      s,
+      { id: input.booking_id },
+      { limit: 1, offset: 0 },
+    );
+    const booking = result.items[0];
+    ensure(booking, 'Booking not found', 'missing');
+
+    const [photographer, customer] = await Promise.all([
+      s.findOne(EntitySchemas.photographers, {
+        where: { id: booking.photographer_id },
+        select: { id: true, user_id: true },
+      }),
+      s.findOne(EntitySchemas.customers, {
+        where: { id: booking.customer_id },
+        select: { id: true, user_id: true },
+      }),
+    ]);
+    const userIds = [photographer?.user_id, customer?.user_id].filter(
+      (id): id is string => Boolean(id),
+    );
+    const users = userIds.length
+      ? await s.find(EntitySchemas.users, {
+          where: { id: In(userIds) },
+          select: { id: true, email: true, phone_number: true },
+        })
+      : [];
+    const usersById = new Map(users.map((user) => [user.id, user]));
+    const photographerUser = photographer
+      ? usersById.get(photographer.user_id)
+      : undefined;
+    const customerUser = customer ? usersById.get(customer.user_id) : undefined;
+
+    return {
+      ...booking,
+      ...(booking.photographer && photographerUser
+        ? {
+            photographer: {
+              ...booking.photographer,
+              email: photographerUser.email,
+              phone_number: photographerUser.phone_number,
+            },
+          }
+        : {}),
+      ...(booking.customer && customerUser
+        ? {
+            customer: {
+              ...booking.customer,
+              email: customerUser.email,
+              phone_number: customerUser.phone_number,
+            },
+          }
+        : {}),
+    };
+  }
+
   /**
    * One page of bookings matching the filters, newest first; the database returns only the requested page size.
    *
