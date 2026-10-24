@@ -29,7 +29,10 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { Access } from '../auth/keycloak.guard';
 import * as Dto from '../dto';
 import { responseSchema } from '../swagger';
-import { BookingAdminQuery } from '@modules/booking/core/bookings.query';
+import {
+  BookingAdminGetQuery,
+  BookingAdminQuery,
+} from '@modules/booking/core/bookings.query';
 import { BookingCreateCommand } from '@modules/booking/core/bookings.command';
 import { BookingListQuery } from '@modules/booking/core/bookings.query';
 import { BookingAcceptCommand } from '@modules/booking/core/bookings.command';
@@ -138,6 +141,39 @@ export class BookingController {
   ) {
     return this.queries.execute(
       new BookingAdminQuery(req.actor ?? { sub: '', roles: [] }, { ...query }),
+    );
+  }
+
+  @Get('admin/bookings/:booking_id')
+  @ApiOperation({
+    operationId: 'ADM-018',
+    summary: 'Chi tiết booking cho admin',
+    description:
+      'Xem booking kèm thông tin khách hàng, nhiếp ảnh gia, gói chụp, thanh toán và ảnh đã giao. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role or account status denied',
+  })
+  @ApiNotFoundResponse({ description: 'Booking not found' })
+  @ApiParam({ name: 'booking_id', type: String, description: 'Booking UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking detail projection for the admin console',
+    schema: responseSchema('ADM-018'),
+  })
+  adminGet(
+    @Req() req: { actor?: Actor },
+    @Param('booking_id', new ParseUUIDPipe()) booking_id: string,
+  ) {
+    return this.queries.execute(
+      new BookingAdminGetQuery(req.actor ?? { sub: '', roles: [] }, {
+        booking_id,
+      }),
     );
   }
 

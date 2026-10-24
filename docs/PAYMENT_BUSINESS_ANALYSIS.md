@@ -256,7 +256,8 @@ Luồng hiện tại được chia theo payment, wallet, refund và transaction 
 ### API bổ sung
 
 - `GET /wallet`, `GET /wallet/ledger`
-- `POST /wallet/topups`, `POST /wallet/withdrawals`
+- `GET /wallet/payout-destination`, `PUT /wallet/payout-destination` lưu tài khoản nhận tiền đã mã hóa; API GET chỉ trả số tài khoản đã che.
+- `POST /wallet/topups`, `POST /wallet/withdrawals`; request rút dùng tài khoản đã lưu và chụp lại tài khoản đó vào request.
 - `GET /me/refund-requests`, `POST /payments/:payment_id/refund-requests`
 - `GET /admin/refund-requests`
 - `POST /admin/refund-requests/:refund_request_id/approve`, `/reject`, `/complete`

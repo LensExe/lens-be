@@ -63,3 +63,29 @@ export class PaymentWithdrawalCommandHandler implements ICommandHandler<PaymentW
     );
   }
 }
+
+export class PaymentSavePayoutDestinationCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.PaymentPayoutDestinationInput,
+  ) {}
+}
+
+@CommandHandler(PaymentSavePayoutDestinationCommand)
+export class PaymentSavePayoutDestinationCommandHandler implements ICommandHandler<PaymentSavePayoutDestinationCommand> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: WalletUseCases,
+  ) {}
+
+  /** Save the current user's payout destination in an isolated database transaction. */
+  execute(message: PaymentSavePayoutDestinationCommand) {
+    return this.dataSource.transaction((manager) =>
+      this.useCases.savePayoutDestination(
+        manager,
+        message.actor,
+        message.input,
+      ),
+    );
+  }
+}

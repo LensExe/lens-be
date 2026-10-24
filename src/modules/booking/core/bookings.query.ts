@@ -9,6 +9,28 @@ export class BookingAdminQuery {
     public readonly input: Inputs.BookingAdminQueryInput,
   ) {}
 }
+
+export class BookingAdminGetQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.BookingGetQueryInput,
+  ) {}
+}
+
+@QueryHandler(BookingAdminGetQuery)
+export class BookingAdminGetQueryHandler implements IQueryHandler<BookingAdminGetQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: BookingUseCases,
+  ) {}
+
+  execute(message: BookingAdminGetQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.adminGet(s, message.actor, message.input),
+    );
+  }
+}
+
 @QueryHandler(BookingAdminQuery)
 export class BookingAdminQueryHandler implements IQueryHandler<BookingAdminQuery> {
   constructor(

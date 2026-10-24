@@ -13,6 +13,7 @@ import { PaymentEscrowReleaseJob } from '../../workers/payment-escrow-release.jo
 import { PaymentCheckoutExpiryJob } from '../../workers/payment-checkout-expiry.job';
 import { PaymentRequestSlaJob } from '../../workers/payment-request-sla.job';
 import {
+  PaymentSavePayoutDestinationCommandHandler,
   PaymentTopUpCommandHandler,
   PaymentWithdrawalCommandHandler,
 } from '@modules/payment/wallet/wallet.command';
@@ -32,6 +33,7 @@ import {
   PaymentQrQueryHandler,
 } from '@modules/payment/transaction/transaction.query';
 import {
+  PaymentPayoutDestinationQueryHandler,
   PaymentWalletQueryHandler,
   PaymentWalletLedgerQueryHandler,
 } from '@modules/payment/wallet/wallet.query';
@@ -54,6 +56,7 @@ import {
     PaymentCheckoutExpiryJob,
     PaymentRequestSlaJob,
     PaymentTopUpCommandHandler,
+    PaymentSavePayoutDestinationCommandHandler,
     PaymentWithdrawalCommandHandler,
     PaymentRefundCommandHandler,
     PaymentCustomerRefundCommandHandler,
@@ -68,6 +71,7 @@ import {
     PaymentQrQueryHandler,
     PaymentWalletQueryHandler,
     PaymentWalletLedgerQueryHandler,
+    PaymentPayoutDestinationQueryHandler,
     PaymentRefundsQueryHandler,
     PaymentAdminRefundsQueryHandler,
     PaymentMyRefundsQueryHandler,

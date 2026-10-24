@@ -121,6 +121,21 @@ export class AdminStorageQueryQueryDto {
   over_quota?: boolean;
 }
 
+export class AdminDashboardAnalyticsQueryQueryDto {
+  @ApiPropertyOptional({
+    description: 'Number of recent calendar months to include',
+    minimum: 1,
+    maximum: 12,
+    default: 6,
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  months?: number;
+}
+
 export class ModerationCreateCommandBodyDto {
   @ApiProperty({
     description: 'target type',
