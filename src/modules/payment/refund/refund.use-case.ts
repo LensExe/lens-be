@@ -607,6 +607,14 @@ export class RefundUseCases {
         'Withdrawal payout destination is missing',
         'conflict',
       );
+      ensure(request.wallet_id, 'Withdrawal wallet is missing', 'conflict');
+      await this.wallets.assertWithdrawalReservation(
+        manager,
+        request.id,
+        request.user_id,
+        request.wallet_id,
+        Number(request.amount),
+      );
       await updateEntity(manager, EntitySchemas.refund_requests, request.id, {
         status: RefundStatus.APPROVED,
         reviewed_by: reviewer.id,

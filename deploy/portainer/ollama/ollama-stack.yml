@@ -5,10 +5,21 @@ services:
     image: '${OLLAMA_IMAGE:-ollama/ollama:latest}'
     pull_policy: '${OLLAMA_PULL_POLICY:-always}'
     container_name: lens-ollama
+    # Temporary local testing access. Keep this unset/removed after testing if
+    # Ollama should remain reachable only by Lens services on Docker networks.
+    ports:
+      - '${OLLAMA_HOST_PORT:-11434}:11434'
+    environment:
+      OLLAMA_HOST: '0.0.0.0:11434'
     volumes:
       - ollama-models:/root/.ollama
     networks:
       lens-network:
+        aliases:
+          - ollama
+          - lens-ollama
+      # Caddy uses this network to serve the optional public hostname.
+      lens-proxy:
         aliases:
           - ollama
           - lens-ollama
@@ -49,3 +60,6 @@ networks:
   lens-network:
     external: true
     name: lens-network
+  lens-proxy:
+    external: true
+    name: lens-proxy

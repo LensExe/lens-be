@@ -22,6 +22,10 @@
   reverse_proxy lens-keycloak:8080
 }
 
+{$OLLAMA_DOMAIN:ollama.localhost} {
+  reverse_proxy {$OLLAMA_UPSTREAM:lens-ollama:11434}
+}
+
 {$MINIO_S3_DOMAIN:s3.localhost} {
   reverse_proxy lens-minio:9000
 }
