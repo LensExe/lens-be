@@ -2,6 +2,7 @@ import { In, type EntityManager } from 'typeorm';
 import { Injectable } from '@nestjs/common';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import type { TransactionEntity } from '@shared/database/entities/transaction.entity';
+import type { WalletEntity } from '@shared/database/entities/wallet.entity';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import { PaymentGateway } from '@shared/integrations/payment/port/payment.port';
 import type * as Inputs from '@shared/contracts/contracts';
@@ -611,6 +612,60 @@ export class WalletUseCases {
     });
   }
 
+  /** Ensure a withdrawal request still owns its exact reserved frozen amount. */
+  async assertWithdrawalReservation(
+    s: EntityManager,
+    requestId: string,
+    userId: string,
+    walletId: string,
+    amount: number,
+  ) {
+    const wallet = await this.lockWallet(s, userId);
+    ensure(
+      wallet.id === walletId,
+      'Withdrawal wallet does not match the request',
+      'conflict',
+    );
+    return this.assertWithdrawalReservationInWallet(
+      s,
+      wallet,
+      requestId,
+      amount,
+    );
+  }
+
+  private async assertWithdrawalReservationInWallet(
+    s: EntityManager,
+    wallet: WalletEntity,
+    requestId: string,
+    amount: number,
+  ) {
+    Wallet.assertFrozenBalance(
+      wallet.frozen_balance,
+      amount,
+      'Reserved withdrawal balance is missing',
+    );
+    const [{ reserved = 0 } = {}] = await s
+      .createQueryBuilder(EntitySchemas.wallet_ledger, 'ledger')
+      .select('COALESCE(SUM(ledger.frozen_delta), 0)', 'reserved')
+      .where('ledger.wallet_id = :walletId', { walletId: wallet.id })
+      .andWhere('ledger.refund_request_id = :requestId', { requestId })
+      .andWhere('ledger.entry_type IN (:...entryTypes)', {
+        entryTypes: [
+          'withdrawal_reserve',
+          'withdrawal_release',
+          'withdrawal_paid',
+        ],
+      })
+      .getRawMany<{ reserved: string | number }>();
+    ensure(
+      Number(reserved) === amount,
+      'Reserved balance for this withdrawal request is missing',
+      'conflict',
+    );
+    return wallet;
+  }
+
   /**
    * Reject a withdrawal request and release its reserved balance.
    *
@@ -628,10 +683,11 @@ export class WalletUseCases {
     amount: number,
   ) {
     const wallet = await this.lockWallet(s, userId);
-    Wallet.assertFrozenBalance(
-      wallet.frozen_balance,
+    await this.assertWithdrawalReservationInWallet(
+      s,
+      wallet,
+      requestId,
       amount,
-      'Reserved withdrawal balance is missing',
     );
     await this.post(s, wallet, {
       entry_type: 'withdrawal_release',
@@ -663,10 +719,11 @@ export class WalletUseCases {
     transactionId: string,
   ) {
     const wallet = await this.lockWallet(s, userId);
-    Wallet.assertFrozenBalance(
-      wallet.frozen_balance,
+    await this.assertWithdrawalReservationInWallet(
+      s,
+      wallet,
+      requestId,
       amount,
-      'Reserved withdrawal balance is missing',
     );
     await this.post(s, wallet, {
       entry_type: 'withdrawal_paid',

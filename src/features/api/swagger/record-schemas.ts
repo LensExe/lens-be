@@ -1123,6 +1123,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
           account_name: { type: 'string' },
         },
       },
+      payout_reference: { type: 'string', nullable: true },
       processing_due_at: {
         type: 'string',
         description: 'next payment request processing deadline',
