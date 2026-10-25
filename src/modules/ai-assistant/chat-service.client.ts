@@ -138,6 +138,9 @@ export class ChatServiceClient {
       type: message.type,
       content: message.content,
       seq: message.seq,
+      ...(typeof message.reply_to_message_id === 'string'
+        ? { reply_to_message_id: message.reply_to_message_id }
+        : {}),
       ...(typeof message.created_at === 'string'
         ? { created_at: message.created_at }
         : {}),
