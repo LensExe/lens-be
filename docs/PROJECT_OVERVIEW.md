@@ -641,15 +641,15 @@ Nếu cần Keycloak/Kong local, dùng `pnpm docker:gateway`; Kong proxy ở `12
 
 Các nhóm biến môi trường chính:
 
-| Nhóm       | Ví dụ biến                                                                             |
-| ---------- | -------------------------------------------------------------------------------------- |
-| HTTP       | PORT, CORS_ORIGINS, API_PUBLIC_URL, API_GATEWAY_ENABLED                                |
-| PostgreSQL | DB_HOST, DB_PORT, DB_USERNAME, DB_PASSWORD, DB_NAME, DATABASE_URL                      |
-| Redis      | REDIS_HOST, REDIS_PORT, REDIS_PASSWORD                                                 |
-| Keycloak   | KEYCLOAK_AUTH_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_CLIENT_ID, KEYCLOAK_SECRET          |
-| Google     | GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, KEYCLOAK_GOOGLE_REDIRECT_URI                   |
-| PayOS      | PAYOS_CLIENT_ID, PAYOS_API_KEY, PAYOS_CHECKSUM_KEY, PAYOS_RETURN_URL, PAYOS_CANCEL_URL |
-| S3 storage | S3_PROVIDER (minio/digitalocean/cloud), S3_MINIO__, S3_DIGITALOCEAN__, S3_CLOUD_*      |
+| Nhóm       | Ví dụ biến                                                                                                                                                      |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HTTP       | PORT, CORS_ORIGINS, API_PUBLIC_URL, API_GATEWAY_ENABLED                                                                                                         |
+| PostgreSQL | DB_HOST, DB_PORT, DB_USERNAME, DB_PASSWORD, DB_NAME, DATABASE_URL                                                                                               |
+| Redis      | REDIS_HOST, REDIS_PORT, REDIS_PASSWORD                                                                                                                          |
+| Keycloak   | KEYCLOAK_AUTH_SERVER_URL, KEYCLOAK_REALM, KEYCLOAK_CLIENT_ID, KEYCLOAK_SECRET                                                                                   |
+| Google     | GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, KEYCLOAK_GOOGLE_REDIRECT_URI                                                                                            |
+| PayOS      | PAYOS_CLIENT_ID, PAYOS_API_KEY, PAYOS_CHECKSUM_KEY, PAYOS_PAYOUT_CLIENT_ID, PAYOS_PAYOUT_API_KEY, PAYOS_PAYOUT_CHECKSUM_KEY, PAYOS_RETURN_URL, PAYOS_CANCEL_URL |
+| S3 storage | S3_PROVIDER (minio/digitalocean/cloud), S3_MINIO__, S3_DIGITALOCEAN__, S3_CLOUD_*                                                                               |
 
 Feature module có thể bật/tắt bằng các biến dạng FEATURE_NAME_ENABLED, ví dụ FEATURE_BOOKING_ENABLED hoặc FEATURE_PAYMENT_ENABLED.
 

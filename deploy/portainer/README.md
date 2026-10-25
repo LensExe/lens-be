@@ -201,6 +201,8 @@ KONG_UPSTREAM=lens-kong:8000
 KEYCLOAK_DOMAIN=auth.example.com
 MINIO_S3_DOMAIN=s3.example.com
 MINIO_CONSOLE_DOMAIN=minio-console.example.com
+OLLAMA_DOMAIN=ollama.example.com
+OLLAMA_UPSTREAM=lens-ollama:11434
 PORTAINER_DOMAIN=portainer.example.com
 PORTAINER_UPSTREAM=portainer:9000
 ```
@@ -210,7 +212,9 @@ PORTAINER_UPSTREAM=portainer:9000
 if your Kong service has a different Docker network alias or proxy port.
 Missing domain variables default to `.localhost` hostnames for testing. Point
 real domain A records to the VPS IP and allow inbound TCP `80` and `443` in
-the VPS firewall.
+the VPS firewall. The Ollama route is intentionally optional and should be
+protected or removed after local testing because the Ollama HTTP API has no
+authentication in this gateway configuration.
 
 To route Portainer, attach the Portainer Server container to the same external
 `lens-proxy` network and set `PORTAINER_UPSTREAM` to its Docker network alias

@@ -17,6 +17,8 @@ services:
       KONG_DOMAIN: '${KONG_DOMAIN:-api.localhost}'
       KONG_UPSTREAM: '${KONG_UPSTREAM:-lens-kong:8000}'
       KEYCLOAK_DOMAIN: '${KEYCLOAK_DOMAIN:-auth.localhost}'
+      OLLAMA_DOMAIN: '${OLLAMA_DOMAIN:-ollama.localhost}'
+      OLLAMA_UPSTREAM: '${OLLAMA_UPSTREAM:-lens-ollama:11434}'
       MINIO_S3_DOMAIN: '${MINIO_S3_DOMAIN:-s3.localhost}'
       MINIO_CONSOLE_DOMAIN: '${MINIO_CONSOLE_DOMAIN:-minio-console.localhost}'
       PORTAINER_DOMAIN: '${PORTAINER_DOMAIN:-portainer.localhost}'
@@ -47,6 +49,10 @@ services:
 
         {$$KEYCLOAK_DOMAIN:auth.localhost} {
           reverse_proxy lens-keycloak:8080
+        }
+
+        {$$OLLAMA_DOMAIN:ollama.localhost} {
+          reverse_proxy {$$OLLAMA_UPSTREAM:lens-ollama:11434}
         }
 
         {$$MINIO_S3_DOMAIN:s3.localhost} {
