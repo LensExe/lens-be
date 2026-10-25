@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "timestamp": 1792947221136,
+  "history": [],
+  "listeners": [
+    {
+      "title": "notification",
+      "messages": []
+    },
+    {
+      "title": "booking.event",
+      "messages": []
+    },
+    {
+      "title": "chat.event",
+      "messages": []
+    }
+  ],
+  "profiles": [
+    {
+      "id": "notification-service-kong-local",
+      "name": "Notification Service via Kong (Local)",
+      "socketioVersion": "4",
+      "address": "http://127.0.0.1:8000/notification",
+      "options": {
+        "path": "/api/v1/socket.io",
+        "auth": {
+          "token": ""
+        },
+        "transports": ["websocket"],
+        "reconnection": true,
+        "reconnectionDelay": 1000,
+        "reconnectionDelayMax": 5000,
+        "reconnectionAttempts": 5
+      },
+      "requestHistory": [],
+      "listeners": [
+        {
+          "title": "notification",
+          "messages": []
+        },
+        {
+          "title": "booking.event",
+          "messages": []
+        },
+        {
+          "title": "chat.event",
+          "messages": []
+        }
+      ]
+    }
+  ]
+}
