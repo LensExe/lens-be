@@ -3,6 +3,7 @@ import type { CookieOptions, Response } from 'express';
 /** The `headers` field of {@link CookieRequestLike}. */
 export interface CookieRequestHeaders {
   cookie?: unknown;
+  'x-csrf-token'?: unknown;
   [key: string]: unknown;
 }
 

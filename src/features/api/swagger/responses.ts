@@ -243,7 +243,21 @@ const tokenSet = obj({
   token_type: str,
 });
 
-const authSession = obj({ ...tokenSet.properties, user: records.users });
+const browserAuthSession = obj({
+  user: records.users,
+  roles: array(str),
+  email_verified: bool,
+  expires_in: num,
+});
+
+const authSession = obj({
+  ...tokenSet.properties,
+  user: records.users,
+  roles: array(str),
+  email_verified: bool,
+});
+
+const cookieRefreshResult = obj({ success: bool, expires_in: num });
 
 const authResult = obj({ success: bool, message: str });
 
@@ -257,16 +271,9 @@ const schemas: Record<string, SchemaObject> = {
     avatar_url: { ...str, nullable: true },
   }),
   'AUTH-007': obj({ authorization_url: str }),
-  'AUTH-008': obj({
-    access_token: str,
-    expires_in: num,
-    refresh_token: str,
-    scope: str,
-    token_type: str,
-    user: records.users,
-  }),
-  'AUTH-009': authSession,
-  'AUTH-010': tokenSet,
+  'AUTH-008': { oneOf: [authSession, browserAuthSession] },
+  'AUTH-009': { oneOf: [authSession, browserAuthSession] },
+  'AUTH-010': { oneOf: [tokenSet, cookieRefreshResult] },
   'AUTH-011': authResult,
   'AUTH-012': authResult,
   'AUTH-013': authResult,

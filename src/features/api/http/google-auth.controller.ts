@@ -3,12 +3,14 @@ import {
   Get,
   Query,
   Res,
+  Req,
   UnauthorizedException,
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import {
   ApiBadGatewayResponse,
+  ApiHeader,
   ApiOperation,
   ApiQuery,
   ApiResponse,
@@ -28,6 +30,10 @@ import {
   IdentityUpdateMeCommand,
 } from '@modules/identity/identity.command';
 import { IdentityMeQuery } from '@modules/identity/identity.query';
+import {
+  AuthCookieSessionService,
+  isCookieAuthRequest,
+} from '../auth/auth-cookie-session';
 
 @ApiTags('Authentication')
 @Controller('keycloak/google')
@@ -37,6 +43,7 @@ export class GoogleAuthController {
     private readonly query: QueryBus,
     private readonly googleAuth: GoogleAuthService,
     private readonly auth: AuthService,
+    private readonly cookieSession: AuthCookieSessionService,
   ) {}
 
   /**
@@ -134,6 +141,8 @@ export class GoogleAuthController {
     const code = await this.googleAuth.createFrontendHandoff({
       tokenSet: sessionTokenSet,
       user,
+      roles: actor.roles,
+      email_verified: actor.email_verified,
     });
     return response.redirect(302, this.googleAuth.frontendRedirectUri(code));
   }
@@ -146,15 +155,34 @@ export class GoogleAuthController {
     description: 'Đổi mã handoff dùng một lần lấy token và hồ sơ người dùng.',
   })
   @ApiQuery({ name: 'code', type: String })
+  @ApiHeader({
+    name: 'X-Lens-Auth-Mode',
+    required: false,
+    description: 'Gửi giá trị `cookie` để đặt phiên trong cookie HttpOnly.',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Token Keycloak và hồ sơ Lens của người dùng',
+    description:
+      'Hồ sơ Lens; phiên trình duyệt được đặt trong cookie HttpOnly.',
     schema: responseSchema('AUTH-008'),
   })
-  async exchange(@Query() query: GoogleExchangeQuery) {
-    const { tokenSet, user } = await this.googleAuth.consumeFrontendHandoff(
-      query.code,
-    );
-    return { ...tokenSet, user };
+  async exchange(
+    @Query() query: GoogleExchangeQuery,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const { tokenSet, user, roles, email_verified } =
+      await this.googleAuth.consumeFrontendHandoff(query.code);
+    const cookieMode = isCookieAuthRequest(request);
+    if (cookieMode) {
+      this.cookieSession.setSessionCookies(request, response, tokenSet);
+    }
+    return {
+      ...(cookieMode ? {} : tokenSet),
+      user,
+      roles,
+      email_verified: email_verified ?? false,
+      ...(cookieMode ? { expires_in: tokenSet.expires_in } : {}),
+    };
   }
 }
