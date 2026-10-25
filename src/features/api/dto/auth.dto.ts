@@ -1,5 +1,12 @@
-import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { IsString, MinLength, IsEmail, IsEnum, Matches } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import {
+  IsString,
+  MinLength,
+  IsEmail,
+  IsEnum,
+  Matches,
+  IsOptional,
+} from 'class-validator';
 import { RegistrationRole } from '@shared/domain/values/user.values';
 
 export enum AuthOtpEvent {
@@ -70,13 +77,14 @@ export class AuthLoginQueryDto {
 }
 
 export class AuthRefreshDto {
-  @ApiProperty({
-    description: 'Refresh token',
+  @ApiPropertyOptional({
+    description: 'Refresh token for non-cookie clients',
     example: 'refresh-token',
     type: 'string',
   })
+  @IsOptional()
   @IsString()
-  refresh_token!: string;
+  refresh_token?: string;
 }
 
 export class AuthLogoutDto extends PartialType(AuthRefreshDto) {}

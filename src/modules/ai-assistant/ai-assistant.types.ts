@@ -51,6 +51,7 @@ export interface ConversationHistoryMessage {
   type: string;
   content: string;
   seq: number;
+  reply_to_message_id?: string;
   created_at?: string;
   recalled_at?: string | null;
 }

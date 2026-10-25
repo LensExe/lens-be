@@ -1,4 +1,13 @@
-import { Body, Controller, HttpCode, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import {
   ApiBadGatewayResponse,
@@ -7,6 +16,7 @@ import {
   ApiBody,
   ApiConflictResponse,
   ApiOperation,
+  ApiHeader,
   ApiResponse,
   ApiServiceUnavailableResponse,
   ApiTags,
@@ -20,6 +30,10 @@ import { IdentityRegisterCommand } from '@modules/identity/identity.command';
 import { IdentityMeQuery } from '@modules/identity/identity.query';
 import { type Actor } from '@shared/platform/auth/actor';
 import { RegistrationRole } from '@shared/domain/values/user.values';
+import {
+  AuthCookieSessionService,
+  isCookieAuthRequest,
+} from '../auth/auth-cookie-session';
 
 @ApiTags('Authentication')
 @Controller()
@@ -28,6 +42,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly commands: CommandBus,
     private readonly query: QueryBus,
+    private readonly cookieSession: AuthCookieSessionService,
   ) {}
 
   /**
@@ -43,6 +58,11 @@ export class AuthController {
     summary: 'Đăng ký tài khoản',
     description:
       'Đăng ký bằng email, mật khẩu, họ tên và role customer hoặc photographer. Role được gán ngay khi tạo tài khoản; hồ sơ photographer vẫn ở trạng thái chưa xác minh cho đến khi được admin duyệt. Gửi lại cùng thông tin có thể hoàn tất hồ sơ nếu lần trước bị gián đoạn. Role: Public',
+  })
+  @ApiHeader({
+    name: 'X-Lens-Auth-Mode',
+    required: false,
+    description: 'Gửi giá trị `cookie` để lưu phiên trong HttpOnly cookie.',
   })
   @ApiConflictResponse({
     description: 'Email hoặc tài khoản đã tồn tại',
@@ -63,11 +83,16 @@ export class AuthController {
   @ApiBody({ type: authDto.AuthRegisterCommandBodyDto })
   @ApiResponse({
     status: 200,
-    description: 'Token Keycloak và hồ sơ người dùng vừa tạo',
+    description:
+      'Hồ sơ người dùng; phiên trình duyệt được đặt trong cookie HttpOnly.',
     schema: responseSchema('AUTH-008'),
   })
   @HttpCode(200)
-  async register(@Body() body: authDto.AuthRegisterCommandBodyDto) {
+  async register(
+    @Body() body: authDto.AuthRegisterCommandBodyDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
     // Register the account in Keycloak and retrieve the TokenSet.
     const { tokenSet, actor } =
       await this.authService.registerWithPassword(body);
@@ -75,7 +100,7 @@ export class AuthController {
     console.log('qua key cloak r');
 
     // Initialize the shared user and the selected customer or photographer profile.
-    const user = await this.commands.execute(
+    await this.commands.execute(
       new IdentityRegisterCommand(actor, {
         fullname: body.fullname,
         role: body.role,
@@ -94,7 +119,17 @@ export class AuthController {
       { ensureRealmMapping: true },
     );
 
-    return { ...sessionTokenSet, user };
+    const cookieMode = isCookieAuthRequest(request);
+    if (cookieMode) {
+      this.cookieSession.setSessionCookies(request, response, sessionTokenSet);
+    }
+    return {
+      ...(cookieMode ? {} : sessionTokenSet),
+      user: identity,
+      roles: [...new Set([...actor.roles, registrationRole])],
+      email_verified: actor.email_verified ?? false,
+      ...(cookieMode ? { expires_in: sessionTokenSet.expires_in } : {}),
+    };
   } // done
 
   /**
@@ -110,6 +145,11 @@ export class AuthController {
     summary: 'Đăng nhập tài khoản',
     description: 'User đăng nhập bằng Email và Mật khẩu. Role: Public',
   })
+  @ApiHeader({
+    name: 'X-Lens-Auth-Mode',
+    required: false,
+    description: 'Gửi giá trị `cookie` để lưu phiên trong HttpOnly cookie.',
+  })
   @ApiUnauthorizedResponse({
     description: 'Email hoặc mật khẩu không chính xác',
   })
@@ -122,16 +162,31 @@ export class AuthController {
   @ApiBody({ type: authDto.AuthLoginQueryDto })
   @ApiResponse({
     status: 200,
-    description: 'Token Keycloak và thông tin hồ sơ người dùng',
+    description:
+      'Thông tin hồ sơ; phiên trình duyệt được đặt trong cookie HttpOnly.',
     schema: responseSchema('AUTH-009'),
   })
   @HttpCode(200)
-  async login(@Body() body: authDto.AuthLoginQueryDto) {
+  async login(
+    @Body() body: authDto.AuthLoginQueryDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
     // login with Keycloak
     const { tokenSet, actor } = await this.authService.loginWithPassword(body);
     // get user info in db
     const user = await this.query.execute(new IdentityMeQuery(actor, {}));
-    return { ...tokenSet, user };
+    const cookieMode = isCookieAuthRequest(request);
+    if (cookieMode) {
+      this.cookieSession.setSessionCookies(request, response, tokenSet);
+    }
+    return {
+      ...(cookieMode ? {} : tokenSet),
+      user,
+      roles: actor.roles,
+      email_verified: actor.email_verified ?? false,
+      ...(cookieMode ? { expires_in: tokenSet.expires_in } : {}),
+    };
   } // done
 
   /**
@@ -147,6 +202,12 @@ export class AuthController {
     summary: 'Làm mới token',
     description: 'Làm mới token bằng Refresh Token. Role: Public',
   })
+  @ApiHeader({
+    name: 'X-Lens-Auth-Mode',
+    required: false,
+    description:
+      'Gửi giá trị `cookie` để dùng refresh token từ HttpOnly cookie.',
+  })
   @ApiUnauthorizedResponse({
     description: 'Refresh Token không chính xác',
   })
@@ -159,12 +220,39 @@ export class AuthController {
   @ApiBody({ type: authDto.AuthRefreshDto })
   @ApiResponse({
     status: 200,
-    description: 'New Keycloak Tokens',
+    description: 'Cookie phiên mới hoặc token set cho client Bearer.',
     schema: responseSchema('AUTH-010'),
   })
   @HttpCode(200)
-  refresh(@Body() body: authDto.AuthRefreshDto) {
-    return this.authService.refresh(body);
+  async refresh(
+    @Body() body: authDto.AuthRefreshDto = {},
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const cookieMode = isCookieAuthRequest(request);
+    const cookieRefreshToken = this.cookieSession.getRefreshToken(request);
+    if (cookieMode && cookieRefreshToken) {
+      this.cookieSession.assertCsrfToken(request);
+    }
+
+    const refreshToken = cookieMode
+      ? (cookieRefreshToken ?? body.refresh_token)
+      : (body.refresh_token ?? cookieRefreshToken);
+    try {
+      const tokenSet = await this.authService.refresh({
+        refresh_token: refreshToken,
+      });
+      if (cookieMode) {
+        this.cookieSession.setSessionCookies(request, response, tokenSet);
+        return { success: true, expires_in: tokenSet.expires_in };
+      }
+      return tokenSet;
+    } catch (error) {
+      if (cookieMode && error instanceof UnauthorizedException) {
+        this.cookieSession.clearSessionCookies(response);
+      }
+      throw error;
+    }
   } // done
 
   /**
@@ -180,6 +268,11 @@ export class AuthController {
     summary: 'Đăng xuất',
     description: 'Đăng xuất khỏi hệ thống. Role: Public',
   })
+  @ApiHeader({
+    name: 'X-Lens-Auth-Mode',
+    required: false,
+    description: 'Gửi giá trị `cookie` để đăng xuất và xóa phiên cookie.',
+  })
   @ApiBadRequestResponse({
     description: 'DTO validation failed',
   })
@@ -193,8 +286,23 @@ export class AuthController {
     schema: responseSchema('AUTH-011'),
   })
   @HttpCode(200)
-  logout(@Body() body: authDto.AuthLogoutDto) {
-    return this.authService.logout(body);
+  async logout(
+    @Body() body: authDto.AuthLogoutDto = {},
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const cookieMode = isCookieAuthRequest(request);
+    const cookieRefreshToken = this.cookieSession.getRefreshToken(request);
+    if (cookieMode && cookieRefreshToken) {
+      this.cookieSession.assertCsrfToken(request);
+    }
+    const result = await this.authService.logout({
+      refresh_token: cookieMode
+        ? (cookieRefreshToken ?? body.refresh_token)
+        : body.refresh_token,
+    });
+    if (cookieMode) this.cookieSession.clearSessionCookies(response);
+    return result;
   } // nhưng còn vấn đề nếu access-token còn hạn (xử lý sau)
 
   /**

@@ -18,6 +18,8 @@ export const createCorsOptions = (): CorsOptions => {
       'Authorization',
       'X-Requested-With',
       'Accept',
+      'X-Lens-Auth-Mode',
+      'X-CSRF-Token',
       'x-device-fingerprint',
     ],
   };

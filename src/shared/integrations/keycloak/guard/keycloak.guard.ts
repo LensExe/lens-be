@@ -8,9 +8,12 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { DataSource } from 'typeorm';
+import type { Request } from 'express';
 import { KeycloakService } from '../keycloak.service';
 import type { Actor } from '../../../platform/auth/actor';
 import { currentUser } from '../../../common/access';
+import { CookieName } from '../../../platform/cookie/enums';
+import { CookieService } from '../../../platform/cookie/cookie.service';
 
 // set metadata for roles
 
@@ -44,6 +47,7 @@ export class KeycloakGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly keycloak: KeycloakService,
     private readonly dataSource: DataSource,
+    private readonly cookies: CookieService,
   ) {}
 
   /**
@@ -61,20 +65,36 @@ export class KeycloakGuard implements CanActivate {
     // 1. If the route has `@Public()`, allow access without a token.
     if (this.reflector.getAllAndOverride('lens:public', targets)) return true;
 
-    const request = context.switchToHttp().getRequest<{
-      headers: { authorization?: string };
-      actor?: Actor;
-    }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<Request & { actor?: Actor }>();
     const header = request.headers.authorization;
-    if (typeof header !== 'string' || !/^Bearer \S+$/i.test(header))
-      throw new UnauthorizedException('Bearer token required');
+    const bearerToken =
+      typeof header === 'string' && /^Bearer \S+$/i.test(header)
+        ? header.slice(7)
+        : undefined;
+    const cookieToken = this.cookies.getCookie(
+      request,
+      CookieName.KeycloakAccessToken,
+    );
+    const tokenValue = bearerToken ?? cookieToken;
+    if (!tokenValue) throw new UnauthorizedException('Bearer token required');
 
-    const token = await this.keycloak.verifyToken(header.slice(7));
+    const cookieAuthenticated = !bearerToken && Boolean(cookieToken);
+    if (
+      cookieAuthenticated &&
+      !['GET', 'HEAD', 'OPTIONS'].includes(request.method.toUpperCase())
+    ) {
+      this.cookies.assertCsrfToken(request);
+    }
+
+    const token = await this.keycloak.verifyToken(tokenValue);
     const actor: Actor = {
       sub: token.sub,
       email: token.email,
       name: token.name,
       roles: token.roles ?? [],
+      email_verified: token.email_verified,
     };
 
     // 2. Role-based access control (RBAC): check the roles required by the `@Access(['role_name'])` decorator.

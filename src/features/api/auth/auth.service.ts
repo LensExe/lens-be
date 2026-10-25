@@ -118,6 +118,7 @@ export class AuthService {
     const actor: Actor = {
       sub: claims.sub,
       email: claimEmail,
+      email_verified: claims.email_verified,
       name: claims.name,
       roles: claims.roles ?? [],
     };
@@ -172,6 +173,7 @@ export class AuthService {
     const actor: Actor = {
       sub: claims.sub,
       email: claims.email,
+      email_verified: claims.email_verified,
       name: claims.name,
       roles: claims.roles ?? [],
     };
@@ -186,6 +188,9 @@ export class AuthService {
    * @throws {UnauthorizedException} Thrown when the credentials are invalid or have expired.
    */
   async refresh(body: AuthRefreshDto) {
+    if (!body.refresh_token) {
+      throw new UnauthorizedException('Refresh token is required');
+    }
     try {
       // refresh token
       const tokenSet = await this.tokens.exchangeRefreshTokenForToken({

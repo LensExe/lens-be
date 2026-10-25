@@ -25,6 +25,14 @@ export function setupApi(app: INestApplication) {
     app.enableCors({
       origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(','),
       credentials: true,
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+        'Accept',
+        'X-Lens-Auth-Mode',
+        'X-CSRF-Token',
+      ],
     });
   }
 

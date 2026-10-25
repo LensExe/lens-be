@@ -25,8 +25,11 @@ import {
 } from '@modules/identity/identity.query';
 import { GoogleAuthService } from '../auth/google-auth.service';
 import { AuthService } from '../auth/auth.service';
+import { AuthCookieSessionService } from '../auth/auth-cookie-session';
+import { CookieModule } from '@shared/platform/cookie';
 
 @Module({
+  imports: [CookieModule],
   controllers: [
     AuthController,
     UserController,
@@ -35,6 +38,7 @@ import { AuthService } from '../auth/auth.service';
   ],
   providers: [
     AuthService,
+    AuthCookieSessionService,
     GoogleAuthService,
     IdentityAdminBanCommandHandler,
     IdentityRegisterCommandHandler,

@@ -1,13 +1,37 @@
 #!/usr/bin/env node
 /**
- * Provision the reviewed local Lens demo users and realm roles in Keycloak.
- * Run after `pnpm db:seed`; only reviewed seed IDs or legacy review emails are changed.
+ * Provision Lens users and realm roles in Keycloak.
+ * Run after the matching database seed; only accounts in the selected seed scope are changed.
  */
 
 import axios from 'axios';
 import pg from 'pg';
 
 const { Client } = pg;
+
+const seedScope = process.argv[2] ?? 'demo';
+if (!['demo', 'customers'].includes(seedScope)) {
+  throw new Error(`Unknown Keycloak seed scope "${seedScope}". Use "demo" or "customers".`);
+}
+const isCustomerSeed = seedScope === 'customers';
+const customerSeedEmails = [
+  'anhdonguyennhi@gmail.com',
+  'bvmldung53@gmail.com',
+  'codeforceskiet@gmail.com',
+  'dunghvse180204@fpt.edu.vn',
+  'giahanguyenluong@gmail.com',
+  'hieu.do1104@hcmut.edu.vn',
+  'hoangdungvn24@gmail.com',
+  'miczone123@gmail.com',
+  'mintam0101@gmail.com',
+  'ndmanh1005@gmail.com',
+  'nghiavyo1308@gmail.com',
+  'nguyenduongthuan75321@gmail.com',
+  'nhatruong5020@gmail.com',
+  'nhiv5313@gmail.com',
+  'thinhindo@gmail.com',
+  'vuquocviet205@gmail.com',
+];
 
 try {
   process.loadEnvFile?.();
@@ -44,7 +68,7 @@ const isNonLocalKeycloak = !['localhost', '127.0.0.1', '::1'].includes(
 );
 if (isNonLocalKeycloak && process.env.ALLOW_NONLOCAL_KEYCLOAK_SEED !== 'true') {
   throw new Error(
-    'Refusing to seed demo accounts into a non-local Keycloak. Set ALLOW_NONLOCAL_KEYCLOAK_SEED=true only when that is intentional.',
+    'Refusing to seed accounts into a non-local Keycloak. Set ALLOW_NONLOCAL_KEYCLOAK_SEED=true only when that is intentional.',
   );
 }
 const demoPassword = process.env.MOCK_USER_PASSWORD?.trim();
@@ -53,7 +77,7 @@ if (isNonLocalKeycloak && !demoPassword) {
     'MOCK_USER_PASSWORD is required when seeding a non-local Keycloak.',
   );
 }
-const passwordForNewUsers = demoPassword || 'LensDemo@2026!';
+const passwordForSeededUsers = demoPassword || 'LensDemo@2026!';
 
 const databaseConfig = process.env.DATABASE_URL
   ? { connectionString: process.env.DATABASE_URL }
@@ -263,8 +287,6 @@ async function provisionUser(admin, user) {
   let actualId = existing?.id ?? user.keycloak_id;
   let userUrl = `${adminPath}/users/${encodeURIComponent(actualId)}`;
   const profile = {
-    ...(existing ?? {}),
-    id: actualId,
     username: user.username,
     email: user.email,
     ...splitName(user.fullname),
@@ -273,13 +295,17 @@ async function provisionUser(admin, user) {
     requiredActions: [],
   };
 
-  if (existing) {
-    await admin.put(userUrl, profile);
-  } else {
+  // Existing users can come from a read-only external user store. Keep their
+  // profile and password untouched; only role mappings are managed below.
+  if (!existing) {
     const created = await admin.post(`${adminPath}/users`, {
       ...profile,
       credentials: [
-        { type: 'password', value: passwordForNewUsers, temporary: false },
+        {
+          type: 'password',
+          value: passwordForSeededUsers,
+          temporary: false,
+        },
       ],
     });
     actualId = created.headers.location?.split('/').at(-1) ?? actualId;
@@ -322,7 +348,8 @@ async function provisionUser(admin, user) {
 async function seed() {
   await database.connect();
   const usersResult = await database.query(
-    `SELECT u.id::text AS id, u.keycloak_id, u.fullname, u.email, u.status,
+    `SELECT DISTINCT ON (lower(u.email))
+       u.id::text AS id, u.keycloak_id, u.fullname, u.email, u.status,
        CASE
          WHEN a.user_id IS NOT NULL THEN 'admin'
          WHEN p.user_id IS NOT NULL THEN 'photographer'
@@ -332,16 +359,10 @@ async function seed() {
      LEFT JOIN admins a ON a.user_id = u.id
      LEFT JOIN photographers p ON p.user_id = u.id
      LEFT JOIN customers c ON c.user_id = u.id
-       WHERE (
-         u.email LIKE 'review.%@seed.test'
-         OR u.id::text LIKE ANY (ARRAY[
-           'a1000000-0000-4000-8000-%',
-           'b1000000-0000-4000-8000-%',
-           'c1000000-0000-4000-8000-%'
-         ])
-       )
+       WHERE ${isCustomerSeed ? 'lower(u.email) = ANY($1::text[])' : "(u.email LIKE 'review.%@seed.test' OR u.id::text LIKE ANY (ARRAY['a1000000-0000-4000-8000-%', 'b1000000-0000-4000-8000-%', 'c1000000-0000-4000-8000-%']))"}
        AND (a.user_id IS NOT NULL OR p.user_id IS NOT NULL OR c.user_id IS NOT NULL)
-     ORDER BY u.id`,
+     ORDER BY lower(u.email), u.id::text LIKE 'e1000000-0000-4000-8000-%', u.id`,
+    isCustomerSeed ? [customerSeedEmails] : [],
   );
 
   const users = usersResult.rows.map((user) => ({
@@ -349,19 +370,20 @@ async function seed() {
     username: user.email.split('@')[0],
   }));
   if (!users.length) {
-    throw new Error('No demo users found. Run `pnpm db:seed` first.');
+    throw new Error(
+      isCustomerSeed
+        ? 'No customer seed users found. Run `pnpm db:seed:customers` first.'
+        : 'No demo users found. Run `pnpm db:seed` first.',
+    );
   }
 
   const roleCounts = users.reduce(
     (counts, user) => ({ ...counts, [user.role]: counts[user.role] + 1 }),
     { admin: 0, customer: 0, photographer: 0 },
   );
-  const expectedCounts = {
-    admin: 1,
-    customer: 20,
-    photographer: 20,
-    total: 41,
-  };
+  const expectedCounts = isCustomerSeed
+    ? { admin: 0, customer: 16, photographer: 0, total: 16 }
+    : { admin: 1, customer: 20, photographer: 20, total: 41 };
   if (
     roleCounts.admin !== expectedCounts.admin ||
     roleCounts.customer !== expectedCounts.customer ||
@@ -369,7 +391,7 @@ async function seed() {
     users.length !== expectedCounts.total
   ) {
     throw new Error(
-      `Expected ${expectedCounts.admin} admin, ${expectedCounts.customer} customers, and ${expectedCounts.photographer} photographers; found ${roleCounts.admin} admin, ${roleCounts.customer} customers, and ${roleCounts.photographer} photographers. Run \`pnpm db:seed\` first.`,
+      `Expected ${expectedCounts.admin} admin, ${expectedCounts.customer} customers, and ${expectedCounts.photographer} photographers; found ${roleCounts.admin} admin, ${roleCounts.customer} customers, and ${roleCounts.photographer} photographers. Run \`${isCustomerSeed ? 'pnpm db:seed:customers' : 'pnpm db:seed'}\` first.`,
     );
   }
 
@@ -387,10 +409,10 @@ async function seed() {
   }
 
   console.log(
-    `\nProvisioned ${users.length} demo accounts in Keycloak realm "${realmName}".`,
+    `\nProvisioned ${users.length} ${isCustomerSeed ? 'customer seed' : 'demo'} accounts in Keycloak realm "${realmName}".`,
   );
   console.log(
-    'New accounts use MOCK_USER_PASSWORD; existing Keycloak passwords are unchanged.',
+    'Newly created accounts use MOCK_USER_PASSWORD; existing passwords are unchanged.',
   );
 }
 
@@ -404,7 +426,9 @@ seed()
     const requestInfo = requestTarget
       ? ` (${request.method?.toUpperCase() ?? 'REQUEST'} ${requestTarget}${error.response?.status ? `; HTTP ${error.response.status}` : ''})`
       : '';
-    console.error(`Keycloak demo seed failed${requestInfo}: ${detail}`);
+    console.error(
+      `Keycloak ${isCustomerSeed ? 'customer' : 'demo'} seed failed${requestInfo}: ${detail}`,
+    );
     process.exitCode = 1;
   })
   .finally(async () => {

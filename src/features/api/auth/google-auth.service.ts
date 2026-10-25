@@ -26,6 +26,8 @@ export interface GoogleCallbackResult {
 export interface GoogleFrontendHandoff {
   tokenSet: KeycloakExchangeCodeForTokenResponse;
   user: unknown;
+  roles: string[];
+  email_verified?: boolean;
 }
 
 const GOOGLE_HANDOFF_TTL_SECONDS = 60;
@@ -82,6 +84,7 @@ export class GoogleAuthService {
     const actor: Actor = {
       sub: claims.sub,
       email: claims.email,
+      email_verified: claims.email_verified,
       name:
         claims.name ??
         claims.preferred_username ??

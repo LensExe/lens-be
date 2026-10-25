@@ -15,6 +15,9 @@ export interface Actor {
    */
   email?: string;
 
+  /** Whether Keycloak verified the user's email address. */
+  email_verified?: boolean;
+
   /**
    * Display name (`preferred_username` or full name) from the Keycloak profile.
    */

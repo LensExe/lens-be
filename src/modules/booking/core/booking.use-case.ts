@@ -411,7 +411,9 @@ export class BookingUseCases
       );
     await emit(s, `booking.${status}`, recipients, {
       booking_id: b.id,
+      from_status: b.status,
       status,
+      updated_at: updatedAt,
     });
     return {
       ...b,

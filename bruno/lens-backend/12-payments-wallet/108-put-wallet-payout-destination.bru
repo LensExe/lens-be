@@ -1,0 +1,36 @@
+meta {
+  name: wallet/payout-destination/save
+  type: http
+  seq: 208
+}
+
+docs {
+  Đăng ký hoặc cập nhật tài khoản ngân hàng nhận tiền rút ví.
+  Thông tin đầy đủ được mã hóa trong backend; response chỉ trả về số tài khoản đã che.
+  Authentication: role 'customer', 'photographer'
+}
+
+put {
+  url: {{baseUrl}}/wallet/payout-destination
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "bank_code": "970436",
+    "account_number": "0123456789",
+    "account_name": "BRUNO TEST"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

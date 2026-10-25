@@ -8,6 +8,8 @@ plugins:
   - name: cors
     config:
       origins:
+        - http://127.0.0.1:8888 # local Socket.IO Test Client
+        - http://localhost:8888 # local Socket.IO Test Client
         - https://lens.id.vn # landing page
         - https://app.lens.id.vn # portal page
         - https://admin.lens.id.vn # admin page
@@ -24,6 +26,8 @@ plugins:
         - Accept
         - Authorization
         - Content-Type
+        - X-Lens-Auth-Mode
+        - X-CSRF-Token
         - X-Kong-Request-ID
       exposed_headers:
         - X-Kong-Request-ID
@@ -153,14 +157,15 @@ plugins:
       limit_by: ip
       policy: local
 
-  # JWT is scoped to protected routes. Explicit public routes below are not
-  # bound to this plugin; the backend still performs its own full validation.
+  # JWT is scoped to protected routes. Browser sessions authenticate with the
+  # HttpOnly access-token cookie; API clients may continue using Bearer headers.
+  # Explicit public routes below are not bound to this plugin.
   - name: jwt
     route: core-api-v1
     config:
       key_claim_name: kid
       header_names: [authorization]
-      cookie_names: []
+      cookie_names: [keycloak_access_token]
       uri_param_names: []
       claims_to_verify: [exp]
       run_on_preflight: false
@@ -170,7 +175,7 @@ plugins:
     config:
       key_claim_name: kid
       header_names: [authorization]
-      cookie_names: []
+      cookie_names: [keycloak_access_token]
       uri_param_names: []
       claims_to_verify: [exp]
       run_on_preflight: false
@@ -180,7 +185,7 @@ plugins:
     config:
       key_claim_name: kid
       header_names: [authorization]
-      cookie_names: []
+      cookie_names: [keycloak_access_token]
       uri_param_names: []
       claims_to_verify: [exp]
       run_on_preflight: false
@@ -190,7 +195,7 @@ plugins:
     config:
       key_claim_name: kid
       header_names: [authorization]
-      cookie_names: []
+      cookie_names: [keycloak_access_token]
       uri_param_names: []
       claims_to_verify: [exp]
       run_on_preflight: false
@@ -200,7 +205,7 @@ plugins:
     config:
       key_claim_name: kid
       header_names: [authorization]
-      cookie_names: []
+      cookie_names: [keycloak_access_token]
       uri_param_names: []
       claims_to_verify: [exp]
       run_on_preflight: false
@@ -210,10 +215,14 @@ plugins:
     config:
       key_claim_name: kid
       header_names: [authorization]
-      cookie_names: []
+      cookie_names: [keycloak_access_token]
       uri_param_names: []
       claims_to_verify: [exp]
       run_on_preflight: false
+
+  # Socket.IO sends auth.token in its namespace CONNECT packet, after the
+  # Engine.IO polling request. The Notification Gateway verifies that token;
+  # Kong's HTTP JWT plugin cannot see it on the initial polling request.
 
 # Keycloak realm signing key. Keep the public key only; never copy Keycloak's
 # private key into Kong. Add the next key here during Keycloak key rotation

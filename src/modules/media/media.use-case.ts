@@ -730,7 +730,10 @@ export class MediaUseCases
       await updateEntity(s, EntitySchemas.bookings, b.id, {
         gallery_published_at: new Date().toISOString(),
       });
-      await emit(s, 'gallery.ready', recipients, { booking_id: b.id });
+      await emit(s, 'gallery.ready', recipients, {
+        booking_id: b.id,
+        status: b.status,
+      });
     }
     return this.gallery(s, a, { booking_id: i.booking_id });
   }

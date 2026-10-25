@@ -1,0 +1,27 @@
+meta {
+  name: wallet/payout-destination
+  type: http
+  seq: 207
+}
+
+docs {
+  Xem tài khoản nhận tiền rút ví đã đăng ký.
+  Số tài khoản chỉ được trả về dạng che, ví dụ ••••6789.
+  Authentication: role 'customer', 'photographer'
+}
+
+get {
+  url: {{baseUrl}}/wallet/payout-destination
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

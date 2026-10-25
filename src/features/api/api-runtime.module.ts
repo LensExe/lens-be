@@ -61,6 +61,7 @@ import { KeycloakGuard } from './auth/keycloak.guard';
 import { DomainErrorFilter } from '@shared/platform/exceptions/domain-error.filter';
 import { TypeOrmErrorFilter } from '@shared/platform/exceptions/typeorm-error.filter';
 import { EnvModule } from '@shared/platform/env';
+import { CookieModule } from '@shared/platform/cookie';
 
 // Used for commands and queries.
 const applicationServices = [
@@ -91,6 +92,7 @@ const applicationServices = [
 @Module({
   imports: [
     EnvModule,
+    CookieModule,
     BullModule.forRootAsync({
       imports: [EnvModule],
       inject: [ConfigService],

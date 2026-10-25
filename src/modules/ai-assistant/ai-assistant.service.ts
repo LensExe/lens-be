@@ -13,6 +13,7 @@ import type {
   AiReplyDraft,
   ChatMessageCreatedEvent,
   PhotographerAiContext,
+  PhotographerBookingPlan,
   RetrievedKnowledgeItem,
 } from './ai-assistant.types';
 
@@ -23,6 +24,85 @@ const AI_HANDOFF_ACKNOWLEDGEMENT =
 
 function aiReplyClientMessageId(eventId: string): string {
   return `ai-${createHash('sha256').update(eventId).digest('hex')}`;
+}
+
+function normalizeVietnamese(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[đĐ]/g, 'd')
+    .toLowerCase();
+}
+
+function isBookingPlanQuestion(value: string): boolean {
+  const normalized = normalizeVietnamese(value);
+  const mentionsPlan = /\b(goi|package|booking plan|dich vu)\b/.test(
+    normalized,
+  );
+  const asksForDetails =
+    /\b(gom|bao gom|nhung gi|co gi|bao nhieu|gia|phi|thoi luong|so anh|chinh sua|retouch|bao lau|chi tiet|xem)\b/.test(
+      normalized,
+    );
+  return mentionsPlan && asksForDetails;
+}
+
+function isLocationCoverageQuestion(value: string): boolean {
+  const normalized = normalizeVietnamese(value);
+  return /\b(khu vuc|dia ban|nhan chup|phuc vu|o dau|quan nao|tinh nao|thanh pho nao)\b/.test(
+    normalized,
+  );
+}
+
+function formatServiceAreaReply(location: string): string {
+  const serviceArea = location.trim().replace(/\s+/g, ' ').slice(0, 240);
+  if (!serviceArea) {
+    return 'Hồ sơ hiện chưa ghi rõ khu vực nhận chụp. Bạn cho biết quận/huyện đang quan tâm để nhiếp ảnh gia xác nhận nhé.';
+  }
+  return `Theo hồ sơ, khu vực phục vụ chính của studio là ${serviceArea}. Hồ sơ chưa liệt kê cụ thể từng quận/huyện, nên nhiếp ảnh gia sẽ xác nhận nếu bạn cần biết một khu vực cụ thể.`;
+}
+
+function formatBookingPlanReply(plans: PhotographerBookingPlan[]): string {
+  if (plans.length === 0) {
+    return 'Hiện chưa có gói chụp nào đang mở bán trên hệ thống. Nhiếp ảnh gia sẽ xác nhận thêm thông tin cho bạn.';
+  }
+
+  const blocks: string[] = [];
+  for (const plan of plans) {
+    const price = /^\d+$/.test(plan.price)
+      ? `${BigInt(plan.price).toLocaleString('vi-VN')} ₫`
+      : `${plan.price} ₫`;
+    const features = Array.isArray(plan.features)
+      ? plan.features
+          .filter((feature) => typeof feature === 'string' && feature.trim())
+          .slice(0, 5)
+          .map((feature) => feature.trim().replace(/\s+/g, ' ').slice(0, 120))
+      : [];
+    const clean = (value: string | null | undefined, maxLength: number) =>
+      value?.trim().replace(/\s+/g, ' ').slice(0, maxLength) || '';
+    const lines = [
+      `• ${clean(plan.name, 160)} — ${price}`,
+      clean(plan.description, 280),
+      `Thời lượng: ${plan.duration_minutes} phút; ${plan.photo_count} ảnh, gồm ${plan.retouched_photo_count} ảnh chỉnh sửa.`,
+      plan.delivery_days === null
+        ? ''
+        : `Thời gian giao ảnh: ${plan.delivery_days} ngày.`,
+      features.length > 0 ? `Bao gồm: ${features.join('; ')}.` : '',
+    ].filter(Boolean);
+    const block = lines.join('\n');
+    if (blocks.join('\n\n').length + block.length > 8500) break;
+    blocks.push(block);
+  }
+
+  const omitted = plans.length - blocks.length;
+  return [
+    'Các gói chụp đang mở bán:',
+    blocks.join('\n\n'),
+    omitted > 0
+      ? `Còn ${omitted} gói khác; bạn có thể hỏi tên gói muốn xem.`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 @Injectable()
@@ -103,15 +183,62 @@ export class AiAssistantService {
       `AI context loaded ${context} conversationHistoryCount=${conversationHistory.length}`,
     );
 
-    // If the photographer is active, retain this customer's event independently.
-    // A later message does not invalidate it; it can be answered after the
-    // photographer goes offline.
+    if (
+      await this.supersedeIfConversationMovedOn(
+        event,
+        photographer,
+        'other',
+        [],
+      )
+    ) {
+      return false;
+    }
+
+    // Keep only the latest unanswered customer message in a burst. Older
+    // queued events are marked superseded instead of sending stale replies.
     if (await this.presence.isOnline(photographer.keycloak_id)) {
       return this.deferOrSkipOnline(
         event,
         photographer.id,
         enqueuedAt,
         'other',
+        [],
+      );
+    }
+
+    if (isLocationCoverageQuestion(message.content)) {
+      const location = photographer.location.trim();
+      this.logger.log(
+        `AI service area answered ${context} locationAvailable=${Boolean(location)}`,
+      );
+      return this.sendReply(
+        event,
+        photographer,
+        enqueuedAt,
+        {
+          action: location ? 'answer' : 'ask_clarification',
+          intent: 'location',
+          reply: formatServiceAreaReply(location),
+          risk_flags: [],
+        },
+        [],
+      );
+    }
+
+    const plans = await this.repository.findActiveBookingPlans(photographer.id);
+    this.logger.log(
+      `AI booking plans loaded ${context} activePlanCount=${plans.length}`,
+    );
+    if (isBookingPlanQuestion(message.content)) {
+      const reply = formatBookingPlanReply(plans);
+      this.logger.log(
+        `AI booking plans answered ${context} activePlanCount=${plans.length}`,
+      );
+      return this.sendReply(
+        event,
+        photographer,
+        enqueuedAt,
+        { action: 'answer', intent: 'booking', reply, risk_flags: [] },
         [],
       );
     }
@@ -166,7 +293,6 @@ export class AiAssistantService {
     const groundedKnowledge = knowledge.filter(
       (item) => item.similarity >= settings.min_similarity,
     );
-    const plans = await this.repository.findActiveBookingPlans(photographer.id);
     let draft: AiReplyDraft;
     try {
       draft = await this.ollama.draftReply({
@@ -213,15 +339,41 @@ export class AiAssistantService {
       });
     }
 
-    // Check again immediately before sending. Each customer message gets its
-    // own reply; newer messages do not invalidate this event.
+    return this.sendReply(
+      event,
+      photographer,
+      enqueuedAt,
+      draft,
+      groundedKnowledge,
+    );
+  }
+
+  private async sendReply(
+    event: ChatMessageCreatedEvent,
+    photographer: PhotographerAiContext,
+    enqueuedAt: number,
+    draft: AiReplyDraft,
+    knowledge: RetrievedKnowledgeItem[],
+  ): Promise<boolean> {
+    const message = event.data.message;
+    const context = this.eventContext(event);
+    if (
+      await this.supersedeIfConversationMovedOn(
+        event,
+        photographer,
+        draft.intent,
+        knowledge,
+      )
+    ) {
+      return false;
+    }
     if (await this.presence.isOnline(photographer.keycloak_id)) {
       return this.deferOrSkipOnline(
         event,
         photographer.id,
         enqueuedAt,
         draft.intent,
-        groundedKnowledge,
+        knowledge,
       );
     }
 
@@ -238,30 +390,28 @@ export class AiAssistantService {
         content: draft.reply,
       });
     } catch (error) {
-      if (error instanceof ChatServiceConflictError) {
-        await this.saveOutcome(event, photographer.id, {
-          action: 'handoff',
-          intent: draft.intent,
-          reply: draft.reply,
-          similarity: groundedKnowledge[0]?.similarity ?? null,
-          knowledgeIds: groundedKnowledge.map((item) => item.id),
-          riskFlags: ['source_message_unavailable'],
-          status: 'handoff',
-        });
-        this.logger.warn(
-          `AI reply not sent ${context} reason=chat_service_conflict`,
-        );
-        return false;
-      }
-      throw error;
+      if (!(error instanceof ChatServiceConflictError)) throw error;
+      await this.saveOutcome(event, photographer.id, {
+        action: 'handoff',
+        intent: draft.intent,
+        reply: draft.reply,
+        similarity: knowledge[0]?.similarity ?? null,
+        knowledgeIds: knowledge.map((item) => item.id),
+        riskFlags: ['source_message_unavailable'],
+        status: 'handoff',
+      });
+      this.logger.warn(
+        `AI reply not sent ${context} reason=chat_service_conflict`,
+      );
+      return false;
     }
 
     await this.saveOutcome(event, photographer.id, {
       action: draft.action,
       intent: draft.intent,
       reply: draft.reply,
-      similarity: groundedKnowledge[0]?.similarity ?? null,
-      knowledgeIds: groundedKnowledge.map((item) => item.id),
+      similarity: knowledge[0]?.similarity ?? null,
+      knowledgeIds: knowledge.map((item) => item.id),
       riskFlags: draft.risk_flags,
       status: 'auto_sent',
     });
@@ -269,6 +419,51 @@ export class AiAssistantService {
       `AI reply sent ${context} photographerId=${photographer.id} action=${draft.action} intent=${draft.intent}`,
     );
     return false;
+  }
+
+  private async supersedeIfConversationMovedOn(
+    event: ChatMessageCreatedEvent,
+    photographer: PhotographerAiContext,
+    intent: string,
+    knowledge: RetrievedKnowledgeItem[],
+  ): Promise<boolean> {
+    const message = event.data.message;
+    const recentMessages = await this.chat.recentMessages(
+      event.data.channel_id,
+      photographer.keycloak_id,
+      30,
+    );
+    const newerCustomerMessage = recentMessages.some(
+      (item) =>
+        item.seq > message.seq &&
+        item.sender_id !== photographer.keycloak_id &&
+        item.sender_kind !== 'ai',
+    );
+    const replyAlreadyExists = recentMessages.some(
+      (item) =>
+        item.reply_to_message_id === message.id &&
+        (item.sender_id === photographer.keycloak_id ||
+          item.sender_kind === 'ai'),
+    );
+    if (!newerCustomerMessage && !replyAlreadyExists) return false;
+
+    const riskFlags = [
+      ...(newerCustomerMessage ? ['superseded_by_newer_customer_message'] : []),
+      ...(replyAlreadyExists ? ['source_message_already_replied_to'] : []),
+    ];
+    await this.saveOutcome(event, photographer.id, {
+      action: 'handoff',
+      intent,
+      reply: null,
+      similarity: knowledge[0]?.similarity ?? null,
+      knowledgeIds: knowledge.map((item) => item.id),
+      riskFlags,
+      status: 'superseded',
+    });
+    this.logger.log(
+      `AI reply skipped ${this.eventContext(event)} reason=${riskFlags.join(',')}`,
+    );
+    return true;
   }
 
   private async deferOrSkipOnline(
@@ -336,6 +531,16 @@ export class AiAssistantService {
       failureReason?: string;
     },
   ): Promise<boolean> {
+    if (
+      await this.supersedeIfConversationMovedOn(
+        event,
+        photographer,
+        outcome.intent,
+        outcome.knowledge,
+      )
+    ) {
+      return false;
+    }
     if (await this.presence.isOnline(photographer.keycloak_id)) {
       return this.deferOrSkipOnline(
         event,

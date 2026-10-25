@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Run the reviewed SQL fixture against a Lens database. Remote hosts require explicit opt-in. */
+/** Run a SQL seed file against a Lens database. Remote hosts require explicit opt-in. */
 
 import pg from 'pg';
 import { readFileSync } from 'node:fs';
@@ -40,15 +40,16 @@ const clientConfig = process.env.DATABASE_URL
       database: process.env.DB_NAME || 'lens',
     };
 const client = new Client(clientConfig);
+const seedFile = process.argv[2] ?? 'migrations/seed_lens-reviewed.sql';
 const sql = readFileSync(
-  resolve(__dirname, '../migrations/seed_lens-reviewed.sql'),
+  resolve(__dirname, '..', seedFile),
   'utf8',
 );
 
 try {
   await client.connect();
   await client.query(sql);
-  console.log('Loaded migrations/seed_lens-reviewed.sql successfully.');
+  console.log(`Loaded ${seedFile} successfully.`);
 } catch (error) {
   await client.query('ROLLBACK').catch(() => {});
   console.error(`Database seed failed: ${error.message}`);
