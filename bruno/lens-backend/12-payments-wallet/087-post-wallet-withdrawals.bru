@@ -8,7 +8,7 @@ docs {
   Yêu cầu rút tiền từ ví
   Handler: withdrawal
   Authentication: role 'customer', 'photographer'
-  Body: PaymentWithdrawalCommandBodyDto
+  Body: PaymentWithdrawalCommandBodyDto; register a payout destination first with PUT /wallet/payout-destination
 }
 
 post {
@@ -26,11 +26,6 @@ body:json {
   {
     "amount": 10000,
     "reason": "Bruno API test withdrawal",
-    "payout_destination": {
-      "bank_code": "VCB",
-      "account_number": "0123456789",
-      "account_name": "BRUNO TEST"
-    },
     "idempotency_key": "bruno-local-withdrawal-001"
   }
 }
