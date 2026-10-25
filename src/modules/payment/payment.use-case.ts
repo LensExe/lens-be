@@ -1217,6 +1217,9 @@ export class PaymentUseCases
       {
         booking_id: booking.id,
         transaction_id: transaction.id,
+        payment_phase: transaction.type,
+        amount: transaction.amount,
+        status: booking.status,
       },
     );
   }

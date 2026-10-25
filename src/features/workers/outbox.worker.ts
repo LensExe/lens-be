@@ -87,8 +87,9 @@ export class OutboxWorker
         if (!event) return;
         try {
           await this.realtime.publish(event.recipient_ids, event.topic, {
-            event_id: event.id,
             ...event.payload,
+            event_id: event.id,
+            occurred_at: event.created_at,
           });
         } catch (error) {
           const attempts = event.attempts + 1;
