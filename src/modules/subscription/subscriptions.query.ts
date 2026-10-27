@@ -1,5 +1,7 @@
+import { Logger } from '@nestjs/common';
 import { QueryHandler, IQueryHandler } from '@nestjs/cqrs';
 import type { Actor } from '@shared/platform/auth/actor';
+import { RedisService } from '@shared/database/redis/redis.service';
 import { DataSource } from 'typeorm';
 import type * as Inputs from '@shared/contracts/contracts';
 import { SubscriptionUseCases } from './subscription.use-case';
@@ -64,9 +66,15 @@ export class SubscriptionPlansQuery {
 }
 @QueryHandler(SubscriptionPlansQuery)
 export class SubscriptionPlansQueryHandler implements IQueryHandler<SubscriptionPlansQuery> {
+  private static readonly CACHE_KEY = 'catalog:subscription-plans:v1';
+  private static readonly CACHE_TTL_SECONDS = 3600;
+
+  private readonly logger = new Logger(SubscriptionPlansQueryHandler.name);
+
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: SubscriptionUseCases,
+    private readonly redis: RedisService,
   ) {}
 
   /**
@@ -74,8 +82,37 @@ export class SubscriptionPlansQueryHandler implements IQueryHandler<Subscription
    *
    * @returns Result of the operation performed in the transaction.
    */
-  execute() {
-    return this.dataSource.transaction((s) => this.useCases.plans(s));
+  async execute() {
+    try {
+      const cached = await this.redis.getJson<
+        Awaited<ReturnType<SubscriptionUseCases['plans']>>
+      >(SubscriptionPlansQueryHandler.CACHE_KEY);
+      if (cached) return cached;
+    } catch (error) {
+      this.logger.warn(
+        `Subscription plan cache read failed: ${this.errorMessage(error)}`,
+      );
+    }
+
+    const result = await this.dataSource.transaction((s) =>
+      this.useCases.plans(s),
+    );
+    try {
+      await this.redis.setJson(
+        SubscriptionPlansQueryHandler.CACHE_KEY,
+        result,
+        SubscriptionPlansQueryHandler.CACHE_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Subscription plan cache write failed: ${this.errorMessage(error)}`,
+      );
+    }
+    return result;
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 }
 

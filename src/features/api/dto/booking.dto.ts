@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { BookingStatus } from '@shared/domain/values/booking.values';
+import { BOOKING_REPORT_CATEGORIES } from '@shared/domain/values/report.values';
 import {
   IsString,
   IsUUID,
@@ -13,9 +14,20 @@ import {
   MaxLength,
   Matches,
   ValidateIf,
+  IsArray,
+  ArrayMaxSize,
+  ArrayUnique,
 } from 'class-validator';
 
 export class BookingAdminQueryQueryDto {
+  @ApiPropertyOptional({
+    description: 'Lọc booking theo user ID của khách hàng hoặc photographer',
+    format: 'uuid',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsUUID()
+  user_id?: string;
+
   @ApiPropertyOptional({
     description: 'limit',
     minimum: 1,
@@ -158,11 +170,33 @@ export class BookingCancelCommandBodyDto {
 }
 
 export class BookingDisputeCommandBodyDto {
+  @ApiPropertyOptional({
+    description: 'Booking issue category',
+    enum: BOOKING_REPORT_CATEGORIES,
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsIn(BOOKING_REPORT_CATEGORIES)
+  booking_issue_type?: (typeof BOOKING_REPORT_CATEGORIES)[number];
+
   @ApiProperty({ description: 'reason', type: 'string' })
   @IsString()
   @MinLength(1)
   @MaxLength(10000)
   reason!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Evidence media IDs owned by the reporter and ready for review',
+    type: 'array',
+    items: { type: 'string', format: 'uuid' },
+    maxItems: 20,
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  evidence_media_ids?: string[];
 }
 
 export class BookingRejectCommandBodyDto {

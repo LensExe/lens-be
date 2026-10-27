@@ -3,6 +3,7 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { DataSource } from 'typeorm';
 import type * as Inputs from '@shared/contracts/contracts';
 import { PhotographerUseCases } from './photographer.use-case';
+import { PublicPhotographersQueryCache } from './public-photographers-query.cache';
 
 export class PhotographerAdminQuery {
   constructor(
@@ -91,11 +92,14 @@ export class PhotographerStylesFeaturedQueryHandler implements IQueryHandler<Pho
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
+    private readonly publicPhotographersCache: PublicPhotographersQueryCache,
   ) {}
 
   /** Run the public featured-photographer lookup for each photography style. */
   execute() {
-    return this.dataSource.transaction((s) => this.useCases.featuredByStyle(s));
+    return this.publicPhotographersCache.getOrLoad('styles-featured', {}, () =>
+      this.dataSource.transaction((s) => this.useCases.featuredByStyle(s)),
+    );
   }
 }
 
@@ -104,6 +108,7 @@ export class PhotographerTopQueryHandler implements IQueryHandler<PhotographerTo
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
+    private readonly publicPhotographersCache: PublicPhotographersQueryCache,
   ) {}
 
   /**
@@ -113,8 +118,13 @@ export class PhotographerTopQueryHandler implements IQueryHandler<PhotographerTo
    * @returns Result of the operation performed in the transaction.
    */
   execute(message: PhotographerTopQuery) {
-    return this.dataSource.transaction((s) =>
-      this.useCases.top(s, message.actor, message.input),
+    return this.publicPhotographersCache.getOrLoad(
+      'top-rated',
+      message.input,
+      () =>
+        this.dataSource.transaction((s) =>
+          this.useCases.top(s, message.actor, message.input),
+        ),
     );
   }
 }
@@ -130,6 +140,7 @@ export class PhotographerSearchQueryHandler implements IQueryHandler<Photographe
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
+    private readonly publicPhotographersCache: PublicPhotographersQueryCache,
   ) {}
 
   /**
@@ -139,8 +150,13 @@ export class PhotographerSearchQueryHandler implements IQueryHandler<Photographe
    * @returns Result of the operation performed in the transaction.
    */
   execute(message: PhotographerSearchQuery) {
-    return this.dataSource.transaction((s) =>
-      this.useCases.search(s, message.actor, message.input),
+    return this.publicPhotographersCache.getOrLoad(
+      'search',
+      message.input,
+      () =>
+        this.dataSource.transaction((s) =>
+          this.useCases.search(s, message.actor, message.input),
+        ),
     );
   }
 }
@@ -178,6 +194,7 @@ export class PhotographerGetQueryHandler implements IQueryHandler<PhotographerGe
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
+    private readonly publicPhotographersCache: PublicPhotographersQueryCache,
   ) {}
 
   /**
@@ -187,8 +204,13 @@ export class PhotographerGetQueryHandler implements IQueryHandler<PhotographerGe
    * @returns Result of the operation performed in the transaction.
    */
   execute(message: PhotographerGetQuery) {
-    return this.dataSource.transaction((s) =>
-      this.useCases.get(s, message.actor, message.input),
+    return this.publicPhotographersCache.getOrLoad(
+      'profile',
+      message.input,
+      () =>
+        this.dataSource.transaction((s) =>
+          this.useCases.get(s, message.actor, message.input),
+        ),
     );
   }
 }

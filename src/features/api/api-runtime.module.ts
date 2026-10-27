@@ -33,8 +33,13 @@ import { RefundUseCases } from '@modules/payment/refund/refund.use-case';
 import { TransactionUseCases } from '@modules/payment/transaction/transaction.use-case';
 import { WalletUseCases } from '@modules/payment/wallet/wallet.use-case';
 import { PhotographerUseCases } from '@modules/photographer/photographer.use-case';
+import { PhotographerAchievementsCache } from '@modules/photographer/photographer-achievements.cache';
+import { PhotographerCatalogCache } from '@modules/photographer/photographer-catalog.cache';
+import { PublicPhotographersQueryCache } from '@modules/photographer/public-photographers-query.cache';
 import { PortfolioUseCases } from '@modules/photographer/portfolio/portfolio.use-case';
+import { PublicPortfolioMetadataCache } from '@modules/photographer/portfolio/public-portfolio-metadata.cache';
 import { BookingPlanUseCases } from '@modules/photographer/booking-plan/booking-plan.use-case';
+import { PublicBookingPlansCache } from '@modules/photographer/booking-plan/public-booking-plans.cache';
 import { RankUseCases } from '@modules/photographer/rank/rank.use-case';
 import { BadgeUseCases } from '@modules/photographer/badge/badge.use-case';
 import { SubscriptionUseCases } from '@modules/subscription/subscription.use-case';
@@ -80,6 +85,11 @@ const applicationServices = [
   TransactionUseCases,
   WalletUseCases,
   PhotographerUseCases,
+  PhotographerAchievementsCache,
+  PhotographerCatalogCache,
+  PublicPhotographersQueryCache,
+  PublicBookingPlansCache,
+  PublicPortfolioMetadataCache,
   PortfolioUseCases,
   BookingPlanUseCases,
   RankUseCases,

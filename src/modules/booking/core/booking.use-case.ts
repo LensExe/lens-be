@@ -1025,11 +1025,11 @@ export class BookingUseCases
   }
 
   /**
-   * Customer or primary photographer reports a booking: create a report with `target_type = booking`.
+   * A booking participant reports a booking: create a report with `target_type = booking`.
    *
    * @param s EntityManager for the current transaction.
    * @param a Actor associated with the booking.
-   * @param input Booking ID and reason.
+   * @param input Booking ID, reason, and optional evidence media IDs.
    * @returns Report just created.
    */
   async dispute(
@@ -1037,7 +1037,17 @@ export class BookingUseCases
     a: Actor,
     input: Inputs.BookingDisputeCommandInput,
   ) {
-    const { user } = await bookingAccess(s, a, input.booking_id);
+    role(a, 'customer', 'photographer');
+    const { user, customer, photographer } = await bookingAccess(
+      s,
+      a,
+      input.booking_id,
+    );
+    ensure(
+      customer.user_id === user.id || photographer.user_id === user.id,
+      'Booking access denied',
+      'forbidden',
+    );
     ensure(
       this.disputeReports,
       'Booking dispute reporting is unavailable',
@@ -1047,6 +1057,8 @@ export class BookingUseCases
       user_id: user.id,
       booking_id: input.booking_id,
       reason: input.reason,
+      booking_issue_type: input.booking_issue_type,
+      evidence_media_ids: input.evidence_media_ids,
     });
   }
 
@@ -1065,11 +1077,31 @@ export class BookingUseCases
   ) {
     role(a, 'admin');
     await currentUser(s, a);
-    return this.pageOfBookings(
-      s,
-      input.status ? { status: input.status } : {},
-      input,
-    );
+    const statusFilter = input.status ? { status: input.status } : {};
+    if (!input.user_id) {
+      return this.pageOfBookings(s, statusFilter, input);
+    }
+
+    const [customer, photographer] = await Promise.all([
+      s.findOne(EntitySchemas.customers, {
+        where: { user_id: input.user_id },
+        select: { id: true },
+      }),
+      s.findOne(EntitySchemas.photographers, {
+        where: { user_id: input.user_id },
+        select: { id: true },
+      }),
+    ]);
+    const where: FindOptionsWhere<BookingEntity>[] = [
+      ...(customer ? [{ customer_id: customer.id, ...statusFilter }] : []),
+      ...(photographer
+        ? [{ photographer_id: photographer.id, ...statusFilter }]
+        : []),
+    ];
+
+    return where.length
+      ? this.pageOfBookings(s, where, input)
+      : paged([], 0, input);
   }
 
   /** Admin booking detail using the same participant, plan, payment, and gallery projection as the list. */

@@ -540,7 +540,8 @@ export class PaymentController {
   @ApiOperation({
     operationId: 'PAY-010',
     summary: 'Lịch sử biến động ví',
-    description: 'Liệt kê sổ cái ví của người dùng hiện tại theo trang.',
+    description:
+      'Liệt kê sổ cái ví của người dùng hiện tại theo trang, kèm thông tin giao dịch và booking liên quan nếu có.',
   })
   @Access(['customer', 'photographer'])
   @ApiBearerAuth()

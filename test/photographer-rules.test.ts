@@ -9,8 +9,17 @@ import {
 import { PortfolioUseCases } from '../src/modules/photographer/portfolio/portfolio.use-case';
 import { BookingPlanUseCases } from '../src/modules/photographer/booking-plan/booking-plan.use-case';
 import type { PlanBookingsPort } from '../src/modules/photographer/ports/plan-bookings.port';
+import type { PublicBookingPlansCache } from '../src/modules/photographer/booking-plan/public-booking-plans.cache';
 import type { MediaOwnershipPort } from '../src/modules/photographer/ports/media-ownership.port';
 import type { ObjectStorage } from '../src/shared/integrations/s3/storage.port';
+
+function publicBookingPlansCacheStub() {
+  return {
+    getMany: async () => new Map(),
+    setMany: async () => {},
+    invalidate: async () => {},
+  } as unknown as PublicBookingPlansCache;
+}
 
 test('the tax code is locked once the profile is approved', () => {
   PhotographerProfile.assertTaxCodeEditable('pending', '0312', '9999');
@@ -77,7 +86,10 @@ test("the photographer's own plan list returns all plans", async () => {
       { id: 'wedding', duration_minutes: 13 * 60 },
     ],
   } as unknown as EntityManager;
-  const useCases = new BookingPlanUseCases({} as PlanBookingsPort);
+  const useCases = new BookingPlanUseCases(
+    {} as PlanBookingsPort,
+    publicBookingPlansCacheStub(),
+  );
   const { items } = await useCases.me(s, {
     sub: 'kc',
     roles: ['photographer'],
@@ -149,9 +161,12 @@ test('a plan with bookings cannot be deleted; booking is asked, its table is not
       },
       delete: async () => ({}),
     } as unknown as EntityManager;
-    return new BookingPlanUseCases({
-      bookingCountForPlan: async () => bookings,
-    } as unknown as PlanBookingsPort).remove(
+    return new BookingPlanUseCases(
+      {
+        bookingCountForPlan: async () => bookings,
+      } as unknown as PlanBookingsPort,
+      publicBookingPlansCacheStub(),
+    ).remove(
       s,
       { sub: 'kc', roles: ['photographer'] },
       {
@@ -160,5 +175,8 @@ test('a plan with bookings cannot be deleted; booking is asked, its table is not
     );
   };
   await assert.rejects(run(2), /deactivate it instead/);
-  assert.deepEqual(await run(0), { deleted: true });
+  assert.deepEqual(await run(0), {
+    deleted: true,
+    photographer_id: 'p1',
+  });
 });

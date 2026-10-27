@@ -1,9 +1,11 @@
 import type { BookingStatus } from '@shared/domain/values/booking.values';
+import type { BookingReportCategory } from '@shared/domain/values/report.values';
 
 export interface BookingAdminQueryInput {
   limit?: number;
   offset?: number;
   status?: BookingStatus;
+  user_id?: string;
 }
 
 export interface BookingCreateCommandInput {
@@ -60,6 +62,8 @@ export interface BookingCompleteShootCommandInput {
 export interface BookingDisputeCommandInput {
   booking_id: string;
   reason: string;
+  booking_issue_type?: BookingReportCategory;
+  evidence_media_ids?: string[];
 }
 
 export interface BookingRejectCommandInput {

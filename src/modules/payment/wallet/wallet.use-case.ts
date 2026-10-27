@@ -275,7 +275,7 @@ export class WalletUseCases {
    * @param userId User ID associated with the operation.
    * @param limit Maximum number of records to return.
    * @param offset Number of records to skip for pagination.
-   * @returns Result object containing the fields `items`, `total`, `limit`, `offset`.
+   * @returns Paginated ledger entries with related transaction and booking details.
    */
   async ledger(s: EntityManager, userId: string, limit = 50, offset = 0) {
     const wallet = await this.get(s, userId);
@@ -285,7 +285,80 @@ export class WalletUseCases {
       take: limit,
       skip: offset,
     });
-    return { items, total, limit, offset };
+
+    const transactionIds = [
+      ...new Set(
+        items
+          .map(({ transaction_id }) => transaction_id)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
+    const transactions = transactionIds.length
+      ? await s.findBy(EntitySchemas.transactions, { id: In(transactionIds) })
+      : [];
+    const transactionsById = new Map(
+      transactions.map((transaction) => [transaction.id, transaction]),
+    );
+    const bookingIds = [
+      ...new Set(
+        transactions
+          .filter(
+            (transaction) =>
+              transaction.type === 'deposit' ||
+              transaction.type === 'remaining',
+          )
+          .map(({ reference_id }) => reference_id)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
+    const bookings = bookingIds.length
+      ? await s.findBy(EntitySchemas.bookings, { id: In(bookingIds) })
+      : [];
+    const bookingsById = new Map(
+      bookings.map((booking) => [booking.id, booking]),
+    );
+
+    return {
+      items: items.map((item) => {
+        const transaction = item.transaction_id
+          ? transactionsById.get(item.transaction_id)
+          : undefined;
+        const bookingId =
+          transaction?.type === 'deposit' || transaction?.type === 'remaining'
+            ? transaction.reference_id
+            : null;
+        const booking = bookingId ? bookingsById.get(bookingId) : undefined;
+
+        return {
+          ...item,
+          transaction: transaction
+            ? {
+                id: transaction.id,
+                transaction_code: transaction.transaction_code,
+                type: transaction.type,
+                direction: transaction.direction,
+                amount: transaction.amount,
+                currency: transaction.currency,
+                status: transaction.status,
+                payment_gateway: transaction.payment_gateway,
+                description: transaction.description,
+              }
+            : null,
+          booking: booking
+            ? {
+                id: booking.id,
+                status: booking.status,
+                from: booking.from,
+                to: booking.to,
+                package_name: booking.package_snapshot?.name ?? null,
+              }
+            : null,
+        };
+      }),
+      total,
+      limit,
+      offset,
+    };
   }
 
   /**

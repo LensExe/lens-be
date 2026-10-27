@@ -20,6 +20,7 @@ import {
   ReportTargetType,
 } from '@shared/domain/values/report.values';
 import type {
+  BookingReportCategory as BookingReportCategoryType,
   ReportHistoryActorRole as ReportHistoryActorRoleType,
   ReportHistoryEventType as ReportHistoryEventTypeType,
   ReportStatus as ReportStatusType,
@@ -69,31 +70,14 @@ export class ModerationReportUseCases implements BookingDisputeReportPort {
     await required(s, TARGET_TABLE[i.target_type], i.target_id);
 
     const mediaIds = i.evidence_media_ids ?? [];
-    ensure(mediaIds.length <= 20, 'At most 20 evidence files are allowed');
-    ensure(
-      new Set(mediaIds).size === mediaIds.length,
-      'Duplicate evidence media',
-    );
-
-    for (const mediaId of mediaIds) {
-      const media = await required(s, 'media', mediaId);
-      ensure(
-        media.user_id === user.id,
-        'Evidence media access denied',
-        'forbidden',
-      );
-      ensure(
-        media.status === MediaStatus.READY,
-        'Evidence media is not ready',
-        'conflict',
-      );
-    }
+    await this.validateEvidence(s, user.id, mediaIds);
 
     const report = await s.save(EntitySchemas.reports, {
       user_id: user.id,
       target_type: i.target_type,
       target_id: i.target_id,
       reason: i.reason,
+      booking_issue_type: null,
     });
     await this.saveEvidence(s, report.id, mediaIds);
     await this.addHistory(s, {
@@ -112,16 +96,26 @@ export class ModerationReportUseCases implements BookingDisputeReportPort {
   /** Create the report after Booking has authorized the dispute participants. */
   async createBookingDispute(
     s: EntityManager,
-    input: { user_id: string; booking_id: string; reason: string },
+    input: {
+      user_id: string;
+      booking_id: string;
+      reason: string;
+      booking_issue_type?: BookingReportCategoryType;
+      evidence_media_ids?: readonly string[];
+    },
   ): Promise<CreatedBookingReport> {
     await required(s, 'users', input.user_id);
     await required(s, 'bookings', input.booking_id);
+    const mediaIds = input.evidence_media_ids ?? [];
+    await this.validateEvidence(s, input.user_id, mediaIds);
     const report = await s.save(EntitySchemas.reports, {
       user_id: input.user_id,
       target_type: ReportTargetType.BOOKING,
       target_id: input.booking_id,
       reason: input.reason,
+      booking_issue_type: input.booking_issue_type ?? null,
     });
+    await this.saveEvidence(s, report.id, mediaIds);
     await this.addHistory(s, {
       report_id: report.id,
       event_type: ReportHistoryEventType.CREATED,
@@ -131,7 +125,7 @@ export class ModerationReportUseCases implements BookingDisputeReportPort {
       actor_role: ReportHistoryActorRole.USER,
       note: null,
     });
-    return { ...report, evidence_media_ids: [] };
+    return { ...report, evidence_media_ids: [...mediaIds] };
   }
 
   /** List the current user's reports with a safe, public status timeline. */
@@ -265,6 +259,32 @@ export class ModerationReportUseCases implements BookingDisputeReportPort {
         sort_order,
       })),
     );
+  }
+
+  private async validateEvidence(
+    s: EntityManager,
+    userId: string,
+    mediaIds: readonly string[],
+  ) {
+    ensure(mediaIds.length <= 20, 'At most 20 evidence files are allowed');
+    ensure(
+      new Set(mediaIds).size === mediaIds.length,
+      'Duplicate evidence media',
+    );
+
+    for (const mediaId of mediaIds) {
+      const media = await required(s, 'media', mediaId);
+      ensure(
+        media.user_id === userId,
+        'Evidence media access denied',
+        'forbidden',
+      );
+      ensure(
+        media.status === MediaStatus.READY,
+        'Evidence media is not ready',
+        'conflict',
+      );
+    }
   }
 
   private async withEvidenceIds(

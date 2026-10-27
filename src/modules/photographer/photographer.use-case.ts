@@ -28,6 +28,11 @@ import { Badge } from './badge/badge.domain';
 import { PhotographerRolePort } from './ports/photographer-role.port';
 import { PhotographerRatingsPort } from './ports/photographer-ratings.port';
 import {
+  PhotographerAchievementsCache,
+  type PhotographerAchievementSnapshot,
+} from './photographer-achievements.cache';
+import { PublicBookingPlansCache } from './booking-plan/public-booking-plans.cache';
+import {
   PhotographerSearchPort,
   PhotographerSearchFilter,
   PhotographerSearchResult,
@@ -40,6 +45,8 @@ export class PhotographerUseCases implements PhotographerSearchPort {
     private readonly roles: PhotographerRolePort,
     private readonly ratings: PhotographerRatingsPort,
     private readonly storage: ObjectStorage,
+    private readonly achievementsCache: PhotographerAchievementsCache,
+    private readonly publicBookingPlansCache: PublicBookingPlansCache,
   ) {}
 
   /**
@@ -208,8 +215,8 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   }
 
   /**
-   * Build public profiles for multiple photographers at once. Fetch ratings, ranks, and badges in batches (the query count
-   * does not grow with the number of photographers), while preserving the input order.
+   * Build public profiles for multiple photographers at once. Fetch ratings and profile data in batches, using the shared
+   * cache for rank and earned-badge projections, while preserving the input order.
    *
    * @param s EntityManager for the current transaction.
    * @param pairs Photographer profiles and their owners, in the requested return order.
@@ -221,71 +228,51 @@ export class PhotographerUseCases implements PhotographerSearchPort {
   ) {
     const ids = pairs.map((pair) => pair.photographer.id);
     const ratings = await this.ratings.ratingsOf(s, ids);
-    // Project each photographer's cheapest bookable plan in one grouped query.
-    const startingPlanRows: Array<{
-      photographer_id: string;
-      id: string;
-      name: string;
-      description: string | null;
-      price: number | string;
-      duration_minutes: number;
-      photo_count: number;
-      retouched_photo_count: number;
-      delivery_days: number | null;
-      features: string[] | null;
-    }> = ids.length
-      ? await s
-          .createQueryBuilder(EntitySchemas.booking_plans, 'plan')
-          .distinctOn(['plan.photographer_id'])
-          .select('plan.photographer_id', 'photographer_id')
-          .addSelect('plan.id', 'id')
-          .addSelect('plan.name', 'name')
-          .addSelect('plan.description', 'description')
-          .addSelect('plan.price', 'price')
-          .addSelect('plan.duration_minutes', 'duration_minutes')
-          .addSelect('plan.photo_count', 'photo_count')
-          .addSelect('plan.retouched_photo_count', 'retouched_photo_count')
-          .addSelect('plan.delivery_days', 'delivery_days')
-          .addSelect('plan.features', 'features')
-          .where('plan.photographer_id IN (:...photographerIds)', {
-            photographerIds: ids,
-          })
-          .andWhere('plan.is_active = :isActive', { isActive: true })
-          .orderBy('plan.photographer_id', 'ASC')
-          .addOrderBy('plan.price', 'ASC')
-          .addOrderBy('plan.created_at', 'ASC')
-          .addOrderBy('plan.id', 'ASC')
-          .getRawMany<{
-            photographer_id: string;
-            id: string;
-            name: string;
-            description: string | null;
-            price: number | string;
-            duration_minutes: number;
-            photo_count: number;
-            retouched_photo_count: number;
-            delivery_days: number | null;
-            features: string[] | null;
-          }>()
-      : [];
+    const achievements = await this.achievements(s, pairs, ratings);
+    // Reuse each photographer's public plan-list cache; load only misses in one query.
+    const cachedPlans = await this.publicBookingPlansCache.getMany(ids);
+    const plansByPhotographer = new Map(cachedPlans);
+    const missingPlanIds = ids.filter((id) => !plansByPhotographer.has(id));
+    if (missingPlanIds.length > 0) {
+      const missingPlans = await s.find(EntitySchemas.booking_plans, {
+        where: { photographer_id: In(missingPlanIds), is_active: true },
+        order: {
+          photographer_id: 'ASC',
+          price: 'ASC',
+          created_at: 'ASC',
+          id: 'ASC',
+        },
+      });
+      for (const photographerId of missingPlanIds)
+        plansByPhotographer.set(photographerId, []);
+      for (const plan of missingPlans) {
+        const items = plansByPhotographer.get(plan.photographer_id)!;
+        items.push(plan);
+      }
+      await this.publicBookingPlansCache.setMany(
+        new Map(missingPlanIds.map((id) => [id, plansByPhotographer.get(id)!])),
+      );
+    }
     const startingPlans = new Map(
-      startingPlanRows.map(
-        (row) =>
-          [
-            row.photographer_id,
-            {
-              id: row.id,
-              name: row.name,
-              description: row.description,
-              price: Number(row.price),
-              duration_minutes: row.duration_minutes,
-              photo_count: row.photo_count,
-              retouched_photo_count: row.retouched_photo_count,
-              delivery_days: row.delivery_days,
-              features: row.features ?? [],
-            },
-          ] as const,
-      ),
+      ids.map((id) => {
+        const plan = plansByPhotographer.get(id)?.[0];
+        return [
+          id,
+          plan
+            ? {
+                id: plan.id,
+                name: plan.name,
+                description: plan.description,
+                price: Number(plan.price),
+                duration_minutes: plan.duration_minutes,
+                photo_count: plan.photo_count,
+                retouched_photo_count: plan.retouched_photo_count,
+                delivery_days: plan.delivery_days,
+                features: plan.features ?? [],
+              }
+            : null,
+        ] as const;
+      }),
     );
     const albums = ids.length
       ? await s.find(EntitySchemas.portfolios, {
@@ -318,20 +305,12 @@ export class PhotographerUseCases implements PhotographerSearchPort {
         }
       }),
     );
-    const ranks = await s.find(EntitySchemas.ranks);
-    const names = new Map(
-      (await s.find(EntitySchemas.badges)).map((d) => [d.code, d.name]),
-    );
-    const earned = await s.find(EntitySchemas.photographer_badges, {
-      where: { photographer_id: In(ids) },
-      order: { earned_at: 'ASC' },
-    });
     return pairs.map(({ photographer: p, user: u }) => {
       const rating = ratings[p.id];
-      const rank = Rank.of(rating.total_bookings, ranks);
+      const achievement = achievements.get(p.id)!;
       const startingPlan = startingPlans.get(p.id) ?? null;
       return {
-        commissionPercent: rank.commission_percent,
+        commissionPercent: achievement.rank.commission_percent,
         profile: {
           id: p.id,
           fullname: u.fullname,
@@ -347,17 +326,81 @@ export class PhotographerUseCases implements PhotographerSearchPort {
           starting_price: startingPlan?.price ?? 0,
           starting_plan: startingPlan,
           cover_url: coverUrls.get(p.id) ?? null,
-          rank: { code: rank.code, name: rank.name },
-          badges: earned
-            .filter((b) => b.photographer_id === p.id)
-            .map((b) => ({
-              code: b.code,
-              name: names.get(b.code) ?? b.code,
-              earned_at: b.earned_at,
-            })),
+          rank: {
+            code: achievement.rank.code,
+            name: achievement.rank.name,
+          },
+          badges: achievement.badges,
         },
       };
     });
+  }
+
+  /** Resolve rank and earned badges from Redis, loading only cache misses from the database. */
+  private async achievements(
+    s: EntityManager,
+    pairs: readonly { photographer: PhotographerEntity; user: UserEntity }[],
+    ratings: Awaited<ReturnType<PhotographerRatingsPort['ratingsOf']>>,
+  ): Promise<Map<string, PhotographerAchievementSnapshot>> {
+    const cacheInputs = pairs.map(({ photographer }) => ({
+      photographer_id: photographer.id,
+      completed_bookings: ratings[photographer.id].total_bookings,
+    }));
+    const cached = await this.achievementsCache.getMany(cacheInputs);
+    const snapshots = cached.values;
+    const missing = pairs.filter(
+      ({ photographer }) => !snapshots.has(photographer.id),
+    );
+    if (missing.length === 0) return snapshots;
+
+    const missingIds = missing.map(({ photographer }) => photographer.id);
+    const [ranks, badgeDefinitions, earned] = await Promise.all([
+      s.find(EntitySchemas.ranks),
+      s.find(EntitySchemas.badges),
+      s.find(EntitySchemas.photographer_badges, {
+        where: { photographer_id: In(missingIds) },
+        order: { earned_at: 'ASC' },
+      }),
+    ]);
+    const badgeNames = new Map(
+      badgeDefinitions.map((badge) => [badge.code, badge.name]),
+    );
+    const earnedByPhotographer = new Map<string, typeof earned>();
+    for (const badge of earned) {
+      const items = earnedByPhotographer.get(badge.photographer_id) ?? [];
+      items.push(badge);
+      earnedByPhotographer.set(badge.photographer_id, items);
+    }
+
+    const writes: Array<{
+      input: (typeof cacheInputs)[number];
+      snapshot: PhotographerAchievementSnapshot;
+    }> = [];
+    const inputByPhotographer = new Map(
+      cacheInputs.map((input) => [input.photographer_id, input]),
+    );
+    for (const { photographer } of missing) {
+      const input = inputByPhotographer.get(photographer.id)!;
+      const rank = Rank.of(input.completed_bookings, ranks);
+      const snapshot: PhotographerAchievementSnapshot = {
+        rank: {
+          code: rank.code,
+          name: rank.name,
+          commission_percent: rank.commission_percent,
+        },
+        badges: (earnedByPhotographer.get(photographer.id) ?? []).map(
+          (badge) => ({
+            code: badge.code,
+            name: badgeNames.get(badge.code) ?? badge.code,
+            earned_at: badge.earned_at,
+          }),
+        ),
+      };
+      snapshots.set(photographer.id, snapshot);
+      writes.push({ input, snapshot });
+    }
+    await this.achievementsCache.setMany(cached.version, writes);
+    return snapshots;
   }
 
   /**
