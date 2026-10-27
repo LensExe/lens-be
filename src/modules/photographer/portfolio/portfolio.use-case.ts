@@ -17,20 +17,28 @@ import { MediaOwnershipPort } from '../ports/media-ownership.port';
 import { Portfolio } from './portfolio.domain';
 import type { PortfolioEntity } from '@shared/database/entities/portfolio.entity';
 import { SubscriptionPortfolioQuotaPort } from '../ports/subscription-portfolio-quota.port';
+import { PublicPortfolioMetadataCache } from './public-portfolio-metadata.cache';
+
+interface PortfolioMetadata {
+  albums: PortfolioEntity[];
+  media: Array<{ id: string; file_key: string }>;
+  previews: Array<{ media_id: string; file_key: string }>;
+}
 
 @Injectable()
 export class PortfolioUseCases {
   constructor(
     private readonly media: MediaOwnershipPort,
     private readonly storage: ObjectStorage,
+    private readonly publicPortfolioCache?: PublicPortfolioMetadataCache,
     private readonly subscriptionQuota?: SubscriptionPortfolioQuotaPort,
   ) {}
 
-  /** Add signed image URLs to a page of albums with one media lookup. */
-  private async withDetails(
+  /** Load only durable portfolio and media metadata, without signing object-storage URLs. */
+  private async loadMetadata(
     s: EntityManager,
     albums: readonly PortfolioEntity[],
-  ) {
+  ): Promise<PortfolioMetadata> {
     const mediaIds = [
       ...new Set(
         albums.flatMap((album) => [
@@ -50,13 +58,27 @@ export class PortfolioUseCases {
           }),
         ])
       : [[], []];
-    const media = new Map(mediaRows.map((item) => [item.id, item] as const));
+    return {
+      albums: [...albums],
+      media: mediaRows.map(({ id, file_key }) => ({ id, file_key })),
+      previews: previewRows.map(({ media_id, file_key }) => ({
+        media_id,
+        file_key,
+      })),
+    };
+  }
+
+  /** Sign fresh image URLs from cached or freshly loaded metadata for each response. */
+  private async withDetails(metadata: PortfolioMetadata) {
+    const media = new Map(
+      metadata.media.map((item) => [item.id, item] as const),
+    );
     const previews = new Map(
-      previewRows.map((preview) => [preview.media_id, preview] as const),
+      metadata.previews.map((preview) => [preview.media_id, preview] as const),
     );
 
     return Promise.all(
-      albums.map(async (album) => {
+      metadata.albums.map(async (album) => {
         const items = await Promise.all(
           album.items.map(async (mediaId, position) => {
             const item = media.get(mediaId);
@@ -90,6 +112,16 @@ export class PortfolioUseCases {
         };
       }),
     );
+  }
+
+  private getPublicMetadata<T>(
+    view: 'list' | 'detail',
+    input: unknown,
+    load: () => Promise<T>,
+  ): Promise<T> {
+    return this.publicPortfolioCache
+      ? this.publicPortfolioCache.getOrLoad(view, input, load)
+      : load();
   }
 
   /**
@@ -157,13 +189,25 @@ export class PortfolioUseCases {
     await publicPhotographer(s, i.photographer_id);
     const offset = i.offset ?? 0,
       limit = i.limit ?? 20;
-    const [items, total] = await s.findAndCount(EntitySchemas.portfolios, {
-      where: { photographer_id: i.photographer_id },
-      order: { created_at: 'ASC', id: 'ASC' },
-      skip: offset,
-      take: limit,
-    });
-    return { items: await this.withDetails(s, items), total, offset, limit };
+    const page = await this.getPublicMetadata(
+      'list',
+      { photographer_id: i.photographer_id, limit, offset },
+      async () => {
+        const [albums, total] = await s.findAndCount(EntitySchemas.portfolios, {
+          where: { photographer_id: i.photographer_id },
+          order: { created_at: 'ASC', id: 'ASC' },
+          skip: offset,
+          take: limit,
+        });
+        return { ...(await this.loadMetadata(s, albums)), total };
+      },
+    );
+    return {
+      items: await this.withDetails(page),
+      total: page.total,
+      offset,
+      limit,
+    };
   }
 
   /** Admin review of albums from pending, rejected, or public profiles. */
@@ -184,7 +228,7 @@ export class PortfolioUseCases {
       take: limit,
     });
     return {
-      items: await this.withDetails(s, albums),
+      items: await this.withDetails(await this.loadMetadata(s, albums)),
       total,
       offset,
       limit,
@@ -206,7 +250,12 @@ export class PortfolioUseCases {
       skip: offset,
       take: limit,
     });
-    return { items: await this.withDetails(s, items), total, offset, limit };
+    return {
+      items: await this.withDetails(await this.loadMetadata(s, items)),
+      total,
+      offset,
+      limit,
+    };
   }
 
   /**
@@ -219,9 +268,19 @@ export class PortfolioUseCases {
    * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   async get(s: EntityManager, _a: Actor, i: Inputs.PortfolioGetQueryInput) {
-    const album = await required(s, 'portfolios', i.portfolio_id);
+    const metadata = await this.getPublicMetadata(
+      'detail',
+      { portfolio_id: i.portfolio_id },
+      async () => {
+        const album = await required(s, 'portfolios', i.portfolio_id);
+        await publicPhotographer(s, album.photographer_id);
+        return this.loadMetadata(s, [album]);
+      },
+    );
+    const album = metadata.albums[0];
+    ensure(album, 'portfolios not found', 'missing');
     await publicPhotographer(s, album.photographer_id);
-    return (await this.withDetails(s, [album]))[0];
+    return (await this.withDetails(metadata))[0];
   }
 
   /**

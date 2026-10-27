@@ -130,6 +130,13 @@ export class BookingController {
     type: 'string',
     description: 'status',
   })
+  @ApiQuery({
+    name: 'user_id',
+    required: false,
+    type: String,
+    description:
+      'User UUID; returns bookings where this user is customer or photographer',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successful result',
@@ -554,7 +561,7 @@ export class BookingController {
   }
 
   /**
-   * Record a customer dispute for a booking.
+   * Record a booking dispute from one of its participants, with optional evidence.
    *
    * @param req HTTP request containing authentication information and request data.
    * @param id ID of the record to process.
@@ -566,7 +573,7 @@ export class BookingController {
     operationId: 'BOOK-011',
     summary: 'Tạo tranh chấp booking',
     description:
-      'Khởi tạo report với target là booking. Role: Customer/Photographer',
+      'Customer hoặc photographer thuộc booking tạo report; có thể đính kèm media bằng chứng đã tải lên. Role: Customer/Photographer',
   })
   @Access(['customer', 'photographer'])
   @ApiBearerAuth()
@@ -602,7 +609,7 @@ export class BookingController {
     return this.commands.execute(
       new BookingDisputeCommand(req.actor ?? { sub: '', roles: [] }, {
         ...body,
-        booking_id: booking_id,
+        booking_id,
       }),
     );
   }

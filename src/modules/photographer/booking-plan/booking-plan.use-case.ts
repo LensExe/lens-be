@@ -11,13 +11,17 @@ import { ensure } from '@shared/platform/exceptions/domain.error';
 import type * as Inputs from '@shared/contracts/contracts';
 import { BookingPlan } from './booking-plan.domain';
 import { PlanBookingsPort } from '../ports/plan-bookings.port';
+import { PublicBookingPlansCache } from './public-booking-plans.cache';
 
 /**
  * Booking plan operations: photographers create, edit, activate/deactivate, and delete plans; customers view plans currently on sale.
  */
 @Injectable()
 export class BookingPlanUseCases {
-  constructor(private readonly planBookings: PlanBookingsPort) {}
+  constructor(
+    private readonly planBookings: PlanBookingsPort,
+    private readonly publicBookingPlansCache: PublicBookingPlansCache,
+  ) {}
 
   /**
    * Get a booking plan and ensure it belongs to the current caller's photographer profile.
@@ -103,12 +107,12 @@ export class BookingPlanUseCases {
     a: Actor,
     i: Inputs.BookingPlanRemoveCommandInput,
   ) {
-    await this.own(s, a, i.booking_plan_id);
+    const plan = await this.own(s, a, i.booking_plan_id);
     BookingPlan.assertRemovable(
       await this.planBookings.bookingCountForPlan(s, i.booking_plan_id),
     );
     await s.delete(EntitySchemas.booking_plans, i.booking_plan_id);
-    return { deleted: true };
+    return { deleted: true, photographer_id: plan.photographer_id };
   }
 
   /**
@@ -137,11 +141,14 @@ export class BookingPlanUseCases {
    */
   async list(s: EntityManager, _a: Actor, i: Inputs.BookingPlanListQueryInput) {
     const { photographer: p } = await publicPhotographer(s, i.photographer_id);
-    return {
-      items: await s.find(EntitySchemas.booking_plans, {
-        where: { photographer_id: p.id, is_active: true },
-        order: { price: 'ASC' },
-      }),
-    };
+    const cached = await this.publicBookingPlansCache.getMany([p.id]);
+    if (cached.has(p.id)) return { items: cached.get(p.id)! };
+
+    const items = await s.find(EntitySchemas.booking_plans, {
+      where: { photographer_id: p.id, is_active: true },
+      order: { price: 'ASC', created_at: 'ASC', id: 'ASC' },
+    });
+    await this.publicBookingPlansCache.setMany(new Map([[p.id, items]]));
+    return { items };
   }
 }

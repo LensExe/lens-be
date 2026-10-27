@@ -1,6 +1,7 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import {
+  BookingReportCategory,
   ReportStatus,
   type ReportStatus as ReportStatusType,
   type ReportTargetType,
@@ -26,6 +27,10 @@ export class ReportEntity extends BaseEntity {
   /** ID of the specific reported or disputed target (for example, `booking_id` or `photographer_id`). */
   @Column('uuid')
   target_id!: string;
+
+  /** Optional structured issue type for booking disputes. */
+  @Column('text', { nullable: true })
+  booking_issue_type!: BookingReportCategory | null;
 
   /** Detailed report or dispute reason and description. */
   @Column('text')

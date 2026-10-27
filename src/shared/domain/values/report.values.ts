@@ -18,6 +18,22 @@ export const REPORT_TARGET_TYPES = [
   ReportTargetType.FEEDBACK,
 ] as const;
 
+/** Structured issue types for reports attached to a booking. */
+export const BookingReportCategory = {
+  PHOTO_QUALITY: 'photo_quality',
+  MISSING_DELIVERABLES: 'missing_deliverables',
+  LATE_DELIVERY: 'late_delivery',
+  PHOTOGRAPHER_CONDUCT: 'photographer_conduct',
+  BOOKING_MISMATCH: 'booking_mismatch',
+  PAYMENT_REFUND: 'payment_refund',
+  OTHER: 'other',
+} as const;
+
+export type BookingReportCategory =
+  (typeof BookingReportCategory)[keyof typeof BookingReportCategory];
+
+export const BOOKING_REPORT_CATEGORIES = Object.values(BookingReportCategory);
+
 /** Processing status of a report or dispute. */
 export const ReportStatus = {
   OPEN: 'open',

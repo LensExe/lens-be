@@ -1,8 +1,24 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import type { Actor } from '@shared/platform/auth/actor';
-import { DataSource } from 'typeorm';
+import { DataSource, type EntityManager } from 'typeorm';
 import type * as Inputs from '@shared/contracts/contracts';
 import { PortfolioUseCases } from './portfolio.use-case';
+import { PublicPortfolioMetadataCache } from './public-portfolio-metadata.cache';
+import { PublicPhotographersQueryCache } from '../public-photographers-query.cache';
+
+async function executePortfolioMutation<T>(
+  dataSource: DataSource,
+  portfolioCache: PublicPortfolioMetadataCache,
+  photographersCache: PublicPhotographersQueryCache,
+  operation: (s: EntityManager) => Promise<T>,
+): Promise<T> {
+  const result = await dataSource.transaction(operation);
+  await Promise.all([
+    portfolioCache.invalidateAll(),
+    photographersCache.invalidateAll(),
+  ]);
+  return result;
+}
 
 export class PortfolioCreateCommand {
   constructor(
@@ -15,6 +31,8 @@ export class PortfolioCreateCommandHandler implements ICommandHandler<PortfolioC
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PortfolioUseCases,
+    private readonly portfolioCache: PublicPortfolioMetadataCache,
+    private readonly photographersCache: PublicPhotographersQueryCache,
   ) {}
 
   /**
@@ -24,8 +42,11 @@ export class PortfolioCreateCommandHandler implements ICommandHandler<PortfolioC
    * @returns Result of the operation performed in the transaction.
    */
   execute(message: PortfolioCreateCommand) {
-    return this.dataSource.transaction((s) =>
-      this.useCases.create(s, message.actor, message.input),
+    return executePortfolioMutation(
+      this.dataSource,
+      this.portfolioCache,
+      this.photographersCache,
+      (s) => this.useCases.create(s, message.actor, message.input),
     );
   }
 }
@@ -41,6 +62,8 @@ export class PortfolioReorderCommandHandler implements ICommandHandler<Portfolio
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PortfolioUseCases,
+    private readonly portfolioCache: PublicPortfolioMetadataCache,
+    private readonly photographersCache: PublicPhotographersQueryCache,
   ) {}
 
   /**
@@ -50,8 +73,11 @@ export class PortfolioReorderCommandHandler implements ICommandHandler<Portfolio
    * @returns Result of the operation performed in the transaction.
    */
   execute(message: PortfolioReorderCommand) {
-    return this.dataSource.transaction((s) =>
-      this.useCases.reorder(s, message.actor, message.input),
+    return executePortfolioMutation(
+      this.dataSource,
+      this.portfolioCache,
+      this.photographersCache,
+      (s) => this.useCases.reorder(s, message.actor, message.input),
     );
   }
 }
@@ -67,6 +93,8 @@ export class PortfolioAddCommandHandler implements ICommandHandler<PortfolioAddC
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PortfolioUseCases,
+    private readonly portfolioCache: PublicPortfolioMetadataCache,
+    private readonly photographersCache: PublicPhotographersQueryCache,
   ) {}
 
   /**
@@ -76,8 +104,11 @@ export class PortfolioAddCommandHandler implements ICommandHandler<PortfolioAddC
    * @returns Result of the operation performed in the transaction.
    */
   execute(message: PortfolioAddCommand) {
-    return this.dataSource.transaction((s) =>
-      this.useCases.add(s, message.actor, message.input),
+    return executePortfolioMutation(
+      this.dataSource,
+      this.portfolioCache,
+      this.photographersCache,
+      (s) => this.useCases.add(s, message.actor, message.input),
     );
   }
 }
@@ -93,6 +124,8 @@ export class PortfolioUpdateCommandHandler implements ICommandHandler<PortfolioU
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PortfolioUseCases,
+    private readonly portfolioCache: PublicPortfolioMetadataCache,
+    private readonly photographersCache: PublicPhotographersQueryCache,
   ) {}
 
   /**
@@ -102,8 +135,11 @@ export class PortfolioUpdateCommandHandler implements ICommandHandler<PortfolioU
    * @returns Result of the operation performed in the transaction.
    */
   execute(message: PortfolioUpdateCommand) {
-    return this.dataSource.transaction((s) =>
-      this.useCases.update(s, message.actor, message.input),
+    return executePortfolioMutation(
+      this.dataSource,
+      this.portfolioCache,
+      this.photographersCache,
+      (s) => this.useCases.update(s, message.actor, message.input),
     );
   }
 }
@@ -119,6 +155,8 @@ export class PortfolioRemoveCommandHandler implements ICommandHandler<PortfolioR
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PortfolioUseCases,
+    private readonly portfolioCache: PublicPortfolioMetadataCache,
+    private readonly photographersCache: PublicPhotographersQueryCache,
   ) {}
 
   /**
@@ -128,8 +166,11 @@ export class PortfolioRemoveCommandHandler implements ICommandHandler<PortfolioR
    * @returns Result of the operation performed in the transaction.
    */
   execute(message: PortfolioRemoveCommand) {
-    return this.dataSource.transaction((s) =>
-      this.useCases.remove(s, message.actor, message.input),
+    return executePortfolioMutation(
+      this.dataSource,
+      this.portfolioCache,
+      this.photographersCache,
+      (s) => this.useCases.remove(s, message.actor, message.input),
     );
   }
 }
@@ -145,6 +186,8 @@ export class PortfolioRemoveItemCommandHandler implements ICommandHandler<Portfo
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PortfolioUseCases,
+    private readonly portfolioCache: PublicPortfolioMetadataCache,
+    private readonly photographersCache: PublicPhotographersQueryCache,
   ) {}
 
   /**
@@ -154,8 +197,11 @@ export class PortfolioRemoveItemCommandHandler implements ICommandHandler<Portfo
    * @returns Result of the operation performed in the transaction.
    */
   execute(message: PortfolioRemoveItemCommand) {
-    return this.dataSource.transaction((s) =>
-      this.useCases.removeItem(s, message.actor, message.input),
+    return executePortfolioMutation(
+      this.dataSource,
+      this.portfolioCache,
+      this.photographersCache,
+      (s) => this.useCases.removeItem(s, message.actor, message.input),
     );
   }
 }

@@ -3,9 +3,27 @@ import { test } from 'node:test';
 import type { EntityManager } from 'typeorm';
 import { EntitySchemas } from '../src/shared/database';
 import { PhotographerUseCases } from '../src/modules/photographer/photographer.use-case';
+import type { PhotographerAchievementsCache } from '../src/modules/photographer/photographer-achievements.cache';
+import type { PublicBookingPlansCache } from '../src/modules/photographer/booking-plan/public-booking-plans.cache';
 import type { PhotographerRolePort } from '../src/modules/photographer/ports/photographer-role.port';
 import type { PhotographerRatingsPort } from '../src/modules/photographer/ports/photographer-ratings.port';
 import type { ObjectStorage } from '../src/shared/integrations/s3/storage.port';
+
+function achievementCacheStub() {
+  return {
+    getMany: async () => ({ version: '0', values: new Map() }),
+    setMany: async () => {},
+    invalidateAll: async () => {},
+  } as unknown as PhotographerAchievementsCache;
+}
+
+function publicBookingPlansCacheStub() {
+  return {
+    getMany: async () => new Map(),
+    setMany: async () => {},
+    invalidate: async () => {},
+  } as unknown as PublicBookingPlansCache;
+}
 
 test('admin photographer list is paged by the database', async () => {
   const queries: { entity: unknown; options: any }[] = [];
@@ -28,6 +46,8 @@ test('admin photographer list is paged by the database', async () => {
     {} as PhotographerRolePort,
     {} as PhotographerRatingsPort,
     {} as ObjectStorage,
+    achievementCacheStub(),
+    publicBookingPlansCacheStub(),
   );
   const result = await useCases.admin(
     s,
@@ -141,6 +161,8 @@ test('searching photographers costs the same number of queries for 1 or 3 result
       {} as PhotographerRolePort,
       ratings,
       {} as ObjectStorage,
+      achievementCacheStub(),
+      publicBookingPlansCacheStub(),
     ).search(s, { sub: '', roles: [] }, {});
     assert.deepEqual(
       result.items.map((p) => p.id),
