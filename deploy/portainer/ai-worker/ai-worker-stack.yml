@@ -1,5 +1,3 @@
-name: lens-ai-worker
-
 services:
   lens-ai-worker:
     image: '${AI_WORKER_IMAGE:-${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_OWNER:-lensexe}/lens-ai-worker:${IMAGE_TAG:-latest}}'
