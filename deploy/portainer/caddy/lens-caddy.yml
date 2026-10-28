@@ -79,23 +79,23 @@ services:
         }
 
         {$$HORSE_FE_DOMAIN:horse.io.vn} {
-          reverse_proxy {$$HORSE_FE_UPSTREAM:horse-racing-fe:80}
+          reverse_proxy horse-fe:80
         }
 
         {$$HORSE_API_DOMAIN:api.horse.io.vn} {
-          reverse_proxy {$$HORSE_API_UPSTREAM:horse-be:8000}
+          reverse_proxy horse-be:8000
         }
 
         {$$HORSE_AUTH_DOMAIN:auth.horse.io.vn} {
-          reverse_proxy {$$HORSE_AUTH_UPSTREAM:lens-keycloak:8080}
+          reverse_proxy horse-keycloak:8080
         }
 
         {$$HORSE_S3_DOMAIN:s3.horse.io.vn} {
-          reverse_proxy {$$HORSE_S3_UPSTREAM:horse-minio:9000}
+          reverse_proxy horse-minio:9000
         }
 
         {$$HORSE_MINIO_CONSOLE_DOMAIN:minio.horse.io.vn} {
-          reverse_proxy {$$HORSE_MINIO_CONSOLE_UPSTREAM:horse-minio:9001}
+          reverse_proxy horse-minio:9001
         }
         EOF
 
