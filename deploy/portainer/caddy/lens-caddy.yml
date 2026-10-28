@@ -91,11 +91,11 @@ services:
         }
 
         {$$HORSE_S3_DOMAIN:s3.horse.io.vn} {
-          reverse_proxy horse-minio:19000
+          reverse_proxy horse-minio:9000
         }
 
         {$$HORSE_MINIO_CONSOLE_DOMAIN:minio.horse.io.vn} {
-          reverse_proxy horse-minio:19001
+          reverse_proxy horse-minio:9001
         }
         EOF
 
