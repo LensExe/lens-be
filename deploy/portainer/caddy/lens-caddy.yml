@@ -1,5 +1,3 @@
-name: lens-caddy
-
 services:
   caddy:
     image: caddy:2-alpine

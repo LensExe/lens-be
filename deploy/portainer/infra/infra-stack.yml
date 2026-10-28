@@ -1,5 +1,3 @@
-name: lens-infra
-
 services:
   lens-postgres:
     # pgvector is required by the AI database used by ai-worker.

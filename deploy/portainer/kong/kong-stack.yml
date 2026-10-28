@@ -1,5 +1,3 @@
-name: lens-kong
-
 services:
   lens-kong:
     image: '${KONG_IMAGE:-kong:3.9.3}'
