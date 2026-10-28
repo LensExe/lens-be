@@ -79,7 +79,7 @@ services:
         }
 
         {$$HORSE_FE_DOMAIN:horse.io.vn} {
-          reverse_proxy horse-fe:80
+          reverse_proxy web:80
         }
 
         {$$HORSE_API_DOMAIN:api.horse.io.vn} {
