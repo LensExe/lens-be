@@ -94,7 +94,7 @@ services:
           reverse_proxy horse-minio:9000
         }
 
-        {$$HORSE_MINIO_CONSOLE_DOMAIN:minio.horse.io.vn} {
+        {$$HORSE_MINIO_DOMAIN:minio.horse.io.vn} {
           reverse_proxy horse-minio:9001
         }
         EOF
