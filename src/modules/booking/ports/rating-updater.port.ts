@@ -1,14 +1,14 @@
 import type { EntityManager } from 'typeorm';
 
-/** Ghi số liệu booking vào rating của thợ (module feedback), trong transaction của bên gọi. */
+/** Write booking statistics to the photographer rating (Feedback module) in the caller’s transaction. */
 export abstract class RatingUpdaterPort {
   /**
-   * Ghi số booking hoàn tất và số khách quay lại của thợ (booking tự đếm trên bảng của mình).
+   * Record completed booking counts and repeat customers for the photographer (counted from the Booking module’s own table).
    *
-   * @param manager EntityManager của transaction bên gọi
-   * @param photographerId ID hồ sơ thợ
+   * @param manager EntityManager from the caller’s transaction.
+   * @param photographerId Photographer profile ID.
    * @param stats `completedBookings`, `returnCustomers`
-   * @returns Không trả gì
+   * @returns Returns no value.
    */
   abstract recordBookingStats(
     manager: EntityManager,

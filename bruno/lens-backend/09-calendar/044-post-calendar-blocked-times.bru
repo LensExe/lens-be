@@ -1,0 +1,38 @@
+meta {
+  name: calendar/blocked-times
+  type: http
+  seq: 144
+}
+
+docs {
+  Chặn lịch
+  Handler: block
+  Authentication: role 'photographer'
+  Body: CalendarBlockCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/calendar/blocked-times
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "from": "{{fromDateTime}}",
+    "to": "{{toDateTime}}",
+    "reason": "Bruno API test",
+    "decline_pending": false
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

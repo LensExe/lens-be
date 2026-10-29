@@ -1,5 +1,13 @@
-import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { IsString, MinLength, IsEmail, IsEnum, Matches } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import {
+  IsString,
+  MinLength,
+  IsEmail,
+  IsEnum,
+  Matches,
+  IsOptional,
+} from 'class-validator';
+import { RegistrationRole } from '@shared/domain/values/user.values';
 
 export enum AuthOtpEvent {
   FORGOT_PASSWORD = 'FORGOT_PASSWORD',
@@ -7,6 +15,14 @@ export enum AuthOtpEvent {
 }
 
 export class AuthRegisterCommandBodyDto {
+  @ApiProperty({
+    description: 'Loại hồ sơ muốn tạo cùng tài khoản',
+    enum: RegistrationRole,
+    example: RegistrationRole.CUSTOMER,
+  })
+  @IsEnum(RegistrationRole)
+  role!: RegistrationRole;
+
   @ApiProperty({
     description: 'Họ và tên người dùng',
     example: 'Nguyễn Văn A',
@@ -61,13 +77,14 @@ export class AuthLoginQueryDto {
 }
 
 export class AuthRefreshDto {
-  @ApiProperty({
-    description: 'Refresh token',
+  @ApiPropertyOptional({
+    description: 'Refresh token for non-cookie clients',
     example: 'refresh-token',
     type: 'string',
   })
+  @IsOptional()
   @IsString()
-  refresh_token!: string;
+  refresh_token?: string;
 }
 
 export class AuthLogoutDto extends PartialType(AuthRefreshDto) {}
@@ -122,7 +139,7 @@ export class AuthSendOTP extends AuthSendOtpDto {
   @ApiProperty({
     description: 'Loại sự kiện cần gửi OTP',
     enum: AuthOtpEvent,
-    example: AuthOtpEvent.FORGOT_PASSWORD, // Trên Swagger sẽ hiện Dropdown chọn luôn
+    example: AuthOtpEvent.FORGOT_PASSWORD, // Swagger displays this as a dropdown.
   })
   @IsEnum(AuthOtpEvent, {
     message: 'Event phải là FORGOT_PASSWORD hoặc VERIFY_EMAIL',

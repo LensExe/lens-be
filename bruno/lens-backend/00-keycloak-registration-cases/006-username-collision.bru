@@ -1,0 +1,46 @@
+meta {
+  name: Registration survives a Keycloak username collision
+  type: http
+  seq: 6
+}
+
+docs {
+  Registration survives a Keycloak username collision.
+  Dùng biến local.bru; request này gọi Keycloak và có thể tạo account thật trong realm local.
+}
+
+post {
+  url: {{baseUrl}}/auth/register
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "role": "customer",
+    "fullname": "Bruno Collision Test",
+    "email": "{{usernameCollisionEmail}}",
+    "password": "{{registrationPassword}}"
+  }
+}
+
+tests {
+  test("returns expected status 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+script:post-response {
+  if (res.getStatus() < 300) {
+    const body = res.getBody();
+    if (body && body.access_token) {
+      bru.setVar("accessToken", body.access_token);
+      bru.setVar("customerToken", body.access_token);
+      if (body.refresh_token) bru.setVar("refreshToken", body.refresh_token);
+    }
+  }
+}

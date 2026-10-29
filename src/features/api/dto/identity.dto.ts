@@ -11,6 +11,8 @@ import {
   MaxLength,
   IsUrl,
   Matches,
+  IsBoolean,
+  ValidateNested,
   ValidateIf,
 } from 'class-validator';
 import { Gender, UserStatus } from '@shared/domain/values/user.values';
@@ -64,6 +66,24 @@ export class IdentityAdminUsersQueryQueryDto {
   keyword?: string;
 }
 
+export class IdentityNotificationPreferencesDto {
+  @ApiProperty({ type: 'boolean' })
+  @IsBoolean()
+  booking_updates!: boolean;
+
+  @ApiProperty({ type: 'boolean' })
+  @IsBoolean()
+  messages!: boolean;
+
+  @ApiProperty({ type: 'boolean' })
+  @IsBoolean()
+  promotions!: boolean;
+
+  @ApiProperty({ type: 'boolean' })
+  @IsBoolean()
+  email_digest!: boolean;
+}
+
 export class IdentityUpdateMeCommandBodyDto {
   @ApiPropertyOptional({ description: 'fullname', type: 'string' })
   @ValidateIf((_object, value) => value !== undefined)
@@ -102,6 +122,15 @@ export class IdentityUpdateMeCommandBodyDto {
   @IsISO8601({ strict: true })
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   dob?: string;
+
+  @ApiPropertyOptional({
+    description: 'Notification preferences',
+    type: () => IdentityNotificationPreferencesDto,
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @ValidateNested()
+  @Type(() => IdentityNotificationPreferencesDto)
+  notification_preferences?: IdentityNotificationPreferencesDto;
 }
 
 export class IdentityStatusCommandBodyDto {
@@ -112,4 +141,11 @@ export class IdentityStatusCommandBodyDto {
   })
   @IsIn(EDITABLE_USER_STATUSES)
   status!: 'active' | 'suspended';
+}
+
+export class IdentityAssignRoleCommandBodyDto {
+  @ApiProperty({ description: 'Role name to assign (e.g., admin, moderator)' })
+  @IsString()
+  @MaxLength(50)
+  role!: string;
 }

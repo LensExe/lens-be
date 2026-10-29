@@ -1,21 +1,28 @@
 import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
+import type { PhotographyStyle } from '@shared/domain/values/photography-style.values';
 
 /**
- * Entity đại diện cho bảng `customers`.
- * Lưu trữ thông tin hồ sơ bổ sung dành riêng cho người dùng đóng vai trò Khách hàng (người thuê chụp ảnh).
+ * Entity representing the `customers` table.
+ * Stores supplementary profile information for users acting as customers (people hiring photographers).
  */
 @Entity('customers')
 export class CustomerEntity extends BaseEntity {
-  /** ID của người dùng (khóa ngoại duy nhất liên kết tới `users.id`) */
+  /** User ID (unique foreign key referencing `users.id`). */
   @Column('uuid', { unique: true })
   user_id!: string;
 
-  /** Danh sách các phong cách chụp ảnh yêu thích để gợi ý thợ ảnh phù hợp */
-  @Column('jsonb', { default: [] })
-  preferred_styles!: string[];
+  /** Short customer introduction or photography needs. */
+  @Column('text', { nullable: true })
+  description!: string | null;
 
-  /** Vị trí / khu vực hoạt động hoặc nơi cư trú của khách hàng */
+  /** List of preferred photography styles used to recommend suitable photographers. */
+  @Column('jsonb', {
+    default: () => "'[]'::jsonb",
+  })
+  preferred_styles!: PhotographyStyle[];
+
+  /** The customer's location, service area, or place of residence. */
   @Column('text', { nullable: true })
   location!: string | null;
 }

@@ -1,15 +1,15 @@
 import type { ValueTransformer } from 'typeorm';
 
 /**
- * Transformer chuyển đổi kiểu dữ liệu ngày giờ (Timestamp / Date)
- * giữa TypeORM Entity và Database.
+ * Transformer for date and time values (Timestamp / Date)
+ * between TypeORM entities and the database.
  *
- * - `to(value)`: Được gọi khi GHI dữ liệu từ Entity xuống Database.
- *                Giữ nguyên giá trị truyền vào.
+ * - `to(value)`: Called when WRITING data from an entity to the database.
+ * Return the input value unchanged.
  *
- * - `from(value)`: Được gọi khi ĐỌC dữ liệu từ Database lên Entity.
- *   Nếu Database trả về một đối tượng Javascript `Date`,
- *   transformer này sẽ tự động chuyển thành chuỗi ISO8601 string.
+ * - `from(value)`: Called when READING data from the database into an entity.
+ * If the database returns a JavaScript `Date` object,
+ * this transformer converts it to an ISO 8601 string.
  */
 export const timestampTransformer: ValueTransformer = {
   to: (value: unknown) => value,
@@ -18,14 +18,14 @@ export const timestampTransformer: ValueTransformer = {
 };
 
 /**
- * Cấu hình cột kiểu `bigint` kèm transformer tự động ép kiểu sang `number`
+ * Configure a `bigint` column with a transformer that converts values to `number`.
  *             trong JavaScript/TypeScript.
  *
- * Lý do cần thiết:
- * PostgreSQL lưu cột `bigint` (số nguyên 64-bit).
- * Driver `pg` mặc định trả về dữ liệu kiểu `string` (chuỗi)
- * để tránh bị tràn số an toàn của JavaScript (trên Number.MAX_SAFE_INTEGER).
- * Transformer này sẽ tự động parse chuỗi đó thành kiểu `number` tiện lợi khi tính toán trong mã nguồn.
+ * Why this is needed:
+ * PostgreSQL stores `bigint` columns as 64-bit integers.
+ * The `pg` driver returns them as strings by default
+ * to avoid exceeding JavaScript's safe integer limit (`Number.MAX_SAFE_INTEGER`).
+ * This transformer parses the string into a convenient `number` for calculations in the application.
  */
 export const bigintColumn = {
   type: 'bigint' as const,

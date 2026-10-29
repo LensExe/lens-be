@@ -3,6 +3,12 @@ import { test } from 'node:test';
 import { PhotographerApplication } from '../src/modules/photographer/photographer.domain';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';
 
+/**
+ * Check that the operation throws a conflict with the expected error code.
+ *
+ * @param error Caught error to convert or log.
+ * @returns Result of the operation described above.
+ */
 const conflict = (error: unknown) =>
   error instanceof DomainError && error.code === 'conflict';
 

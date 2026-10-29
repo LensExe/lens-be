@@ -3,6 +3,7 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { DataSource } from 'typeorm';
 import type * as Inputs from '@shared/contracts/contracts';
 import { PhotographerUseCases } from './photographer.use-case';
+import { PublicPhotographersQueryCache } from './public-photographers-query.cache';
 
 export class PhotographerAdminQuery {
   constructor(
@@ -16,6 +17,13 @@ export class PhotographerAdminQueryHandler implements IQueryHandler<Photographer
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Run the query for the admin photographer list in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerAdminQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.admin(s, message.actor, message.input),
@@ -29,12 +37,40 @@ export class PhotographerMeQuery {
     public readonly input: Inputs.PhotographerMeQueryInput,
   ) {}
 }
+
+export class PhotographerEarningsQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.PhotographerMeQueryInput,
+  ) {}
+}
+
+@QueryHandler(PhotographerEarningsQuery)
+export class PhotographerEarningsQueryHandler implements IQueryHandler<PhotographerEarningsQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: PhotographerUseCases,
+  ) {}
+
+  execute(message: PhotographerEarningsQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.earnings(s, message.actor),
+    );
+  }
+}
 @QueryHandler(PhotographerMeQuery)
 export class PhotographerMeQueryHandler implements IQueryHandler<PhotographerMeQuery> {
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Run the query for the current user’s photographer profile in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerMeQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.me(s, message.actor),
@@ -48,15 +84,47 @@ export class PhotographerTopQuery {
     public readonly input: Inputs.PhotographerTopQueryInput,
   ) {}
 }
+
+export class PhotographerStylesFeaturedQuery {}
+
+@QueryHandler(PhotographerStylesFeaturedQuery)
+export class PhotographerStylesFeaturedQueryHandler implements IQueryHandler<PhotographerStylesFeaturedQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: PhotographerUseCases,
+    private readonly publicPhotographersCache: PublicPhotographersQueryCache,
+  ) {}
+
+  /** Run the public featured-photographer lookup for each photography style. */
+  execute() {
+    return this.publicPhotographersCache.getOrLoad('styles-featured', {}, () =>
+      this.dataSource.transaction((s) => this.useCases.featuredByStyle(s)),
+    );
+  }
+}
+
 @QueryHandler(PhotographerTopQuery)
 export class PhotographerTopQueryHandler implements IQueryHandler<PhotographerTopQuery> {
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
+    private readonly publicPhotographersCache: PublicPhotographersQueryCache,
   ) {}
+
+  /**
+   * Run the query for featured photographers by rank.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerTopQuery) {
-    return this.dataSource.transaction((s) =>
-      this.useCases.top(s, message.actor, message.input),
+    return this.publicPhotographersCache.getOrLoad(
+      'top-rated',
+      message.input,
+      () =>
+        this.dataSource.transaction((s) =>
+          this.useCases.top(s, message.actor, message.input),
+        ),
     );
   }
 }
@@ -72,10 +140,23 @@ export class PhotographerSearchQueryHandler implements IQueryHandler<Photographe
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
+    private readonly publicPhotographersCache: PublicPhotographersQueryCache,
   ) {}
+
+  /**
+   * Run the photographer search query in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerSearchQuery) {
-    return this.dataSource.transaction((s) =>
-      this.useCases.search(s, message.actor, message.input),
+    return this.publicPhotographersCache.getOrLoad(
+      'search',
+      message.input,
+      () =>
+        this.dataSource.transaction((s) =>
+          this.useCases.search(s, message.actor, message.input),
+        ),
     );
   }
 }
@@ -86,15 +167,50 @@ export class PhotographerGetQuery {
     public readonly input: Inputs.PhotographerGetQueryInput,
   ) {}
 }
+
+export class PhotographerChatPeerQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.PhotographerGetQueryInput,
+  ) {}
+}
+
+@QueryHandler(PhotographerChatPeerQuery)
+export class PhotographerChatPeerQueryHandler implements IQueryHandler<PhotographerChatPeerQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: PhotographerUseCases,
+  ) {}
+
+  execute(message: PhotographerChatPeerQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.chatPeer(s, message.actor, message.input),
+    );
+  }
+}
+
 @QueryHandler(PhotographerGetQuery)
 export class PhotographerGetQueryHandler implements IQueryHandler<PhotographerGetQuery> {
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
+    private readonly publicPhotographersCache: PublicPhotographersQueryCache,
   ) {}
+
+  /**
+   * Run the query for a photographer in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerGetQuery) {
-    return this.dataSource.transaction((s) =>
-      this.useCases.get(s, message.actor, message.input),
+    return this.publicPhotographersCache.getOrLoad(
+      'profile',
+      message.input,
+      () =>
+        this.dataSource.transaction((s) =>
+          this.useCases.get(s, message.actor, message.input),
+        ),
     );
   }
 }

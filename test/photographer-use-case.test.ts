@@ -3,17 +3,39 @@ import { test } from 'node:test';
 import type { EntityManager } from 'typeorm';
 import { EntitySchemas } from '../src/shared/database';
 import { PhotographerUseCases } from '../src/modules/photographer/photographer.use-case';
+import type { PhotographerAchievementsCache } from '../src/modules/photographer/photographer-achievements.cache';
+import type { PublicBookingPlansCache } from '../src/modules/photographer/booking-plan/public-booking-plans.cache';
 import type { PhotographerRolePort } from '../src/modules/photographer/ports/photographer-role.port';
 import type { PhotographerRatingsPort } from '../src/modules/photographer/ports/photographer-ratings.port';
+import type { ObjectStorage } from '../src/shared/integrations/s3/storage.port';
+
+function achievementCacheStub() {
+  return {
+    getMany: async () => ({ version: '0', values: new Map() }),
+    setMany: async () => {},
+    invalidateAll: async () => {},
+  } as unknown as PhotographerAchievementsCache;
+}
+
+function publicBookingPlansCacheStub() {
+  return {
+    getMany: async () => new Map(),
+    setMany: async () => {},
+    invalidate: async () => {},
+  } as unknown as PublicBookingPlansCache;
+}
 
 test('admin photographer list is paged by the database', async () => {
   const queries: { entity: unknown; options: any }[] = [];
+  const enrichments: { entity: unknown; options: any }[] = [];
   const s = {
     findBy: async () => [
       { id: 'u1', keycloak_id: 'kc-admin', status: 'active' },
     ],
-    find: async () => {
-      throw new Error('must not load a whole table');
+    find: async (entity: unknown, options: { where?: unknown }) => {
+      enrichments.push({ entity, options });
+      if (!options?.where) throw new Error('must not load a whole table');
+      return [];
     },
     findAndCount: async (entity: unknown, options: object) => {
       queries.push({ entity, options });
@@ -23,24 +45,36 @@ test('admin photographer list is paged by the database', async () => {
   const useCases = new PhotographerUseCases(
     {} as PhotographerRolePort,
     {} as PhotographerRatingsPort,
+    {} as ObjectStorage,
+    achievementCacheStub(),
+    publicBookingPlansCacheStub(),
   );
   const result = await useCases.admin(
     s,
     { sub: 'kc-admin', roles: ['admin'] },
     { verification_status: 'pending', limit: 10, offset: 30 },
   );
-  assert.deepEqual(result, {
-    items: [{ id: 'p1' }],
-    total: 42,
-    offset: 30,
-    limit: 10,
-  });
+  assert.equal(result.items[0].id, 'p1');
+  assert.equal(result.items[0].starting_price, 0);
+  assert.equal(result.items[0].portfolio_count, 0);
+  assert.equal(result.total, 42);
+  assert.equal(result.offset, 30);
+  assert.equal(result.limit, 10);
   assert.equal(queries[0].entity, EntitySchemas.photographers);
   assert.deepEqual(queries[0].options.where, {
     verification_status: 'pending',
   });
   assert.equal(queries[0].options.skip, 30);
   assert.equal(queries[0].options.take, 10);
+  assert.deepEqual(
+    enrichments.map(({ entity }) => entity),
+    [
+      EntitySchemas.users,
+      EntitySchemas.booking_plans,
+      EntitySchemas.portfolios,
+    ],
+  );
+  assert.ok(enrichments.every(({ options }) => options.where));
 });
 
 test('searching photographers costs the same number of queries for 1 or 3 results', async () => {
@@ -54,6 +88,8 @@ test('searching photographers costs the same number of queries for 1 or 3 result
       'where',
       'andWhere',
       'select',
+      'addSelect',
+      'distinctOn',
       'orderBy',
       'addOrderBy',
       'offset',
@@ -124,6 +160,9 @@ test('searching photographers costs the same number of queries for 1 or 3 result
     const result = await new PhotographerUseCases(
       {} as PhotographerRolePort,
       ratings,
+      {} as ObjectStorage,
+      achievementCacheStub(),
+      publicBookingPlansCacheStub(),
     ).search(s, { sub: '', roles: [] }, {});
     assert.deepEqual(
       result.items.map((p) => p.id),

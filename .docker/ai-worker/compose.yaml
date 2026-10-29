@@ -1,0 +1,47 @@
+name: lens-ai-worker
+
+services:
+  ollama:
+    image: '${OLLAMA_IMAGE:-ollama/ollama:latest}'
+    container_name: lens-ollama
+    ports:
+      - '127.0.0.1:11434:11434'
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      - lens-network
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'ollama', 'list']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  ollama-init:
+    image: '${OLLAMA_IMAGE:-ollama/ollama:latest}'
+    container_name: lens-ollama-init
+    environment:
+      OLLAMA_HOST: 'http://ollama:11434'
+      AI_CHAT_MODEL: '${AI_CHAT_MODEL:-qwen3.5:2b}'
+      AI_EMBEDDING_MODEL: '${AI_EMBEDDING_MODEL:-qwen3-embedding:0.6b}'
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        set -eu
+        ollama pull "$$AI_CHAT_MODEL"
+        ollama pull "$$AI_EMBEDDING_MODEL"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - lens-network
+    restart: 'no'
+
+volumes:
+  ollama-models:
+    name: lens-ollama-models
+
+networks:
+  lens-network:
+    name: lens-network
+    external: true

@@ -9,12 +9,41 @@ export class BookingAdminQuery {
     public readonly input: Inputs.BookingAdminQueryInput,
   ) {}
 }
+
+export class BookingAdminGetQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.BookingGetQueryInput,
+  ) {}
+}
+
+@QueryHandler(BookingAdminGetQuery)
+export class BookingAdminGetQueryHandler implements IQueryHandler<BookingAdminGetQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: BookingUseCases,
+  ) {}
+
+  execute(message: BookingAdminGetQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.adminGet(s, message.actor, message.input),
+    );
+  }
+}
+
 @QueryHandler(BookingAdminQuery)
 export class BookingAdminQueryHandler implements IQueryHandler<BookingAdminQuery> {
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Run the query for the admin booking list in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingAdminQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.admin(s, message.actor, message.input),
@@ -34,6 +63,13 @@ export class BookingListQueryHandler implements IQueryHandler<BookingListQuery> 
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Run the query for the current booking list in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingListQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.list(s, message.actor, message.input),
@@ -53,6 +89,13 @@ export class BookingTimelineQueryHandler implements IQueryHandler<BookingTimelin
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Run the query for booking history in a transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingTimelineQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.timeline(s, message.actor, message.input),
@@ -66,15 +109,64 @@ export class BookingGetQuery {
     public readonly input: Inputs.BookingGetQueryInput,
   ) {}
 }
+
+export class BookingChatPeerQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.BookingGetQueryInput,
+  ) {}
+}
+
+export class BookingCancellationPreviewQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.BookingCancellationPreviewQueryInput,
+  ) {}
+}
+
+@QueryHandler(BookingCancellationPreviewQuery)
+export class BookingCancellationPreviewQueryHandler implements IQueryHandler<BookingCancellationPreviewQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: BookingUseCases,
+  ) {}
+
+  execute(message: BookingCancellationPreviewQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.cancellationPreview(s, message.actor, message.input),
+    );
+  }
+}
 @QueryHandler(BookingGetQuery)
 export class BookingGetQueryHandler implements IQueryHandler<BookingGetQuery> {
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: BookingUseCases,
   ) {}
+
+  /**
+   * Run the query for a booking in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: BookingGetQuery) {
     return this.dataSource.transaction((s) =>
       this.useCases.get(s, message.actor, message.input),
+    );
+  }
+}
+
+@QueryHandler(BookingChatPeerQuery)
+export class BookingChatPeerQueryHandler implements IQueryHandler<BookingChatPeerQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: BookingUseCases,
+  ) {}
+
+  execute(message: BookingChatPeerQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.chatPeer(s, message.actor, message.input),
     );
   }
 }

@@ -1,0 +1,27 @@
+meta {
+  name: admin/photographers/:photographer_id/approve
+  type: http
+  seq: 208
+}
+
+docs {
+  Duyệt hồ sơ photographer
+  Handler: approve
+  Authentication: role 'admin'
+}
+
+post {
+  url: {{baseUrl}}/admin/photographers/{{photographerId}}/approve
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

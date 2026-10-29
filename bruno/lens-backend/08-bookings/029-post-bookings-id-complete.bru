@@ -1,0 +1,27 @@
+meta {
+  name: bookings/:booking_id/complete
+  type: http
+  seq: 129
+}
+
+docs {
+  Hoàn tất booking
+  Handler: complete
+  Authentication: role 'admin', 'system'
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/complete
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

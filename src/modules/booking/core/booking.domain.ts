@@ -4,52 +4,52 @@ import {
   BookingActorRole,
   OCCUPIED_BOOKING_STATUSES,
 } from '@shared/domain/values/booking.values';
-import { isOccupied } from '@shared/domain/rules/booking.rules';
+import { isOccupied, reservesTime } from '@shared/domain/rules/booking.rules';
 import { money } from '@shared/domain/rules/money.rules';
 import { interval, overlaps } from '@shared/domain/rules/time-range.rules';
-import { WorkSchedule } from '@shared/domain/rules/work-schedule.rules';
-import type { WorkingShift } from '@shared/domain/types/work-schedule.types';
 export { BookingStatus, OCCUPIED_BOOKING_STATUSES, BookingActorRole };
 
 export interface BookingDraftInput {
   customerId: string;
   customerUserId: string;
+  /** The single photographer responsible for this booking. */
   photographerId: string;
   photographerUserId: string;
   photographerStatus: string;
-  /** Thợ đã được admin duyệt (`verification_status = 'verified'`) */
+  /** Photographer approved by an admin (`verification_status = 'verified'`). */
   photographerVerified: boolean;
   photographerAvailable: boolean;
   planId: string;
   planPhotographerId: string;
   planActive: boolean;
   planPrice: number;
-  /** Thời lượng gói; khoảng `from`–`to` phải dài đúng bằng số phút này */
+  planName: string;
+  planPhotoCount: number;
+  planRetouchedPhotoCount: number;
+  planDeliveryDays: number | null;
+  /** Plan duration; the `from`–`to` interval must be exactly this many minutes. */
   planDurationMinutes: number;
   location: string;
   from: string;
   to: string;
-  /** Lịch tuần thợ đã khai (rỗng ⇒ giờ mặc định 08:00–20:00) */
-  schedule: readonly WorkingShift[];
   blockedTimes: readonly { from: string; to: string }[];
-  /** Booking khác của thợ chồng giờ (`customer_id` để nhận ra yêu cầu trùng của chính khách này) */
+  /** Other photographer bookings that overlap the time range. */
   bookings: readonly {
     from: string;
     to: string;
     status: string;
-    customer_id?: string;
   }[];
-  /** Số yêu cầu pending khách này đang có với thợ này */
+  /** Number of pending requests this customer has with this photographer. */
   openRequestsWithPhotographer: number;
-  /** Tổng số yêu cầu pending khách này đang có */
+  /** Total number of pending requests this customer has. */
   openRequests: number;
   now: number;
 }
 
-/** Số ngày sau khi publish gallery thì system tự hoàn tất booking nếu khách chưa xác nhận. */
+/** Number of days after gallery publication before a booking is auto-completed if the customer has not confirmed receipt. */
 export const AUTO_COMPLETE_AFTER_DAYS = 7;
 
-/** Hành động trên máy trạng thái booking. */
+/** Actions supported by the booking state machine. */
 export type BookingAction =
   | 'accept'
   | 'reject'
@@ -61,34 +61,35 @@ export type BookingAction =
   | 'expire'
   | 'adminCancel';
 
-/** Số giờ thợ có để trả lời một yêu cầu; quá hạn (hoặc tới giờ chụp) thì yêu cầu hết hạn. */
+/** Hours the photographer has to respond to a request; it expires after that or when the photo shoot starts. */
 export const PENDING_EXPIRES_AFTER_HOURS = 24;
 
-/** Tiền của booking để domain quyết định có được bắt đầu / hoàn tất không. */
+/** Booking payment data used by the domain to decide whether the shoot can start or the booking can complete. */
 export interface BookingPayment {
-  /** Tổng khách đã trả (cọc + phần còn lại, giao dịch `paid`) */
+  /** Total amount paid by the customer (deposit plus remaining balance, for `paid` transactions). */
   paidAmount: number;
   depositAmount: number;
   totalAmount: number;
   galleryPublished: boolean;
 }
 
-/** Số giờ khách có để trả cọc sau khi thợ nhận; quá hạn (hoặc tới giờ chụp) thì booking bị huỷ. */
+/** Legacy grace period for accepted bookings that still have an unpaid deposit. New requests pay before acceptance. */
 export const PAYMENT_DUE_AFTER_HOURS = 24;
 
-/** Số yêu cầu pending tối đa một khách được mở cùng lúc với một thợ, và tổng cộng. */
+/** Maximum number of pending requests a customer may have with one photographer and across all photographers. */
 export const MAX_OPEN_REQUESTS_PER_PHOTOGRAPHER = 3;
 export const MAX_OPEN_REQUESTS = 10;
 
 export class Booking {
-  /** @param status Trạng thái hiện tại của booking */
+  /** @param status Current booking status. */
   constructor(public status: BookingStatus) {}
 
   /**
-   * Kiểm luật tạo booking và tính tiền: cọc = làm tròn lên 30% tổng giá gói.
+   * Validate booking creation for exactly one photographer and calculate payment: the deposit is the total plan price rounded up to 30%.
    *
-   * @param input Dữ kiện khách, thợ, gói, lịch và các booking/khoảng chặn chồng giờ
-   * @returns Dữ liệu booking `pending` để lưu; ném 400/404/409 khi sai luật
+   * @param input Customer, photographer, plan, blocked ranges, and overlapping bookings.
+   * @returns Pending booking data to save; throws HTTP 400, 404, or 409 when business rules are violated.
+   * @throws {DomainError} Thrown when required data or a resource is missing, input is invalid, a business condition is not met, or the current state or data conflicts with the operation.
    */
   static prepare(input: BookingDraftInput) {
     ensure(input.photographerVerified, 'Photographer not found', 'missing');
@@ -117,27 +118,19 @@ export class Booking {
         input.planDurationMinutes * 60_000,
       'Booking length must match plan duration',
     );
-    ensure(
-      WorkSchedule.fits(range, input.schedule),
-      'Booking must be within working hours',
-      'conflict',
-    );
-    Booking.assertCanAccept(range, input.blockedTimes, input.bookings);
-    ensure(
-      !input.bookings.some(
-        (booking) =>
-          booking.customer_id === input.customerId &&
-          booking.status === BookingStatus.PENDING &&
-          overlaps(booking, range),
-      ),
-      'You already requested this time',
-      'conflict',
-    );
+    Booking.assertCanBook(range, input.blockedTimes, input.bookings);
     const total = money(input.planPrice);
     return {
       customer_id: input.customerId,
       photographer_id: input.photographerId,
       booking_plan_id: input.planId,
+      package_snapshot: {
+        name: input.planName,
+        photo_count: input.planPhotoCount,
+        retouched_photo_count: input.planRetouchedPhotoCount,
+        duration_minutes: input.planDurationMinutes,
+        delivery_days: input.planDeliveryDays,
+      },
       location: input.location,
       ...range,
       total_amount: total,
@@ -146,14 +139,36 @@ export class Booking {
     };
   }
 
+  /** A new request can use any unblocked time without another pending or active booking. */
+  static assertCanBook(
+    range: { from: string; to: string },
+    blockedTimes: readonly { from: string; to: string }[],
+    bookings: readonly { from: string; to: string; status: string }[],
+  ) {
+    ensure(
+      !blockedTimes.some((blocked) => overlaps(range, blocked)),
+      'Photographer is unavailable at this time',
+      'conflict',
+    );
+    ensure(
+      !bookings.some(
+        (booking) => reservesTime(booking.status) && overlaps(booking, range),
+      ),
+      'Photographer already has a booking at this time',
+      'conflict',
+    );
+  }
+
   /**
-   * Khoảng giờ còn trống để giữ lịch: không chồng khoảng chặn và không chồng booking đang
-   * chiếm lịch (đã nhận trở đi; yêu cầu `pending` không tính). Dùng khi tạo và khi thợ nhận.
+   * Available time range for holding a booking: it must not overlap a blocked range or an existing booking that
+   * already occupies the photographer’s schedule. Pending requests are allowed here so the selected request can be accepted;
+   * overlapping pending requests are declined after acceptance.
    *
-   * @param range Khoảng giờ của booking
-   * @param blockedTimes Các khoảng thợ đã chặn
-   * @param bookings Các booking khác của thợ
-   * @returns Không trả gì; 409 nếu trùng
+   * @param range Booking time range.
+   * @param blockedTimes Photographer’s blocked time ranges.
+   * @param bookings Other bookings belonging to the photographer.
+   * @returns Returns no value; throws HTTP 409 if the time conflicts.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   static assertCanAccept(
     range: { from: string; to: string },
@@ -175,13 +190,13 @@ export class Booking {
   }
 
   /**
-   * Bên đang thao tác trên booking, để ghi vào lịch sử trạng thái.
-   * Ưu tiên vai trò trong booking (khách / thợ của booking), sau đó mới tới role hệ thống.
+   * Actor performing the booking action, recorded in the status history.
+   * Prefer the customer or photographer role associated with the booking, then fall back to system roles.
    *
-   * @param userId User đang thao tác
-   * @param customerUserId User của khách trong booking
-   * @param photographerUserId User của thợ trong booking
-   * @param roles Role của actor (từ token)
+   * @param userId User performing the operation.
+   * @param customerUserId Customer user ID for the booking.
+   * @param photographerUserId Photographer user ID for the booking.
+   * @param roles Actor roles from the token.
    * @returns 'customer' | 'photographer' | 'admin' | 'system'
    */
   static actorRole(
@@ -198,23 +213,24 @@ export class Booking {
   }
 
   /**
-   * Mốc hết hạn của yêu cầu pending: gửi từ mốc này trở về trước là quá 24 giờ chưa được trả lời.
-   * Yêu cầu cũng hết hạn khi tới giờ chụp (`from <= now`), điều kiện đó do use case lọc.
+   * Pending request expiration cutoff: requests created at or before this time have gone unanswered for more than 24 hours.
+   * A request also expires when the photo shoot starts (`from <= now`); the use case applies that condition.
    *
-   * @param now Thời điểm hiện tại (ms)
-   * @returns Thời điểm ISO UTC = `now` trừ `PENDING_EXPIRES_AFTER_HOURS` giờ
+   * @param now Current time in milliseconds.
+   * @returns ISO UTC time calculated by subtracting `PENDING_EXPIRES_AFTER_HOURS` from `now`.
    */
   static pendingExpiryCutoff(now: number) {
     return new Date(now - PENDING_EXPIRES_AFTER_HOURS * 36e5).toISOString();
   }
 
   /**
-   * Yêu cầu còn hạn để thợ nhận: gửi chưa quá 24 giờ và buổi chụp chưa bắt đầu.
-   * Cùng luật với job hết hạn, nên thợ không nhận được yêu cầu đã quá hạn trong lúc job chưa chạy.
+   * A request is still eligible for acceptance if it was sent within the last 24 hours and the photo shoot has not started.
+   * Uses the same rule as the expiration job, so a photographer cannot accept an expired request while the job is waiting to run.
    *
-   * @param booking `created_at` (lúc gửi) và `from` (lúc bắt đầu chụp)
-   * @param now Thời điểm hiện tại (ms)
-   * @returns Không trả gì; 409 nếu đã quá hạn
+   * @param booking Booking `created_at` time (when submitted) and `from` time (when the photo shoot starts).
+   * @param now Current time in milliseconds.
+   * @returns Returns no value; throws HTTP 409 if the booking has expired.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   static assertStillPending(
     booking: { created_at: string; from: string },
@@ -230,45 +246,46 @@ export class Booking {
   }
 
   /**
-   * Mốc hạn thanh toán: booking được nhận từ mốc này trở về trước mà chưa trả đủ cọc là quá hạn.
-   * Cũng quá hạn khi tới giờ chụp (`from <= now`), điều kiện đó do use case lọc.
+   * Payment deadline: a booking accepted at or before this time is overdue if the deposit has not been paid in full.
+   * A booking is also overdue when the photo shoot starts (`from <= now`); the use case applies that condition.
    *
-   * @param now Thời điểm hiện tại (ms)
-   * @returns Thời điểm ISO UTC = `now` trừ `PAYMENT_DUE_AFTER_HOURS` giờ
+   * @param now Current time in milliseconds.
+   * @returns ISO UTC time calculated by subtracting `PAYMENT_DUE_AFTER_HOURS` from `now`.
    */
   static paymentDueCutoff(now: number) {
     return new Date(now - PAYMENT_DUE_AFTER_HOURS * 36e5).toISOString();
   }
 
   /**
-   * Mốc tự hoàn tất: booking publish gallery từ mốc này trở về trước là tới hạn.
-   * Trạng thái `shot` và điều kiện trả đủ vẫn do `transition('complete')` kiểm.
+   * Auto-completion cutoff: a booking with a gallery published at or before this time is due.
+   * The `shot` status and full-payment requirement are still checked by `transition('complete')`.
    *
-   * @param now Thời điểm hiện tại (ms)
-   * @returns Thời điểm ISO UTC = `now` trừ `AUTO_COMPLETE_AFTER_DAYS` ngày
+   * @param now Current time in milliseconds.
+   * @returns ISO UTC time calculated by subtracting `AUTO_COMPLETE_AFTER_DAYS` from `now`.
    */
   static autoCompleteCutoff(now: number) {
     return new Date(now - AUTO_COMPLETE_AFTER_DAYS * 864e5).toISOString();
   }
 
   /**
-   * Hành động này có cần biết khách đã trả bao nhiêu không (bắt đầu chụp cần cọc, hoàn tất cần đủ).
-   * Use case chỉ đọc giao dịch khi cần.
+   * Whether this action needs to know how much the customer has paid (starting a shoot requires the deposit; completion requires full payment).
+   * The use case reads transactions only when needed.
    *
-   * @param action Hành động
-   * @returns `true` nếu cần số tiền đã trả
+   * @param action Action to perform.
+   * @returns `true` if the amount paid must be checked.
    */
   static needsPayment(action: BookingAction) {
     return ['start', 'complete', 'confirmReceipt'].includes(action);
   }
 
   /**
-   * Chuyển trạng thái theo hành động. Domain tự quyết ngưỡng tiền: bắt đầu chụp cần đủ cọc,
-   * hoàn tất cần trả đủ tổng tiền và gallery đã publish.
+   * Transition to the next status for the requested action. The domain determines payment thresholds: starting the shoot requires the deposit,
+   * and completion requires full payment and a published gallery.
    *
-   * @param action Hành động
-   * @param payment Số đã trả, tiền cọc, tổng tiền, gallery đã publish chưa
-   * @returns Trạng thái mới; 409 nếu hành động không hợp lệ ở trạng thái hiện tại hoặc chưa đủ điều kiện
+   * @param action Action to perform.
+   * @param payment Amount paid, deposit, total amount, and whether the gallery has been published.
+   * @returns New status; throws HTTP 409 if the action is invalid for the current status or its prerequisites are not met.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   transition(action: BookingAction, payment: BookingPayment): BookingStatus {
     const transitions: Record<BookingAction, [BookingStatus[], BookingStatus]> =

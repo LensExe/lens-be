@@ -21,6 +21,13 @@ export class KeycloakOidcRedirectService {
     private readonly redis: RedisService,
   ) {}
 
+  /**
+   * Build the OIDC sign-in redirect URL and store the PKCE data associated with the state.
+   *
+   * @param provider Selected service provider.
+   * @param redirectUri String value used by the operation: redirect uri.
+   * @returns Result returned by `toString`.
+   */
   async buildAuthorizeRedirectUrl(
     provider: KeycloakIdentityProvider,
     redirectUri: string,
@@ -56,6 +63,14 @@ export class KeycloakOidcRedirectService {
     return url.toString();
   }
 
+  /**
+   * Read and remove the PKCE data stored for an OIDC state value.
+   *
+   * @param provider Selected service provider.
+   * @param state State value used by the operation.
+   * @returns Result object containing the fields `codeVerifier`, `redirectUri`.
+   * @throws {UnauthorizedException} Thrown when the credentials are invalid or have expired.
+   */
   async consumePkceBundle(
     provider: KeycloakIdentityProvider,
     state: string,
@@ -72,17 +87,38 @@ export class KeycloakOidcRedirectService {
   }
 
   // hash redis key
+
+  /**
+   * Build the storage key for an OIDC state value.
+   *
+   * @param state State value used by the operation.
+   * @returns Result of the operation described above.
+   */
   private stateKey(state: string): string {
     const digest = createHash('sha256').update(state).digest('hex');
     return `keycloak:oidc-state:${digest}`;
   }
 
   // convert buffer to base64Url
+
+  /**
+   * Encode data as a URL-safe Base64 string.
+   *
+   * @param value value data of type Buffer.
+   * @returns Result returned by `toString`.
+   */
   private base64Url(value: Buffer): string {
     return value.toString('base64url');
   }
 
   // get base url
+
+  /**
+   * Get the Keycloak server base URL from configuration.
+   *
+   * @returns Result returned by `replace`.
+   * @throws {ServiceUnavailableException} Thrown when an external service is not configured or is unavailable.
+   */
   private baseKeyCloakUrl(): string {
     const value = this.config.get<string>('auth.keycloakAuthServerUrl');
     if (!value)
@@ -91,6 +127,13 @@ export class KeycloakOidcRedirectService {
   }
 
   // get realm
+
+  /**
+   * Get the configured Keycloak realm name.
+   *
+   * @returns Result returned by `encodeURIComponent`.
+   * @throws {ServiceUnavailableException} Thrown when an external service is not configured or is unavailable.
+   */
   private realm(): string {
     const value = this.config.get<string>('auth.keycloakRealm');
     if (!value)
@@ -99,6 +142,13 @@ export class KeycloakOidcRedirectService {
   }
 
   // get client id
+
+  /**
+   * Get the configured Keycloak client ID.
+   *
+   * @returns String result of the operation.
+   * @throws {ServiceUnavailableException} Thrown when an external service is not configured or is unavailable.
+   */
   private clientId(): string {
     const value = this.config.get<string>('auth.keycloakClientId');
     if (!value)

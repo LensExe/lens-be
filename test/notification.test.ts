@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { ServiceUnavailableException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import type { AxiosService } from '../src/shared/integrations/axios/axios.service';
-import { HttpNotificationService } from '../src/shared/integrations/notification/http-notification.service';
+import { HttpNotificationService } from '../src/shared/integrations/kafka/http-notification.service';
 
 const email = {
   to: 'a@lens.vn',
@@ -12,7 +12,13 @@ const email = {
   expiresInMinutes: 5,
 };
 
-/** Dựng adapter với config + axios giả; ghi lại request đã gửi. */
+/**
+ * Build the adapter with fake configuration and Axios, and record the requests sent.
+ *
+ * @param serviceUrl Value used by the operation: service url.
+ * @param fail Value used by the operation: fail.
+ * @returns Result object containing the fields `service`, `sent`.
+ */
 function setup(serviceUrl: string | undefined, fail = false) {
   const sent: { baseURL?: string; url: string; body: unknown }[] = [];
   const config = {

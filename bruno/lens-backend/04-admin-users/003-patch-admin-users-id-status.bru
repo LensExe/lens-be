@@ -1,0 +1,35 @@
+meta {
+  name: admin/users/:user_id/status
+  type: http
+  seq: 103
+}
+
+docs {
+  Cập nhật trạng thái user
+  Handler: status
+  Authentication: role 'admin'
+  Body: IdentityStatusCommandBodyDto
+}
+
+patch {
+  url: {{baseUrl}}/admin/users/{{userId}}/status
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "status": "suspended"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -1,0 +1,37 @@
+meta {
+  name: admin/ranks/:code
+  type: http
+  seq: 225
+}
+
+docs {
+  Sửa hạng thợ
+  Handler: update
+  Authentication: role 'admin'
+  Body: RankUpdateCommandBodyDto
+}
+
+patch {
+  url: {{baseUrl}}/admin/ranks/{{code}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Bruno test rank",
+    "min_completed": 60,
+    "commission_percent": 7
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

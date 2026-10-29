@@ -2,6 +2,8 @@
  * Enum of cookie names.
  */
 export enum CookieName {
+  /** The name of the access token cookie. */
+  KeycloakAccessToken = 'keycloak_access_token',
   /** The name of the refresh token cookie. */
   KeycloakRefreshToken = 'keycloak_refresh_token',
   /** The name of the CSRF double-submit token cookie (JS-readable, not HttpOnly). */

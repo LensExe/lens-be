@@ -1,0 +1,27 @@
+meta {
+  name: reviews/:feedback_id
+  type: http
+  seq: 162
+}
+
+docs {
+  Xóa đánh giá
+  Handler: remove
+  Authentication: role 'customer'
+}
+
+delete {
+  url: {{baseUrl}}/reviews/{{feedbackId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{customerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

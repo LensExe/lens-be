@@ -1,18 +1,23 @@
 import type { DataSource } from 'typeorm';
 import type { Actor } from '@shared/platform/auth/actor';
 
-/** Actor dùng khi job nền gọi command/query: role `system`, không gắn với user nào. */
+/** Actor used when a background job sends a command or query: `system` role, not linked to a user. */
 export const SYSTEM_ACTOR: Actor = { sub: 'system', roles: ['system'] };
 
 /**
- * Chạy `job` nếu không instance nào khác đang chạy job cùng tên.
+ * Run `job` only if no other instance is running a job with the same name.
  *
- * Dùng Postgres advisory lock theo session nên an toàn khi app chạy nhiều instance.
- * Trả `false` khi bỏ qua vì nơi khác đang chạy. Lock luôn được nhả, kể cả khi job lỗi.
+ * Uses a Postgres session-level advisory lock, so it is safe when the app runs on multiple instances.
+ * Returns `false` when another instance is already running. Always release the lock, even if the job fails.
  *
- * Cách dùng: trong một method gắn decorator `Cron` của `@nestjs/schedule`, gọi
+ * Usage: call this from a method decorated with `Cron` from `@nestjs/schedule`,
  * `runExclusive(this.dataSource, 'booking.auto-complete', () => this.commands.execute(cmd))`
- * với `cmd` là command tạo bằng `SYSTEM_ACTOR`. Luật nghiệp vụ vẫn nằm trong use case.
+ * with `cmd` set to a command created using `SYSTEM_ACTOR`. Business rules remain in the use case.
+ *
+ * @param dataSource Data source used to open a transaction.
+ * @param jobName String value used by the operation: job name.
+ * @param job Value used by the operation: job.
+ * @returns Boolean indicating the result of the check or operation.
  */
 export async function runExclusive(
   dataSource: DataSource,

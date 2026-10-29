@@ -1,0 +1,35 @@
+meta {
+  name: media/complete-upload
+  type: http
+  seq: 169
+}
+
+docs {
+  Xác nhận upload hoàn tất
+  Handler: complete
+  Authentication: Bearer token
+  Body: MediaCompleteCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/media/complete-upload
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "media_id": "{{mediaId}}"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

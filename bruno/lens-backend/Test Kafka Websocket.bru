@@ -1,0 +1,29 @@
+meta {
+  name: Test Kafka Websocket
+  type: ws
+  seq: 20
+}
+
+ws {
+  url: ws://localhost:3001/api/v1/socket.io/?EIO=4&transport=websocket
+  body: ws
+  auth: apikey
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+auth:apikey {
+  key:
+  value:
+  placement: header
+}
+
+body:ws {
+  name: message 1
+  type: json
+  content: '''
+
+  '''
+}

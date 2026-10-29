@@ -1,4 +1,4 @@
-/** Trạng thái của đơn đặt lịch chụp ảnh. */
+/** Status of a photography booking. */
 export const BookingStatus = {
   PENDING: 'pending',
   ACCEPTED: 'accepted',
@@ -12,7 +12,7 @@ export const BookingStatus = {
 
 export type BookingStatus = (typeof BookingStatus)[keyof typeof BookingStatus];
 
-/** Các trạng thái booking đang chiếm dụng lịch chụp. */
+/** Accepted and later booking statuses that occupy the calendar; pending is tracked separately as a reservation. */
 export const OCCUPIED_BOOKING_STATUSES = [
   BookingStatus.ACCEPTED,
   BookingStatus.IN_PROGRESS,
@@ -20,7 +20,13 @@ export const OCCUPIED_BOOKING_STATUSES = [
   BookingStatus.COMPLETED,
 ] as const;
 
-/** Bên thực hiện một lần đổi trạng thái booking. */
+/** Booking statuses that reserve a photographer's time; pending requests hold the slot until answered or expired. */
+export const RESERVING_BOOKING_STATUSES = [
+  BookingStatus.PENDING,
+  ...OCCUPIED_BOOKING_STATUSES,
+] as const;
+
+/** Actor who changed a booking's status. */
 export const BookingActorRole = {
   CUSTOMER: 'customer',
   PHOTOGRAPHER: 'photographer',
@@ -30,14 +36,3 @@ export const BookingActorRole = {
 
 export type BookingActorRole =
   (typeof BookingActorRole)[keyof typeof BookingActorRole];
-
-/** Trạng thái lời mời thợ liên kết. */
-export const BookingCollaboratorStatus = {
-  INVITED: 'invited',
-  ACCEPTED: 'accepted',
-  DECLINED: 'declined',
-  REVOKED: 'revoked',
-} as const;
-
-export type BookingCollaboratorStatus =
-  (typeof BookingCollaboratorStatus)[keyof typeof BookingCollaboratorStatus];

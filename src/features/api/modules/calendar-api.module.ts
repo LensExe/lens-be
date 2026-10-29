@@ -2,15 +2,13 @@ import { Module } from '@nestjs/common';
 import { CalendarController } from '../http/calendar.controller';
 import {
   CalendarBlockCommandHandler,
-  CalendarSetWorkingHoursCommandHandler,
   CalendarUnblockCommandHandler,
 } from '@modules/calendar/schedule/calendar.command';
 import {
   CalendarAvailabilityQueryHandler,
   CalendarBlockPreviewQueryHandler,
-  CalendarWorkingHoursPreviewQueryHandler,
   CalendarMeQueryHandler,
-  CalendarWorkingHoursQueryHandler,
+  CalendarOfflineSlotsQueryHandler,
 } from '@modules/calendar/schedule/calendar.query';
 
 @Module({
@@ -19,11 +17,9 @@ import {
     CalendarBlockCommandHandler,
     CalendarUnblockCommandHandler,
     CalendarAvailabilityQueryHandler,
+    CalendarOfflineSlotsQueryHandler,
     CalendarMeQueryHandler,
-    CalendarSetWorkingHoursCommandHandler,
-    CalendarWorkingHoursQueryHandler,
     CalendarBlockPreviewQueryHandler,
-    CalendarWorkingHoursPreviewQueryHandler,
   ],
 })
 export class CalendarApiModule {}

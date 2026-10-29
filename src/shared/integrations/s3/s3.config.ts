@@ -6,6 +6,13 @@ import {
 import { S3Provider } from './enums/s3';
 import type { S3ProviderConfig } from './types/config';
 
+/**
+ * Read a positive integer setting or use the default when the value is invalid.
+ *
+ * @param value Value used by the operation: value.
+ * @param fallback Numeric value used by the operation: fallback.
+ * @returns Result of the operation described above.
+ */
 const positiveInteger = (
   value: string | undefined,
   fallback: number,
@@ -14,42 +21,70 @@ const positiveInteger = (
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const env = (name: string): string | undefined =>
+  process.env[name]?.trim() || undefined;
+
 /**
- * Đọc và ánh xạ cấu hình S3 từ biến môi trường (process.env) theo từng Provider.
+ * Read and map S3 configuration from environment variables (`process.env`) for each provider.
  *
- * - Thiết lập giá trị mặc định cho region, TTL presigned URL, và forcePathStyle (MinIO: true, Cloud: false).
- * - Cloud có thể dùng static credentials hoặc credential chain mặc định của AWS SDK.
+ * - MinIO uses path-style URLs; cloud providers use virtual-hosted URLs.
+ * - DigitalOcean Spaces uses its data-center endpoint and the AWS SDK signing region `us-east-1`.
+ * - Cloud providers can use static credentials or the AWS SDK's default credential chain.
  *
- * @param provider - Nhà cung cấp S3 (MinIO hoặc cloud S3-compatible)
- * @returns Object S3ProviderConfig chứa các thông số kết nối
+ * @param provider S3 provider (MinIO or a cloud S3-compatible service).
+ * @returns `S3ProviderConfig` object containing the connection settings.
  */
 export function getS3ProviderConfig(provider: S3Provider): S3ProviderConfig {
   switch (provider) {
     case S3Provider.Cloud:
       return {
-        endpoint: process.env.S3_CLOUD_ENDPOINT,
-        publicEndpoint: process.env.S3_CLOUD_PUBLIC_ENDPOINT,
-        region: process.env.S3_CLOUD_REGION ?? DEFAULT_S3_REGION,
-        accessKeyId: process.env.S3_CLOUD_ACCESS_KEY_ID,
-        secretAccessKey: process.env.S3_CLOUD_SECRET_ACCESS_KEY,
-        bucket: process.env.S3_CLOUD_BUCKET,
+        endpoint: env('S3_CLOUD_ENDPOINT'),
+        publicEndpoint: env('S3_CLOUD_PUBLIC_ENDPOINT'),
+        region: env('S3_CLOUD_REGION') ?? DEFAULT_S3_REGION,
+        accessKeyId: env('S3_CLOUD_ACCESS_KEY_ID'),
+        secretAccessKey: env('S3_CLOUD_SECRET_ACCESS_KEY'),
+        bucket: env('S3_CLOUD_BUCKET'),
         forcePathStyle: false,
         presignedUrlTtlSeconds: positiveInteger(
-          process.env.S3_CLOUD_PRESIGNED_URL_TTL_SECONDS,
+          env('S3_CLOUD_PRESIGNED_URL_TTL_SECONDS'),
           DEFAULT_PRESIGNED_URL_TTL_SECONDS,
         ),
       };
+    case S3Provider.DigitalOcean: {
+      const bucketRegion = env('S3_DIGITALOCEAN_REGION');
+      return {
+        endpoint:
+          env('S3_DIGITALOCEAN_ENDPOINT') ??
+          (bucketRegion
+            ? `https://${bucketRegion}.digitaloceanspaces.com`
+            : undefined),
+        publicEndpoint: env('S3_DIGITALOCEAN_PUBLIC_ENDPOINT'),
+        publicObjectBaseUrl: env('S3_DIGITALOCEAN_CDN_ENDPOINT'),
+        // DigitalOcean determines the Spaces location from the endpoint. Its
+        // AWS SDK integration requires us-east-1 as the signing region.
+        region: DEFAULT_S3_REGION,
+        bucketRegion,
+        accessKeyId: env('S3_DIGITALOCEAN_ACCESS_KEY_ID'),
+        secretAccessKey: env('S3_DIGITALOCEAN_SECRET_ACCESS_KEY'),
+        bucket: env('S3_DIGITALOCEAN_BUCKET'),
+        forcePathStyle: false,
+        presignedUrlTtlSeconds: positiveInteger(
+          env('S3_DIGITALOCEAN_PRESIGNED_URL_TTL_SECONDS'),
+          DEFAULT_PRESIGNED_URL_TTL_SECONDS,
+        ),
+      };
+    }
     case S3Provider.Minio:
       return {
-        endpoint: process.env.S3_MINIO_ENDPOINT,
-        publicEndpoint: process.env.S3_MINIO_PUBLIC_ENDPOINT,
-        region: process.env.S3_MINIO_REGION ?? DEFAULT_S3_REGION,
-        accessKeyId: process.env.S3_MINIO_ACCESS_KEY_ID,
-        secretAccessKey: process.env.S3_MINIO_SECRET_ACCESS_KEY,
-        bucket: process.env.S3_MINIO_BUCKET,
+        endpoint: env('S3_MINIO_ENDPOINT'),
+        publicEndpoint: env('S3_MINIO_PUBLIC_ENDPOINT'),
+        region: env('S3_MINIO_REGION') ?? DEFAULT_S3_REGION,
+        accessKeyId: env('S3_MINIO_ACCESS_KEY_ID'),
+        secretAccessKey: env('S3_MINIO_SECRET_ACCESS_KEY'),
+        bucket: env('S3_MINIO_BUCKET'),
         forcePathStyle: true,
         presignedUrlTtlSeconds: positiveInteger(
-          process.env.S3_MINIO_PRESIGNED_URL_TTL_SECONDS,
+          env('S3_MINIO_PRESIGNED_URL_TTL_SECONDS'),
           DEFAULT_PRESIGNED_URL_TTL_SECONDS,
         ),
       };
@@ -62,15 +97,16 @@ export function getS3ProviderConfig(provider: S3Provider): S3ProviderConfig {
 }
 
 /**
- * Lấy cấu hình và bắt buộc (validate) các trường quan trọng phải tồn tại để kết nối.
+ * Get the configuration and validate that all required connection settings are present.
  *
- * - Bucket luôn bắt buộc phải có.
- * - MinIO bắt buộc endpoint và static credentials.
- * - Cloud cho phép AWS SDK tự lấy credentials từ IAM role/default credential chain.
+ * - A bucket is always required.
+ * - MinIO requires an endpoint and static credentials.
+ * - DigitalOcean Spaces requires its data-center region, bucket, and static credentials.
+ * - Cloud providers can let the AWS SDK retrieve credentials from an IAM role or the default credential chain.
  *
- * @param provider - Nhà cung cấp S3 (MinIO hoặc cloud S3-compatible)
- * @throws DomainError nếu cấu hình bị thiếu hoặc không hợp lệ
- * @returns Cấu hình S3 hoàn chỉnh với các trường xác thực đã được đảm bảo tồn tại
+ * @param provider S3 provider (MinIO or a cloud S3-compatible service).
+ * @throws DomainError Throws `DomainError` if the configuration is missing or invalid.
+ * @returns Complete S3 configuration with all required credentials.
  */
 export function requireS3ProviderConfig(
   provider: S3Provider,
@@ -98,6 +134,26 @@ export function requireS3ProviderConfig(
       'unavailable',
       'MinIO credentials are not configured',
     );
+  }
+  if (provider === S3Provider.DigitalOcean) {
+    if (!config.bucketRegion) {
+      throw new DomainError(
+        'unavailable',
+        'DigitalOcean Spaces region is not configured (S3_DIGITALOCEAN_REGION)',
+      );
+    }
+    if (!/^[a-z0-9-]+$/i.test(config.bucketRegion)) {
+      throw new DomainError(
+        'invalid',
+        'DigitalOcean Spaces region must be a region slug such as "nyc3"',
+      );
+    }
+    if (!hasAccessKey) {
+      throw new DomainError(
+        'unavailable',
+        'DigitalOcean Spaces credentials are not configured',
+      );
+    }
   }
   return config as S3ProviderConfig & { bucket: string };
 }

@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { CookieOptions } from 'express';
 import {
   AttachHttpOnlyCookieParams,
@@ -12,7 +13,7 @@ import { CookieName } from './enums';
 @Injectable()
 /**
  * Service for attaching and clearing HttpOnly cookies on Express response.
- * Used for refresh tokens and logout.
+ * Used for access/refresh tokens and logout.
  *
  * @example
  * cookieService.attachHttpOnlyCookie({ res, name: "refreshToken", value: token })
@@ -23,7 +24,7 @@ export class CookieService {
 
   /**
    * Attaches a secure HttpOnly cookie to the response.
-   * Typically used for refresh tokens (not accessible via JavaScript).
+   * Used for auth tokens (not accessible via JavaScript).
    *
    * @param param - Response, cookie name, value, optional cookie options
    * @returns void
@@ -122,10 +123,14 @@ export class CookieService {
    * cookieService.clearCookie({ res, name: "refreshToken" })
    */
   clearCookie({ res, name, options }: ClearCookieParams): void {
+    const readable =
+      name === CookieName.CsrfToken || name === CookieName.SessionHint;
     res.clearCookie(name, {
-      httpOnly: true,
-      sameSite: 'strict',
+      httpOnly: !readable,
+      secure: envConfig().app.isProduction,
+      sameSite: name === CookieName.SessionHint ? 'lax' : 'strict',
       path: '/',
+      ...(readable ? { domain: envConfig().cookie.domain || undefined } : {}),
       ...options,
     });
     // drop the parallel session hint alongside the refresh token -- match the
@@ -170,11 +175,44 @@ export class CookieService {
         cookieHeader,
       );
       if (match?.[1]) {
-        return decodeURIComponent(match[1].trim());
+        try {
+          return decodeURIComponent(match[1].trim());
+        } catch {
+          return match[1].trim();
+        }
       }
     }
 
     return undefined;
+  }
+
+  createCsrfToken(): string {
+    return randomBytes(32).toString('base64url');
+  }
+
+  assertCsrfToken(req: CookieRequestLike | undefined): void {
+    const headerValue = req?.headers?.['x-csrf-token'];
+    const headerToken =
+      typeof headerValue === 'string' ? headerValue : undefined;
+    if (!headerToken) {
+      throw new ForbiddenException('CSRF token required');
+    }
+
+    const headerBuffer = Buffer.from(headerToken);
+    const cookieTokens = this.getAllCookieValues(req, CookieName.CsrfToken);
+    const parsedCookieToken = this.getCookie(req, CookieName.CsrfToken);
+    if (parsedCookieToken) cookieTokens.push(parsedCookieToken);
+
+    const matched = cookieTokens.some((cookieToken) => {
+      const cookieBuffer = Buffer.from(cookieToken);
+      return (
+        cookieBuffer.length === headerBuffer.length &&
+        timingSafeEqual(cookieBuffer, headerBuffer)
+      );
+    });
+    if (!matched) {
+      throw new ForbiddenException('Invalid CSRF token');
+    }
   }
 
   /**
@@ -203,7 +241,11 @@ export class CookieService {
     const regex = new RegExp(String.raw`(?:^|;\s*)${name}=([^;]+)`, 'g');
     let match: RegExpExecArray | null = regex.exec(cookieHeader);
     while (match !== null) {
-      values.push(decodeURIComponent(match[1].trim()));
+      try {
+        values.push(decodeURIComponent(match[1].trim()));
+      } catch {
+        values.push(match[1].trim());
+      }
       match = regex.exec(cookieHeader);
     }
     return values;

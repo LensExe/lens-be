@@ -1,0 +1,28 @@
+meta {
+  name: admin/customers
+  type: http
+  seq: 155
+}
+
+docs {
+  Admin xem danh sách khách hàng
+  Handler: adminList
+  Authentication: role 'admin'
+  Query: CustomerAdminListQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/admin/customers?limit=20&offset=0&keyword=bruno
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

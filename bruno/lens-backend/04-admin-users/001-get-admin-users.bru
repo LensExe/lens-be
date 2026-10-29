@@ -1,0 +1,28 @@
+meta {
+  name: admin/users
+  type: http
+  seq: 101
+}
+
+docs {
+  Quản lý danh sách user
+  Handler: adminUsers
+  Authentication: role 'admin'
+  Query: IdentityAdminUsersQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/admin/users?limit=20&offset=0
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

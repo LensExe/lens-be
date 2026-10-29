@@ -1,13 +1,13 @@
 import type { EntityManager } from 'typeorm';
 
-/** Số tiền khách đã trả cho booking (module payment), để biết đã đủ cọc / đủ tiền chưa. */
+/** Amount paid for a booking (from the Payment module), used to check whether the deposit or full amount has been paid. */
 export abstract class PaidAmountsPort {
   /**
-   * Tổng tiền đã trả (cọc + phần còn lại, giao dịch `paid`) cho từng booking, một query cho cả danh sách.
+   * Total paid (deposit plus remaining balance from `paid` transactions) for each booking, queried for the whole list at once.
    *
-   * @param manager EntityManager của transaction bên gọi
-   * @param bookingIds ID các booking
-   * @returns Map ID booking → số tiền VND (0 nếu chưa trả gì)
+   * @param manager EntityManager from the caller’s transaction.
+   * @param bookingIds Booking IDs.
+   * @returns Map from booking ID to the amount paid in VND (0 if nothing has been paid).
    */
   abstract paidAmounts(
     manager: EntityManager,

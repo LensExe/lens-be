@@ -6,7 +6,7 @@ import { BookingUseCases } from '../src/modules/booking/core/booking.use-case';
 import type { RatingUpdaterPort } from '../src/modules/booking/ports/rating-updater.port';
 import type { PaidAmountsPort } from '../src/modules/booking/ports/paid-amounts.port';
 
-/** Bên payment giả: chưa ai trả đồng nào. */
+/** Fake payment service: no payments have been made. */
 const noPayments = {
   paidAmounts: async (_s: unknown, ids: string[]) =>
     Object.fromEntries(ids.map((id) => [id, 0])),
@@ -15,13 +15,20 @@ const noPayments = {
 const useCases = new BookingUseCases({} as RatingUpdaterPort, noPayments);
 const user = { id: 'u1', keycloak_id: 'kc-u1', status: 'active' };
 
-/** EntityManager giả: trả hàng theo bảng, ghi lại tham số của findAndCount / findBy. */
+/**
+ * Fake EntityManager: returns rows by table and records database query arguments.
+ *
+ * @param rows List of rows to process.
+ * @returns Processed s value.
+ */
 function manager(rows: Map<unknown, object[]>) {
   const calls: { method: string; entity: unknown; options: any }[] = [];
   const s = {
     calls,
-    find: async () => {
-      throw new Error('must not load a whole table');
+    find: async (entity: unknown, options: { where?: unknown }) => {
+      calls.push({ method: 'find', entity, options });
+      if (!options?.where) throw new Error('must not load a whole table');
+      return rows.get(entity) ?? [];
     },
     findAndCount: async (entity: unknown, options: object) => {
       calls.push({ method: 'findAndCount', entity, options });
@@ -49,7 +56,7 @@ test('my bookings are filtered and paged by the database', async () => {
     { status: 'accepted', limit: 5, offset: 10 },
   );
   assert.deepEqual(result, {
-    items: [{ id: 'b1' }],
+    items: [{ id: 'b1', paid_amount: 0, gallery_photo_count: 0 }],
     total: 7,
     offset: 10,
     limit: 5,
@@ -86,7 +93,7 @@ test('admin booking list is filtered and paged by the database', async () => {
     { status: 'pending' },
   );
   assert.deepEqual(result, {
-    items: [{ id: 'b1' }],
+    items: [{ id: 'b1', paid_amount: 0, gallery_photo_count: 0 }],
     total: 7,
     offset: 0,
     limit: 20,
@@ -131,7 +138,7 @@ test('creating a booking reads only blocks and bookings that overlap it', async 
     { sub: 'kc-u1', roles: ['customer'] },
     {
       photographer_id: 'p1',
-      plan_id: 'plan',
+      booking_plan_id: 'plan',
       location: 'Studio',
       from,
       to,

@@ -38,12 +38,13 @@ lerna-debug.log*
 # dotenv environment variable files
 .env
 .env.*
-*.env
+env.*
+!*.env.example
 *.key
 key.txt
 !*.env.example
 
-# Cho phép commit các file đã mã hóa
+# Allow encrypted files to be committed.
 !*.env.enc
 !*.key.enc
 
@@ -52,6 +53,7 @@ key.txt
 .tmp
 
 # Runtime data
+.docker/kong/kong.generated.yml
 pids
 *.pid
 *.seed

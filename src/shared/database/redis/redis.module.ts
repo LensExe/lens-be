@@ -55,6 +55,12 @@ export class RedisModule implements OnApplicationShutdown {
     private readonly client: any,
   ) {}
 
+  /**
+   * Release resources when the application shuts down.
+   *
+   * @param signal String value used by the operation: signal.
+   * @returns No value is returned.
+   */
   public async onApplicationShutdown(signal?: string): Promise<void> {
     this.logger.log(
       `Closing Redis connection due to application shutdown (${signal})...`,

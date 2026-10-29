@@ -1,0 +1,28 @@
+meta {
+  name: reports/me
+  type: http
+  seq: 180
+}
+
+docs {
+  Report của tôi
+  Handler: mine
+  Authentication: Bearer token
+  Query: ModerationMineQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/reports/me?limit=20&offset=0
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

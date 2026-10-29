@@ -1,0 +1,63 @@
+services:
+  ollama:
+    image: '${OLLAMA_IMAGE:-ollama/ollama:latest}'
+    pull_policy: '${OLLAMA_PULL_POLICY:-always}'
+    container_name: lens-ollama
+    # Temporary local testing access. Keep this unset/removed after testing if
+    # Ollama should remain reachable only by Lens services on Docker networks.
+    ports:
+      - '${OLLAMA_HOST_PORT:-11434}:11434'
+    environment:
+      OLLAMA_HOST: '0.0.0.0:11434'
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      lens-network:
+        aliases:
+          - ollama
+          - lens-ollama
+      # Caddy uses this network to serve the optional public hostname.
+      lens-proxy:
+        aliases:
+          - ollama
+          - lens-ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'ollama', 'list']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  ollama-init:
+    image: '${OLLAMA_IMAGE:-ollama/ollama:latest}'
+    pull_policy: '${OLLAMA_PULL_POLICY:-always}'
+    container_name: lens-ollama-init
+    environment:
+      OLLAMA_HOST: 'http://ollama:11434'
+      AI_CHAT_MODEL: '${AI_CHAT_MODEL:-qwen3.5:2b}'
+      AI_EMBEDDING_MODEL: '${AI_EMBEDDING_MODEL:-qwen3-embedding:0.6b}'
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        set -eu
+        ollama pull "$$AI_CHAT_MODEL"
+        ollama pull "$$AI_EMBEDDING_MODEL"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - lens-network
+    restart: 'no'
+
+volumes:
+  ollama-models:
+    name: lens-ollama-models
+
+networks:
+  lens-network:
+    external: true
+    name: lens-network
+  lens-proxy:
+    external: true
+    name: lens-proxy

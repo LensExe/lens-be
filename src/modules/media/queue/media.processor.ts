@@ -1,8 +1,10 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
+import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
-import { EntitySchemas, MediaStatus, updateEntity } from '@shared/database';
+import { EntitySchemas, updateEntity } from '@shared/database';
+import { MediaStatus } from '@shared/domain/values/media.values';
 import { MediaImageProcessingService } from '../media-image-processing.service';
 import {
   MEDIA_PROCESSING_QUEUE,
@@ -22,6 +24,13 @@ export class MediaVariantsProcessor extends WorkerHost {
     super();
   }
 
+  /**
+   * Process a job from the media queue and save the processing result.
+   *
+   * @param job job data of type Job<MediaVariantsJob>.
+   * @returns No value is returned.
+   * @throws {Error} Thrown when the operation cannot be completed.
+   */
   async process(job: Job<MediaVariantsJob>): Promise<void> {
     if (job.name !== MEDIA_VARIANTS_JOB) return;
 
@@ -29,11 +38,11 @@ export class MediaVariantsProcessor extends WorkerHost {
       id: job.data.media_id,
     });
 
-    // media không tồn tại
+    // Media does not exist.
     if (!media || media.status === MediaStatus.DELETED) return;
-    // media đã xử lý xong
+    // Media processing is already complete.
     if (media.status === MediaStatus.READY) return;
-    // media không phải là UPLOADED, FAILED, PROCESSING -> return
+    // The media status is not UPLOADED, FAILED, or PROCESSING; return.
     if (
       media.status !== MediaStatus.UPLOADED &&
       media.status !== MediaStatus.FAILED &&
@@ -54,7 +63,11 @@ export class MediaVariantsProcessor extends WorkerHost {
         });
         await s.save(
           EntitySchemas.media_variants,
-          variants.map((variant) => ({ ...variant, media_id: media.id })),
+          variants.map((variant) => ({
+            id: randomUUID(),
+            ...variant,
+            media_id: media.id,
+          })),
         );
         await updateEntity(s, EntitySchemas.media, media.id, {
           status: MediaStatus.READY,

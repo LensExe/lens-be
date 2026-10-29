@@ -1,0 +1,27 @@
+meta {
+  name: customers/me
+  type: http
+  seq: 152
+}
+
+docs {
+  Xem customer profile của mình
+  Handler: me
+  Authentication: Bearer token
+}
+
+get {
+  url: {{baseUrl}}/customers/me
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

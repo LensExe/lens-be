@@ -5,6 +5,7 @@ import {
   MediaAddGalleryCommandHandler,
   MediaCompleteCommandHandler,
   MediaCreateGalleryCommandHandler,
+  MediaExpirePendingUploadsCommandHandler,
   MediaPublishCommandHandler,
   MediaRemoveCommandHandler,
   MediaUploadCommandHandler,
@@ -13,6 +14,7 @@ import {
   MediaDownloadQueryHandler,
   MediaGalleryQueryHandler,
   MediaGetQueryHandler,
+  MediaMyGalleriesQueryHandler,
 } from '@modules/media/media.query';
 import { MediaVariantsProcessor } from '@modules/media/queue/media.processor';
 import {
@@ -20,6 +22,7 @@ import {
   MediaProcessingQueueService,
 } from '@modules/media/queue/media.queue';
 import { MediaProcessingQueue } from '@modules/media/queue/media-processing.port';
+import { MediaPendingUploadExpiryJob } from '../../workers/media-pending-upload-expiry.job';
 
 @Module({
   imports: [
@@ -32,14 +35,17 @@ import { MediaProcessingQueue } from '@modules/media/queue/media-processing.port
     MediaAddGalleryCommandHandler,
     MediaCompleteCommandHandler,
     MediaCreateGalleryCommandHandler,
+    MediaExpirePendingUploadsCommandHandler,
     MediaPublishCommandHandler,
     MediaRemoveCommandHandler,
     MediaUploadCommandHandler,
     MediaDownloadQueryHandler,
     MediaGalleryQueryHandler,
     MediaGetQueryHandler,
+    MediaMyGalleriesQueryHandler,
     MediaProcessingQueueService,
     MediaVariantsProcessor,
+    MediaPendingUploadExpiryJob,
     {
       provide: MediaProcessingQueue,
       useExisting: MediaProcessingQueueService,

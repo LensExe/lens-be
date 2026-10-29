@@ -1,0 +1,24 @@
+meta {
+  name: photographers/:photographer_id/offline-slots
+  type: http
+  seq: 151
+}
+
+docs {
+  Xem offline-slot trong tương lai cho luồng đặt lịch khách hàng
+  Handler: offlineSlots
+  Authentication: public
+  Query: CalendarAvailabilityQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/photographers/{{photographerId}}/offline-slots?from={{fromDateTime}}&to={{toDateTime}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -1,0 +1,253 @@
+services:
+  lens-postgres:
+    # pgvector is required by the AI database used by ai-worker.
+    image: '${POSTGRES_IMAGE:-pgvector/pgvector:pg16-bookworm}'
+    environment:
+      POSTGRES_DB: '${POSTGRES_DB:-lens}'
+      POSTGRES_USER: '${POSTGRES_USER:-lens-postgres}'
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Portainer}'
+    ports:
+      - '${POSTGRES_HOST_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - lens-network
+    restart: unless-stopped
+
+  # Create databases that are not created by POSTGRES_DB. This service is
+  # idempotent, so it is safe to run again after the PostgreSQL volume exists.
+  lens-postgres-init:
+    image: postgres:16-alpine
+    depends_on:
+      lens-postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: lens-postgres
+      PGPORT: '5432'
+      PGUSER: '${POSTGRES_USER:-lens-postgres}'
+      PGPASSWORD: '${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Portainer}'
+    entrypoint: ['/bin/sh', '-ec']
+    command:
+      - |
+        if ! psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'keycloak'" | grep -q 1; then
+          psql -d postgres -c 'CREATE DATABASE keycloak';
+        fi
+
+        if ! psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'lens_ai'" | grep -q 1; then
+          psql -d postgres -c 'CREATE DATABASE lens_ai';
+        fi
+
+        psql -d lens_ai -c 'CREATE EXTENSION IF NOT EXISTS vector';
+    networks:
+      - lens-network
+    restart: 'no'
+
+  lens-redis:
+    image: redis:7-alpine
+    command:
+      - redis-server
+      - --databases
+      - '${REDIS_DATABASES:-16}'
+      - --requirepass
+      - '${REDIS_PASSWORD:?Set REDIS_PASSWORD in Portainer}'
+    environment:
+      REDIS_PASSWORD: '${REDIS_PASSWORD:?Set REDIS_PASSWORD in Portainer}'
+    ports:
+      - '${REDIS_HOST_PORT:-6380}:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" ping | grep -q PONG']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - lens-network
+    restart: unless-stopped
+
+  # One MongoDB instance with separate, least-privilege accounts/databases
+  # for Notification and Chat.
+  lens-mongodb:
+    image: '${MONGO_IMAGE:-mongo:7.0.34-jammy}'
+    pull_policy: '${MONGO_PULL_POLICY:-missing}'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: '${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in Portainer}'
+      MONGO_INITDB_ROOT_PASSWORD: '${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in Portainer}'
+    ports:
+      - '${MONGO_HOST_PORT:-27018}:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --username "$$MONGO_INITDB_ROOT_USERNAME"
+          --password "$$MONGO_INITDB_ROOT_PASSWORD"
+          --authenticationDatabase admin
+          --eval "db.adminCommand({ ping: 1 }).ok" | grep -q 1
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      lens-network:
+        aliases:
+          - notification-mongodb
+          - chat-mongodb
+    restart: unless-stopped
+
+  lens-mongodb-init:
+    image: '${MONGO_IMAGE:-mongo:7.0.34-jammy}'
+    pull_policy: '${MONGO_PULL_POLICY:-missing}'
+    depends_on:
+      lens-mongodb:
+        condition: service_healthy
+    environment:
+      MONGO_ROOT_USERNAME: '${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in Portainer}'
+      MONGO_ROOT_PASSWORD: '${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in Portainer}'
+      MONGO_NOTIFICATION_DATABASE: '${MONGO_NOTIFICATION_DATABASE:-noti_system_db}'
+      MONGO_NOTIFICATION_USERNAME: '${MONGO_NOTIFICATION_USERNAME:?Set MONGO_NOTIFICATION_USERNAME in Portainer}'
+      MONGO_NOTIFICATION_PASSWORD: '${MONGO_NOTIFICATION_PASSWORD:?Set MONGO_NOTIFICATION_PASSWORD in Portainer}'
+      MONGO_CHAT_DATABASE: '${MONGO_CHAT_DATABASE:-chat_direct}'
+      MONGO_CHAT_USERNAME: '${MONGO_CHAT_USERNAME:?Set MONGO_CHAT_USERNAME in Portainer}'
+      MONGO_CHAT_PASSWORD: '${MONGO_CHAT_PASSWORD:?Set MONGO_CHAT_PASSWORD in Portainer}'
+    entrypoint: ['/bin/bash', '-ec']
+    command:
+      - |
+        until mongosh --quiet --host lens-mongodb:27017 \
+          --username "$$MONGO_ROOT_USERNAME" \
+          --password "$$MONGO_ROOT_PASSWORD" \
+          --authenticationDatabase admin \
+          --eval 'db.adminCommand({ ping: 1 }).ok' | grep -q 1; do
+          sleep 2
+        done
+
+        mongosh --quiet --host lens-mongodb:27017 \
+          --username "$$MONGO_ROOT_USERNAME" \
+          --password "$$MONGO_ROOT_PASSWORD" \
+          --authenticationDatabase admin <<'MONGO_INIT'
+        const applications = [
+          {
+            database: process.env.MONGO_NOTIFICATION_DATABASE,
+            username: process.env.MONGO_NOTIFICATION_USERNAME,
+            password: process.env.MONGO_NOTIFICATION_PASSWORD,
+          },
+          {
+            database: process.env.MONGO_CHAT_DATABASE,
+            username: process.env.MONGO_CHAT_USERNAME,
+            password: process.env.MONGO_CHAT_PASSWORD,
+          },
+        ];
+
+        for (const application of applications) {
+          if (!application.database || !application.username || !application.password) {
+            throw new Error('Mongo application database credentials are required');
+          }
+
+          const applicationDatabase = db.getSiblingDB(application.database);
+          const roles = [{ role: 'readWrite', db: application.database }];
+          if (applicationDatabase.getUser(application.username)) {
+            applicationDatabase.updateUser(application.username, {
+              pwd: application.password,
+              roles,
+            });
+          } else {
+            applicationDatabase.createUser({
+              user: application.username,
+              pwd: application.password,
+              roles,
+            });
+          }
+        }
+        MONGO_INIT
+    networks:
+      - lens-network
+    restart: 'no'
+
+  lens-minio:
+    # Override MINIO_IMAGE when Portainer uses a different imported tag.
+    image: '${MINIO_IMAGE:-netiedge/minio:RELEASE.2025-01-20T14-49-07Z}'
+    pull_policy: '${MINIO_PULL_POLICY:-missing}'
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: '${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in Portainer}'
+      MINIO_ROOT_PASSWORD: '${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in Portainer}'
+    ports:
+      - '${MINIO_HOST_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_HOST_PORT:-9001}:9001'
+    volumes:
+      - minio-data:/data
+    networks:
+      - lens-network
+      - lens-proxy
+    restart: unless-stopped
+
+  # Creates the Lens bucket and makes only public/ anonymously readable.
+  lens-minio-init:
+    image: '${MINIO_MC_IMAGE:-netiedge/minio-mc:RELEASE.2025-01-17T23-25-50Z}'
+    pull_policy: '${MINIO_PULL_POLICY:-missing}'
+    depends_on:
+      - lens-minio
+    environment:
+      MINIO_ROOT_USER: '${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in Portainer}'
+      MINIO_ROOT_PASSWORD: '${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in Portainer}'
+      MINIO_BUCKET: '${MINIO_BUCKET:-lens}'
+    entrypoint: ['/bin/sh', '-ec']
+    command:
+      - |
+        until mc alias set local http://lens-minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do
+          sleep 2;
+        done
+        mc mb --ignore-existing "local/$$MINIO_BUCKET"
+        mc anonymous set download "local/$$MINIO_BUCKET/public"
+        echo "MinIO bucket $$MINIO_BUCKET is ready"
+    networks:
+      - lens-network
+    restart: 'no'
+
+  lens-keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    command: ['start-dev', '--http-port=8080']
+    depends_on:
+      lens-postgres-init:
+        condition: service_completed_successfully
+    environment:
+      KEYCLOAK_ADMIN: '${KEYCLOAK_ADMIN_USERNAME:?Set KEYCLOAK_ADMIN_USERNAME in Portainer}'
+      KEYCLOAK_ADMIN_PASSWORD: '${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD in Portainer}'
+      KC_DB: postgres
+      KC_DB_URL_HOST: lens-postgres
+      KC_DB_URL_PORT: '5432'
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: '${POSTGRES_USER:-lens-postgres}'
+      KC_DB_PASSWORD: '${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Portainer}'
+      KC_PROXY_HEADERS: xforwarded
+    ports:
+      - '${KEYCLOAK_HOST_PORT:-8089}:8080'
+    networks:
+      - lens-network
+      - lens-proxy
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+    name: lens-pg-data
+  redis-data:
+    name: lens-redis-data
+  mongo-data:
+    name: lens-mongo-data
+  minio-data:
+    name: lens-minio-data
+
+# The network is shared with backend-stack.yml and may be created outside
+# Compose (for example by Portainer or Docker). Both stacks join it as external.
+networks:
+  lens-network:
+    external: true
+    name: lens-network
+  lens-proxy:
+    external: true
+    name: lens-proxy

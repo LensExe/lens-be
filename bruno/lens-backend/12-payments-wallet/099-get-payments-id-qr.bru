@@ -1,0 +1,27 @@
+meta {
+  name: payments/:payment_id/qr
+  type: http
+  seq: 199
+}
+
+docs {
+  Lấy QR thanh toán
+  Handler: qr
+  Authentication: role 'customer', 'photographer'
+}
+
+get {
+  url: {{baseUrl}}/payments/{{paymentId}}/qr
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

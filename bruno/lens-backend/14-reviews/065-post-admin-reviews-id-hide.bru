@@ -1,0 +1,35 @@
+meta {
+  name: admin/reviews/:feedback_id/hide
+  type: http
+  seq: 165
+}
+
+docs {
+  Admin ẩn đánh giá
+  Handler: hide
+  Authentication: role 'admin'
+  Body: ReviewHideCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/admin/reviews/{{feedbackId}}/hide
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "reason": "Bruno API test moderation"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

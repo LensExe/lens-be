@@ -5,7 +5,7 @@ import {
   type BadgeRule,
 } from '../src/modules/photographer/badge/badge.domain';
 
-/** Danh mục mặc định giống seed của migration 006. */
+/** Default catalog matching migration 006's seed data. */
 const definitions: BadgeRule[] = [
   {
     code: 'top-rated',
@@ -37,6 +37,13 @@ const base = {
   returnCustomers: 0,
 };
 
+/**
+ * Build sample statistics and badge definitions for test cases.
+ *
+ * @param stats Value used by the operation: stats.
+ * @param defs Value used by the operation: defs.
+ * @returns Result returned by `earned`.
+ */
 const earned = (stats: typeof base, defs = [...definitions]) =>
   Badge.earned(stats, defs);
 

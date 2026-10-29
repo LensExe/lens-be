@@ -1,11 +1,22 @@
-import { Body, Controller, HttpCode, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import {
+  ApiBadGatewayResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiBody,
   ApiConflictResponse,
   ApiOperation,
+  ApiHeader,
   ApiResponse,
   ApiServiceUnavailableResponse,
   ApiTags,
@@ -15,9 +26,14 @@ import { Access, Public } from '../auth/keycloak.guard';
 import * as authDto from '../dto';
 import { responseSchema } from '../swagger';
 import { AuthService } from '../auth/auth.service';
-import { IdentityCustomerRegisterCommand } from '@modules/identity/identity.command';
+import { IdentityRegisterCommand } from '@modules/identity/identity.command';
 import { IdentityMeQuery } from '@modules/identity/identity.query';
 import { type Actor } from '@shared/platform/auth/actor';
+import { RegistrationRole } from '@shared/domain/values/user.values';
+import {
+  AuthCookieSessionService,
+  isCookieAuthRequest,
+} from '../auth/auth-cookie-session';
 
 @ApiTags('Authentication')
 @Controller()
@@ -26,21 +42,40 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly commands: CommandBus,
     private readonly query: QueryBus,
+    private readonly cookieSession: AuthCookieSessionService,
   ) {}
 
+  /**
+   * Register a user in the system using the supplied data and current permissions.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `user`.
+   */
   @Post('auth/register')
   @Public()
   @ApiOperation({
     operationId: 'AUTH-001',
     summary: 'Đăng ký tài khoản',
     description:
-      'Đăng ký tài khoản bằng Email, Mật khẩu và Họ tên. Role: Public',
+      'Đăng ký bằng email, mật khẩu, họ tên và role customer hoặc photographer. Role được gán ngay khi tạo tài khoản; hồ sơ photographer vẫn ở trạng thái chưa xác minh cho đến khi được admin duyệt. Gửi lại cùng thông tin có thể hoàn tất hồ sơ nếu lần trước bị gián đoạn. Role: Public',
+  })
+  @ApiHeader({
+    name: 'X-Lens-Auth-Mode',
+    required: false,
+    description: 'Gửi giá trị `cookie` để lưu phiên trong HttpOnly cookie.',
   })
   @ApiConflictResponse({
     description: 'Email hoặc tài khoản đã tồn tại',
   })
   @ApiBadRequestResponse({
-    description: 'DTO validation failed',
+    description:
+      'DTO validation failed or Keycloak rejected the account details',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Credentials do not match the existing Keycloak account',
+  })
+  @ApiBadGatewayResponse({
+    description: 'Keycloak returned an upstream error',
   })
   @ApiServiceUnavailableResponse({
     description: 'External integration is not configured or unavailable',
@@ -48,31 +83,72 @@ export class AuthController {
   @ApiBody({ type: authDto.AuthRegisterCommandBodyDto })
   @ApiResponse({
     status: 200,
-    description: 'Token Keycloak và hồ sơ người dùng vừa tạo',
+    description:
+      'Hồ sơ người dùng; phiên trình duyệt được đặt trong cookie HttpOnly.',
     schema: responseSchema('AUTH-008'),
   })
   @HttpCode(200)
-  async register(@Body() body: authDto.AuthRegisterCommandBodyDto) {
-    // Đăng ký tài khoản trên Keycloak và lấy TokenSet
+  async register(
+    @Body() body: authDto.AuthRegisterCommandBodyDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    // Register the account in Keycloak and retrieve the TokenSet.
     const { tokenSet, actor } =
       await this.authService.registerWithPassword(body);
 
-    // Tạo hồ sơ người dùng (User, Customer, Wallet) trong Database Lens
-    const user = await this.commands.execute(
-      new IdentityCustomerRegisterCommand(actor, {
+    console.log('qua key cloak r');
+
+    // Initialize the shared user and the selected customer or photographer profile.
+    await this.commands.execute(
+      new IdentityRegisterCommand(actor, {
         fullname: body.fullname,
+        role: body.role,
       }),
     );
 
-    return { ...tokenSet, user };
-  }
+    const identity = await this.query.execute(new IdentityMeQuery(actor, {}));
+    // The selected profile role is granted during signup. Photographer
+    // verification remains an independent admin-review state.
+    const registrationRole =
+      identity.role ?? body.role ?? RegistrationRole.CUSTOMER;
+    const sessionTokenSet = await this.authService.synchronizeRole(
+      actor,
+      tokenSet,
+      registrationRole,
+      { ensureRealmMapping: true },
+    );
 
+    const cookieMode = isCookieAuthRequest(request);
+    if (cookieMode) {
+      this.cookieSession.setSessionCookies(request, response, sessionTokenSet);
+    }
+    return {
+      ...(cookieMode ? {} : sessionTokenSet),
+      user: identity,
+      roles: [...new Set([...actor.roles, registrationRole])],
+      email_verified: actor.email_verified ?? false,
+      ...(cookieMode ? { expires_in: sessionTokenSet.expires_in } : {}),
+    };
+  } // done
+
+  /**
+   * Authenticate with an email and password, then return the tokens and session information.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `user`.
+   */
   @Post('auth/login')
   @Public()
   @ApiOperation({
     operationId: 'AUTH-009',
     summary: 'Đăng nhập tài khoản',
     description: 'User đăng nhập bằng Email và Mật khẩu. Role: Public',
+  })
+  @ApiHeader({
+    name: 'X-Lens-Auth-Mode',
+    required: false,
+    description: 'Gửi giá trị `cookie` để lưu phiên trong HttpOnly cookie.',
   })
   @ApiUnauthorizedResponse({
     description: 'Email hoặc mật khẩu không chính xác',
@@ -86,25 +162,51 @@ export class AuthController {
   @ApiBody({ type: authDto.AuthLoginQueryDto })
   @ApiResponse({
     status: 200,
-    description: 'Token Keycloak và thông tin hồ sơ người dùng',
+    description:
+      'Thông tin hồ sơ; phiên trình duyệt được đặt trong cookie HttpOnly.',
     schema: responseSchema('AUTH-009'),
   })
   @HttpCode(200)
-  async login(@Body() body: authDto.AuthLoginQueryDto) {
+  async login(
+    @Body() body: authDto.AuthLoginQueryDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
     // login with Keycloak
     const { tokenSet, actor } = await this.authService.loginWithPassword(body);
-
     // get user info in db
     const user = await this.query.execute(new IdentityMeQuery(actor, {}));
-    return { ...tokenSet, user };
-  }
+    const cookieMode = isCookieAuthRequest(request);
+    if (cookieMode) {
+      this.cookieSession.setSessionCookies(request, response, tokenSet);
+    }
+    return {
+      ...(cookieMode ? {} : tokenSet),
+      user,
+      roles: actor.roles,
+      email_verified: actor.email_verified ?? false,
+      ...(cookieMode ? { expires_in: tokenSet.expires_in } : {}),
+    };
+  } // done
 
+  /**
+   * Exchange a refresh token for a new token set; reject the request if the token is invalid.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result returned by `refresh`.
+   */
   @Post('auth/refresh')
   @Public()
   @ApiOperation({
     operationId: 'AUTH-010',
     summary: 'Làm mới token',
     description: 'Làm mới token bằng Refresh Token. Role: Public',
+  })
+  @ApiHeader({
+    name: 'X-Lens-Auth-Mode',
+    required: false,
+    description:
+      'Gửi giá trị `cookie` để dùng refresh token từ HttpOnly cookie.',
   })
   @ApiUnauthorizedResponse({
     description: 'Refresh Token không chính xác',
@@ -118,20 +220,58 @@ export class AuthController {
   @ApiBody({ type: authDto.AuthRefreshDto })
   @ApiResponse({
     status: 200,
-    description: 'New Keycloak Tokens',
+    description: 'Cookie phiên mới hoặc token set cho client Bearer.',
     schema: responseSchema('AUTH-010'),
   })
   @HttpCode(200)
-  refresh(@Body() body: authDto.AuthRefreshDto) {
-    return this.authService.refresh(body);
-  }
+  async refresh(
+    @Body() body: authDto.AuthRefreshDto = {},
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const cookieMode = isCookieAuthRequest(request);
+    const cookieRefreshToken = this.cookieSession.getRefreshToken(request);
+    if (cookieMode && cookieRefreshToken) {
+      this.cookieSession.assertCsrfToken(request);
+    }
 
+    const refreshToken = cookieMode
+      ? (cookieRefreshToken ?? body.refresh_token)
+      : (body.refresh_token ?? cookieRefreshToken);
+    try {
+      const tokenSet = await this.authService.refresh({
+        refresh_token: refreshToken,
+      });
+      if (cookieMode) {
+        this.cookieSession.setSessionCookies(request, response, tokenSet);
+        return { success: true, expires_in: tokenSet.expires_in };
+      }
+      return tokenSet;
+    } catch (error) {
+      if (cookieMode && error instanceof UnauthorizedException) {
+        this.cookieSession.clearSessionCookies(response);
+      }
+      throw error;
+    }
+  } // done
+
+  /**
+   * Revoke the refresh token if present and complete logout idempotently.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result returned by `logout`.
+   */
   @Post('auth/logout')
   @Public()
   @ApiOperation({
     operationId: 'AUTH-011',
     summary: 'Đăng xuất',
     description: 'Đăng xuất khỏi hệ thống. Role: Public',
+  })
+  @ApiHeader({
+    name: 'X-Lens-Auth-Mode',
+    required: false,
+    description: 'Gửi giá trị `cookie` để đăng xuất và xóa phiên cookie.',
   })
   @ApiBadRequestResponse({
     description: 'DTO validation failed',
@@ -146,10 +286,32 @@ export class AuthController {
     schema: responseSchema('AUTH-011'),
   })
   @HttpCode(200)
-  logout(@Body() body: authDto.AuthLogoutDto) {
-    return this.authService.logout(body);
-  }
+  async logout(
+    @Body() body: authDto.AuthLogoutDto = {},
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const cookieMode = isCookieAuthRequest(request);
+    const cookieRefreshToken = this.cookieSession.getRefreshToken(request);
+    if (cookieMode && cookieRefreshToken) {
+      this.cookieSession.assertCsrfToken(request);
+    }
+    const result = await this.authService.logout({
+      refresh_token: cookieMode
+        ? (cookieRefreshToken ?? body.refresh_token)
+        : body.refresh_token,
+    });
+    if (cookieMode) this.cookieSession.clearSessionCookies(response);
+    return result;
+  } // nhưng còn vấn đề nếu access-token còn hạn (xử lý sau)
 
+  /**
+   * Change the password after verifying the current password and applying the security policy.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result returned by `changePassword`.
+   */
   @Post('auth/change-password')
   @Access([])
   @ApiBearerAuth()
@@ -178,8 +340,14 @@ export class AuthController {
     @Body() body: authDto.AuthChangePasswordDto,
   ) {
     return this.authService.changePassword(req.actor!, body);
-  }
+  } // done
 
+  /**
+   * Send an OTP to verify a password reset request.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result returned by `sendOTP`.
+   */
   @Post('auth/forgot-password/send-otp')
   @Public()
   @ApiOperation({
@@ -206,8 +374,14 @@ export class AuthController {
       email: body.email,
       event: authDto.AuthOtpEvent.FORGOT_PASSWORD,
     });
-  }
+  } //done
 
+  /**
+   * Verify the OTP used in the password recovery flow.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result returned by `verifyForgotPasswordOtp`.
+   */
   @Post('auth/forgot-password/verify')
   @Public()
   @ApiOperation({
@@ -233,8 +407,14 @@ export class AuthController {
     @Body() body: authDto.AuthVerifyForgotPasswordOtpDto,
   ) {
     return this.authService.verifyForgotPasswordOtp(body);
-  }
+  } // done
 
+  /**
+   * Reset the password after verifying the OTP and password reset token.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result returned by `resetPassword`.
+   */
   @Post('auth/forgot-password/reset')
   @Public()
   @ApiOperation({
@@ -260,6 +440,12 @@ export class AuthController {
     return this.authService.resetPassword(body);
   }
 
+  /**
+   * Send an email verification OTP to the current user.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @returns Result returned by `sendOTP`.
+   */
   @Post('auth/email/send-otp')
   @Access([])
   @ApiBearerAuth()
@@ -287,6 +473,13 @@ export class AuthController {
     });
   }
 
+  /**
+   * Verify the user email using the supplied OTP.
+   *
+   * @param req HTTP request containing authentication information and request data.
+   * @param body Request body validated against the DTO.
+   * @returns Result returned by `verifyEmail`.
+   */
   @Post('auth/email/verify')
   @Access([])
   @ApiBearerAuth()

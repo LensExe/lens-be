@@ -2,22 +2,23 @@ import { ensure } from '@shared/domain/domain.error';
 import { ReviewStatus } from '@shared/domain/values/review.values';
 import { BookingStatus } from '@shared/domain/values/booking.values';
 
-/** Số ngày khách được sửa review kể từ lúc viết. */
+/** Number of days after submission during which the customer may edit a review. */
 export const REVIEW_EDIT_WINDOW_DAYS = 7;
 
-/** Việc đổi trạng thái hiển thị của review: khách tự xoá, admin ẩn, admin hiện lại. */
+/** Review visibility changes: the customer deletes their own review, or an admin hides or restores it. */
 export type ReviewVisibilityAction = 'delete' | 'hide' | 'restore';
 
 /**
- * Quy tắc review: chỉ review booking đã hoàn tất, sửa trong 7 ngày, ai được ẩn / hiện lại,
- * tổng điểm theo mức 1–5.
+ * Review rules: only completed bookings can be reviewed; reviews can be edited within 7 days; who may hide or restore them;
+ * and aggregate scores across ratings from 1 to 5.
  */
 export class Review {
   /**
-   * Chỉ review được booking đã hoàn tất.
+   * Only completed bookings can be reviewed.
    *
-   * @param status Trạng thái booking
-   * @returns Không trả gì; 409 nếu booking chưa completed
+   * @param status Booking status.
+   * @returns Returns no value; throws HTTP 409 if the booking is not completed.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   static requireCompletedBooking(status: BookingStatus) {
     ensure(
@@ -28,23 +29,25 @@ export class Review {
   }
 
   /**
-   * Chỉ sửa / trả lời được review đang hiện.
+   * Only visible reviews can be edited or replied to.
    *
-   * @param status Trạng thái hiển thị của review
-   * @returns Không trả gì; 409 nếu review đã bị xoá hoặc ẩn
+   * @param status Review visibility status.
+   * @returns Returns no value; throws HTTP 409 if the review has been deleted or hidden.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   static requireVisible(status: ReviewStatus) {
     ensure(status === ReviewStatus.VISIBLE, 'Review is hidden', 'conflict');
   }
 
   /**
-   * Trạng thái mới của review sau một việc ẩn / hiện. Khách xoá được review chưa xoá (kể cả đang bị
-   * admin ẩn); admin chỉ ẩn review đang hiện và chỉ hiện lại review do admin ẩn, nên review khách đã
-   * xoá không bao giờ hiện lại.
+   * The review's new status after a hide or restore action. Customers may delete a review that has not already been deleted (even if an admin has hidden it); admins may hide only visible reviews and restore only reviews hidden by an admin, so a review deleted by its customer
+   * will not become visible
+   * again.
    *
-   * @param action `delete` (khách tự xoá), `hide` (admin ẩn), `restore` (admin hiện lại)
-   * @param status Trạng thái hiện tại của review
-   * @returns Trạng thái mới; 409 nếu việc đó không làm được từ trạng thái hiện tại
+   * @param action `delete` (customer deletes their own review), `hide` (admin hides it), or `restore` (admin makes it visible again).
+   * @param status Current review status.
+   * @returns New status; throws HTTP 409 if the transition is not allowed from the current status.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   static nextStatus(
     action: ReviewVisibilityAction,
@@ -76,10 +79,11 @@ export class Review {
   }
 
   /**
-   * Lần sửa phải đổi ít nhất một trường; body rỗng không được đánh dấu là đã sửa.
+   * An edit must change at least one field; an empty body must not be marked as edited.
    *
-   * @param fields Các trường khách gửi lên để sửa
-   * @returns Không trả gì; 400 nếu không có trường nào
+   * @param fields Fields supplied by the customer for the update.
+   * @returns Returns no value; throws HTTP 400 if no fields were supplied.
+   * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
    */
   static requireChanges(fields: Record<string, unknown>) {
     ensure(
@@ -89,11 +93,12 @@ export class Review {
   }
 
   /**
-   * Người viết chỉ sửa review trong 7 ngày kể từ lúc viết.
+   * Authors may edit a review within 7 days of submitting it.
    *
-   * @param createdAt Lúc viết review (ISO)
-   * @param now Thời điểm hiện tại (ms)
-   * @returns Không trả gì; 409 nếu đã quá 7 ngày
+   * @param createdAt Time the review was written, in ISO format.
+   * @param now Current time in milliseconds.
+   * @returns Returns no value; throws HTTP 409 if more than 7 days have passed.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   static requireEditWindow(createdAt: string, now = Date.now()) {
     ensure(
@@ -105,10 +110,11 @@ export class Review {
   }
 
   /**
-   * Tổng điểm từ số review theo từng mức điểm (đã gom trong SQL).
+   * Aggregate score calculated from the count of reviews at each rating level (computed in SQL).
    *
-   * @param counts Mỗi mức điểm 1–5 và số review có điểm đó
+   * @param counts Counts for each score from 1 to 5 and the number of reviews with that score.
    * @returns `{ average_rating, total_feedbacks, distribution }`
+   * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
    */
   static summaryFromCounts(
     counts: readonly { rating: number; count: number }[],

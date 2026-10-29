@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ConditionalModule } from '@nestjs/config';
+import { AiReplySuggestionsApiModule } from './ai-reply-suggestions-api.module';
 import { PhotographerController } from '../http/photographer.controller';
 import { BookingPlanController } from '../http/booking-plan.controller';
 import { RankController } from '../http/rank.controller';
@@ -28,13 +30,23 @@ import {
 } from '@modules/photographer/photographers.command';
 import {
   PhotographerAdminQueryHandler,
+  PhotographerChatPeerQueryHandler,
+  PhotographerEarningsQueryHandler,
   PhotographerGetQueryHandler,
   PhotographerMeQueryHandler,
   PhotographerSearchQueryHandler,
+  PhotographerStylesFeaturedQueryHandler,
   PhotographerTopQueryHandler,
 } from '@modules/photographer/photographers.query';
 
 @Module({
+  imports: [
+    ConditionalModule.registerWhen(
+      AiReplySuggestionsApiModule,
+      (env) => env.AI_API_ENABLED === 'true',
+      { debug: false },
+    ),
+  ],
   controllers: [
     PhotographerController,
     BookingPlanController,
@@ -51,9 +63,12 @@ import {
     PhotographerStatusCommandHandler,
     PhotographerUpdateCommandHandler,
     PhotographerAdminQueryHandler,
+    PhotographerChatPeerQueryHandler,
+    PhotographerEarningsQueryHandler,
     PhotographerGetQueryHandler,
     PhotographerMeQueryHandler,
     PhotographerSearchQueryHandler,
+    PhotographerStylesFeaturedQueryHandler,
     PhotographerTopQueryHandler,
     BookingPlanCreateCommandHandler,
     BookingPlanRemoveCommandHandler,

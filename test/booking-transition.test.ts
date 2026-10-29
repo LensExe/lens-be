@@ -6,7 +6,7 @@ import { BookingUseCases } from '../src/modules/booking/core/booking.use-case';
 import type { RatingUpdaterPort } from '../src/modules/booking/ports/rating-updater.port';
 import type { PaidAmountsPort } from '../src/modules/booking/ports/paid-amounts.port';
 
-/** Bên payment giả: chưa ai trả đồng nào. */
+/** Fake payment service: no payments have been made. */
 const noPayments = {
   paidAmounts: async (_s: unknown, ids: string[]) =>
     Object.fromEntries(ids.map((id) => [id, 0])),
@@ -24,7 +24,12 @@ const booking = {
   gallery_published_at: null,
 };
 
-/** EntityManager giả cho một lần khách huỷ booking; `affected` là số dòng câu UPDATE đổi được. */
+/**
+ * Fake EntityManager for one customer booking cancellation; `affected` is the number of rows updated.
+ *
+ * @param affected Numeric value used by the operation: affected.
+ * @returns Processed s value.
+ */
 function manager(affected: number) {
   const updates: { where: object; changes: object }[] = [];
   const s = {
@@ -52,12 +57,18 @@ test('a status change only applies if the booking is still in the status it was 
   const useCases = new BookingUseCases({} as RatingUpdaterPort, noPayments);
   const actor = { sub: 'kc-u1', roles: ['customer'] };
   const ok = manager(1);
-  await useCases.cancel(ok, actor, { id: 'b1', reason: 'Changed plans' });
+  await useCases.cancel(ok, actor, {
+    booking_id: 'b1',
+    reason: 'Changed plans',
+  });
   assert.deepEqual(ok.updates[0].where, { id: 'b1', status: 'pending' });
   // someone else changed it first (accepted, expired...): nothing is written, 409
   const raced = manager(0);
   await assert.rejects(
-    useCases.cancel(raced, actor, { id: 'b1', reason: 'Changed plans' }),
+    useCases.cancel(raced, actor, {
+      booking_id: 'b1',
+      reason: 'Changed plans',
+    }),
     /changed by someone else/,
   );
 });
@@ -76,16 +87,15 @@ test('only the customer or photographer of the booking may cancel it, not an adm
     useCases.cancel(
       s,
       { sub: 'kc-admin', roles: ['admin', 'customer'] },
-      { id: 'b1', reason: 'x' },
+      { booking_id: 'b1', reason: 'x' },
     ),
     /Booking access denied/,
   );
   assert.equal(s.updates.length, 0);
 });
 
-test('a photographer who declined or was revoked no longer sees the collaborator list', async () => {
+test('a photographer who is not assigned to the booking cannot read it', async () => {
   const useCases = new BookingUseCases({} as RatingUpdaterPort, noPayments);
-  const lookups: object[] = [];
   const s = {
     findBy: async (entity: unknown) =>
       entity === EntitySchemas.users
@@ -95,27 +105,23 @@ test('a photographer who declined or was revoked no longer sees the collaborator
           : [],
     findOneBy: async (entity: unknown) =>
       entity === EntitySchemas.bookings ? booking : { id: 'c1', user_id: 'u1' },
-    existsBy: async (_entity: unknown, where: object) => {
-      lookups.push(where);
-      return false; // only a declined invitation exists
-    },
-    find: async () => [],
   } as unknown as EntityManager;
   await assert.rejects(
-    useCases.collaborators(
+    useCases.get(
       s,
       { sub: 'kc-b', roles: ['photographer'] },
-      { id: 'b1' },
+      { booking_id: 'b1' },
     ),
     /Booking access denied/,
   );
-  // the lookup only counts live invitations
-  assert.match(JSON.stringify(lookups[0]), /invited/);
-  assert.match(JSON.stringify(lookups[0]), /accepted/);
 });
 
 test('accepting a request declines the other pending requests for the same time', async () => {
-  const useCases = new BookingUseCases({} as RatingUpdaterPort, noPayments);
+  const paidDeposit = {
+    paidAmounts: async (_s: unknown, ids: string[]) =>
+      Object.fromEntries(ids.map((id) => [id, 300000])),
+  } as unknown as PaidAmountsPort;
+  const useCases = new BookingUseCases({} as RatingUpdaterPort, paidDeposit);
   const fresh = {
     ...booking,
     created_at: new Date(Date.now() - 36e5).toISOString(),
@@ -152,7 +158,7 @@ test('accepting a request declines the other pending requests for the same time'
   await useCases.accept(
     s,
     { sub: 'kc-p', roles: ['photographer'] },
-    { id: 'b1' },
+    { booking_id: 'b1' },
   );
   assert.deepEqual(
     updates.map((u) => [u.where.id, u.changes.status]),
@@ -191,7 +197,7 @@ test('starting a shoot asks payment how much was paid instead of reading its tab
     return new BookingUseCases({} as RatingUpdaterPort, payments).start(
       s,
       { sub: 'kc-p', roles: ['photographer'] },
-      { id: 'b1' },
+      { booking_id: 'b1' },
     );
   };
   await assert.rejects(run(0), /Deposit must be paid before starting/);
@@ -244,7 +250,7 @@ test('completing a booking counts completed bookings and returning customers, th
   await new BookingUseCases(reviews, payments).complete(
     s,
     { sub: 'kc-a', roles: ['admin'] },
-    { id: 'b1' },
+    { booking_id: 'b1' },
   );
   // FOR NO KEY UPDATE: completions of one photographer run one by one, but other transactions can
   // still insert rows pointing at the photographer (a new review, a new booking)

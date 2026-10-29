@@ -1,26 +1,31 @@
 import { ensure } from '@shared/domain/domain.error';
-import { isOccupied } from '@shared/domain/rules/booking.rules';
+import { isOccupied, reservesTime } from '@shared/domain/rules/booking.rules';
 import { interval, overlaps } from '@shared/domain/rules/time-range.rules';
-import {
-  WorkSchedule,
-  vnDate,
-  vnDayInterval,
-} from '@shared/domain/rules/work-schedule.rules';
-import type { WorkingShift } from '@shared/domain/types/work-schedule.types';
 
 type Range = { from: string; to: string };
 type CalendarBooking = Range & { status: string };
 
-/** Khung xem lịch mặc định và tối đa (ngày). */
+/** Default and maximum calendar window, in days. */
 const DEFAULT_WINDOW_DAYS = 30;
 const MAX_WINDOW_DAYS = 93;
+const VN_OFFSET_MS = 7 * 3600 * 1000;
+const DAY_MS = 864e5;
+
+/** A Vietnam-time calendar day as [00:00, 24:00), returned as ISO UTC timestamps. */
+function vnDayInterval(date: string): Range {
+  const from = Date.parse(`${date}T00:00:00.000Z`) - VN_OFFSET_MS;
+  return interval(
+    new Date(from).toISOString(),
+    new Date(from + DAY_MS).toISOString(),
+  );
+}
 
 /**
- * Cắt khỏi một khoảng các phần bị chiếm.
+ * Subtract occupied segments from a time range.
  *
- * @param part Khoảng ban đầu
- * @param blocks Các khoảng bị chiếm (chặn, booking)
- * @returns Phần còn lại, có thể rỗng hoặc bị tách làm nhiều đoạn
+ * @param part Original time range.
+ * @param blocks Occupied ranges (blocks and bookings).
+ * @returns Remaining range, which may be empty or split into multiple segments.
  */
 function subtract(part: Range, blocks: readonly Range[]): Range[] {
   let parts = [part];
@@ -36,12 +41,12 @@ function subtract(part: Range, blocks: readonly Range[]): Range[] {
 }
 
 /**
- * Phần của `range` nằm trong [from, to).
+ * Intersection of `range` with [from, to).
  *
- * @param range Khoảng gốc (ISO UTC)
- * @param from Mốc đầu (ISO bất kỳ múi giờ)
- * @param to Mốc cuối (ISO bất kỳ múi giờ)
- * @returns Khoảng ISO UTC, hoặc `null` nếu không còn gì
+ * @param range Original range in ISO UTC.
+ * @param from Start time in ISO format in any time zone.
+ * @param to Optional end time in ISO format.
+ * @returns ISO UTC range, or `null` if no time remains.
  */
 function clip(range: Range, from: string, to: string): Range | null {
   const start = Math.max(Date.parse(range.from), Date.parse(from)),
@@ -51,14 +56,14 @@ function clip(range: Range, from: string, to: string): Range | null {
     : null;
 }
 
-/** Quy tắc lịch của thợ (lịch trống, chặn lịch, khung xem), tính từ dữ kiện đã đọc; không I/O. */
+/** Photographer calendar rules (availability, blocks, and viewing windows), computed from loaded data with no I/O. */
 export class Calendar {
   /**
-   * Khung xem lịch trống cho khách: không bắt đầu trong quá khứ; thiếu `to` thì lấy 30 ngày kể từ `from`.
+   * Customer availability window: cannot start in the past; if `to` is omitted, use 30 days after `from`.
    *
-   * @param input `from` / `to` khách gửi, đều tuỳ chọn
-   * @param now Thời điểm hiện tại (ms)
-   * @returns `{ from, to }` ISO UTC (giới hạn 93 ngày được kiểm ở `availability`)
+   * @param input Optional customer-provided `from` and `to` values.
+   * @param now Current time in milliseconds.
+   * @returns `{ from, to }` in ISO UTC; the 93-day limit is enforced by `availability`.
    */
   static availabilityWindow(
     input: { from?: string; to?: string },
@@ -69,11 +74,31 @@ export class Calendar {
   }
 
   /**
-   * Khung xem lịch của chính thợ: được xem lại quá khứ; mặc định từ bây giờ 30 ngày; tối đa 93 ngày.
+   * Public future offline-slot window: starts no earlier than now, defaults to 30 days, and is limited to 93 days.
    *
-   * @param input `from` / `to` thợ gửi, đều tuỳ chọn
-   * @param now Thời điểm hiện tại (ms)
-   * @returns `{ from, to }` ISO UTC; 400 nếu dài quá 93 ngày
+   * @param input Optional customer-provided `from` and `to` values.
+   * @param now Current time in milliseconds.
+   * @returns `{ from, to }` in ISO UTC; throws HTTP 400 if the range exceeds 93 days.
+   */
+  static futureOfflineSlotsWindow(
+    input: { from?: string; to?: string },
+    now: number,
+  ) {
+    const range = Calendar.availabilityWindow(input, now);
+    ensure(
+      Date.parse(range.to) - Date.parse(range.from) <= MAX_WINDOW_DAYS * DAY_MS,
+      `Maximum window is ${MAX_WINDOW_DAYS} days`,
+    );
+    return range;
+  }
+
+  /**
+   * Photographer’s own calendar window: past dates are allowed; defaults to the next 30 days and is limited to 93 days.
+   *
+   * @param input Optional photographer-provided `from` and `to` values.
+   * @param now Current time in milliseconds.
+   * @returns `{ from, to }` in ISO UTC; throws HTTP 400 if the range exceeds 93 days.
+   * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
    */
   static personalWindow(input: { from?: string; to?: string }, now: number) {
     const range = Calendar.window(
@@ -88,11 +113,11 @@ export class Calendar {
   }
 
   /**
-   * Khoảng từ `from`, thiếu `to` thì lấy `DEFAULT_WINDOW_DAYS` ngày sau `from`.
+   * Range starting at `from`; if `to` is omitted, use `DEFAULT_WINDOW_DAYS` days after `from`.
    *
-   * @param from Mốc đầu (ms)
-   * @param to Mốc cuối ISO, tuỳ chọn
-   * @returns `{ from, to }` ISO UTC; 400 nếu `to` không sau `from`
+   * @param from Start time in milliseconds.
+   * @param to Optional ISO end time.
+   * @returns `{ from, to }` in ISO UTC; throws HTTP 400 if `to` is not after `from`.
    */
   private static window(from: number, to: string | undefined) {
     return interval(
@@ -102,19 +127,18 @@ export class Calendar {
   }
 
   /**
-   * Lịch trống của thợ trong một khoảng: các ca làm theo giờ Việt Nam, trừ khoảng chặn và booking đang giữ lịch.
+   * Photographer availability defaults to the requested range, then subtracts blocked ranges and bookings reserving the schedule.
    *
-   * @param from Đầu khoảng cần xem (ISO)
-   * @param to Cuối khoảng cần xem (ISO), tối đa 93 ngày sau `from`
-   * @param schedule Lịch tuần thợ đã khai (rỗng ⇒ mặc định 08:00–20:00)
-   * @param blockedTimes Các khoảng thợ đã chặn
-   * @param bookings Booking của thợ (chỉ trạng thái giữ lịch mới bị trừ)
-   * @returns Các khoảng `{ from, to }` ISO UTC còn trống, xếp theo thời gian
+   * @param from Start of the time range to view, in ISO format.
+   * @param to End of the time range to view, in ISO format; at most 93 days after `from`.
+   * @param blockedTimes Photographer’s blocked time ranges.
+   * @param bookings Photographer bookings; pending and active bookings reserve the schedule.
+   * @returns Available `{ from, to }` ranges in ISO UTC, ordered by time.
+   * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
    */
   static availability(
     from: string,
     to: string,
-    schedule: readonly WorkingShift[],
     blockedTimes: readonly Range[],
     bookings: readonly CalendarBooking[],
   ) {
@@ -125,27 +149,17 @@ export class Calendar {
     );
     const blocks: Range[] = [
       ...blockedTimes,
-      ...bookings.filter((b) => isOccupied(b.status)),
+      ...bookings.filter((b) => reservesTime(b.status)),
     ];
-    const free: Range[] = [];
-    const lastDay = vnDate(new Date(Date.parse(range.to) - 1).toISOString());
-    for (
-      let day = vnDate(range.from);
-      day <= lastDay;
-      day = vnDate(vnDayInterval(day).to)
-    )
-      for (const shift of WorkSchedule.shifts(day, schedule)) {
-        const part = clip(shift, range.from, range.to);
-        if (part) free.push(...subtract(part, blocks));
-      }
-    return free;
+    return subtract(range, blocks);
   }
 
   /**
-   * Khoảng thời gian thợ muốn chặn: nguyên ngày theo giờ Việt Nam (`date`) hoặc khoảng `from`–`to` (có thể qua nhiều ngày).
+   * Time range the photographer wants to block: a full Vietnam-time day (`date`) or a `from`–`to` range that may span multiple days.
    *
-   * @param input Gửi `date`, hoặc gửi cả `from` và `to`; không gửi lẫn hai kiểu
-   * @returns Khoảng `{ from, to }` ISO UTC; 400 nếu gửi sai kiểu hoặc `from` không trước `to`
+   * @param input Supply either `date` or both `from` and `to`; do not mix the two formats.
+   * @returns `{ from, to }` in ISO UTC; throws HTTP 400 if the input format is invalid or `from` is not before `to`.
+   * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
    */
   static blockRange(input: { date?: string; from?: string; to?: string }) {
     const byDate = input.date !== undefined,
@@ -166,13 +180,14 @@ export class Calendar {
   }
 
   /**
-   * Kiểm khoảng chặn hợp lệ: chưa kết thúc, không đè booking đang giữ lịch, không chồng khoảng chặn khác.
+   * Validate a calendar block: it must not have ended, overlap a booking occupying the schedule, or overlap another block.
    *
-   * @param range Khoảng muốn chặn (từ `blockRange`)
-   * @param bookings Booking của thợ
-   * @param blockedTimes Các khoảng thợ đã chặn
-   * @param now Thời điểm hiện tại (ms)
-   * @returns Không trả gì; 400 nếu đã qua, 409 nếu đè booking hoặc chồng khoảng chặn khác
+   * @param range Time range to block, from `blockRange`.
+   * @param bookings Photographer bookings.
+   * @param blockedTimes Photographer’s blocked time ranges.
+   * @param now Current time in milliseconds.
+   * @returns Returns no value; throws HTTP 400 if the time has passed, or HTTP 409 if it overlaps a booking or another block.
+   * @throws {DomainError} Thrown when input is invalid, a business condition is not met, or the current state or data conflicts with the operation.
    */
   static assertCanBlock(
     range: Range,

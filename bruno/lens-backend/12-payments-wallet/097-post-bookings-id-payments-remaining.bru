@@ -1,0 +1,36 @@
+meta {
+  name: bookings/:booking_id/payments/remaining
+  type: http
+  seq: 197
+}
+
+docs {
+  Tạo thanh toán còn lại
+  Handler: remaining
+  Authentication: role 'customer'
+  Body: PaymentRemainingCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/payments/remaining
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{customerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "idempotency_key": "bruno-local-remaining-001",
+    "payment_method": "gateway"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

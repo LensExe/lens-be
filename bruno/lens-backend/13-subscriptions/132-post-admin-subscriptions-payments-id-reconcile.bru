@@ -1,0 +1,36 @@
+meta {
+  name: admin/subscriptions/payments/:subscription_payment_id/reconcile
+  type: http
+  seq: 232
+}
+
+docs {
+  Đối soát payment subscription
+  Handler: resolvePaymentReview
+  Authentication: role 'admin'
+  Body: SubscriptionPaymentReviewResolutionBodyDto
+}
+
+post {
+  url: {{baseUrl}}/admin/subscriptions/payments/{{subscriptionPaymentId}}/reconcile
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "outcome": "unpaid",
+    "note": "Bruno API test resolution"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

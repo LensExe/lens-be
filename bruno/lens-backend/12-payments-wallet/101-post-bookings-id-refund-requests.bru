@@ -1,0 +1,37 @@
+meta {
+  name: bookings/:booking_id/refund-requests
+  type: http
+  seq: 201
+}
+
+docs {
+  Customer gửi yêu cầu hoàn tiền booking
+  Handler: customerRefund
+  Authentication: role 'customer'
+  Body: PaymentRefundCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/refund-requests
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{customerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "amount": 1000,
+    "reason": "Bruno API test refund",
+    "idempotency_key": "bruno-local-refund-001"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

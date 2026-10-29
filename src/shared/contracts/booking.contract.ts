@@ -1,14 +1,16 @@
 import type { BookingStatus } from '@shared/domain/values/booking.values';
+import type { BookingReportCategory } from '@shared/domain/values/report.values';
 
 export interface BookingAdminQueryInput {
   limit?: number;
   offset?: number;
   status?: BookingStatus;
+  user_id?: string;
 }
 
 export interface BookingCreateCommandInput {
   photographer_id: string;
-  plan_id: string;
+  booking_plan_id: string;
   location: string;
   from: string;
   to: string;
@@ -23,86 +25,64 @@ export interface BookingListQueryInput {
 }
 
 export interface BookingAcceptCommandInput {
-  id: string;
+  booking_id: string;
 }
 
 export interface BookingCancelCommandInput {
-  id: string;
+  booking_id: string;
   reason: string;
 }
 
 export interface BookingAdminCancelCommandInput {
-  id: string;
+  booking_id: string;
   reason: string;
 }
 
 export interface BookingCompleteCommandInput {
-  id: string;
+  booking_id: string;
 }
 
-export interface BookingCollaboratorInviteCommandInput {
-  id: string;
-  photographer_id: string;
-  share_percent: number;
-}
-
-export interface BookingCollaboratorListQueryInput {
-  id: string;
-}
-
-/** Danh sách lời mời của chính thợ đang đăng nhập, phân trang. */
-export interface BookingCollaboratorMeQueryInput {
-  limit?: number;
-  offset?: number;
-}
-
-export interface BookingCollaboratorAcceptCommandInput {
-  id: string;
-}
-
-export interface BookingCollaboratorDeclineCommandInput {
-  id: string;
-}
-
-export interface BookingCollaboratorRevokeCommandInput {
-  id: string;
-}
-
-/** Job huỷ booking chưa trả cọc không nhận tham số. */
+/** The job that cancels a booking without a deposit takes no arguments. */
 export type BookingCancelUnpaidCommandInput = Record<string, never>;
 
-/** Job hết hạn yêu cầu pending không nhận tham số. */
+/** The job that expires pending requests takes no arguments. */
 export type BookingExpirePendingCommandInput = Record<string, never>;
 
-/** Job tự hoàn tất không nhận tham số. */
+/** The job that automatically completes bookings takes no arguments. */
 export type BookingAutoCompleteCommandInput = Record<string, never>;
 
 export interface BookingConfirmReceiptCommandInput {
-  id: string;
+  booking_id: string;
 }
 
 export interface BookingCompleteShootCommandInput {
-  id: string;
+  booking_id: string;
 }
 
 export interface BookingDisputeCommandInput {
-  id: string;
+  booking_id: string;
   reason: string;
+  booking_issue_type?: BookingReportCategory;
+  evidence_media_ids?: string[];
 }
 
 export interface BookingRejectCommandInput {
-  id: string;
+  booking_id: string;
   reason: string;
 }
 
 export interface BookingStartCommandInput {
-  id: string;
+  booking_id: string;
 }
 
 export interface BookingTimelineQueryInput {
-  id: string;
+  booking_id: string;
 }
 
 export interface BookingGetQueryInput {
-  id: string;
+  booking_id: string;
+}
+
+export interface BookingCancellationPreviewQueryInput {
+  booking_id: string;
 }

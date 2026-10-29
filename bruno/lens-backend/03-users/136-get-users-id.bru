@@ -1,0 +1,27 @@
+meta {
+  name: users/:user_id
+  type: http
+  seq: 236
+}
+
+docs {
+  Lấy thông tin người dùng
+  Handler: getUser
+  Authentication: Bearer token
+}
+
+get {
+  url: {{baseUrl}}/users/{{userId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

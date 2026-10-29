@@ -1,18 +1,25 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsString,
   IsUUID,
   IsInt,
   IsArray,
   IsIn,
+  IsBoolean,
   Min,
   Max,
   MinLength,
   MaxLength,
   ArrayMaxSize,
+  ArrayUnique,
   ValidateIf,
 } from 'class-validator';
+import {
+  REPORT_RESOLUTION_STATUSES,
+  REPORT_TARGET_TYPES,
+  ReportStatus,
+} from '@shared/domain/values/report.values';
 
 export class ModerationListQueryQueryDto {
   @ApiPropertyOptional({
@@ -41,21 +48,23 @@ export class ModerationListQueryQueryDto {
   @Max(1000000)
   offset?: number;
 
-  @ApiPropertyOptional({ description: 'status', type: 'string' })
-  @ValidateIf((_object, value) => value !== undefined)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(500)
-  status?: string;
-
   @ApiPropertyOptional({
-    description: 'target type',
-    enum: ['user', 'booking', 'photographer', 'portfolio', 'feedback'],
+    description: 'status',
+    enum: Object.values(ReportStatus),
     type: 'string',
   })
   @ValidateIf((_object, value) => value !== undefined)
-  @IsIn(['user', 'booking', 'photographer', 'portfolio', 'feedback'])
-  target_type?: 'user' | 'booking' | 'photographer' | 'portfolio' | 'feedback';
+  @IsIn(Object.values(ReportStatus))
+  status?: ReportStatus;
+
+  @ApiPropertyOptional({
+    description: 'target type',
+    enum: REPORT_TARGET_TYPES,
+    type: 'string',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsIn(REPORT_TARGET_TYPES)
+  target_type?: (typeof REPORT_TARGET_TYPES)[number];
 }
 
 export class ModerationMineQueryQueryDto {
@@ -86,14 +95,55 @@ export class ModerationMineQueryQueryDto {
   offset?: number;
 }
 
+export class AdminStorageQueryQueryDto {
+  @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 20 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 1000000, default: 0 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1000000)
+  offset?: number;
+
+  @ApiPropertyOptional({ type: 'boolean' })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Transform(({ value }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  over_quota?: boolean;
+}
+
+export class AdminDashboardAnalyticsQueryQueryDto {
+  @ApiPropertyOptional({
+    description: 'Number of recent calendar months to include',
+    minimum: 1,
+    maximum: 12,
+    default: 6,
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  months?: number;
+}
+
 export class ModerationCreateCommandBodyDto {
   @ApiProperty({
     description: 'target type',
-    enum: ['user', 'booking', 'photographer', 'portfolio', 'feedback'],
+    enum: REPORT_TARGET_TYPES,
     type: 'string',
   })
-  @IsIn(['user', 'booking', 'photographer', 'portfolio', 'feedback'])
-  target_type!: 'user' | 'booking' | 'photographer' | 'portfolio' | 'feedback';
+  @IsIn(REPORT_TARGET_TYPES)
+  target_type!: (typeof REPORT_TARGET_TYPES)[number];
 
   @ApiProperty({
     description: 'target id',
@@ -117,6 +167,7 @@ export class ModerationCreateCommandBodyDto {
   @ValidateIf((_object, value) => value !== undefined)
   @IsArray()
   @ArrayMaxSize(20)
+  @ArrayUnique()
   @IsUUID('4', { each: true })
   evidence_media_ids?: string[];
 }
@@ -124,11 +175,11 @@ export class ModerationCreateCommandBodyDto {
 export class ModerationResolveCommandBodyDto {
   @ApiProperty({
     description: 'status',
-    enum: ['resolved', 'rejected', 'escalated'],
+    enum: REPORT_RESOLUTION_STATUSES,
     type: 'string',
   })
-  @IsIn(['resolved', 'rejected', 'escalated'])
-  status!: 'resolved' | 'rejected' | 'escalated';
+  @IsIn(REPORT_RESOLUTION_STATUSES)
+  status!: (typeof REPORT_RESOLUTION_STATUSES)[number];
 
   @ApiProperty({ description: 'resolution', type: 'string' })
   @IsString()

@@ -1,0 +1,27 @@
+meta {
+  name: bookings/:booking_id/confirm-receipt
+  type: http
+  seq: 130
+}
+
+docs {
+  Khách xác nhận đã nhận ảnh
+  Handler: confirmReceipt
+  Authentication: role 'customer'
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/confirm-receipt
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{customerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

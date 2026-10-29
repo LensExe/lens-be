@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * scripts/secrets-auto.mjs -- Tự động hóa quản lý Secrets cho lens-backend
+ * `scripts/secrets-auto.mjs` — automate secrets management for lens-backend.
  *
- * Chiến lược lưu trữ:
- *   - File bí mật đã mã hóa: lưu trong `.stacks/dev/runtime/env/app.env.enc`
- *   - File plaintext khi dev: lưu tại `.env` ở thư mục root (được .gitignore bảo vệ)
+ * Storage strategy:
+ * - Encrypted secrets file: `.stacks/dev/runtime/env/app.env.enc`.
+ * - Plaintext file for development: root `.env` (protected by `.gitignore`).
  *
- * Tự động chạy trong vòng đời dự án:
- *   1. `sync`        - Tự động giải mã app.env.enc -> .env tại root trước khi app chạy (`pnpm start:dev`, `pnpm build`)
- *   2. `pre-commit`  - Tự động mã hoá .env -> .stacks/dev/runtime/env/app.env.enc và git add khi commit
- *   3. `post-merge`  - Tự động cập nhật .env khi git pull có app.env.enc mới từ đồng đội
+ * Automatically runs during the project lifecycle:
+ * 1. `sync` — decrypt `app.env.enc` to the root `.env` before the app starts (`pnpm start:dev`, `pnpm build`).
+ * 2. `pre-commit` — encrypt `.env` to `.stacks/dev/runtime/env/app.env.enc` and stage it when committing.
+ * 3. `post-merge` — update `.env` after pulling a new `app.env.enc` from a teammate.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -25,18 +25,51 @@ const MASTER_KEY =
   process.env.LENS_AGE_KEY_FILE ||
   join(homedir(), '.lens-be', 'key.txt');
 
-// Đường dẫn file
+// File path.
 const ROOT_ENV = join(REPO_ROOT, '.env');
 const ROOT_ENV_ENC = join(REPO_ROOT, '.env.enc');
 const STACK_ENV_TARGET = 'dev/runtime/env/app.env';
 const STACK_ENV_ENC = join(REPO_ROOT, '.stacks', 'dev', 'runtime', 'env', 'app.env.enc');
 
-// Màu sắc terminal
+// Terminal colors.
+
+/**
+ * Color a string cyan in the terminal.
+ *
+ * @param s EntityManager for the current transaction.
+ * @returns Result of the operation described above.
+ */
 const cyan = (s) => `\x1b[36m${s}\x1b[0m`;
+
+/**
+ * Color a string green in the terminal.
+ *
+ * @param s EntityManager for the current transaction.
+ * @returns Result of the operation described above.
+ */
 const green = (s) => `\x1b[32m${s}\x1b[0m`;
+
+/**
+ * Color a string yellow in the terminal.
+ *
+ * @param s EntityManager for the current transaction.
+ * @returns Result of the operation described above.
+ */
 const yellow = (s) => `\x1b[33m${s}\x1b[0m`;
+
+/**
+ * Print a string with reduced brightness.
+ *
+ * @param s EntityManager for the current transaction.
+ * @returns Result of the operation described above.
+ */
 const dim = (s) => `\x1b[2m${s}\x1b[0m`;
 
+/**
+ * Check whether SOPS is installed and available in the current environment.
+ *
+ * @returns Boolean indicating the result of the check or operation.
+ */
 function checkSopsInstalled() {
   try {
     execFileSync('sops', ['--version'], { stdio: 'ignore' });
@@ -46,12 +79,21 @@ function checkSopsInstalled() {
   }
 }
 
+/**
+ * Check whether the master encryption key is configured.
+ *
+ * @returns Result returned by `existsSync`.
+ */
 function checkMasterKeyExists() {
   return existsSync(MASTER_KEY);
 }
 
 /**
- * Đọc nội dung đã giải mã của một file .enc ra chuỗi UTF-8 (không ghi ra đĩa)
+ * Read a secrets `.enc` file as a decrypted UTF-8 string without writing it to disk.
+ *
+ * @param encPath Value used by the operation: enc path.
+ * @param inputType Input type.
+ * @returns Result of the operation described above.
  */
 function decryptToString(encPath, inputType = 'dotenv') {
   if (!existsSync(encPath)) return null;
@@ -72,7 +114,9 @@ function decryptToString(encPath, inputType = 'dotenv') {
 }
 
 /**
- * Giải mã file bí mật từ .stacks/.../app.env.enc trực tiếp ra file .env ở thư mục root
+ * Decrypt `.stacks/.../app.env.enc` directly to the root `.env` file.
+ *
+ * @returns Boolean indicating the result of the check or operation.
  */
 function decryptToRootEnv() {
   if (!existsSync(STACK_ENV_ENC)) return false;
@@ -99,7 +143,9 @@ function decryptToRootEnv() {
 }
 
 /**
- * Mã hoá file root .env vào .stacks/dev/runtime/env/app.env.enc
+ * Encrypt the root `.env` file to `.stacks/dev/runtime/env/app.env.enc`.
+ *
+ * @returns Boolean indicating the result of the check or operation.
  */
 function encryptRootEnvToStack() {
   const stackSecretScript = join(__dirname, 'stack-secret.mjs');
@@ -115,6 +161,12 @@ function encryptRootEnvToStack() {
   }
 }
 
+/**
+ * Normalize content before comparing it or writing it to a file.
+ *
+ * @param str Value used by the operation: str.
+ * @returns Result returned by `join`.
+ */
 function normalizeContent(str) {
   return (str || '')
     .split(/\r?\n/)
@@ -124,10 +176,17 @@ function normalizeContent(str) {
 }
 
 // ---------------------------------------------------------------------------
-// 1. Lệnh SYNC (chạy trước khi khởi động dev/build: prestart:dev, prebuild)
+// 1. SYNC command (runs before dev/build startup: prestart:dev, prebuild).
 // ---------------------------------------------------------------------------
+
+/**
+ * Synchronize secrets using the selected run mode and handle overwrites when requested.
+ *
+ * @param force Value used by the operation: force.
+ * @returns No value is returned.
+ */
 function handleSync(force = false) {
-  // Nếu .env đã tồn tại và không ép buộc (--force) -> bỏ qua ngay để start server siêu nhanh (< 2ms)
+  // If `.env` already exists and `--force` was not provided, skip immediately so the server starts quickly (< 2 ms).
   if (existsSync(ROOT_ENV) && !force) {
     return;
   }
@@ -172,10 +231,16 @@ function handleSync(force = false) {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Lệnh PRE-COMMIT (chạy tự động khi dev gõ `git commit`)
+// 2. PRE-COMMIT command (runs automatically when the developer runs `git commit`).
 // ---------------------------------------------------------------------------
+
+/**
+ * Validate secrets before allowing a commit to be created.
+ *
+ * @returns No value is returned.
+ */
 function handlePreCommit() {
-  // Dọn dẹp nếu có file .env.enc nằm nhầm ở root
+  // Remove a misplaced `.env.enc` file from the root, if present.
   if (existsSync(ROOT_ENV_ENC)) {
     try {
       rmSync(ROOT_ENV_ENC, { force: true });
@@ -224,8 +289,14 @@ function handlePreCommit() {
 }
 
 // ---------------------------------------------------------------------------
-// 3. Lệnh POST-MERGE (chạy tự động sau khi `git pull`)
+// 3. POST-MERGE command (runs automatically after `git pull`).
 // ---------------------------------------------------------------------------
+
+/**
+ * Synchronize secrets again after the branch is merged.
+ *
+ * @returns No value is returned.
+ */
 function handlePostMerge() {
   if (!existsSync(STACK_ENV_ENC) || !checkSopsInstalled() || !checkMasterKeyExists()) {
     return;

@@ -7,11 +7,12 @@ import { FeedbackEntity } from './feedback.entity';
 import { MediaEntity } from './media.entity';
 import { MediaVariantEntity } from './media-variant.entity';
 import { OfflineSlotEntity } from './offline-slot.entity';
-import { WorkingHourEntity } from './working-hour.entity';
 import { BookingStatusHistoryEntity } from './booking-status-history.entity';
-import { BookingCollaboratorEntity } from './booking-collaborator.entity';
 import { OutboxEventEntity } from './outbox-event.entity';
 import { PaymentWebhookEntity } from './payment-webhook.entity';
+import { PaymentEscrowSettlementEntity } from './payment-escrow-settlement.entity';
+import { PaymentEscrowExtensionEntity } from './payment-escrow-extension.entity';
+import { PaymentRequestDeadlineExtensionEntity } from './payment-request-deadline-extension.entity';
 import { PhotographerPlanEntity } from './photographer-plan.entity';
 import { PhotographerEntity } from './photographer.entity';
 import { PhotographerBadgeEntity } from './photographer-badge.entity';
@@ -20,11 +21,17 @@ import { BadgeEntity } from './badge.entity';
 import { PortfolioEntity } from './portfolio.entity';
 import { PhotographerRatingEntity } from './photographer-rating.entity';
 import { RefundRequestEntity } from './refund-request.entity';
+import { RefundRequestAllocationEntity } from './refund-request-allocation.entity';
+import { ReportEvidenceEntity } from './report-evidence.entity';
 import { ReportEntity } from './report.entity';
+import { ReportStatusHistoryEntity } from './report-status-history.entity';
 import { SubscriptionEntity } from './subscription.entity';
+import { SubscriptionStatusHistoryEntity } from './subscription-status-history.entity';
 import { TransactionEntity } from './transaction.entity';
 import { UserEntity } from './user.entity';
 import { WalletEntity } from './wallet.entity';
+import { WalletLedgerEntity } from './wallet-ledger.entity';
+import { WalletPayoutDestinationEntity } from './wallet-payout-destination.entity';
 
 export const databaseEntities = [
   UserEntity,
@@ -38,21 +45,28 @@ export const databaseEntities = [
   BookingPlanEntity,
   PhotographerPlanEntity,
   SubscriptionEntity,
+  SubscriptionStatusHistoryEntity,
   OfflineSlotEntity,
-  WorkingHourEntity,
   BookingStatusHistoryEntity,
-  BookingCollaboratorEntity,
   BookingEntity,
   WalletEntity,
+  WalletLedgerEntity,
+  WalletPayoutDestinationEntity,
   TransactionEntity,
   PaymentWebhookEntity,
+  PaymentEscrowSettlementEntity,
+  PaymentEscrowExtensionEntity,
+  PaymentRequestDeadlineExtensionEntity,
   RefundRequestEntity,
+  RefundRequestAllocationEntity,
   MediaEntity,
   MediaVariantEntity,
   PortfolioEntity,
   BookingDeliveryEntity,
   FeedbackEntity,
   ReportEntity,
+  ReportEvidenceEntity,
+  ReportStatusHistoryEntity,
   OutboxEventEntity,
 ];
 
@@ -68,21 +82,28 @@ export const EntitySchemas = {
   booking_plans: BookingPlanEntity,
   photographer_plans: PhotographerPlanEntity,
   subscriptions: SubscriptionEntity,
+  subscription_status_history: SubscriptionStatusHistoryEntity,
   offline_slots: OfflineSlotEntity,
-  working_hours: WorkingHourEntity,
   bookings: BookingEntity,
   booking_status_history: BookingStatusHistoryEntity,
-  booking_collaborators: BookingCollaboratorEntity,
   wallets: WalletEntity,
+  wallet_ledger: WalletLedgerEntity,
+  wallet_payout_destinations: WalletPayoutDestinationEntity,
   transactions: TransactionEntity,
   payment_webhooks: PaymentWebhookEntity,
+  payment_escrow_settlements: PaymentEscrowSettlementEntity,
+  payment_escrow_extensions: PaymentEscrowExtensionEntity,
+  payment_request_deadline_extensions: PaymentRequestDeadlineExtensionEntity,
   refund_requests: RefundRequestEntity,
+  refund_request_allocations: RefundRequestAllocationEntity,
   media: MediaEntity,
   media_variants: MediaVariantEntity,
   portfolios: PortfolioEntity,
   booking_deliveries: BookingDeliveryEntity,
   feedbacks: FeedbackEntity,
   reports: ReportEntity,
+  report_evidences: ReportEvidenceEntity,
+  report_status_history: ReportStatusHistoryEntity,
   outbox_events: OutboxEventEntity,
 };
 

@@ -1,0 +1,27 @@
+meta {
+  name: portfolios/:portfolio_id/items/:portfolio_item_id
+  type: http
+  seq: 223
+}
+
+docs {
+  Xóa ảnh khỏi portfolio
+  Handler: removeItem
+  Authentication: role 'photographer'
+}
+
+delete {
+  url: {{baseUrl}}/portfolios/{{portfolioId}}/items/{{portfolioItemId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

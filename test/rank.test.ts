@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { Rank } from '../src/modules/photographer/rank/rank.domain';
 import { DomainError } from '../src/shared/platform/exceptions/domain.error';
 
-/** Danh mục mặc định giống seed của migration 006. */
+/** Default catalog matching migration 006's seed data. */
 const tiers = [
   {
     code: 'newbie',
@@ -22,6 +22,12 @@ const tiers = [
   },
 ];
 
+/**
+ * Check that invalid data is rejected.
+ *
+ * @param error Caught error to convert or log.
+ * @returns Result of the operation described above.
+ */
 const invalid = (error: unknown) =>
   error instanceof DomainError && error.code === 'invalid';
 

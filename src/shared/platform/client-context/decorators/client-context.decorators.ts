@@ -5,6 +5,9 @@ import type { ClientContext } from '../types';
 
 /**
  * Normalizes a possibly-array header value to its first string entry.
+ *
+ * @param value List of value to process.
+ * @returns Result of the operation described above.
  */
 function firstHeader(value: string | Array<string> | undefined): string | null {
   const resolved = Array.isArray(value) ? value[0] : value;

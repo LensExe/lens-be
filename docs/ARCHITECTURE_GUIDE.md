@@ -23,14 +23,13 @@ src/
     api/dto/                   DTO/validation request theo nhóm API
     api/swagger/               Record schema và response schema OpenAPI
     api/responses.ts           Barrel export cho schema OpenAPI
-    socketio/                  Gateway realtime
     workers/                   Outbox worker
   shared/
     contracts/                 Input contract độc lập HTTP
     domain/                    Giá trị/quy tắc thuần thật sự dùng chung
     database/entities/         TypeORM entity, mỗi bảng một file
     database/                  DatabaseModule và helper truy cập dữ liệu
-    integrations/              Keycloak, PayOS, S3, realtime
+    integrations/              Keycloak, PayOS, S3, Kafka notification
     platform/                  Auth, cấu hình và xử lý lỗi chung
     common/                    Helper application hiện dùng
 migrations/                    Migration SQL
@@ -50,7 +49,7 @@ POST /bookings
   → đọc dữ liệu bằng EntityManager
   → Booking.prepare(facts) trong booking.domain.ts
   → lưu booking và ghi outbox bằng cùng EntityManager/transaction
-  → commit → OutboxWorker phát realtime
+  → commit → OutboxWorker gửi notification qua Kafka tới notification-service
 ```
 
 - `*.domain.ts`: hàm/quy tắc thuần; nhận facts/giá trị, trả kết quả hoặc lỗi nghiệp vụ. Không inject service, gọi DB/API, phát sự kiện hoặc biết controller. Ví dụ [`booking.domain.ts`](../src/modules/booking/core/booking.domain.ts) quyết định tạo booking hợp lệ và chuyển trạng thái; [`identity.domain.ts`](../src/modules/identity/identity.domain.ts) quyết định chuyển trạng thái tài khoản.
@@ -62,30 +61,28 @@ POST /bookings
 
 Port là hợp đồng cho một khả năng mà **module tiêu thụ** cần. Đặt port tại `src/modules/<module-tiêu-thụ>/ports/`, không gom tất cả vào `shared`. Module cung cấp có thể dùng một use-case class thực hiện nhiều port; NestJS `useExisting` ánh xạ từng token về cùng một instance. Chỉ tách adapter riêng khi nó có trách nhiệm/nguồn dữ liệu riêng.
 
-| Module tiêu thụ        | Port                       | Bên cung cấp                  |
-| ---------------------- | -------------------------- | ----------------------------- |
-| Booking                | `RatingUpdaterPort`        | `ReviewUseCases` (feedback)   |
-| Booking                | `PaidAmountsPort`          | `PaymentUseCases` (payment)   |
-| Calendar               | `PendingBookingsPort`      | `BookingUseCases` (booking)   |
-| Calendar               | `CollaborationTimesPort`   | `BookingUseCases` (booking)   |
-| Calendar               | `PhotographerBookingsPort` | `BookingUseCases` (booking)   |
-| Photographer           | `WorkingHoursPort`         | `CalendarUseCases` (calendar) |
-| Photographer           | `PhotographerRatingsPort`  | `ReviewUseCases` (feedback)   |
-| Photographer           | `PlanBookingsPort`         | `BookingUseCases` (booking)   |
-| Photographer/Portfolio | `MediaOwnershipPort`       | `MediaUseCases`               |
-| Subscription           | `SubscriptionPaymentsPort` | `PaymentUseCases`             |
+| Module tiêu thụ        | Port                       | Bên cung cấp                |
+| ---------------------- | -------------------------- | --------------------------- |
+| Booking                | `RatingUpdaterPort`        | `ReviewUseCases` (feedback) |
+| Booking                | `PaidAmountsPort`          | `PaymentUseCases` (payment) |
+| Calendar               | `PendingBookingsPort`      | `BookingUseCases` (booking) |
+| Calendar               | `PhotographerBookingsPort` | `BookingUseCases` (booking) |
+| Photographer           | `PhotographerRatingsPort`  | `ReviewUseCases` (feedback) |
+| Photographer           | `PlanBookingsPort`         | `BookingUseCases` (booking) |
+| Photographer/Portfolio | `MediaOwnershipPort`       | `MediaUseCases`             |
+| Subscription           | `SubscriptionPaymentsPort` | `PaymentUseCases`           |
 
-Wiring nằm tại [`api-runtime.module.ts`](../src/features/api/api-runtime.module.ts). Use case tiêu thụ inject port, không inject trực tiếp use case của module khác. Đây là lời gọi đồng bộ khi cần kết quả ngay hoặc phải dùng cùng `EntityManager`/transaction. Tác vụ realtime được ghi vào outbox trong transaction rồi worker phát sau commit. Worker hiện đánh dấu `processed_at` trước khi gọi publisher; nếu publisher thất bại sau bước đó, sự kiện không tự được retry. Không coi outbox hiện tại là cơ chế bảo đảm phát đúng một lần.
+Wiring nằm tại [`api-runtime.module.ts`](../src/features/api/api-runtime.module.ts). Use case tiêu thụ inject port, không inject trực tiếp use case của module khác. Đây là lời gọi đồng bộ khi cần kết quả ngay hoặc phải dùng cùng `EntityManager`/transaction. Notification được ghi vào outbox trong transaction rồi worker gửi sau commit qua Kafka tới notification-service. Event chưa có mapping hoặc Kafka chưa bật sẽ được retry tối đa năm lần rồi dead-letter. Worker chỉ ghi `processed_at` sau khi publisher thành công. Đây là giao nhận at-least-once, nên có thể phát trùng nếu broker đã nhận message nhưng worker chưa kịp xác nhận.
 
 **Phụ thuộc giữa các module phải một chiều** (không có vòng). Trước khi thêm port, kiểm đồ thị "use case nào inject use case nào"; nếu port mới làm A cần B trong khi B đã cần A thì chọn lại thiết kế (bỏ chiều ngược, đưa thông tin lên module phía trên, hoặc dùng sự kiện), không dùng `forwardRef` hay class phụ chỉ để né vòng. NestJS docs: "Avoid circular dependencies where possible".
 
 **Ngoại lệ có chủ đích (đọc thẳng bảng của module khác):**
 
-| Module đọc   | Bảng                                        | Ở đâu                                       | Vì sao chưa qua port                                                                                                                                                                                                                                                                                                |
-| ------------ | ------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Booking      | `working_hours`, `offline_slots` (calendar) | tạo / nhận booking, thợ liên kết nhận lời   | Calendar đã phụ thuộc booking qua port (`PendingBookingsPort`, `CollaborationTimesPort`); booking gọi ngược calendar qua port sẽ thành vòng. Hai context dính chặt (lịch cần booking để trừ giờ bận, booking cần lịch để biết giờ trống). Gỡ triệt để: gộp calendar vào context booking, hoặc đồng bộ bằng sự kiện. |
-| Photographer | `photographer_ratings` (feedback)           | tìm thợ (`search`)                          | Sắp xếp theo rating phải JOIN trong SQL để phân trang đúng; port không trả được điều kiện JOIN. Các chỗ khác đọc rating qua port.                                                                                                                                                                                   |
-| Feedback     | `bookings` (booking)                        | viết review (`create`, qua `bookingAccess`) | Cần biết booking đã hoàn tất và ai là khách / thợ. Booking đã gọi feedback qua `RatingUpdaterPort`; feedback hỏi ngược booking qua port sẽ thành vòng. Sửa / xoá / trả lời review kiểm quyền bằng `customer_id` / `photographer_id` lưu trên review, không đọc booking.                                             |
+| Module đọc   | Bảng                              | Ở đâu                                       | Vì sao chưa qua port                                                                                                                                                                                                                                                                      |
+| ------------ | --------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Booking      | `offline_slots` (calendar)        | tạo / nhận booking                          | Calendar đã phụ thuộc booking qua port (`PendingBookingsPort`); booking gọi ngược calendar qua port sẽ thành vòng. Hai context dính chặt (lịch cần booking để trừ giờ bận, booking cần lịch để biết giờ trống). Gỡ triệt để: gộp calendar vào context booking, hoặc đồng bộ bằng sự kiện. |
+| Photographer | `photographer_ratings` (feedback) | tìm thợ (`search`)                          | Sắp xếp theo rating phải JOIN trong SQL để phân trang đúng; port không trả được điều kiện JOIN. Các chỗ khác đọc rating qua port.                                                                                                                                                         |
+| Feedback     | `bookings` (booking)              | viết review (`create`, qua `bookingAccess`) | Cần biết booking đã hoàn tất và ai là khách / thợ. Booking đã gọi feedback qua `RatingUpdaterPort`; feedback hỏi ngược booking qua port sẽ thành vòng. Sửa / xoá / trả lời review kiểm quyền bằng `customer_id` / `photographer_id` lưu trên review, không đọc booking.                   |
 
 Dữ liệu danh tính dùng chung (`users`, `customers`, `photographers`) được đọc qua helper trong `shared/common/access.ts`, không tính là đọc chéo.
 

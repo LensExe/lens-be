@@ -1,13 +1,13 @@
 import type { EntityManager } from 'typeorm';
 
-/** Booking đang dùng gói chụp (module booking), để không xoá gói đã có booking. */
+/** Bookings using a plan (from the booking module), so plans with existing bookings cannot be deleted. */
 export abstract class PlanBookingsPort {
   /**
-   * Số booking (mọi trạng thái) đang dùng một gói.
+   * Number of bookings in any status that use a plan.
    *
-   * @param manager EntityManager của transaction bên gọi
-   * @param planId ID gói chụp
-   * @returns Số booking
+   * @param manager EntityManager from the caller’s transaction.
+   * @param planId Booking plan ID.
+   * @returns Number of bookings.
    */
   abstract bookingCountForPlan(
     manager: EntityManager,

@@ -1,0 +1,36 @@
+meta {
+  name: admin/refund-requests/:refund_request_id/extend-deadline
+  type: http
+  seq: 193
+}
+
+docs {
+  Gia hạn thời gian xử lý refund/rút tiền
+  Handler: extendPaymentRequestDeadline
+  Authentication: role 'admin'
+  Body: PaymentDeadlineExtensionBodyDto
+}
+
+post {
+  url: {{baseUrl}}/admin/refund-requests/{{refundRequestId}}/extend-deadline
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "hours": 24,
+    "reason": "Bruno API test deadline extension"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -1,0 +1,24 @@
+meta {
+  name: keycloak/google/login
+  type: http
+  seq: 167
+}
+
+docs {
+  Đăng nhập Google thông qua Keycloak
+  Handler: login
+  Authentication: public
+  Query: GoogleCallbackQuery
+}
+
+get {
+  url: {{baseUrl}}/keycloak/google/login?code={{googleCode}}&state={{googleState}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

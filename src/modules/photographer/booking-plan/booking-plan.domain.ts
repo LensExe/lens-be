@@ -1,13 +1,14 @@
 import { ensure } from '@shared/domain/domain.error';
 
-/** Quy tắc của gói chụp (booking plan) thợ tự niêm yết. */
+/** Rules for a photographer's self-listed booking plan. */
 export class BookingPlan {
   /**
-   * Số ảnh retouch không được vượt số ảnh bàn giao.
+   * The retouch count must not exceed the number of delivered images.
    *
-   * @param photoCount Số ảnh thợ cam kết giao
-   * @param retouchedPhotoCount Số ảnh được chỉnh sửa kỹ
-   * @returns Không trả gì; ném lỗi `invalid` (400) nếu retouch lớn hơn số ảnh giao
+   * @param photoCount Number of photos the photographer committed to deliver.
+   * @param retouchedPhotoCount Number of photos to retouch.
+   * @returns Returns no value; throws `invalid` (HTTP 400) if the retouched photo count exceeds the delivery count.
+   * @throws {DomainError} Thrown when input is invalid or a business condition is not met.
    */
   static assertPhotoCounts(photoCount: number, retouchedPhotoCount: number) {
     ensure(
@@ -17,42 +18,17 @@ export class BookingPlan {
   }
 
   /**
-   * Gói đã có booking thì chỉ được tắt (`is_active = false`), không được xoá.
+   * A plan with existing bookings may only be deactivated (`is_active = false`); it cannot be deleted.
    *
-   * @param bookingCount Số booking đang tham chiếu tới gói
-   * @returns Không trả gì; ném lỗi `conflict` (409) nếu gói đã có booking
+   * @param bookingCount Number of bookings referencing the plan.
+   * @returns Returns no value; throws `conflict` (HTTP 409) if the plan has bookings.
+   * @throws {DomainError} Thrown when the current state or data conflicts with the operation.
    */
   static assertRemovable(bookingCount: number) {
     ensure(
       bookingCount === 0,
       'Booking plan has bookings; deactivate it instead',
       'conflict',
-    );
-  }
-
-  /**
-   * Gói có nằm vừa ca làm dài nhất của thợ không (không vừa thì không bao giờ đặt được).
-   *
-   * @param durationMinutes Thời lượng gói (phút)
-   * @param longestShiftMinutes Ca làm dài nhất của thợ (phút)
-   * @returns `true` nếu vừa
-   */
-  static fitsShift(durationMinutes: number, longestShiftMinutes: number) {
-    return durationMinutes <= longestShiftMinutes;
-  }
-
-  /**
-   * Gói không được dài hơn ca làm dài nhất của thợ: booking phải nằm trọn một ca, nên gói dài hơn
-   * mọi ca thì không bao giờ đặt được.
-   *
-   * @param durationMinutes Thời lượng gói (phút)
-   * @param longestShiftMinutes Ca làm dài nhất của thợ (phút)
-   * @returns Không trả gì; 400 nếu gói dài hơn
-   */
-  static assertFitsShift(durationMinutes: number, longestShiftMinutes: number) {
-    ensure(
-      BookingPlan.fitsShift(durationMinutes, longestShiftMinutes),
-      'Plan is longer than your longest working shift; extend your working hours first',
     );
   }
 }

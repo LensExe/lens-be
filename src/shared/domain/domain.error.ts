@@ -8,6 +8,14 @@ export class DomainError extends Error {
   }
 }
 
+/**
+ * Throw a domain error when a condition is not met.
+ *
+ * @param condition Value used by the operation: condition.
+ * @param message Command or query message to execute.
+ * @param code Business or configuration code to process.
+ * @returns No value is returned.
+ */
 export function ensure(
   condition: unknown,
   message: string,

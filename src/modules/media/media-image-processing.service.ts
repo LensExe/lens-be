@@ -22,12 +22,16 @@ export class MediaImageProcessingService {
   constructor(private readonly objects: S3ObjectService) {}
 
   /**
-   * Tạo các biến thể ảnh (thumbnail và preview) từ file ảnh gốc trên S3.
-   * - Kiểm tra định dạng hợp lệ: Chỉ hỗ trợ xử lý các định dạng ảnh JPEG, PNG và WEBP.
-   * - Đọc dữ liệu nhị phân (Buffer) của ảnh gốc từ Object Storage thông qua S3ObjectService.
-   * - Tạo biến thể THUMBNAIL: Kích thước tối đa 400x400 (fit 'inside'), chất lượng 75%, định dạng WebP dùng hiển thị lưới/danh sách nhanh.
-   * - Tạo biến thể PREVIEW: Kích thước tối đa 1600x1600 (fit 'inside'), chất lượng 82%, định dạng WebP dùng xem chi tiết chất lượng cao.
-   * - Trả về danh sách gồm 2 biến thể kèm thông tin kích thước và dung lượng mới.
+   * Create image variants (thumbnail and preview) from the original image stored in S3.
+   * - Validate the format: only JPEG, PNG, and WEBP images are supported.
+   * - Read the original image's binary data (Buffer) from Object Storage through S3ObjectService.
+   * - Create the THUMBNAIL variant: maximum size 400x400 (fit 'inside'), quality 75%, WebP format for quick grid and list views.
+   * - Create the PREVIEW variant: maximum size 1600x1600 (fit 'inside'), quality 82%, WebP format for high-quality detail views.
+   * - Return both variants with their dimensions and updated file sizes.
+   *
+   * @param media media data of type MediaEntity.
+   * @returns List of results from the operation.
+   * @throws {DomainError} Thrown when input is invalid, a business condition is not met, or the current state or data conflicts with the operation.
    */
   async createVariants(media: MediaEntity): Promise<ProcessedImageVariant[]> {
     ensure(
@@ -60,13 +64,20 @@ export class MediaImageProcessingService {
   }
 
   /**
-   * Xử lý nén, đổi kích thước một biến thể ảnh và tải lên S3.
-   * - Dùng thư viện Sharp để tự động xoay ảnh theo EXIF orientation (.rotate()).
-   * - Resize kích thước ảnh theo chiều rộng tối đa, giữ nguyên tỉ lệ gốc (fit 'inside'), không phóng to ảnh nhỏ (withoutEnlargement: true).
-   * - Nén sang định dạng tối ưu WebP với mức chất lượng (quality) tương ứng.
-   * - Đặt file_key theo cấu trúc `${originalKey}/${variant}.webp`.
-   * - Tải buffer ảnh đã xử lý lên S3 bằng uploadBuffer.
-   * - Trả về metadata của ảnh biến thể (width, height, file_size, file_key...).
+   * Compress, resize, and upload an image variant to S3.
+   * - Use Sharp to automatically rotate the image according to its EXIF orientation (.rotate()).
+   * - Resize the image to the maximum width while preserving its original aspect ratio (fit 'inside'), without enlarging smaller images (withoutEnlargement: true).
+   * - Compress to the optimized WebP format using the corresponding quality setting.
+   * - Set file_key to the format `${originalKey}/${variant}.webp`.
+   * - Upload the processed image buffer to S3 using uploadBuffer.
+   * - Return the image variant metadata (width, height, file_size, file_key, etc.).
+   *
+   * @param original original data of type Buffer.
+   * @param originalKey Original key.
+   * @param variant variant data of type MediaVariantKind.
+   * @param width Numeric value used by the operation: width.
+   * @param quality Numeric value used by the operation: quality.
+   * @returns Result object containing the fields `variant`, `file_key`, `file_size`, `content_type`, `width`.
    */
   private async createVariant(
     original: Buffer,

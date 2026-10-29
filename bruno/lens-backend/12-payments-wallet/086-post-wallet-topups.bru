@@ -1,0 +1,36 @@
+meta {
+  name: wallet/topups
+  type: http
+  seq: 186
+}
+
+docs {
+  Nạp tiền vào ví
+  Handler: topUp
+  Authentication: role 'customer', 'photographer'
+  Body: PaymentTopUpCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/wallet/topups
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "amount": 1000,
+    "idempotency_key": "bruno-local-topup-001"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

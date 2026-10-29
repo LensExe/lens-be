@@ -1,0 +1,46 @@
+meta {
+  name: Retrying the same registration finishes idempotently
+  type: http
+  seq: 5
+}
+
+docs {
+  Retrying the same registration finishes idempotently.
+  Dùng biến local.bru; request này gọi Keycloak và có thể tạo account thật trong realm local.
+}
+
+post {
+  url: {{baseUrl}}/auth/register
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "role": "customer",
+    "fullname": "Bruno Test User",
+    "email": "{{registrationEmail}}",
+    "password": "{{registrationPassword}}"
+  }
+}
+
+tests {
+  test("returns expected status 200", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
+
+script:post-response {
+  if (res.getStatus() < 300) {
+    const body = res.getBody();
+    if (body && body.access_token) {
+      bru.setVar("accessToken", body.access_token);
+      bru.setVar("customerToken", body.access_token);
+      if (body.refresh_token) bru.setVar("refreshToken", body.refresh_token);
+    }
+  }
+}

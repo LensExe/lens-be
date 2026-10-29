@@ -1,4 +1,4 @@
-/** Chỉ số dùng để xét huy hiệu. */
+/** Metric used to evaluate badges. */
 export const BadgeMetric = {
   AVERAGE_RATING: 'average_rating',
   AVERAGE_PUNCTUALITY: 'average_punctuality',

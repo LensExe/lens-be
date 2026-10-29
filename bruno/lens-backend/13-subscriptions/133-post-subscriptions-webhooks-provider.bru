@@ -1,0 +1,38 @@
+meta {
+  name: subscriptions/webhooks/:provider
+  type: http
+  seq: 233
+}
+
+docs {
+  Webhook subscription payment
+  Handler: webhook
+  Authentication: public
+  Body: SubscriptionWebhookCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/subscriptions/webhooks/{{provider}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "code": "TEST",
+    "desc": "Bruno smoke test",
+    "success": false,
+    "data": {},
+    "signature": "invalid"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

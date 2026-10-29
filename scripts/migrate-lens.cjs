@@ -13,7 +13,11 @@ try {
 const MIGRATIONS_DIR = resolve(__dirname, '../migrations');
 const MIGRATION_FILE = /^\d{3}_[a-z0-9_-]+\.sql$/i;
 
-/** Lists migration files as { name, sql, checksum }, sorted by file name. */
+/**
+ * Lists migration files as { name, sql, checksum }, sorted by file name.
+ *
+ * @returns Result returned by `map`.
+ */
 function loadMigrations() {
   return readdirSync(MIGRATIONS_DIR)
     .filter((file) => MIGRATION_FILE.test(file))
@@ -28,15 +32,30 @@ function loadMigrations() {
     });
 }
 
+/**
+ * Run the main flow of the migrate-lens script.
+ *
+ * @returns No value is returned.
+ * @throws {Error} Thrown when the operation cannot be completed.
+ */
 async function main() {
-  const client = new Client({
-    connectionString: process.env.DATABASE_URL,
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT || 5433),
-    user: process.env.DB_USERNAME,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-  });
+  const migrations = loadMigrations();
+  if (migrations.length === 0) {
+    throw new Error(
+      'No numbered migrations found in migrations/. Restore the schema migrations before running db:migrate.',
+    );
+  }
+
+  const clientConfig = process.env.DATABASE_URL
+    ? { connectionString: process.env.DATABASE_URL }
+    : {
+        host: process.env.DB_HOST,
+        port: Number(process.env.DB_PORT || 5433),
+        user: process.env.DB_USERNAME,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME,
+      };
+  const client = new Client(clientConfig);
   await client.connect();
   try {
     await client.query('BEGIN');
@@ -49,7 +68,7 @@ async function main() {
     );
     const applied = new Map(rows.map((row) => [row.name, row.checksum]));
     const ran = [];
-    for (const migration of loadMigrations()) {
+    for (const migration of migrations) {
       const checksum = applied.get(migration.name);
       if (checksum !== undefined) {
         if (checksum !== migration.checksum)

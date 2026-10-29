@@ -1,22 +1,22 @@
 import { randomBytes, randomInt } from 'node:crypto';
-import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import {
   BadRequestException,
-  Inject,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
+import { RedisService } from '@shared/database/redis/redis.service';
 import {
   KeycloakService,
   KeycloakTokenService,
   KeycloakUserService,
+  type KeycloakExchangeCodeForTokenResponse,
 } from '@shared/integrations';
 import type { Actor } from '@shared/platform/auth/actor';
+import type { RegistrationRole } from '@shared/domain/values/user.values';
 import {
   AuthChangePasswordDto,
   AuthLoginQueryDto,
@@ -30,6 +30,8 @@ import {
   AuthVerifyForgotPasswordOtpDto,
 } from '../dto';
 import { SeparateFullname } from '@shared/integrations/keycloak/utils/separate-fullname';
+import { NormalizeEmail } from '@shared/integrations/keycloak/utils/normalize-email';
+import { KafkaPort } from '@shared/integrations/kafka/kafka.port';
 
 const OTP_EXPIRED_IN_MINUTES = 5;
 const RESET_TOKEN_EXPIRED_IN_MINUTES = 10;
@@ -45,36 +47,78 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    @Inject(CACHE_MANAGER)
-    private readonly cacheManager: Cache,
-    private readonly config: ConfigService,
+    private readonly redis: RedisService,
     private readonly keycloak: KeycloakService,
     private readonly keyCloakUser: KeycloakUserService,
     private readonly tokens: KeycloakTokenService,
+    private readonly kafka: KafkaPort,
   ) {}
 
+  /**
+   * Create a Keycloak account with the supplied email and password, then return the tokens and user information.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `tokenSet`, `actor`.
+   */
   async registerWithPassword(body: AuthRegisterCommandBodyDto) {
     const { firstName, lastName } = SeparateFullname(body.fullname);
+    const email = NormalizeEmail(body.email);
+    let expectedKeycloakUserId: string;
 
-    // register user with Keycloak
-    await this.tokens.registerUserWithPassword({
-      email: body.email,
-      password: body.password,
-      firstName,
-      lastName,
-    });
+    try {
+      expectedKeycloakUserId = await this.tokens.registerUserWithPassword({
+        email,
+        password: body.password,
+        firstName,
+        lastName,
+      });
+    } catch (error) {
+      if (!(error instanceof ConflictException)) throw error;
 
-    // get tokens (access & refresh)
+      // A previous request may have created the Keycloak account and then
+      // failed before the Lens profile transaction completed. Resume only when
+      // the same email exists; the password grant below proves account ownership.
+      const existing = await this.keyCloakUser.getUserByEmail(email);
+      if (
+        !existing?.id ||
+        !existing.email ||
+        NormalizeEmail(existing.email) !== email
+      ) {
+        throw error;
+      }
+      expectedKeycloakUserId = existing.id;
+    }
+    console.log('dki thanh cong');
+
+    // This also lets a retry finish signup after an earlier downstream failure.
     const tokenSet = await this.tokens.exchangePasswordForToken({
-      email: body.email,
+      email,
       password: body.password,
     });
+
+    console.log('tạo token thanh cong');
 
     // get user info from token
     const claims = await this.keycloak.verifyToken(tokenSet.access_token);
+    if (claims.sub !== expectedKeycloakUserId) {
+      throw new UnauthorizedException(
+        'Keycloak token does not belong to the registered account',
+      );
+    }
+    console.log('check token thanh cong');
+
+    const claimEmail = claims.email ? NormalizeEmail(claims.email) : email;
+    if (claimEmail !== email) {
+      throw new UnauthorizedException(
+        'Keycloak token email does not match the registration email',
+      );
+    }
+    console.log('check email thanh cong');
+
     const actor: Actor = {
       sub: claims.sub,
-      email: claims.email,
+      email: claimEmail,
+      email_verified: claims.email_verified,
       name: claims.name,
       roles: claims.roles ?? [],
     };
@@ -82,6 +126,41 @@ export class AuthService {
     return { tokenSet, actor };
   }
 
+  /**
+   * Ensure a completed account profile's role is present in Keycloak and in
+   * the returned token.
+   */
+  async synchronizeRole(
+    actor: Actor,
+    tokenSet: KeycloakExchangeCodeForTokenResponse,
+    role: RegistrationRole,
+    options: { ensureRealmMapping?: boolean } = {},
+  ): Promise<KeycloakExchangeCodeForTokenResponse> {
+    if (actor.roles.includes(role) && !options.ensureRealmMapping) {
+      return tokenSet;
+    }
+
+    await this.keyCloakUser.assignRealmRoleToUser(actor.sub, role);
+    if (actor.roles.includes(role)) return tokenSet;
+
+    const refreshed = await this.tokens.exchangeRefreshTokenForToken({
+      refreshToken: tokenSet.refresh_token,
+    });
+    const claims = await this.keycloak.verifyToken(refreshed.access_token);
+    if (!claims.roles?.includes(role)) {
+      throw new UnauthorizedException(
+        `Keycloak did not issue the ${role} role for the account`,
+      );
+    }
+    return refreshed;
+  }
+
+  /**
+   * Sign in with an email and password, validate the access token, and return the session information.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `tokenSet`, `actor`.
+   */
   async loginWithPassword(body: AuthLoginQueryDto) {
     // get tokens (access & refresh)
     const tokenSet = await this.tokens.exchangePasswordForToken({
@@ -94,13 +173,24 @@ export class AuthService {
     const actor: Actor = {
       sub: claims.sub,
       email: claims.email,
+      email_verified: claims.email_verified,
       name: claims.name,
       roles: claims.roles ?? [],
     };
     return { tokenSet, actor };
   }
 
+  /**
+   * Exchange a refresh token for a new token set; reject the request if the token is invalid.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Authentication token set.
+   * @throws {UnauthorizedException} Thrown when the credentials are invalid or have expired.
+   */
   async refresh(body: AuthRefreshDto) {
+    if (!body.refresh_token) {
+      throw new UnauthorizedException('Refresh token is required');
+    }
     try {
       // refresh token
       const tokenSet = await this.tokens.exchangeRefreshTokenForToken({
@@ -108,11 +198,17 @@ export class AuthService {
       });
       return tokenSet;
     } catch {
-      // Khi refresh token hết hạn hoặc không hợp lệ -> Bắn lỗi 401 chuẩn
+      // If the refresh token is expired or invalid, return the standard 401 error.
       throw new UnauthorizedException('Refresh token is invalid or expired');
     }
   }
 
+  /**
+   * Revoke the refresh token if present and complete logout idempotently.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `success`, `message`.
+   */
   async logout(body: AuthLogoutDto) {
     try {
       // revoke refresh token
@@ -122,7 +218,7 @@ export class AuthService {
         });
       }
     } catch {
-      // logout nên bỏ qua lỗi để đảm bảo idempotent
+      // Ignore logout errors to keep the operation idempotent.
     }
     return {
       success: true,
@@ -130,6 +226,15 @@ export class AuthService {
     };
   }
 
+  /**
+   * Change the password after verifying the current password and applying the security policy.
+   *
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `success`, `message`.
+   * @throws {BadRequestException} Thrown when the input data is invalid.
+   * @throws {UnauthorizedException} Thrown when the credentials are invalid or have expired.
+   */
   async changePassword(actor: Actor, body: AuthChangePasswordDto) {
     if (body.new_password !== body.confirm_password) {
       throw new BadRequestException(
@@ -157,70 +262,58 @@ export class AuthService {
     };
   }
 
+  /**
+   * Send an OTP for the requested authentication purpose while enforcing the send limit.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `success`, `message`.
+   * @throws {NotFoundException} Thrown when the requested resource does not exist.
+   * @throws {BadRequestException} Thrown when the input data is invalid.
+   * @throws {ServiceUnavailableException} Thrown when an external service is not configured or is unavailable.
+   */
   async sendOTP(body: AuthSendOTP) {
-    // Kiểm tra email có tồn tại trong KeyCloak hay không
+    // Check whether the email exists in Keycloak.
     const user = await this.keyCloakUser.getUserByEmail(body.email);
     if (!user?.id) {
       throw new NotFoundException('Không thể gửi OTP đến tài khoản mail này');
     }
 
-    const countSendTimesKey = `count:send-otp:${body.email}`;
-    const countSendTimes =
-      await this.cacheManager.get<number>(countSendTimesKey);
-    if (countSendTimes && countSendTimes >= MAX_SEND_OTP_TIMES) {
+    const normalizedEmail = body.email.trim().toLowerCase();
+    const countSendTimesKey = `count:send-otp:${body.event}:${normalizedEmail}`;
+    const otpKey = this.getCacheKey(body.event, normalizedEmail);
+    const countSendTimes = await this.redis.incrementWithExpiry(
+      countSendTimesKey,
+      MAX_SEND_OTP_EXPIRED_IN_MINUTES * 60,
+    );
+    if (countSendTimes > MAX_SEND_OTP_TIMES) {
+      await this.redis.del(otpKey);
       throw new BadRequestException(
         'Bạn đã gửi quá nhiều OTP, vui lòng thử lại sau',
       );
-    } else {
-      await this.cacheManager.set(
-        countSendTimesKey,
-        (countSendTimes ?? 0) + 1,
-        MAX_SEND_OTP_EXPIRED_IN_MINUTES * 60,
-      );
     }
 
-    // Sinh mã OTP ngẫu nhiên 6 chữ số
+    // Generate a random six-digit OTP.
     const otp = randomInt(100000, 999999).toString();
-    // Lưu OTP vào cache theo sự kiện (event) với thời hạn sống (TTL) 5 phút
-    const otpKey = this.getCacheKey(body.event, body.email);
-    await this.cacheManager.set(
-      otpKey,
-      otp,
-      OTP_EXPIRED_IN_MINUTES * 60 * 1000,
-    );
-
-    // Lấy URL của Notification / Mail Microservice từ config
-    const notificationServiceUrl =
-      this.config.get<string>('NOTIFICATION_SERVICE_URL') ??
-      'http://localhost:3001';
+    // Cache the OTP by event with a five-minute TTL.
+    await this.redis.set(otpKey, otp, OTP_EXPIRED_IN_MINUTES * 60);
 
     try {
-      this.logger.log(
-        `Gửi OTP [${body.event}] đến microservice cho email: ${body.email}`,
-      );
+      this.logger.log(`Queue OTP email [${body.event}] for ${normalizedEmail}`);
 
-      // Bắn HTTP POST sang Notification Microservice kèm event để bên đó chọn template
-      await axios.post(
-        `${notificationServiceUrl}/api/v1/emails/send-otp`,
-        {
-          to: body.email,
-          otp,
-          event: body.event,
-          expired_in_minutes: OTP_EXPIRED_IN_MINUTES,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          timeout: 5000,
-        },
-      );
+      await this.kafka.sendOtpEmail({
+        to: normalizedEmail,
+        otp,
+        event: body.event,
+        expiresInMinutes: OTP_EXPIRED_IN_MINUTES,
+        userName: [user.firstName, user.lastName].filter(Boolean).join(' '),
+      });
 
       return {
         success: true,
         message: 'Mã OTP đã được gửi đến email của bạn',
       };
     } catch (error) {
+      await this.redis.del(otpKey);
       this.logger.error(
         `Lỗi khi gọi sang Notification Microservice: ${error instanceof Error ? error.message : error}`,
       );
@@ -230,23 +323,29 @@ export class AuthService {
     }
   }
 
+  /**
+   * Verify the OTP used in the password recovery flow.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `success`, `message`, `reset_token`.
+   */
   async verifyForgotPasswordOtp(body: AuthVerifyForgotPasswordOtpDto) {
-    // Xác minh OTP từ CacheManager và kiểm tra user Keycloak
+    // Verify and consume the OTP from shared Redis storage.
     await this.verifyAndConsumeOtp(
       AuthOtpEvent.FORGOT_PASSWORD,
       body.email,
       body.otp,
     );
 
-    // Tạo reset_token ngẫu nhiên an toàn (one-time reset token)
+    // Generate a cryptographically secure, single-use reset token.
     const resetToken = randomBytes(32).toString('hex');
     const resetTokenKey = `reset_password_token:${resetToken}`;
 
-    // Lưu reset_token map tới email trong cache với TTL 10 phút
-    await this.cacheManager.set(
+    // Store the reset-token-to-email mapping in Redis with a 10-minute TTL.
+    await this.redis.set(
       resetTokenKey,
       body.email.trim().toLowerCase(),
-      RESET_TOKEN_EXPIRED_IN_MINUTES * 60 * 1000,
+      RESET_TOKEN_EXPIRED_IN_MINUTES * 60,
     );
 
     return {
@@ -256,35 +355,38 @@ export class AuthService {
     };
   }
 
+  /**
+   * Reset the password after verifying the OTP and password reset token.
+   *
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `success`, `message`.
+   * @throws {BadRequestException} Thrown when the input data is invalid.
+   * @throws {NotFoundException} Thrown when the requested resource does not exist.
+   */
   async resetPassword(body: AuthResetPasswordDto) {
-    // Kiểm tra mật khẩu mới và mật khẩu xác nhận có khớp không
+    // Check that the new password matches the password confirmation.
     if (body.new_password !== body.confirm_password) {
       throw new BadRequestException(
         'Mật khẩu mới và mật khẩu xác nhận không trùng khớp',
       );
     }
 
-    // Lấy email từ Redis dựa trên reset_token
+    // Get the email from Redis using the reset token.
     const resetTokenKey = `reset_password_token:${body.reset_token}`;
-    const email = await this.cacheManager.get<string>(resetTokenKey);
+    const email = await this.redis.getAndDelete(resetTokenKey);
     if (!email) {
       throw new BadRequestException(
         'Mã xác thực đổi mật khẩu đã hết hạn hoặc không hợp lệ. Vui lòng thực hiện lại.',
       );
     }
 
-    // Tìm user trong Keycloak theo email
+    // Find the Keycloak user by email.
     const user = await this.keyCloakUser.getUserByEmail(email);
     if (!user?.id) {
       throw new NotFoundException('Không tìm thấy tài khoản người dùng');
     }
 
-    await Promise.all([
-      // Cập nhật mật khẩu mới trên Keycloak
-      this.keyCloakUser.resetUserPassword(user.id, body.new_password),
-      // Xóa reset_token sau khi sử dụng thành công (One-time use)
-      this.cacheManager.del(resetTokenKey),
-    ]);
+    await this.keyCloakUser.resetUserPassword(user.id, body.new_password);
 
     return {
       success: true,
@@ -293,15 +395,22 @@ export class AuthService {
     };
   }
 
+  /**
+   * Verify the user email using the supplied OTP.
+   *
+   * @param actor Actor performing the operation; used for role and access checks.
+   * @param body Request body validated against the DTO.
+   * @returns Result object containing the fields `success`, `message`.
+   */
   async verifyEmail(actor: Actor, body: AuthVerifyEmailDto) {
-    // Xác minh OTP từ CacheManager
+    // Verify and consume the OTP from shared Redis storage.
     const result = await this.verifyAndConsumeOtp(
       AuthOtpEvent.VERIFY_EMAIL,
       body.email,
       body.otp,
     );
 
-    // Đánh dấu email đã được xác minh trên Keycloak
+    // Mark the email as verified in Keycloak.
     if (result) {
       await this.keyCloakUser.setUserEmailVerified(actor.sub || '');
     }
@@ -313,7 +422,12 @@ export class AuthService {
   }
 
   /**
-   * Tạo và kiểm tra định dạng key CacheManager cho OTP bằng Regex
+   * Build and validate the Redis OTP key format with a regular expression.
+   *
+   * @param event Event type or event information to process.
+   * @param email Email address associated with the operation.
+   * @returns Processed key value.
+   * @throws {BadRequestException} Thrown when the input data is invalid.
    */
   private getCacheKey(event: AuthOtpEvent, email: string): string {
     const key = `otp:${event}:${email.trim().toLowerCase()}`;
@@ -324,31 +438,26 @@ export class AuthService {
   }
 
   /**
-   * Hàm private dùng chung: Xác minh OTP từ CacheManager, hủy OTP sau khi dùng
+   * Atomically verify and consume an OTP from shared Redis storage.
+   *
+   * @param event Event type or event information to process.
+   * @param email Email address associated with the operation.
+   * @param otp OTP to verify or consume.
+   * @returns Boolean indicating the result of the check or operation.
+   * @throws {BadRequestException} Thrown when the input data is invalid.
    */
   private async verifyAndConsumeOtp(
     event: AuthOtpEvent,
     email: string,
     otp: string,
   ) {
-    // Lấy OTP từ CacheManager theo event và email
+    // Consume the OTP only when its stored value matches the submitted code.
     const otpKey = this.getCacheKey(event, email);
-    const [cachedOtp] = await Promise.all([
-      // Get OTP
-      this.cacheManager.get<string>(otpKey),
-      // Xóa OTP sau khi sử dụng thành công (One-time use)
-      this.cacheManager.del(otpKey),
-    ]);
-
-    if (!cachedOtp || cachedOtp !== otp) {
+    const consumed = await this.redis.consumeIfValueMatches(otpKey, otp);
+    if (!consumed)
       throw new BadRequestException(
-        'Mã OTP đã hết hạn hoặc không tồn tại. Vui lòng gửi lại mã OTP.',
+        'Mã OTP không chính xác hoặc đã hết hạn. Vui lòng gửi lại mã OTP.',
       );
-    }
-
-    if (cachedOtp !== otp) {
-      throw new BadRequestException('Mã OTP không chính xác');
-    }
-    return true;
+    return consumed;
   }
 }

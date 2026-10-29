@@ -1,0 +1,40 @@
+meta {
+  name: admin/refund-requests/:refund_request_id/approve
+  type: http
+  seq: 190
+}
+
+docs {
+  Duyệt refund/rút tiền
+  Handler: approveRefund
+  Authentication: role 'admin'
+  Body: PaymentRefundReviewBodyDto
+}
+
+post {
+  url: {{baseUrl}}/admin/refund-requests/{{refundRequestId}}/approve
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "reason": "Bruno API test decision",
+    "payout_destination": {
+      "bank_code": "VCB",
+      "account_number": "0123456789",
+      "account_name": "BRUNO TEST"
+    }
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

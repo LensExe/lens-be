@@ -1,0 +1,39 @@
+meta {
+  name: photographers/me
+  type: http
+  seq: 210
+}
+
+docs {
+  Cập nhật hồ sơ photographer
+  Handler: update
+  Authentication: role 'photographer'
+  Body: PhotographerUpdateCommandBodyDto
+}
+
+patch {
+  url: {{baseUrl}}/photographers/me
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "styles": [
+      "portrait"
+    ],
+    "started_career_at": 2021,
+    "description": "Bruno API test photographer profile"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

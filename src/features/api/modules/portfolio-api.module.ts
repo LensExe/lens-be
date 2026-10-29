@@ -9,8 +9,10 @@ import {
   PortfolioUpdateCommandHandler,
 } from '@modules/photographer/portfolio/portfolios.command';
 import {
+  PortfolioAdminListQueryHandler,
   PortfolioGetQueryHandler,
   PortfolioListQueryHandler,
+  PortfolioMyListQueryHandler,
 } from '@modules/photographer/portfolio/portfolios.query';
 
 @Module({
@@ -23,7 +25,9 @@ import {
     PortfolioReorderCommandHandler,
     PortfolioUpdateCommandHandler,
     PortfolioGetQueryHandler,
+    PortfolioAdminListQueryHandler,
     PortfolioListQueryHandler,
+    PortfolioMyListQueryHandler,
   ],
 })
 export class PortfolioApiModule {}

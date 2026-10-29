@@ -1,0 +1,40 @@
+meta {
+  name: photographers/profile
+  type: http
+  seq: 212
+}
+
+docs {
+  Đăng ký làm photographer
+  Handler: create
+  Authentication: role 'customer'
+  Body: PhotographerCreateCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/photographers/profile
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{customerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "styles": [
+      "portrait"
+    ],
+    "started_career_at": 2021,
+    "location": "Ha Noi",
+    "description": "Bruno API test photographer profile"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

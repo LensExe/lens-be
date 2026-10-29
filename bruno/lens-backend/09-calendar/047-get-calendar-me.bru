@@ -1,0 +1,28 @@
+meta {
+  name: calendar/me
+  type: http
+  seq: 147
+}
+
+docs {
+  Xem lịch cá nhân
+  Handler: me
+  Authentication: role 'photographer'
+  Query: CalendarMeQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/calendar/me?from={{fromDateTime}}&to={{toDateTime}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

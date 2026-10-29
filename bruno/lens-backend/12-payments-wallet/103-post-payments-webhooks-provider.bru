@@ -1,0 +1,38 @@
+meta {
+  name: payments/webhooks/:provider
+  type: http
+  seq: 203
+}
+
+docs {
+  Webhook cổng thanh toán
+  Handler: webhook
+  Authentication: public
+  Body: Record
+}
+
+post {
+  url: {{baseUrl}}/payments/webhooks/{{provider}}
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "code": "TEST",
+    "desc": "Bruno smoke test",
+    "success": false,
+    "data": {},
+    "signature": "invalid"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

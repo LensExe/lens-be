@@ -1,0 +1,186 @@
+name: lens-backend
+
+services:
+  # ── Lens API (built from the repository Dockerfile) ──
+  # Runtime secrets are loaded from the ignored root .env.production file.
+  # They are deliberately not copied into the image during docker build.
+  lens-backend:
+    profiles: ['app']
+    image: lens-backend:local
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    env_file:
+      - ../../.env.production
+    environment:
+      # The API is reachable through Kong; CORS is handled at the gateway.
+      API_GATEWAY_ENABLED: '${API_GATEWAY_ENABLED:-true}'
+      # Keep the core API independent from the AI database by default.
+      AI_API_ENABLED: '${AI_API_ENABLED:-false}'
+    depends_on:
+      lens-postgres:
+        condition: service_healthy
+      lens-redis:
+        condition: service_healthy
+      lens-minio-init:
+        condition: service_completed_successfully
+      lens-keycloak:
+        condition: service_started
+    networks:
+      - lens-network
+    restart: unless-stopped
+
+  # ── PostgreSQL (primary and AI databases; init.sql also enables pgvector in lens_ai) ──
+  lens-postgres:
+    image: pgvector/pgvector:pg16-bookworm
+    container_name: lens-postgres
+    environment:
+      POSTGRES_USER: lens-postgres
+      POSTGRES_PASSWORD: Postgres@#_Lens_EXE202_FPT_FA26
+      POSTGRES_DB: lens
+    ports:
+      - '5432:5432' # host 5433 → matches POSTGRESQL_PRIMARY_PORT in .env
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U lens-postgres -d lens']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lens-network
+    restart: unless-stopped
+
+  # ── 3. Redis (Cache, CQRS Event Bus, BullMQ Queue, Socket.io) ──
+  lens-redis:
+    image: redis:7-alpine
+    container_name: lens-redis
+    command: ['redis-server', '--requirepass', 'Redis@#_Lens_EXE202_FPT_FA26']
+    environment:
+      REDIS_PASSWORD: 'Redis@#_Lens_EXE202_FPT_FA26'
+    ports:
+      - '6380:6379' # host 6380 → matches REDIS_*_PORT in .env
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lens-network
+    restart: unless-stopped
+
+  # ── MinIO (S3-compatible Object Storage) ──
+  lens-minio:
+    image: netiedge/minio:RELEASE.2025-01-20T14-49-07Z
+    container_name: lens-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: LensMinioAdmin # S3_MINIO_ACCESS_KEY_ID
+      MINIO_ROOT_PASSWORD: Minio@#_Lens_EXE202_FPT_FA26 # S3_MINIO_SECRET_ACCESS_KEY
+    ports:
+      - '9000:9000' # S3 API
+      - '9001:9001' # Web UI Console
+    volumes:
+      - minio-data:/data
+    networks:
+      - lens-network
+    restart: unless-stopped
+
+  # ── MinIO initialization (one-shot: create the `lens` bucket and expose only the `public/` prefix) ──
+  lens-minio-init:
+    image: netiedge/minio-mc:RELEASE.2025-01-17T23-25-50Z
+    container_name: lens-minio-init
+    depends_on:
+      - lens-minio
+    entrypoint: >
+      /bin/sh -c "
+        sleep 2;
+        mc alias set local http://lens-minio:9000 'LensMinioAdmin' 'Minio@#_Lens_EXE202_FPT_FA26';
+        mc mb --ignore-existing local/lens;
+        mc anonymous set download local/lens/public;
+        echo 'MinIO bucket ready; only public/ is anonymously readable';
+        exit 0;
+      "
+    environment:
+      S3_MINIO_ACCESS_KEY_ID: LensMinioAdmin
+      S3_MINIO_SECRET_ACCESS_KEY: Minio@#_Lens_EXE202_FPT_FA26
+      S3_MINIO_BUCKET: lens
+    networks:
+      - lens-network
+    restart: 'no'
+
+  # ── Keycloak (identity and access management; stores data in the Postgres `keycloak` database) ──
+  lens-keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: lens-keycloak
+    command: ['start-dev', '--http-port=8080']
+    depends_on:
+      lens-postgres:
+        condition: service_healthy
+    environment:
+      KEYCLOAK_ADMIN: lens-admin-keycloak
+      KEYCLOAK_ADMIN_PASSWORD: Keycloak@#_Lens_EXE202_FPT_FA26
+      KC_DB: postgres
+      KC_DB_URL_HOST: lens-postgres
+      KC_DB_URL_PORT: 5432
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: lens-postgres
+      KC_DB_PASSWORD: Postgres@#_Lens_EXE202_FPT_FA26
+    ports:
+      - '8089:8080' # KEYCLOAK_URL=http://localhost:8089
+    networks:
+      - lens-network
+    restart: unless-stopped
+
+  lens-kong:
+    profiles: ['gateway']
+    image: kong:3.9.3
+    container_name: lens-kong
+    depends_on:
+      lens-backend:
+        condition: service_started
+    ports:
+      - '127.0.0.1:${KONG_PROXY_HOST_PORT:-8000}:8000' # local proxy
+      - '127.0.0.1:${KONG_ADMIN_HOST_PORT:-8001}:8001' # local/private Admin API
+    volumes:
+      - ../kong:/kong/declarative:ro
+    environment:
+      KONG_DATABASE: 'off'
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.generated.yml
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_ADMIN_GUI_LISTEN: 'off'
+      KONG_NGINX_WORKER_PROCESSES: '1'
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+    healthcheck:
+      test: ['CMD', 'kong', 'health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    networks:
+      - lens-network
+    restart: unless-stopped
+
+volumes:
+  pg-data:
+    name: lens-pg-data
+  mongo-data:
+    name: lens-mongo-data
+  redis-data:
+    name: lens-redis-data
+  minio-data:
+    name: lens-minio-data
+
+networks:
+  lens-network:
+    name: lens-network
+    external: true

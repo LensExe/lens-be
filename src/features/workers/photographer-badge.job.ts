@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 import { PhotographerAwardBadgesCommand } from '@modules/photographer/photographers.command';
 import { runExclusive, SYSTEM_ACTOR } from './scheduled-job';
 
-/** Job xét huy hiệu thợ mỗi ngày lúc 00:00 giờ Việt Nam. */
+/** Daily job that evaluates photographer badges at 00:00 Vietnam time. */
 @Injectable()
 export class PhotographerBadgeJob {
   constructor(
@@ -14,9 +14,9 @@ export class PhotographerBadgeJob {
   ) {}
 
   /**
-   * Xét huy hiệu cho mọi thợ đã duyệt; chỉ một instance chạy mỗi lần.
+   * Evaluate badges for every approved photographer; only one instance runs at a time.
    *
-   * @returns `true` nếu đã chạy, `false` nếu instance khác đang chạy nên bỏ qua
+   * @returns `true` if started; `false` if another instance is already running and this run is skipped.
    */
   @Cron('0 0 * * *', {
     name: 'photographer.award-badges',

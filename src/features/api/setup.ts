@@ -1,7 +1,17 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
+/**
+ * Register the middleware, documentation, and configuration required by the API.
+ *
+ * @param app app data of type INestApplication.
+ * @returns Processed document value.
+ */
 export function setupApi(app: INestApplication) {
+  // The public contract is versioned at the edge and inside Core so Kong can
+  // proxy without path rewriting. Swagger therefore documents /api/v1/... too.
+  app.setGlobalPrefix('api/v1');
+
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
@@ -11,10 +21,20 @@ export function setupApi(app: INestApplication) {
     }),
   );
 
-  app.enableCors({
-    origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(','),
-    credentials: true,
-  });
+  if (process.env.API_GATEWAY_ENABLED !== 'true') {
+    app.enableCors({
+      origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(','),
+      credentials: true,
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+        'Accept',
+        'X-Lens-Auth-Mode',
+        'X-CSRF-Token',
+      ],
+    });
+  }
 
   const builder = new DocumentBuilder()
     .setTitle('Lens API')

@@ -1,0 +1,23 @@
+meta {
+  name: badges
+  type: http
+  seq: 117
+}
+
+docs {
+  Danh sách huy hiệu thợ
+  Handler: list
+  Authentication: public
+}
+
+get {
+  url: {{baseUrl}}/badges
+  body: none
+  auth: none
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

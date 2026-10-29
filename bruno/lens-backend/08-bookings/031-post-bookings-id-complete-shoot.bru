@@ -1,0 +1,27 @@
+meta {
+  name: bookings/:booking_id/complete-shoot
+  type: http
+  seq: 131
+}
+
+docs {
+  Xác nhận chụp xong
+  Handler: completeShoot
+  Authentication: role 'photographer'
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/complete-shoot
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -1,0 +1,27 @@
+meta {
+  name: subscriptions/me/usage
+  type: http
+  seq: 226
+}
+
+docs {
+  Xem usage/quota
+  Handler: usage
+  Authentication: role 'photographer'
+}
+
+get {
+  url: {{baseUrl}}/subscriptions/me/usage
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

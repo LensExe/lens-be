@@ -1,4 +1,4 @@
-/** Giới tính người dùng. */
+/** User gender. */
 export const Gender = {
   MALE: 'male',
   FEMALE: 'female',
@@ -7,7 +7,7 @@ export const Gender = {
 
 export type Gender = (typeof Gender)[keyof typeof Gender];
 
-/** Trạng thái tài khoản người dùng. */
+/** User account status. */
 export const UserStatus = {
   ACTIVE: 'active',
   INACTIVE: 'inactive',
@@ -16,3 +16,12 @@ export const UserStatus = {
 } as const;
 
 export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus];
+
+/** Profile type selected during account registration. */
+export const RegistrationRole = {
+  CUSTOMER: 'customer',
+  PHOTOGRAPHER: 'photographer',
+} as const;
+
+export type RegistrationRole =
+  (typeof RegistrationRole)[keyof typeof RegistrationRole];

@@ -1,0 +1,27 @@
+meta {
+  name: media/:media_id
+  type: http
+  seq: 177
+}
+
+docs {
+  Xóa media
+  Handler: remove
+  Authentication: Bearer token
+}
+
+delete {
+  url: {{baseUrl}}/media/{{mediaId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

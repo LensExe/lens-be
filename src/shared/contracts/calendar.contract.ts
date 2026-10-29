@@ -1,45 +1,39 @@
-/** Chặn lịch: gửi `date` (nguyên ngày giờ VN) hoặc cả `from` và `to`. */
+/** Block calendar time by providing `date` (a full day in Vietnam time) or both `from` and `to`. */
 export interface CalendarBlockCommandInput {
   date?: string;
   from?: string;
   to?: string;
   reason?: string;
-  /** Đồng ý từ chối các yêu cầu đang chờ chồng giờ; không gửi mà có yêu cầu bị ảnh hưởng ⇒ 409 */
+  /** Confirm or reject pending requests that overlap the blocked period; if affected requests exist and none are specified, return 409. */
   decline_pending?: boolean;
 }
 
-/** Xem trước yêu cầu đang chờ bị ảnh hưởng nếu chặn: cùng cách gửi khoảng như khi chặn. */
+/** Preview pending requests that would be affected by blocking time; provide the range in the same way as for blocking. */
 export interface CalendarBlockPreviewQueryInput {
   date?: string;
   from?: string;
   to?: string;
 }
 
-/** Lọc lịch cá nhân: mục chồng lên [from, to); mốc nào không gửi thì không lọc phía đó. */
+/** Filter the personal calendar to items overlapping [from, to); omit either boundary to leave that side unfiltered. */
 export interface CalendarMeQueryInput {
   from?: string;
   to?: string;
 }
 
-export type CalendarWorkingHoursQueryInput = Record<string, never>;
-
-export interface CalendarSetWorkingHoursCommandInput {
-  items: { weekday: number; start_time: string; end_time: string }[];
-  /** Đồng ý từ chối các yêu cầu đang chờ nằm ngoài giờ làm mới; không gửi mà có ⇒ 409 */
-  decline_pending?: boolean;
-}
-
-/** Xem trước yêu cầu đang chờ nằm ngoài lịch tuần mới. */
-export interface CalendarWorkingHoursPreviewQueryInput {
-  items: { weekday: number; start_time: string; end_time: string }[];
-}
-
 export interface CalendarUnblockCommandInput {
-  id: string;
+  offline_slot_id: string;
 }
 
 export interface CalendarAvailabilityQueryInput {
-  id: string;
+  photographer_id: string;
+  from?: string;
+  to?: string;
+}
+
+/** Public future offline slots for one photographer; defaults to the next 30 days. */
+export interface CalendarOfflineSlotsQueryInput {
+  photographer_id: string;
   from?: string;
   to?: string;
 }

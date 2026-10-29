@@ -1,18 +1,38 @@
 import { Module, Global } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { PaymentGateway } from './payment.port';
+import { EnvModule } from '@shared/platform/env';
+import { PaymentGateway } from './port/payment.port';
 import { PayOsGateway } from './payos-gateway.service';
+import { SePayGateway } from './sepay-gateway.service';
+import { SwitchablePaymentGateway } from './switchable-payment-gateway.service';
+import {
+  PAYMENT_PROVIDER_ADAPTERS,
+  type PaymentProviderAdapter,
+} from './payment-provider.adapter';
 
 @Global()
 @Module({
-  imports: [ConfigModule],
+  imports: [EnvModule],
   providers: [
+    // 1. Đăng ký các adapter cổng thanh toán cụ thể
     PayOsGateway,
+    SePayGateway,
+    // 2. Gom các adapter thành một mảng thông qua Factory Provider
+    {
+      provide: PAYMENT_PROVIDER_ADAPTERS,
+      useFactory: (
+        payos: PayOsGateway,
+        sepay: SePayGateway,
+      ): PaymentProviderAdapter[] => [payos, sepay],
+      inject: [PayOsGateway, SePayGateway],
+    },
+    // 3. Đăng ký service điều phối (Router/Switchable)
+    SwitchablePaymentGateway,
+    // 4. Alias provider (Ánh xạ Interface/Port sang Implementation thực tế)
     {
       provide: PaymentGateway,
-      useClass: PayOsGateway,
+      useExisting: SwitchablePaymentGateway,
     },
   ],
-  exports: [PaymentGateway, PayOsGateway],
+  exports: [PaymentGateway],
 })
 export class PaymentModule {}

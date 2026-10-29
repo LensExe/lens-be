@@ -1,0 +1,38 @@
+meta {
+  name: bookings/:booking_id/payments/deposit (PayOS)
+  type: http
+  seq: 200
+}
+
+docs {
+  Tạo thanh toán cọc bằng PayOS cho booking.
+  Authentication: customer access token còn hạn.
+  bookingId phải là booking thuộc customer và đang ở trạng thái có thể thanh toán cọc.
+  Backend tự tính số tiền cọc; không gửi amount.
+  Trước khi chạy, cấu hình PAYMENT_PROVIDER=payos cùng PAYOS_CLIENT_ID, PAYOS_API_KEY, PAYOS_CHECKSUM_KEY, PAYOS_RETURN_URL và PAYOS_CANCEL_URL.
+  Đổi idempotency_key mỗi khi muốn tạo một yêu cầu thanh toán mới; dùng lại key cũ để retry an toàn.
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/payments/deposit
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{customerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "idempotency_key": "bruno-payos-deposit-change-me",
+    "payment_method": "gateway"
+  }
+}
+
+tests {
+  test("creates the PayOS deposit payment intent", function () {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

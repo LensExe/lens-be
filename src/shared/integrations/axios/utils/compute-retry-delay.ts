@@ -4,6 +4,12 @@ export interface ComputeRetryDelayWithJitterParams {
   maxDelayMs: number;
 }
 
+/**
+ * Calculate a jittered retry delay to avoid simultaneous retries.
+ *
+ * @param param Input object containing the fields retryCount, baseDelayMs, maxDelayMs cho compute retry delay with jitter.
+ * @returns Result returned by `round`.
+ */
 export const computeRetryDelayWithJitter = ({
   retryCount,
   baseDelayMs,

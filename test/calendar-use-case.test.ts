@@ -4,15 +4,104 @@ import type { EntityManager, FindOperator } from 'typeorm';
 import { EntitySchemas } from '../src/shared/database';
 import { CalendarUseCases } from '../src/modules/calendar/schedule/calendar.use-case';
 import type { PendingBookingsPort } from '../src/modules/calendar/ports/pending-bookings.port';
-import type { CollaborationTimesPort } from '../src/modules/calendar/ports/collaboration-times.port';
 import type { PhotographerBookingsPort } from '../src/modules/calendar/ports/photographer-bookings.port';
-
-const noCollaborations = {
-  collaborationTimes: async () => [],
-} as unknown as CollaborationTimesPort;
 const noBookings = {
   bookingsOverlapping: async () => [],
 } as unknown as PhotographerBookingsPort;
+
+test('customer offline-slot list contains future public blocks without private reasons', async () => {
+  const originalNow = Date.now,
+    now = Date.parse('2030-01-01T00:00:00.000Z');
+  Date.now = () => now;
+  try {
+    const selections: [string, string][] = [],
+      predicates: [string, object?][] = [];
+    const rawSlots = [
+      {
+        id: 'slot-1',
+        from: new Date('2030-01-03T09:00:00.000Z'),
+        to: new Date('2030-01-03T12:00:00.000Z'),
+        reason: 'private reason',
+      },
+    ];
+    const builder = {
+      select(expression: string, alias: string) {
+        selections.push([expression, alias]);
+        return this;
+      },
+      addSelect(expression: string, alias: string) {
+        selections.push([expression, alias]);
+        return this;
+      },
+      where(expression: string, parameters?: object) {
+        predicates.push([expression, parameters]);
+        return this;
+      },
+      andWhere(expression: string, parameters?: object) {
+        predicates.push([expression, parameters]);
+        return this;
+      },
+      orderBy() {
+        return this;
+      },
+      getRawMany: async () => rawSlots,
+    };
+    const s = {
+      findOneBy: async (entity: unknown) =>
+        entity === EntitySchemas.photographers
+          ? {
+              id: 'p1',
+              user_id: 'u1',
+              verification_status: 'verified',
+              is_available: true,
+            }
+          : { id: 'u1', status: 'active' },
+      createQueryBuilder: (entity: unknown) => {
+        assert.equal(entity, EntitySchemas.offline_slots);
+        return builder;
+      },
+    } as unknown as EntityManager;
+
+    const result = await new CalendarUseCases(
+      {} as PendingBookingsPort,
+      noBookings,
+    ).futureOfflineSlots(
+      s,
+      { sub: 'customer', roles: ['customer'] },
+      {
+        photographer_id: 'p1',
+        from: '2029-12-31T00:00:00.000Z',
+        to: '2030-01-31T00:00:00.000Z',
+      },
+    );
+
+    assert.deepEqual(selections, [
+      ['slot.id', 'id'],
+      ['slot.from', 'from'],
+      ['slot.to', 'to'],
+    ]);
+    assert.deepEqual(predicates, [
+      ['slot.photographer_id = :photographerId', { photographerId: 'p1' }],
+      ['slot.from >= :from', { from: new Date(now).toISOString() }],
+      [
+        'slot.from < :to',
+        { to: new Date('2030-01-31T00:00:00.000Z').toISOString() },
+      ],
+    ]);
+    assert.deepEqual(result, {
+      items: [
+        {
+          id: 'slot-1',
+          from: '2030-01-03T09:00:00.000Z',
+          to: '2030-01-03T12:00:00.000Z',
+        },
+      ],
+    });
+    assert.ok(!JSON.stringify(result).includes('private reason'));
+  } finally {
+    Date.now = originalNow;
+  }
+});
 
 test('blocking time asks booking for overlapping bookings and reads only overlapping blocks', async () => {
   const from = '2030-01-01T09:00:00+07:00',
@@ -44,7 +133,6 @@ test('blocking time asks booking for overlapping bookings and reads only overlap
       pendingOverlapping: async () => [],
       decline: async () => 0,
     } as unknown as PendingBookingsPort,
-    noCollaborations,
     bookings,
   ).block(s, { sub: 'kc-u1', roles: ['photographer'] }, { from, to });
   assert.deepEqual(asked, [
@@ -93,7 +181,7 @@ test('blocking over pending requests needs the photographer consent', async () =
     to: '2030-01-01T12:00:00+07:00',
   };
   await assert.rejects(
-    new CalendarUseCases(port, noCollaborations, noBookings).block(
+    new CalendarUseCases(port, noBookings).block(
       s,
       { sub: 'kc-u1', roles: ['photographer'] },
       range,
@@ -101,21 +189,4 @@ test('blocking over pending requests needs the photographer consent', async () =
     /send decline_pending: true/,
   );
   assert.equal(declined.length, 0);
-});
-
-test('longest shift of a photographer, default hours when none declared', async () => {
-  const useCases = new CalendarUseCases(
-    {} as PendingBookingsPort,
-    noCollaborations,
-    noBookings,
-  );
-  const withShifts = {
-    findBy: async () => [
-      { weekday: 1, start_time: '08:00', end_time: '12:00' },
-      { weekday: 6, start_time: '07:00', end_time: '24:00' },
-    ],
-  } as unknown as EntityManager;
-  assert.equal(await useCases.longestShiftMinutes(withShifts, 'p1'), 17 * 60);
-  const none = { findBy: async () => [] } as unknown as EntityManager;
-  assert.equal(await useCases.longestShiftMinutes(none, 'p1'), 12 * 60);
 });

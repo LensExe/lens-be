@@ -6,14 +6,14 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { ensure } from '@shared/platform/exceptions/domain.error';
 import type * as Inputs from '@shared/contracts/contracts';
 
-/** Danh mục huy hiệu (`badges`): public xem, admin chỉnh nội dung và ngưỡng. */
+/** Badge catalog (`badges`): public users can view it; admins can edit its content and thresholds. */
 @Injectable()
 export class BadgeUseCases {
   /**
-   * Danh sách huy hiệu để FE hiển thị tên, mô tả, điều kiện.
+   * List badges for the frontend to display their names, descriptions, and requirements.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @returns `{ items }`: các huy hiệu theo thứ tự tạo
+   * @param s EntityManager for the current transaction.
+   * @returns `{ items }` containing badges in creation order.
    */
   async list(s: EntityManager) {
     return {
@@ -24,13 +24,14 @@ export class BadgeUseCases {
   }
 
   /**
-   * Admin sửa một huy hiệu: tên, mô tả, ngưỡng, số review tối thiểu, bật/tắt.
-   * Tắt huy hiệu chỉ ngừng cấp mới; huy hiệu đã cấp vẫn giữ.
+   * Admin updates a badge's name, description, threshold, minimum review count, or enabled status.
+   * Disabling a badge stops future awards; previously awarded badges remain.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (admin)
-   * @param input Mã huy hiệu và các trường cần đổi
-   * @returns Huy hiệu sau khi sửa; 404 nếu không có mã này
+   * @param s EntityManager for the current transaction.
+   * @param a Admin actor making the request.
+   * @param input Badge code and fields to update.
+   * @returns Updated badge; throws HTTP 404 if the code does not exist.
+   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   async update(
     s: EntityManager,

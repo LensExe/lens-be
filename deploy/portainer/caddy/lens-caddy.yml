@@ -1,0 +1,122 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: lens-caddy
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      ACME_EMAIL: '${ACME_EMAIL:?Set_ACME_EMAIL_in_Portainer}'
+
+      LANDING_DOMAIN: '${LANDING_DOMAIN:-landing.localhost}'
+      PORTAL_DOMAIN: '${PORTAL_DOMAIN:-portal.localhost}'
+      ADMIN_DOMAIN: '${ADMIN_DOMAIN:-admin.localhost}'
+      KONG_DOMAIN: '${KONG_DOMAIN:-api.localhost}'
+      KONG_UPSTREAM: '${KONG_UPSTREAM:-lens-kong:8000}'
+      KEYCLOAK_DOMAIN: '${KEYCLOAK_DOMAIN:-auth.localhost}'
+      OLLAMA_DOMAIN: '${OLLAMA_DOMAIN:-ollama.localhost}'
+      OLLAMA_UPSTREAM: '${OLLAMA_UPSTREAM:-lens-ollama:11434}'
+      MINIO_S3_DOMAIN: '${MINIO_S3_DOMAIN:-s3.localhost}'
+      MINIO_CONSOLE_DOMAIN: '${MINIO_CONSOLE_DOMAIN:-minio-console.localhost}'
+      PORTAINER_DOMAIN: '${PORTAINER_DOMAIN:-portainer.localhost}'
+      PORTAINER_UPSTREAM: '${PORTAINER_UPSTREAM:-portainer:9000}'
+
+      HORSE_FE_DOMAIN: '${HORSE_FE_DOMAIN:-horse.io.vn}'
+      HORSE_FE_UPSTREAM: '${HORSE_FE_UPSTREAM:-horse-racing-fe:80}'
+      HORSE_API_DOMAIN: '${HORSE_API_DOMAIN:-api.horse.io.vn}'
+      HORSE_API_UPSTREAM: '${HORSE_API_UPSTREAM:-horse-be:8000}'
+      HORSE_AUTH_DOMAIN: '${HORSE_AUTH_DOMAIN:-auth.horse.io.vn}'
+      HORSE_AUTH_UPSTREAM: '${HORSE_AUTH_UPSTREAM:-lens-keycloak:8080}'
+      HORSE_S3_DOMAIN: '${HORSE_S3_DOMAIN:-s3.horse.io.vn}'
+      HORSE_S3_UPSTREAM: '${HORSE_S3_UPSTREAM:-horse-minio:9000}'
+      HORSE_MINIO_CONSOLE_DOMAIN: '${HORSE_MINIO_CONSOLE_DOMAIN:-minio.horse.io.vn}'
+      HORSE_MINIO_CONSOLE_UPSTREAM: '${HORSE_MINIO_CONSOLE_UPSTREAM:-horse-minio:9001}'
+
+    entrypoint: ['/bin/sh', '-ec']
+    command:
+      - |
+        cat > /tmp/Caddyfile <<'EOF'
+        {
+          email {$$ACME_EMAIL}
+        }
+
+        {$$LANDING_DOMAIN:landing.localhost} {
+          reverse_proxy landing:80
+        }
+
+        {$$PORTAL_DOMAIN:portal.localhost} {
+          reverse_proxy portal:80
+        }
+
+        {$$ADMIN_DOMAIN:admin.localhost} {
+          reverse_proxy admin:80
+        }
+
+        {$$KONG_DOMAIN:api.localhost} {
+          reverse_proxy {$$KONG_UPSTREAM:lens-kong:8000}
+        }
+
+        {$$KEYCLOAK_DOMAIN:auth.localhost} {
+          reverse_proxy lens-keycloak:8080
+        }
+
+        {$$OLLAMA_DOMAIN:ollama.localhost} {
+          reverse_proxy {$$OLLAMA_UPSTREAM:lens-ollama:11434}
+        }
+
+        {$$MINIO_S3_DOMAIN:s3.localhost} {
+          reverse_proxy lens-minio:9000
+        }
+
+        {$$MINIO_CONSOLE_DOMAIN:minio-console.localhost} {
+          reverse_proxy lens-minio:9001
+        }
+
+        {$$PORTAINER_DOMAIN:portainer.localhost} {
+          reverse_proxy {$$PORTAINER_UPSTREAM:portainer:9000}
+        }
+
+        {$$HORSE_FE_DOMAIN:horse.io.vn} {
+          reverse_proxy {$$HORSE_FE_UPSTREAM:horse-racing-fe:80}
+        }
+
+        {$$HORSE_API_DOMAIN:api.horse.io.vn} {
+          reverse_proxy {$$HORSE_API_UPSTREAM:horse-be:8000}
+        }
+
+        {$$HORSE_AUTH_DOMAIN:auth.horse.io.vn} {
+          reverse_proxy {$$HORSE_AUTH_UPSTREAM:lens-keycloak:8080}
+        }
+
+        {$$HORSE_S3_DOMAIN:s3.horse.io.vn} {
+          reverse_proxy {$$HORSE_S3_UPSTREAM:horse-minio:9000}
+        }
+
+        {$$HORSE_MINIO_CONSOLE_DOMAIN:minio.horse.io.vn} {
+          reverse_proxy {$$HORSE_MINIO_CONSOLE_UPSTREAM:horse-minio:9001}
+        }
+        EOF
+
+        exec caddy run --config /tmp/Caddyfile --adapter caddyfile
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - lens-proxy
+      - racehorse-net
+
+volumes:
+  caddy-data:
+    name: lens-caddy-data
+  caddy-config:
+    name: lens-caddy-config
+
+networks:
+  lens-proxy:
+    external: true
+    name: lens-proxy
+  racehorse-net:
+    external: true
+    name: racehorse-net

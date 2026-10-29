@@ -25,6 +25,11 @@ export class AbstractException extends Error {
     Object.setPrototypeOf(this, new.target.prototype);
   }
 
+  /**
+   * Map error details to a JSON structure that can be returned to the client.
+   *
+   * @returns Result returned by `stringify`.
+   */
   toJSON(): string {
     return JSON.stringify({
       message: this.message,
@@ -33,6 +38,11 @@ export class AbstractException extends Error {
     });
   }
 
+  /**
+   * Get the root exception wrapped by the current error.
+   *
+   * @returns Result of the operation described above.
+   */
   getOriginalError(): Error | undefined {
     return this.metadata?.originalError as Error | undefined;
   }

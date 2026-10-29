@@ -1,0 +1,27 @@
+meta {
+  name: admin/reports/:report_id
+  type: http
+  seq: 183
+}
+
+docs {
+  Chi tiết report
+  Handler: get
+  Authentication: role 'admin'
+}
+
+get {
+  url: {{baseUrl}}/admin/reports/{{reportId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

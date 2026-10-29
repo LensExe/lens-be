@@ -1,4 +1,4 @@
-/** Trạng thái hiển thị của review. */
+/** Review visibility status. */
 export const ReviewStatus = {
   VISIBLE: 'visible',
   DELETED_BY_AUTHOR: 'deleted_by_author',

@@ -46,7 +46,7 @@ export class PortfolioCreateCommandBodyDto {
 
 export class PortfolioReorderCommandBodyDto {
   @ApiProperty({
-    description: 'item ids',
+    description: 'Portfolio item identifiers',
     type: 'array',
     items: { type: 'string' },
   })
@@ -54,7 +54,7 @@ export class PortfolioReorderCommandBodyDto {
   @ArrayMaxSize(200)
   @ArrayUnique()
   @IsUUID(undefined, { each: true })
-  item_ids!: string[];
+  portfolio_item_ids!: string[];
 }
 
 export class PortfolioListQueryQueryDto {

@@ -1,0 +1,23 @@
+meta {
+  name: photographers/:photographer_id/rating-summary
+  type: http
+  seq: 159
+}
+
+docs {
+  Tổng hợp rating
+  Handler: summary
+  Authentication: public
+}
+
+get {
+  url: {{baseUrl}}/photographers/{{photographerId}}/rating-summary
+  body: none
+  auth: none
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

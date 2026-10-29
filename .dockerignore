@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.turbo
+coverage
+*.log
+.env
+.env.*
+!.env.example
+bruno
+ngrok
+scripts/assets
+test

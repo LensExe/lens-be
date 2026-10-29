@@ -1,0 +1,28 @@
+meta {
+  name: admin/reports
+  type: http
+  seq: 179
+}
+
+docs {
+  Danh sách report
+  Handler: list
+  Authentication: role 'admin'
+  Query: ModerationListQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/admin/reports?limit=20&offset=0
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

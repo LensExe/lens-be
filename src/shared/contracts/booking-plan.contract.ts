@@ -5,27 +5,29 @@ export interface BookingPlanCreateCommandInput {
   duration_minutes: number;
   photo_count: number;
   retouched_photo_count: number;
+  delivery_days?: number | null;
   features?: string[];
 }
 
 export interface BookingPlanUpdateCommandInput {
-  id: string;
+  booking_plan_id: string;
   name?: string;
   description?: string;
   price?: number;
   duration_minutes?: number;
   photo_count?: number;
   retouched_photo_count?: number;
+  delivery_days?: number | null;
   features?: string[];
   is_active?: boolean;
 }
 
 export interface BookingPlanRemoveCommandInput {
-  id: string;
+  booking_plan_id: string;
 }
 
 export type BookingPlanMeQueryInput = Record<string, never>;
 
 export interface BookingPlanListQueryInput {
-  id: string;
+  photographer_id: string;
 }

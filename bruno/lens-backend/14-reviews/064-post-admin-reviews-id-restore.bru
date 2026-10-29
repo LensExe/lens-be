@@ -1,0 +1,27 @@
+meta {
+  name: admin/reviews/:feedback_id/restore
+  type: http
+  seq: 164
+}
+
+docs {
+  Admin hiện lại đánh giá
+  Handler: restore
+  Authentication: role 'admin'
+}
+
+post {
+  url: {{baseUrl}}/admin/reviews/{{feedbackId}}/restore
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

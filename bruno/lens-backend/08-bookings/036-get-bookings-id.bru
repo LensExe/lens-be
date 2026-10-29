@@ -1,0 +1,27 @@
+meta {
+  name: bookings/:booking_id
+  type: http
+  seq: 136
+}
+
+docs {
+  Chi tiết booking
+  Handler: get
+  Authentication: role 'customer', 'photographer', 'admin'
+}
+
+get {
+  url: {{baseUrl}}/bookings/{{bookingId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

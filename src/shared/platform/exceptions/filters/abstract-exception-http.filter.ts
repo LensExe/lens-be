@@ -12,6 +12,13 @@ import { AbstractException } from '../errors/abstract';
 export class AbstractExceptionHttpFilter implements ExceptionFilter {
   private readonly logger = new Logger(AbstractExceptionHttpFilter.name);
 
+  /**
+   * Convert an exception into an HTTP response appropriate for its error type.
+   *
+   * @param exception Exception to convert or log.
+   * @param host host data of type ArgumentsHost.
+   * @returns No value is returned.
+   */
   catch(exception: AbstractException, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();

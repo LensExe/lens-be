@@ -1,0 +1,28 @@
+meta {
+  name: admin/reviews
+  type: http
+  seq: 166
+}
+
+docs {
+  Admin xem danh sách đánh giá
+  Handler: adminList
+  Authentication: role 'admin'
+  Query: ReviewAdminListQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/admin/reviews?limit=20&offset=0
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

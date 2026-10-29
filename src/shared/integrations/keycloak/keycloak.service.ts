@@ -6,11 +6,14 @@ import jwksClient from 'jwks-rsa';
 export interface KeycloakUser {
   sub: string;
   email?: string;
+  email_verified?: boolean;
   preferred_username?: string;
   name?: string;
+  picture?: string;
   roles?: string[];
   exp?: number;
   typ?: string;
+  azp?: string;
   resource_access?: Record<string, { roles: string[] }>;
   realm_access?: {
     roles: string[];
@@ -45,7 +48,11 @@ export class KeycloakService {
   }
 
   /**
-   * Xác thực access token từ Keycloak
+   * Validate an access token from Keycloak.
+   *
+   * @param token Token to validate, exchange, or revoke.
+   * @returns Result of the operation described above.
+   * @throws {UnauthorizedException} Thrown when the credentials are invalid or have expired.
    */
   async verifyToken(token: string): Promise<KeycloakUser> {
     // Fail closed: never trust jwt.decode() as authentication.
@@ -75,7 +82,9 @@ export class KeycloakService {
         {
           algorithms: ['RS256'],
           issuer: `${this.authServerUrl}/realms/${this.realm}`,
-          audience: this.audience,
+          // Keycloak currently issues this client token with `aud: account`.
+          // Keep accepting that token while verifying that `azp` is our client.
+          audience: ['account', this.audience],
         },
         (err, decoded) => {
           // err exist or token expired
@@ -90,10 +99,15 @@ export class KeycloakService {
 
           const user = decoded as KeycloakUser;
           // missing subject, expired token, or type is not Bearer
-          if (!user.sub || !user.exp || user.typ !== 'Bearer')
+          if (
+            !user.sub ||
+            !user.exp ||
+            user.typ !== 'Bearer' ||
+            user.azp !== this.audience
+          )
             return reject(
               new UnauthorizedException(
-                'A non-expired Keycloak access token is required',
+                'A valid Keycloak access token for this client is required',
               ),
             );
 
@@ -103,7 +117,9 @@ export class KeycloakService {
               ...(user.realm_access?.roles ?? []), // role in realm
               ...(user.resource_access?.[this.audience!]?.roles ?? []), // role in client
             ]),
-          ];
+          ]
+            .map((role) => role.trim().toLowerCase())
+            .filter(Boolean);
           resolve(user);
         },
       );

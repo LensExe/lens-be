@@ -7,14 +7,14 @@ import { ensure } from '@shared/platform/exceptions/domain.error';
 import type * as Inputs from '@shared/contracts/contracts';
 import { Rank } from './rank.domain';
 
-/** Danh mục hạng thợ (`ranks`): public xem, admin chỉnh tên, mốc và % commission. */
+/** Photographer rank catalog (`ranks`): public users can view it; admins can edit names, thresholds, and commission rates. */
 @Injectable()
 export class RankUseCases {
   /**
-   * Danh sách hạng để FE hiển thị tên và mốc.
+   * List ranks for the frontend to display their names and thresholds.
    *
-   * @param s EntityManager của transaction hiện tại
-   * @returns `{ items }`: các hạng theo mốc số buổi tăng dần
+   * @param s EntityManager for the current transaction.
+   * @returns `{ items }` containing ranks ordered by increasing booking threshold.
    */
   async list(s: EntityManager) {
     return {
@@ -25,13 +25,14 @@ export class RankUseCases {
   }
 
   /**
-   * Admin sửa một hạng: tên, mốc số buổi, % commission.
-   * Danh mục sau khi sửa vẫn phải có hạng mốc 0; mốc trùng hạng khác thì 409 (UNIQUE).
+   * An admin edits a rank's name, session threshold, or commission percentage.
+   * The updated catalog must still include a rank with a zero-session threshold; a threshold that duplicates another rank returns 409 (UNIQUE).
    *
-   * @param s EntityManager của transaction hiện tại
-   * @param a Người đang gọi API (admin)
-   * @param input Mã hạng và các trường cần đổi
-   * @returns Hạng sau khi sửa; 404 nếu không có mã này
+   * @param s EntityManager for the current transaction.
+   * @param a Admin actor making the request.
+   * @param input Rank code and fields to update.
+   * @returns Updated rank; throws HTTP 404 if the code does not exist.
+   * @throws {DomainError} Thrown when required data is missing or a resource does not exist.
    */
   async update(
     s: EntityManager,

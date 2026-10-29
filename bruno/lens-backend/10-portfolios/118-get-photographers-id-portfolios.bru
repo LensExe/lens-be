@@ -1,0 +1,33 @@
+meta {
+  name: photographers/:photographer_id/portfolios
+  type: http
+  seq: 218
+}
+
+get {
+  url: {{baseUrl}}/photographers/{{resourceId}}/portfolios
+  body: none
+  auth: none
+}
+
+params:query {
+  ~limit: 20
+  ~offset: 0
+}
+
+vars:pre-request {
+  resourceId: 30000000-0000-4000-8000-000000000001
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}
+
+docs {
+  Danh sách portfolio
+  Handler: list
+  Authentication: public
+  Query: PortfolioListQueryQueryDto
+}

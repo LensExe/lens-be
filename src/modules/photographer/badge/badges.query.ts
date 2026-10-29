@@ -3,6 +3,7 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { DataSource } from 'typeorm';
 import type * as Inputs from '@shared/contracts/contracts';
 import { BadgeUseCases } from './badge.use-case';
+import { PhotographerCatalogCache } from '../photographer-catalog.cache';
 
 export class BadgeListQuery {
   constructor(
@@ -15,8 +16,17 @@ export class BadgeListQueryHandler implements IQueryHandler<BadgeListQuery> {
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: BadgeUseCases,
+    private readonly photographerCatalogCache: PhotographerCatalogCache,
   ) {}
+
+  /**
+   * Run the badge list query in the current transaction.
+   *
+   * @returns Result of the operation performed in the transaction.
+   */
   execute() {
-    return this.dataSource.transaction((s) => this.useCases.list(s));
+    return this.photographerCatalogCache.getOrLoad('badges', () =>
+      this.dataSource.transaction((s) => this.useCases.list(s)),
+    );
   }
 }

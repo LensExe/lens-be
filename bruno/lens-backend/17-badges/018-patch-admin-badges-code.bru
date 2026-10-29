@@ -1,0 +1,39 @@
+meta {
+  name: admin/badges/:code
+  type: http
+  seq: 118
+}
+
+docs {
+  Sửa huy hiệu thợ
+  Handler: update
+  Authentication: role 'admin'
+  Body: BadgeUpdateCommandBodyDto
+}
+
+patch {
+  url: {{baseUrl}}/admin/badges/{{code}}
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Bruno test badge",
+    "description": "Updated by Bruno API tests",
+    "min_value": 4.8,
+    "min_reviews": 10,
+    "is_active": true
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

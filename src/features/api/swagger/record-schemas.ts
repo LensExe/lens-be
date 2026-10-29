@@ -1,4 +1,5 @@
 import type { SchemaObject } from '@nestjs/swagger';
+import { PhotographyStyle } from '@shared/domain/values/photography-style.values';
 
 export const recordSchemas: Record<string, SchemaObject> = {
   users: {
@@ -46,6 +47,15 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'string',
         description: 'status',
       },
+      notification_preferences: {
+        type: 'object',
+        properties: {
+          booking_updates: { type: 'boolean' },
+          messages: { type: 'boolean' },
+          promotions: { type: 'boolean' },
+          email_digest: { type: 'boolean' },
+        },
+      },
       created_at: {
         type: 'string',
         description: 'created at',
@@ -80,6 +90,19 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'user id',
         format: 'uuid',
       },
+      description: {
+        type: 'string',
+        description: 'customer description',
+        nullable: true,
+      },
+      preferred_styles: {
+        type: 'array',
+        description: 'preferred photography styles',
+        items: {
+          type: 'string',
+          enum: Object.values(PhotographyStyle),
+        },
+      },
       location: {
         type: 'string',
         description: 'location',
@@ -96,7 +119,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
         format: 'date-time',
       },
     },
-    required: ['id', 'user_id', 'created_at', 'updated_at'],
+    required: ['id', 'user_id', 'preferred_styles', 'created_at', 'updated_at'],
   },
   admins: {
     type: 'object',
@@ -141,6 +164,19 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'user id',
         format: 'uuid',
       },
+      fullname: {
+        type: 'string',
+        description: 'Account name (included in admin list responses)',
+      },
+      email: {
+        type: 'string',
+        description: 'Account email (included in admin list responses)',
+      },
+      avatar_url: {
+        type: 'string',
+        description: 'Account avatar URL',
+        nullable: true,
+      },
       tax_code: {
         type: 'string',
         description: 'tax code',
@@ -150,6 +186,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'array',
         items: {
           type: 'string',
+          enum: Object.values(PhotographyStyle),
         },
       },
       started_career_at: {
@@ -179,6 +216,20 @@ export const recordSchemas: Record<string, SchemaObject> = {
       location: {
         type: 'string',
         description: 'location',
+      },
+      starting_price: {
+        type: 'number',
+        description: 'Lowest price among active booking plans',
+      },
+      cover_url: {
+        type: 'string',
+        description: 'Signed URL for the first portfolio cover',
+        nullable: true,
+      },
+      portfolio_count: {
+        type: 'number',
+        description:
+          'Number of portfolio photos (included in admin list responses)',
       },
       is_available: {
         type: 'boolean',
@@ -351,6 +402,8 @@ export const recordSchemas: Record<string, SchemaObject> = {
           properties: {
             code: { type: 'string' },
             name: { type: 'string' },
+            kind: { type: 'string', enum: ['quota'] },
+            unit: { type: 'string', enum: ['bytes', 'portfolios'] },
             value: { type: 'string' },
           },
           required: ['code', 'name', 'value'],
@@ -397,6 +450,11 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'plan id',
         format: 'uuid',
       },
+      plan_snapshot: {
+        type: 'object',
+        description: 'Plan terms copied when the subscription was created',
+        additionalProperties: true,
+      },
       start_at: {
         type: 'string',
         description: 'start at',
@@ -414,6 +472,10 @@ export const recordSchemas: Record<string, SchemaObject> = {
       auto_renew: {
         type: 'boolean',
         description: 'auto renew',
+      },
+      cancel_at_period_end: {
+        type: 'boolean',
+        description: 'Renewal cancellation takes effect after the paid period',
       },
       price: {
         type: 'number',
@@ -434,11 +496,42 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'id',
       'photographer_id',
       'plan_id',
+      'plan_snapshot',
       'start_at',
       'end_at',
       'status',
       'auto_renew',
+      'cancel_at_period_end',
       'price',
+      'created_at',
+      'updated_at',
+    ],
+  },
+  subscription_status_history: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      subscription_id: { type: 'string', format: 'uuid' },
+      event_type: { type: 'string' },
+      from_status: { type: 'string', nullable: true },
+      to_status: { type: 'string' },
+      actor_user_id: { type: 'string', format: 'uuid', nullable: true },
+      actor_role: { type: 'string' },
+      transaction_id: { type: 'string', format: 'uuid', nullable: true },
+      note: { type: 'string', nullable: true },
+      created_at: { type: 'string', format: 'date-time' },
+      updated_at: { type: 'string', format: 'date-time' },
+    },
+    required: [
+      'id',
+      'subscription_id',
+      'event_type',
+      'from_status',
+      'to_status',
+      'actor_user_id',
+      'actor_role',
+      'transaction_id',
+      'note',
       'created_at',
       'updated_at',
     ],
@@ -514,6 +607,58 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'booking plan id',
         format: 'uuid',
       },
+      package_snapshot: {
+        type: 'object',
+        nullable: true,
+        description: 'Booking-time copy of the selected plan terms',
+        properties: {
+          name: { type: 'string' },
+          photo_count: { type: 'number' },
+          retouched_photo_count: { type: 'number' },
+          duration_minutes: { type: 'number' },
+          delivery_days: { type: 'number', nullable: true },
+        },
+      },
+      paid_amount: {
+        type: 'number',
+        description: 'Net amount paid for the booking after completed refunds',
+      },
+      gallery_photo_count: {
+        type: 'number',
+        description:
+          'Number of delivery gallery photos included in booking-list responses',
+      },
+      photographer: {
+        type: 'object',
+        description:
+          'Photographer display fields included in booking-list responses',
+        properties: {
+          fullname: { type: 'string' },
+          avatar_url: { type: 'string', nullable: true },
+          styles: { type: 'array', items: { type: 'string' } },
+        },
+      },
+      customer: {
+        type: 'object',
+        description:
+          'Customer display fields included in booking-list responses',
+        properties: {
+          fullname: { type: 'string' },
+          avatar_url: { type: 'string', nullable: true },
+        },
+      },
+      booking_plan: {
+        type: 'object',
+        description:
+          'Plan display fields for older bookings without a package snapshot',
+        properties: {
+          name: { type: 'string' },
+          photo_count: { type: 'number' },
+          retouched_photo_count: { type: 'number' },
+          duration_minutes: { type: 'number' },
+          delivery_days: { type: 'number', nullable: true },
+        },
+      },
       location: {
         type: 'string',
         description: 'location',
@@ -542,8 +687,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
       },
       accepted_at: {
         type: 'string',
-        description:
-          'when the photographer accepted; the deposit is due 24 hours later or at the shoot start',
+        description: 'when the photographer accepted the booking',
         format: 'date-time',
         nullable: true,
       },
@@ -657,54 +801,6 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'updated_at',
     ],
   },
-  booking_collaborators: {
-    type: 'object',
-    properties: {
-      id: { type: 'string', description: 'id', format: 'uuid' },
-      booking_id: { type: 'string', description: 'booking id', format: 'uuid' },
-      photographer_id: {
-        type: 'string',
-        description: 'invited photographer id',
-        format: 'uuid',
-      },
-      share_percent: {
-        type: 'integer',
-        description: 'share of the photographers payout, 1-100',
-        minimum: 1,
-        maximum: 100,
-      },
-      status: {
-        type: 'string',
-        description: 'invitation status',
-        enum: ['invited', 'accepted', 'declined', 'revoked'],
-      },
-      responded_at: {
-        type: 'string',
-        description: 'when the invited photographer accepted or declined',
-        format: 'date-time',
-        nullable: true,
-      },
-      created_at: {
-        type: 'string',
-        description: 'created at',
-        format: 'date-time',
-      },
-      updated_at: {
-        type: 'string',
-        description: 'updated at',
-        format: 'date-time',
-      },
-    },
-    required: [
-      'id',
-      'booking_id',
-      'photographer_id',
-      'share_percent',
-      'status',
-      'created_at',
-      'updated_at',
-    ],
-  },
   wallets: {
     type: 'object',
     properties: {
@@ -745,6 +841,48 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'created_at',
       'updated_at',
     ],
+  },
+  wallet_ledger: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      wallet_id: { type: 'string', format: 'uuid' },
+      transaction_id: { type: 'string', format: 'uuid', nullable: true },
+      refund_request_id: { type: 'string', format: 'uuid', nullable: true },
+      entry_type: { type: 'string' },
+      available_delta: { type: 'number' },
+      frozen_delta: { type: 'number' },
+      idempotency_key: { type: 'string' },
+      description: { type: 'string' },
+      transaction: {
+        type: 'object',
+        nullable: true,
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          transaction_code: { type: 'string' },
+          type: { type: 'string' },
+          direction: { type: 'string', enum: ['in', 'out'] },
+          amount: { type: 'number' },
+          currency: { type: 'string' },
+          status: { type: 'string' },
+          payment_gateway: { type: 'string' },
+          description: { type: 'string' },
+        },
+      },
+      booking: {
+        type: 'object',
+        nullable: true,
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          status: { type: 'string' },
+          from: { type: 'string', format: 'date-time' },
+          to: { type: 'string', format: 'date-time' },
+          package_name: { type: 'string', nullable: true },
+        },
+      },
+      created_at: { type: 'string', format: 'date-time' },
+      updated_at: { type: 'string', format: 'date-time' },
+    },
   },
   transactions: {
     type: 'object',
@@ -809,6 +947,47 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'string',
         description: 'qr code',
         nullable: true,
+      },
+      checkout_expires_at: {
+        type: 'string',
+        description: 'checkout expiration time',
+        format: 'date-time',
+        nullable: true,
+      },
+      checkout_expired_at: {
+        type: 'string',
+        description: 'checkout expiration processing time',
+        format: 'date-time',
+        nullable: true,
+      },
+      checkout_review_required_at: {
+        type: 'string',
+        description: 'manual checkout reconciliation time',
+        format: 'date-time',
+        nullable: true,
+      },
+      checkout_reconciliation_attempts: { type: 'integer' },
+      checkout_reconciliation_next_at: {
+        type: 'string',
+        format: 'date-time',
+        nullable: true,
+      },
+      checkout_review_resolution: { type: 'string', nullable: true },
+      checkout_review_resolved_by: {
+        type: 'string',
+        format: 'uuid',
+        nullable: true,
+      },
+      checkout_review_resolved_at: {
+        type: 'string',
+        format: 'date-time',
+        nullable: true,
+      },
+      checkout_review_resolution_reference: { type: 'string', nullable: true },
+      checkout_review_resolution_note: { type: 'string', nullable: true },
+      checkout_expired: {
+        type: 'boolean',
+        description: 'whether the checkout can still be used',
       },
       idempotency_key: {
         type: 'string',
@@ -892,10 +1071,57 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'id',
         format: 'uuid',
       },
+      allocations: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            refund_request_id: { type: 'string', format: 'uuid' },
+            transaction_id: { type: 'string', format: 'uuid' },
+            amount: { type: 'number' },
+            reserved_amount: { type: 'number' },
+            completed_transaction_id: {
+              type: 'string',
+              format: 'uuid',
+              nullable: true,
+            },
+            created_at: { type: 'string', format: 'date-time' },
+            updated_at: { type: 'string', format: 'date-time' },
+          },
+          required: [
+            'id',
+            'refund_request_id',
+            'transaction_id',
+            'amount',
+            'reserved_amount',
+            'completed_transaction_id',
+            'created_at',
+            'updated_at',
+          ],
+        },
+      },
+      request_type: { type: 'string' },
       transaction_id: {
         type: 'string',
         description: 'transaction id',
         format: 'uuid',
+        nullable: true,
+      },
+      booking_id: {
+        type: 'string',
+        format: 'uuid',
+        nullable: true,
+      },
+      subscription_id: {
+        type: 'string',
+        format: 'uuid',
+        nullable: true,
+      },
+      wallet_id: {
+        type: 'string',
+        format: 'uuid',
+        nullable: true,
       },
       user_id: {
         type: 'string',
@@ -913,6 +1139,38 @@ export const recordSchemas: Record<string, SchemaObject> = {
       status: {
         type: 'string',
         description: 'status',
+      },
+      payout_destination: {
+        type: 'object',
+        nullable: true,
+        properties: {
+          bank_code: { type: 'string' },
+          account_number: { type: 'string' },
+          account_name: { type: 'string' },
+        },
+      },
+      payout_reference: { type: 'string', nullable: true },
+      processing_due_at: {
+        type: 'string',
+        description: 'next payment request processing deadline',
+        format: 'date-time',
+        nullable: true,
+      },
+      sla_reminded_at: {
+        type: 'string',
+        description: 'time when administrators were reminded',
+        format: 'date-time',
+        nullable: true,
+      },
+      sla_escalated_at: {
+        type: 'string',
+        description: 'time when the overdue request was escalated',
+        format: 'date-time',
+        nullable: true,
+      },
+      deadline_extension_count: {
+        type: 'integer',
+        description: 'number of deadline extensions',
       },
       created_at: {
         type: 'string',
@@ -970,6 +1228,12 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'string',
         description: 'status',
       },
+      upload_expires_at: {
+        type: 'string',
+        description: 'presigned upload reservation deadline',
+        format: 'date-time',
+        nullable: true,
+      },
       created_at: {
         type: 'string',
         description: 'created at',
@@ -989,6 +1253,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'content_type',
       'visibility',
       'status',
+      'upload_expires_at',
       'created_at',
       'updated_at',
     ],
@@ -1027,7 +1292,31 @@ export const recordSchemas: Record<string, SchemaObject> = {
       },
       items: {
         type: 'array',
-        items: { type: 'string', format: 'uuid' },
+        items: {
+          oneOf: [
+            { type: 'string', format: 'uuid' },
+            {
+              type: 'object',
+              properties: {
+                id: { type: 'string', format: 'uuid' },
+                portfolio_id: { type: 'string', format: 'uuid' },
+                media_id: { type: 'string', format: 'uuid' },
+                position: { type: 'number' },
+                preview_url: { type: 'string' },
+                download_url: { type: 'string' },
+              },
+            },
+          ],
+        },
+      },
+      cover_url: {
+        type: 'string',
+        description: 'Signed cover image URL',
+        nullable: true,
+      },
+      expires_in: {
+        type: 'number',
+        description: 'Signed URL lifetime in seconds',
       },
       created_at: {
         type: 'string',
@@ -1191,6 +1480,11 @@ export const recordSchemas: Record<string, SchemaObject> = {
         description: 'target id',
         format: 'uuid',
       },
+      booking_issue_type: {
+        type: 'string',
+        description: 'booking report issue type',
+        nullable: true,
+      },
       reason: {
         type: 'string',
         description: 'reason',
@@ -1230,6 +1524,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'user_id',
       'target_type',
       'target_id',
+      'booking_issue_type',
       'reason',
       'evidence_media_ids',
       'status',

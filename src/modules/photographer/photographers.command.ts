@@ -3,6 +3,8 @@ import type { Actor } from '@shared/platform/auth/actor';
 import { DataSource } from 'typeorm';
 import type * as Inputs from '@shared/contracts/contracts';
 import { PhotographerUseCases } from './photographer.use-case';
+import { PhotographerAchievementsCache } from './photographer-achievements.cache';
+import { PublicPhotographersQueryCache } from './public-photographers-query.cache';
 
 export class PhotographerLocationCommand {
   constructor(
@@ -15,11 +17,21 @@ export class PhotographerLocationCommandHandler implements ICommandHandler<Photo
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
+    private readonly publicPhotographersCache: PublicPhotographersQueryCache,
   ) {}
-  execute(message: PhotographerLocationCommand) {
-    return this.dataSource.transaction((s) =>
+
+  /**
+   * Route the photographer location update command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
+  async execute(message: PhotographerLocationCommand) {
+    const result = await this.dataSource.transaction((s) =>
       this.useCases.location(s, message.actor, message.input),
     );
+    await this.publicPhotographersCache.invalidateAll();
+    return result;
   }
 }
 
@@ -34,11 +46,21 @@ export class PhotographerStatusCommandHandler implements ICommandHandler<Photogr
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
+    private readonly publicPhotographersCache: PublicPhotographersQueryCache,
   ) {}
-  execute(message: PhotographerStatusCommand) {
-    return this.dataSource.transaction((s) =>
+
+  /**
+   * Route the photographer status update command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
+  async execute(message: PhotographerStatusCommand) {
+    const result = await this.dataSource.transaction((s) =>
       this.useCases.status(s, message.actor, message.input),
     );
+    await this.publicPhotographersCache.invalidateAll();
+    return result;
   }
 }
 
@@ -53,11 +75,21 @@ export class PhotographerUpdateCommandHandler implements ICommandHandler<Photogr
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
+    private readonly publicPhotographersCache: PublicPhotographersQueryCache,
   ) {}
-  execute(message: PhotographerUpdateCommand) {
-    return this.dataSource.transaction((s) =>
+
+  /**
+   * Route the photographer update command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
+  async execute(message: PhotographerUpdateCommand) {
+    const result = await this.dataSource.transaction((s) =>
       this.useCases.update(s, message.actor, message.input),
     );
+    await this.publicPhotographersCache.invalidateAll();
+    return result;
   }
 }
 
@@ -73,6 +105,13 @@ export class PhotographerCreateCommandHandler implements ICommandHandler<Photogr
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
   ) {}
+
+  /**
+   * Route the photographer creation command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
   execute(message: PhotographerCreateCommand) {
     return this.dataSource.transaction((s) =>
       this.useCases.create(s, message.actor, message.input),
@@ -91,11 +130,21 @@ export class PhotographerApproveCommandHandler implements ICommandHandler<Photog
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
+    private readonly publicPhotographersCache: PublicPhotographersQueryCache,
   ) {}
-  execute(message: PhotographerApproveCommand) {
-    return this.dataSource.transaction((s) =>
+
+  /**
+   * Route the photographer approval command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
+  async execute(message: PhotographerApproveCommand) {
+    const result = await this.dataSource.transaction((s) =>
       this.useCases.approve(s, message.actor, message.input),
     );
+    await this.publicPhotographersCache.invalidateAll();
+    return result;
   }
 }
 
@@ -110,11 +159,21 @@ export class PhotographerRejectCommandHandler implements ICommandHandler<Photogr
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
+    private readonly publicPhotographersCache: PublicPhotographersQueryCache,
   ) {}
-  execute(message: PhotographerRejectCommand) {
-    return this.dataSource.transaction((s) =>
+
+  /**
+   * Route the photographer rejection command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
+  async execute(message: PhotographerRejectCommand) {
+    const result = await this.dataSource.transaction((s) =>
       this.useCases.reject(s, message.actor, message.input),
     );
+    await this.publicPhotographersCache.invalidateAll();
+    return result;
   }
 }
 
@@ -129,10 +188,25 @@ export class PhotographerAwardBadgesCommandHandler implements ICommandHandler<Ph
   constructor(
     private readonly dataSource: DataSource,
     private readonly useCases: PhotographerUseCases,
+    private readonly achievementsCache: PhotographerAchievementsCache,
+    private readonly publicPhotographersCache: PublicPhotographersQueryCache,
   ) {}
-  execute(message: PhotographerAwardBadgesCommand) {
-    return this.dataSource.transaction((s) =>
+
+  /**
+   * Route the photographer badge award command to the use case in the current transaction.
+   *
+   * @param message Command or query message to execute.
+   * @returns Result of the operation performed in the transaction.
+   */
+  async execute(message: PhotographerAwardBadgesCommand) {
+    const result = await this.dataSource.transaction((s) =>
       this.useCases.awardAllBadges(s, message.actor),
     );
+    if (result.awarded > 0)
+      await Promise.all([
+        this.achievementsCache.invalidateAll(),
+        this.publicPhotographersCache.invalidateAll(),
+      ]);
+    return result;
   }
 }

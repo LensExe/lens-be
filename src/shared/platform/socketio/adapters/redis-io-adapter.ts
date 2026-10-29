@@ -10,10 +10,22 @@ export class RedisIoAdapter extends IoAdapter {
   private redisClient?: RedisClient;
   private adapterClients: RedisClient[] = [];
 
+  /**
+   * Configure the Redis client used by the Socket.IO adapter.
+   *
+   * @param redisClient redis client data of type RedisClient.
+   * @returns No value is returned.
+   */
   public setClient(redisClient: RedisClient): void {
     this.redisClient = redisClient;
   }
 
+  /**
+   * Connect the Redis clients and return the shared Socket.IO adapter.
+   *
+   * @returns No value is returned.
+   * @throws {Error} Thrown when the operation cannot be completed.
+   */
   public async connect(): Promise<void> {
     if (!this.redisClient) {
       throw new Error(
@@ -29,6 +41,13 @@ export class RedisIoAdapter extends IoAdapter {
     this.adapterClients = [pubClient, subClient];
   }
 
+  /**
+   * Create an IO server after validating the input and business rules.
+   *
+   * @param port Numeric value used by the operation: port.
+   * @param options Options for the operation.
+   * @returns Processed server value.
+   */
   override createIOServer(
     port: number,
     options?: Parameters<IoAdapter['createIOServer']>[1],
@@ -42,6 +61,9 @@ export class RedisIoAdapter extends IoAdapter {
 
   /**
    * Close Socket.IO server and any Redis connections created by this adapter.
+   *
+   * @param server Value used by the operation: server.
+   * @returns No value is returned.
    */
   override async close(
     server: Parameters<IoAdapter['close']>[0],

@@ -1,0 +1,24 @@
+meta {
+  name: photographers
+  type: http
+  seq: 214
+}
+
+docs {
+  Tìm kiếm photographer
+  Handler: search
+  Authentication: public
+  Query: PhotographerSearchQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/photographers?limit=20&offset=0&location=Ha%20Noi
+  body: none
+  auth: none
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

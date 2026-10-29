@@ -1,0 +1,27 @@
+meta {
+  name: media/:media_id
+  type: http
+  seq: 176
+}
+
+docs {
+  Lấy metadata media
+  Handler: get
+  Authentication: Bearer token
+}
+
+get {
+  url: {{baseUrl}}/media/{{mediaId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

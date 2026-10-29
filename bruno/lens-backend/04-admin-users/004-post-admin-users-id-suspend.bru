@@ -1,0 +1,27 @@
+meta {
+  name: admin/users/:user_id/suspend
+  type: http
+  seq: 104
+}
+
+docs {
+  Khóa tài khoản
+  Handler: suspend
+  Authentication: role 'admin'
+}
+
+post {
+  url: {{baseUrl}}/admin/users/{{userId}}/suspend
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -1,0 +1,35 @@
+meta {
+  name: bookings/:booking_id/reject
+  type: http
+  seq: 133
+}
+
+docs {
+  Từ chối booking
+  Handler: reject
+  Authentication: role 'photographer'
+  Body: BookingRejectCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/reject
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "reason": "Bruno API test rejection"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -1,0 +1,28 @@
+meta {
+  name: admin/photographers
+  type: http
+  seq: 207
+}
+
+docs {
+  Theo dõi photographer
+  Handler: admin
+  Authentication: role 'admin'
+  Query: PhotographerAdminQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/admin/photographers?limit=20&offset=0&verification_status=pending
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

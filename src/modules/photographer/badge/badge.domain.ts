@@ -1,46 +1,46 @@
 import type { BadgeMetric } from '@shared/domain/values/badge.values';
 
-/** Số liệu đầu vào để xét huy hiệu, lấy từ review đang hiện và thống kê booking. */
+/** Input metrics used to evaluate badges, based on visible reviews and booking statistics. */
 export interface BadgeStats {
-  /** Điểm đánh giá tổng trung bình (1–5) của các review đang hiện */
+  /** Average overall rating (1–5) across visible reviews. */
   averageRating: number;
-  /** Điểm đúng giờ trung bình (1–5) của các review đang hiện */
+  /** Average punctuality rating (1–5) across visible reviews. */
   averagePunctuality: number;
-  /** Số review đang hiện */
+  /** Number of visible reviews. */
   visibleReviews: number;
-  /** Số khách đã đặt thành công từ 2 lần trở lên */
+  /** Number of customers who have successfully booked at least twice. */
   returnCustomers: number;
 }
 
-/** Luật của một huy hiệu trong danh mục `badges`. */
+/** A badge rule from the `badges` catalog. */
 export interface BadgeRule {
-  /** Mã huy hiệu */
+  /** Badge code. */
   code: string;
-  /** Chỉ số dùng để xét */
+  /** Metric used for evaluation. */
   metric: BadgeMetric;
-  /** Giá trị tối thiểu của chỉ số */
+  /** Minimum metric value. */
   min_value: number;
-  /** Số review đang hiện tối thiểu (0 = không yêu cầu) */
+  /** Minimum number of visible reviews (0 means no minimum is required). */
   min_reviews: number;
-  /** Tắt thì không cấp mới */
+  /** When disabled, do not award it to new users. */
   is_active: boolean;
 }
 
-/** Cách lấy giá trị của từng chỉ số từ số liệu thợ. */
+/** How to derive each metric value from the photographer's statistics. */
 const METRICS: Record<BadgeMetric, (stats: BadgeStats) => number> = {
   average_rating: (stats) => stats.averageRating,
   average_punctuality: (stats) => stats.averagePunctuality,
   return_customers: (stats) => stats.returnCustomers,
 };
 
-/** Quy tắc cấp huy hiệu cho thợ; ngưỡng lấy từ danh mục `badges`. */
+/** Rules for awarding photographer badges; thresholds come from the `badges` catalog. */
 export class Badge {
   /**
-   * Xét các huy hiệu thợ đạt được: huy hiệu đang bật, đủ số review tối thiểu và chỉ số ≥ ngưỡng.
+   * Determine which badges a photographer qualifies for: the badge must be enabled, meet the minimum review count, and have a metric value at or above the threshold.
    *
-   * @param stats Số liệu review và khách quay lại của thợ
-   * @param rules Danh mục huy hiệu
-   * @returns Mã các huy hiệu đạt được, theo thứ tự của danh mục
+   * @param stats Photographer review and repeat-customer statistics.
+   * @param rules Badge definitions.
+   * @returns Codes of the earned badges, in catalog order.
    */
   static earned(stats: BadgeStats, rules: readonly BadgeRule[]) {
     return rules

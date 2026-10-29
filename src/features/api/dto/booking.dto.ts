@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { BookingStatus } from '@shared/domain/values/booking.values';
+import { BOOKING_REPORT_CATEGORIES } from '@shared/domain/values/report.values';
 import {
   IsString,
   IsUUID,
@@ -13,9 +14,20 @@ import {
   MaxLength,
   Matches,
   ValidateIf,
+  IsArray,
+  ArrayMaxSize,
+  ArrayUnique,
 } from 'class-validator';
 
 export class BookingAdminQueryQueryDto {
+  @ApiPropertyOptional({
+    description: 'Lọc booking theo user ID của khách hàng hoặc photographer',
+    format: 'uuid',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsUUID()
+  user_id?: string;
+
   @ApiPropertyOptional({
     description: 'limit',
     minimum: 1,
@@ -53,7 +65,7 @@ export class BookingAdminQueryQueryDto {
 
 export class BookingCreateCommandBodyDto {
   @ApiProperty({
-    description: 'photographer id',
+    description: 'Photographer duy nhất chịu trách nhiệm cho booking',
     format: 'uuid',
     example: '11111111-1111-4111-8111-111111111111',
   })
@@ -61,12 +73,12 @@ export class BookingCreateCommandBodyDto {
   photographer_id!: string;
 
   @ApiProperty({
-    description: 'plan id',
+    description: 'Booking plan identifier',
     format: 'uuid',
     example: '11111111-1111-4111-8111-111111111111',
   })
   @IsUUID()
-  plan_id!: string;
+  booking_plan_id!: string;
 
   @ApiProperty({ description: 'location', type: 'string' })
   @IsString()
@@ -158,11 +170,33 @@ export class BookingCancelCommandBodyDto {
 }
 
 export class BookingDisputeCommandBodyDto {
+  @ApiPropertyOptional({
+    description: 'Booking issue category',
+    enum: BOOKING_REPORT_CATEGORIES,
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsIn(BOOKING_REPORT_CATEGORIES)
+  booking_issue_type?: (typeof BOOKING_REPORT_CATEGORIES)[number];
+
   @ApiProperty({ description: 'reason', type: 'string' })
   @IsString()
   @MinLength(1)
   @MaxLength(10000)
   reason!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Evidence media IDs owned by the reporter and ready for review',
+    type: 'array',
+    items: { type: 'string', format: 'uuid' },
+    maxItems: 20,
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  evidence_media_ids?: string[];
 }
 
 export class BookingRejectCommandBodyDto {
@@ -171,53 +205,4 @@ export class BookingRejectCommandBodyDto {
   @MinLength(1)
   @MaxLength(10000)
   reason!: string;
-}
-
-export class BookingCollaboratorInviteCommandBodyDto {
-  @ApiProperty({
-    description: 'ID hồ sơ thợ được mời',
-    format: 'uuid',
-    example: '11111111-1111-4111-8111-111111111111',
-  })
-  @IsUUID()
-  photographer_id!: string;
-
-  @ApiProperty({
-    description: '% phần thợ nhận chia cho thợ này (số nguyên 1–100)',
-    minimum: 1,
-    maximum: 100,
-    example: 30,
-  })
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  share_percent!: number;
-}
-
-export class BookingCollaboratorMeQueryQueryDto {
-  @ApiPropertyOptional({
-    description: 'limit',
-    minimum: 1,
-    maximum: 100,
-    example: 20,
-  })
-  @ValidateIf((_object, value) => value !== undefined)
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  limit?: number;
-
-  @ApiPropertyOptional({
-    description: 'offset',
-    minimum: 0,
-    maximum: 1000000,
-    example: 0,
-  })
-  @ValidateIf((_object, value) => value !== undefined)
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  @Max(1000000)
-  offset?: number;
 }

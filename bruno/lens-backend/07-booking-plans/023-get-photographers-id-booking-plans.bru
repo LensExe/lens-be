@@ -1,0 +1,23 @@
+meta {
+  name: photographers/:photographer_id/booking-plans
+  type: http
+  seq: 123
+}
+
+docs {
+  Gói chụp của thợ
+  Handler: list
+  Authentication: public
+}
+
+get {
+  url: {{baseUrl}}/photographers/{{bookingPlanId}}/booking-plans
+  body: none
+  auth: none
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

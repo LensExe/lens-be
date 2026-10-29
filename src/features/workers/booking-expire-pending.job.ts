@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 import { BookingExpirePendingCommand } from '@modules/booking/core/bookings.command';
 import { runExclusive, SYSTEM_ACTOR } from './scheduled-job';
 
-/** Job cho hết hạn yêu cầu booking thợ chưa trả lời (24 giờ hoặc tới giờ chụp), chạy mỗi 10 phút. */
+/** Every 10 minutes, expire booking requests the photographer has not answered within 24 hours or before the photo shoot starts. */
 @Injectable()
 export class BookingExpirePendingJob {
   constructor(
@@ -14,9 +14,9 @@ export class BookingExpirePendingJob {
   ) {}
 
   /**
-   * Cho hết hạn các yêu cầu tới hạn; chỉ một instance chạy mỗi lần.
+   * Expire due requests; only one instance runs at a time.
    *
-   * @returns `true` nếu đã chạy, `false` nếu instance khác đang chạy nên bỏ qua
+   * @returns `true` if started; `false` if another instance is already running and this run is skipped.
    */
   @Cron('*/10 * * * *', {
     name: 'booking.expire-pending',

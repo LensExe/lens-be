@@ -1,0 +1,33 @@
+meta {
+  name: photographers/me/portfolios
+  type: http
+  seq: 217
+}
+
+docs {
+  Danh sách portfolio của photographer đang đăng nhập
+  Handler: myList
+  Authentication: role 'photographer'
+  Query: PortfolioListQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/photographers/me/portfolios
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+params:query {
+  ~limit: 20
+  ~offset: 0
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

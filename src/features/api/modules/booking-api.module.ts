@@ -16,21 +16,14 @@ import {
   BookingStartCommandHandler,
 } from '@modules/booking/core/bookings.command';
 import {
-  BookingCollaboratorAcceptCommandHandler,
-  BookingCollaboratorDeclineCommandHandler,
-  BookingCollaboratorInviteCommandHandler,
-  BookingCollaboratorRevokeCommandHandler,
-} from '@modules/booking/collaborator/collaborator.command';
-import {
+  BookingAdminGetQueryHandler,
   BookingAdminQueryHandler,
+  BookingChatPeerQueryHandler,
+  BookingCancellationPreviewQueryHandler,
   BookingGetQueryHandler,
   BookingListQueryHandler,
   BookingTimelineQueryHandler,
 } from '@modules/booking/core/bookings.query';
-import {
-  BookingCollaboratorListQueryHandler,
-  BookingCollaboratorMeQueryHandler,
-} from '@modules/booking/collaborator/collaborator.query';
 import { BookingAutoCompleteJob } from '../../workers/booking-auto-complete.job';
 import { BookingExpirePendingJob } from '../../workers/booking-expire-pending.job';
 import { BookingCancelUnpaidJob } from '../../workers/booking-cancel-unpaid.job';
@@ -43,10 +36,6 @@ import { BookingCancelUnpaidJob } from '../../workers/booking-cancel-unpaid.job'
     BookingAutoCompleteCommandHandler,
     BookingCancelCommandHandler,
     BookingCancelUnpaidCommandHandler,
-    BookingCollaboratorAcceptCommandHandler,
-    BookingCollaboratorDeclineCommandHandler,
-    BookingCollaboratorInviteCommandHandler,
-    BookingCollaboratorRevokeCommandHandler,
     BookingCompleteCommandHandler,
     BookingCompleteShootCommandHandler,
     BookingConfirmReceiptCommandHandler,
@@ -55,9 +44,10 @@ import { BookingCancelUnpaidJob } from '../../workers/booking-cancel-unpaid.job'
     BookingExpirePendingCommandHandler,
     BookingRejectCommandHandler,
     BookingStartCommandHandler,
+    BookingAdminGetQueryHandler,
     BookingAdminQueryHandler,
-    BookingCollaboratorListQueryHandler,
-    BookingCollaboratorMeQueryHandler,
+    BookingChatPeerQueryHandler,
+    BookingCancellationPreviewQueryHandler,
     BookingGetQueryHandler,
     BookingListQueryHandler,
     BookingTimelineQueryHandler,

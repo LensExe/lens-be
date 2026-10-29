@@ -15,9 +15,9 @@ const s3Services = [S3ClientResolverService, S3ObjectService, S3BucketService];
     ...s3Services,
     S3ObjectStorage,
     {
-      // Token trừu tượng (Port) để use-cases inject mà không phụ thuộc trực tiếp vào S3
+      // Abstract token (port) injected into use cases so they do not depend directly on S3.
       provide: ObjectStorage,
-      // Dùng alias trỏ về cùng singleton instance S3ObjectStorage ở trên, tránh tạo mới 2 instance
+      // Alias the singleton S3ObjectStorage instance above to avoid creating a second instance.
       useExisting: S3ObjectStorage,
     },
   ],

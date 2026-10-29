@@ -1,0 +1,35 @@
+meta {
+  name: admin/bookings/:booking_id/cancel
+  type: http
+  seq: 143
+}
+
+docs {
+  Admin huỷ booking
+  Handler: adminCancel
+  Authentication: role 'admin'
+  Body: BookingCancelCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/admin/bookings/{{bookingId}}/cancel
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{adminToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "reason": "Bruno API test cancellation"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

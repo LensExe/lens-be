@@ -2,21 +2,21 @@ import { Column, Entity } from 'typeorm';
 import { BaseEntity } from './base.entity';
 
 /**
- * Entity đại diện cho bảng `payment_webhooks`.
- * Lưu nhật ký toàn bộ các webhook được gửi từ cổng thanh toán bên thứ ba (PayOS/VNPay)
- * phục vụ đối soát, kiểm toán và ngăn chặn tấn công replay attack (xử lý trùng lặp giao dịch).
+ * Entity representing the `payment_webhooks` table.
+ * Stores logs for all webhooks sent by third-party payment gateways (PayOS/VNPay)
+ * for reconciliation, auditing, and protection against replay attacks (duplicate transaction processing).
  */
 @Entity('payment_webhooks')
 export class PaymentWebhookEntity extends BaseEntity {
-  /** Tên cổng thanh toán gửi webhook (ví dụ: 'payos', 'vnpay') */
+  /** Payment gateway that sent the webhook (for example, 'payos' or 'vnpay'). */
   @Column()
   provider!: string;
 
-  /** Mã tham chiếu đối soát từ cổng thanh toán */
+  /** Reconciliation reference from the payment gateway. */
   @Column()
   reference!: string;
 
-  /** ID của giao dịch tương ứng trong hệ thống (khóa ngoại liên kết `transactions.id`) */
+  /** ID of the corresponding system transaction (foreign key referencing `transactions.id`). */
   @Column('uuid')
   transaction_id!: string;
 }

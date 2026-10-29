@@ -8,6 +8,15 @@ import {
 } from 'typeorm';
 import { DomainError } from '../platform/exceptions/domain.error';
 
+/**
+ * Load a record by ID, apply the supplied fields, and save the changes.
+ *
+ * @param manager EntityManager for the current transaction.
+ * @param target Target object to process.
+ * @param id ID of the record to process.
+ * @param changes changes data of type DeepPartial<T>.
+ * @returns Result returned by `save`.
+ */
 export async function updateEntity<T extends ObjectLiteral>(
   manager: EntityManager,
   target: EntityTarget<T>,
@@ -25,12 +34,12 @@ export async function updateEntity<T extends ObjectLiteral>(
 }
 
 /**
- * Điều kiện `where` tìm mục của thợ (booking, khoảng chặn) chồng lên khoảng nửa mở `[from, to)`.
- * Mốc nào không gửi thì không lọc phía đó. Dùng chung cho booking và calendar.
+ * `where` condition to find a photographer's item (booking or blocked interval) overlapping the half-open range `[from, to)`.
+ * An omitted boundary leaves that side unfiltered. Shared by booking and calendar.
  *
- * @param photographerId ID hồ sơ thợ
- * @param window `from` / `to` ISO, đều tuỳ chọn
- * @returns Điều kiện `where` cho `find` / `findBy`
+ * @param photographerId Photographer profile ID.
+ * @param window Optional ISO `from` and `to` values; either may be supplied independently.
+ * @returns `where` condition for `find` or `findBy`.
  */
 export function overlapWhere(
   photographerId: string,

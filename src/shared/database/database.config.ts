@@ -4,12 +4,19 @@ import type { DatabaseConfig, MongoConfig } from '@shared/platform/env/types';
 import { databaseEntities } from './entities';
 
 /**
- * Cấu hình TypeORM kết nối PostgreSQL (Write Model trong kiến trúc CQRS)
+ * TypeORM configuration for the PostgreSQL connection (CQRS write model).
+ *
+ * @param configService config service data of type ConfigService.
+ * @returns Result object containing the fields `type`, `host`, `port`, `username`, `password`.
  */
 export const getTypeOrmConfig = (
   configService: ConfigService,
 ): TypeOrmModuleOptions => {
   const db = configService.get<DatabaseConfig>('database');
+  const requestedSynchronize =
+    db?.synchronize ?? process.env.DB_SYNCHRONIZE === 'true';
+  const synchronize =
+    process.env.NODE_ENV === 'production' ? false : requestedSynchronize;
 
   return {
     type: 'postgres',
@@ -20,7 +27,9 @@ export const getTypeOrmConfig = (
     database: db?.database ?? process.env.DB_NAME ?? 'lens',
     autoLoadEntities: true,
     entities: databaseEntities,
-    synchronize: false, // Schema changes are reviewed migrations, never auto-sync.
+    // Allow local development to opt into TypeORM schema sync through DB_SYNCHRONIZE.
+    // Keep this false in shared/production environments and use migrations instead.
+    synchronize,
     logging: db?.logging ?? process.env.DB_LOGGING === 'true',
     extra: {
       max: 20, // Max connection pool
@@ -30,15 +39,23 @@ export const getTypeOrmConfig = (
 };
 
 /**
- * Cấu hình Redis (In-Memory Database / Cache / PubSub trong kiến trúc CQRS)
+ * Redis configuration (in-memory database, cache, and Pub/Sub in the CQRS architecture).
  */
 export interface RedisConfigOptions {
   host: string;
   port: number;
+  db: number;
+  bullMqDb: number;
   password?: string;
   url: string;
 }
 
+/**
+ * Build the Redis connection configuration from environment settings.
+ *
+ * @param configService config service data of type ConfigService.
+ * @returns Result object containing the fields `host`, `port`, `password`, `url`.
+ */
 export const getRedisConfig = (
   configService?: ConfigService,
 ): RedisConfigOptions => {
@@ -49,30 +66,51 @@ export const getRedisConfig = (
   const port =
     configService?.get<number>('redis.port') ??
     Number.parseInt(process.env.REDIS_PORT ?? '6380', 10);
+  const db =
+    configService?.get<number>('redis.db') ??
+    Number.parseInt(process.env.REDIS_DB ?? '0', 10);
+  const bullMqDb =
+    configService?.get<number>('redis.bullMqDb') ??
+    Number.parseInt(process.env.BULLMQ_REDIS_DB ?? String(db), 10);
   const password =
     configService?.get<string>('redis.password') ??
     process.env.REDIS_PASSWORD ??
     '';
 
+  if (!Number.isInteger(db) || db < 0) {
+    throw new Error('REDIS_DB must be a non-negative integer');
+  }
+  if (!Number.isInteger(bullMqDb) || bullMqDb < 0) {
+    throw new Error('BULLMQ_REDIS_DB must be a non-negative integer');
+  }
+
   const authPart = password ? `:${encodeURIComponent(password)}@` : '';
-  const url = `redis://${authPart}${host}:${port}`;
+  const url = `redis://${authPart}${host}:${port}/${db}`;
 
   return {
     host,
     port,
+    db,
+    bullMqDb,
     password: password || undefined,
     url,
   };
 };
 
 /**
- * Cấu hình MongoDB (Read Model trong kiến trúc CQRS)
+ * MongoDB configuration (CQRS read model).
  */
 export interface MongoConfigOptions {
   uri: string;
   dbName: string;
 }
 
+/**
+ * Build the MongoDB connection configuration from environment settings.
+ *
+ * @param configService config service data of type ConfigService.
+ * @returns Result object containing the fields `uri`, `dbName`.
+ */
 export const getMongoConfig = (
   configService?: ConfigService,
 ): MongoConfigOptions => {

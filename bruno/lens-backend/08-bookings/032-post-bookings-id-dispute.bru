@@ -1,0 +1,35 @@
+meta {
+  name: bookings/:booking_id/dispute
+  type: http
+  seq: 132
+}
+
+docs {
+  Tạo tranh chấp booking
+  Handler: dispute
+  Authentication: role 'customer', 'photographer'
+  Body: BookingDisputeCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/dispute
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "reason": "Bruno API test dispute"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

@@ -1,0 +1,27 @@
+meta {
+  name: portfolios/:portfolio_id
+  type: http
+  seq: 222
+}
+
+docs {
+  Xóa portfolio
+  Handler: remove
+  Authentication: role 'photographer'
+}
+
+delete {
+  url: {{baseUrl}}/portfolios/{{portfolioId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

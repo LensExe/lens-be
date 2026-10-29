@@ -1,0 +1,27 @@
+meta {
+  name: bookings/:booking_id/accept
+  type: http
+  seq: 127
+}
+
+docs {
+  Chấp nhận booking
+  Handler: accept
+  Authentication: role 'photographer'
+}
+
+post {
+  url: {{baseUrl}}/bookings/{{bookingId}}/accept
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

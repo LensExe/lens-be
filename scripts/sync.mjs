@@ -154,17 +154,60 @@ const RUNTIME_CONFIG_PREFIX = ".stacks/dev/runtime/config"
 // ---------------------------------------------------------------------------
 
 const USE_COLOR = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR
+
+/**
+ * Color a string using the supplied terminal color code.
+ *
+ * @param code Business or configuration code to process.
+ * @param text Value used by the operation: text.
+ * @returns Result of the operation described above.
+ */
 const paint = (code, text) => USE_COLOR
     ? `[${code}m${text}[0m`
     : text
+
+/**
+ * Color a string cyan in the terminal.
+ *
+ * @param text Value used by the operation: text.
+ * @returns Result returned by `paint`.
+ */
 const cyan = (text) => paint("36",
     text)
+
+/**
+ * Color a string green in the terminal.
+ *
+ * @param text Value used by the operation: text.
+ * @returns Result returned by `paint`.
+ */
 const green = (text) => paint("32",
     text)
+
+/**
+ * Color a string yellow in the terminal.
+ *
+ * @param text Value used by the operation: text.
+ * @returns Result returned by `paint`.
+ */
 const yellow = (text) => paint("33",
     text)
+
+/**
+ * Color a string red in the terminal.
+ *
+ * @param text Value used by the operation: text.
+ * @returns Result returned by `paint`.
+ */
 const red = (text) => paint("31",
     text)
+
+/**
+ * Print a string with reduced brightness.
+ *
+ * @param text Value used by the operation: text.
+ * @returns Result returned by `paint`.
+ */
 const dim = (text) => paint("2",
     text)
 
@@ -178,7 +221,12 @@ let stepNumber = 0
  */
 let QUIET = false
 
-/** Prints a numbered step header. */
+/**
+ * Prints a numbered step header.
+ *
+ * @param title Value used by the operation: title.
+ * @returns No value is returned.
+ */
 const step = (title) => {
     stepNumber += 1
     if (!QUIET) {
@@ -186,21 +234,48 @@ const step = (title) => {
     }
 }
 
+/**
+ * Print progress information to the terminal.
+ *
+ * @param message Command or query message to execute.
+ * @returns No value is returned.
+ */
 const info = (message) => {
     if (!QUIET) {
         console.log(`    ${message}`)
     }
 }
+
+/**
+ * Print a helpful note for the current step.
+ *
+ * @param message Command or query message to execute.
+ * @returns No value is returned.
+ */
 const note = (message) => {
     if (!QUIET) {
         console.log(`    ${dim(message)}`)
     }
 }
+
+/**
+ * Send an HTTP request and check whether the response succeeded.
+ *
+ * @param message Command or query message to execute.
+ * @returns No value is returned.
+ */
 const ok = (message) => {
     if (!QUIET) {
         console.log(`    ${green("ok")}   ${message}`)
     }
 }
+
+/**
+ * Print a warning with processing context.
+ *
+ * @param message Command or query message to execute.
+ * @returns Result returned by `log`.
+ */
 const warn = (message) => console.log(`    ${yellow("warn")} ${message}`)
 
 /**
@@ -208,8 +283,10 @@ const warn = (message) => console.log(`    ${yellow("warn")} ${message}`)
  *
  * Under `--quiet` it does NOT abort: it prints one warning line and exits 0.
  * The prestart hook must never be the reason `npm run start:dev` fails.
+ *
  * @param title - one-line statement of what went wrong.
  * @param remedy - lines telling the operator exactly what to do next.
+ * @returns No value is returned.
  */
 const fail = (title, remedy = []) => {
     if (QUIET) {
@@ -234,6 +311,7 @@ const fail = (title, remedy = []) => {
  * not honour PATHEXT on Windows, so `sops`/`age`/`git` would look "missing"
  * there even when installed. Resolving to an absolute path keeps `shell: false`
  * (no quoting hazards) while still finding `.exe` / `.cmd` shims.
+ *
  * @param command - bare command name, e.g. "sops".
  * @returns absolute path to the executable, or null when not found.
  */
@@ -289,9 +367,11 @@ const resolveCommand = (command) => {
 
 /**
  * Runs a command and returns its result. Never throws.
+ *
  * @param command - bare command name (resolved via resolveCommand).
  * @param args - argument list.
  * @param options - `{ cwd, env, capture }`; `capture: false` inherits stdio.
+ * @returns Result object containing the fields `found`, `status`, `stdout`, `stderr`.
  */
 const run = (command, args, options = {
 }) => {
@@ -324,7 +404,9 @@ const run = (command, args, options = {
 /**
  * Parses a dotenv-style file body into a plain object. Deliberately small: the
  * app itself parses these with @nestjs/config, this only needs enough to merge.
+ *
  * @param body - raw file contents.
+ * @returns Processed entries value.
  */
 const parseEnvBody = (body) => {
     const entries = {
@@ -358,7 +440,9 @@ const parseEnvBody = (body) => {
 /**
  * Quotes a value only when it would otherwise be misread (whitespace, `#`, or a
  * quote character). Everything else stays bare so diffs remain readable.
+ *
  * @param value - the value to serialise.
+ * @returns Result of the operation described above.
  */
 const formatEnvValue = (value) => {
     const text = String(value)
@@ -381,6 +465,7 @@ const formatEnvValue = (value) => {
  * Loads the credential table if it exists. It is a sibling script, not a
  * dependency: sync still runs (and still writes every port) on a checkout where
  * the table has not landed yet, it just cannot fill in generated passwords.
+ *
  * @returns `{ CREDENTIALS, REDIS_LANE_ALIASES, DERIVED_CREDENTIALS, APP_CREDENTIALS }`, all defaulted.
  */
 const loadCredentialTable = async () => {
@@ -421,6 +506,7 @@ const loadCredentialTable = async () => {
  * `parseEnvSecret`, so the bridge carries `<KEY>_FILE` pointers and the app
  * opens the file itself. The file is still read here, but only to prove it
  * exists and is non-empty -- a pointer to an empty file fails the boot.
+ *
  * @param table - the loaded credential table.
  * @returns `{ pointers: Map<string,string>, missing: string[] }` -- names and paths only.
  */
@@ -484,6 +570,7 @@ const REQUIRED_PORTS = ["core",
 /**
  * Reads metadata.json as-is, without the port validation `readMetadata` does.
  * Used by the gitmounts step, which needs a different part of the same file.
+ *
  * @returns the parsed object, or `{}` when the file is unreadable.
  */
 const readMetadataRaw = () => {
@@ -499,6 +586,8 @@ const readMetadataRaw = () => {
 /**
  * Reads metadata.json and returns the resolved port map. Every port used
  * anywhere below comes from here -- nothing in this script hardcodes one.
+ *
+ * @returns Result object containing the fields `metadata`, `ports`.
  */
 const readMetadata = () => {
     step("metadata.json (port source of truth)")
@@ -536,7 +625,11 @@ const readMetadata = () => {
 // step 2 -- master key
 // ---------------------------------------------------------------------------
 
-/** Verifies the shared master age key exists; that key is never in the repo or CI. */
+/**
+ * Verifies the shared master age key exists; that key is never in the repo or CI.
+ *
+ * @returns Processed MASTER_KEY_PATH value.
+ */
 const locateMasterKey = () => {
     step("master key")
     if (!existsSync(MASTER_KEY_PATH)) {
@@ -576,7 +669,11 @@ const INSTALL_HINTS = {
     },
 }
 
-/** Fails unless both `sops` and `age` are callable. */
+/**
+ * Fails unless both `sops` and `age` are callable.
+ *
+ * @returns No value is returned.
+ */
 const ensureTools = () => {
     step("sops + age")
     const current = platform()
@@ -607,6 +704,7 @@ const ensureTools = () => {
 
 /**
  * Walks a directory tree and returns every `*.enc` file in it.
+ *
  * @param root - directory to walk; a missing directory yields nothing.
  * @returns absolute paths, sorted so output is stable between runs.
  */
@@ -637,7 +735,9 @@ const findEncryptedFiles = (root) => {
  * Picks the sops format for a file. `.env` files are dotenv; whole-file
  * credentials (api keys, tokens, service-account json) are opaque and must be
  * binary, or sops tries to parse a bare token as JSON and dies.
+ *
  * @param plaintextPath - the path without the `.enc` suffix.
+ * @returns Result of the operation described above.
  */
 const sopsFormatFor = (plaintextPath) => {
     if (plaintextPath.endsWith(".env")) {
@@ -661,6 +761,7 @@ const sopsFormatFor = (plaintextPath) => {
  * and `runtime/files` (whole-file credentials the app reads by path). Only `dev`
  * keeps values on disk: `vps` reads GitHub Actions secrets and `k8s` will read a
  * cloud secret manager, so both are markdown-only scaffolds.
+ *
  * @param masterKeyPath - absolute path to the age key sops decrypts with.
  * @returns the decrypted plaintext paths that were produced.
  */
@@ -730,6 +831,7 @@ const decryptDevStack = (masterKeyPath) => {
  * Extracts every env key `src/modules/platform/env/config.ts` actually reads, so
  * this script can never emit a key the app ignores. Handles both literal keys
  * (`key: "CORE_PORT"`) and templated ones (`key: NATS_SERVER_${i + 1}_HOST`).
+ *
  * @returns `{ literal: Set<string>, patterns: RegExp[] }`
  */
 const collectConfigKeys = () => {
@@ -769,6 +871,7 @@ const collectConfigKeys = () => {
  * This is how the mount-path overrides stay honest: the relocation table below
  * is driven by what config.ts ACTUALLY declares, so a credential added to
  * config.ts later is picked up without editing this script.
+ *
  * @returns array of `{ key, segments }`.
  */
 const collectMountPathDefaults = () => {
@@ -844,6 +947,7 @@ const collectMountPathDefaults = () => {
  *     that nothing reads it: `CONFIG_METADATA_MOUNT_PATH` is declared in
  *     config.ts and consumed nowhere, so relocating it would move a dead file;
  *   - defaults that do not start at `.mount` (e.g. `.contexts`) are not ours.
+ *
  * @param segments - the literal path segments of the config.ts default.
  * @param dataMountPath - repo-relative POSIX path of the `data` gitmount.
  * @returns the replacement POSIX path, or null when the default stays as it is.
@@ -883,7 +987,9 @@ const relocateMountPath = (segments, dataMountPath) => {
  * Builds every key/value the env bridge should carry, grouped into commented
  * sections. Ports come from metadata.json; a `null` value marks a GENERATED
  * credential, whose value only ever comes from `.stacks/dev/runtime/files`.
+ *
  * @param ports - the resolved port map from metadata.json.
+ * @returns List of results from the operation.
  */
 const buildDerivedSections = (ports) => [
     {
@@ -1035,8 +1141,10 @@ const METADATA_OWNED_KEYS = new Set(["CORE_PORT",
  * The whole point of this function is that a normal `npm run sync` on a machine
  * whose `.env.override` was written by hand must not touch that file. See the
  * header block for the promotion sequence.
+ *
  * @param explicitOut - value of `--out`, or null.
  * @param forceOverride - true when `--write-override` was passed.
+ * @returns Result object containing the fields `path`, `mode`.
  */
 const resolveTarget = (explicitOut, forceOverride) => {
     if (explicitOut) {
@@ -1073,6 +1181,7 @@ const resolveTarget = (explicitOut, forceOverride) => {
  * Writes the env bridge -- the file that reconciles config.ts standard-port,
  * `.mount`-rooted defaults with the offset ports compose publishes and the
  * credentials that now live under `.stacks/dev/runtime`.
+ *
  * @param ports - resolved port map.
  * @param decryptedEnvFiles - plaintext `.env` paths produced by step 4.
  * @param credentials - `{ pointers, missing }` from readCredentialValues.
@@ -1296,7 +1405,9 @@ const writeEnvBridge = (
 
 /**
  * Returns the repo-relative POSIX path of a declared gitmount.
+ *
  * @param name - the gitmount key in metadata.json.
+ * @returns Result of the operation described above.
  */
 const gitmountPath = (name) => {
     const declared = readMetadataRaw().gitmounts ?? {
@@ -1310,6 +1421,7 @@ const gitmountPath = (name) => {
  * read from its already decrypted runtime file and passed to Git through a
  * process-only config entry. It is never persisted in the remote URL, Git
  * config, generated env bridge, or command line.
+ *
  * @param mount - one metadata.json gitmount declaration.
  * @param credentials - `{ pointers }` from readCredentialValues.
  * @returns `{ env, authenticated }`.
@@ -1364,7 +1476,9 @@ const gitmountEnvironment = (mount, credentials) => {
 /**
  * Clones or refreshes every gitmount declared in metadata.json. For this repo
  * that is the private seed-content repo that used to live at `.mount/data`.
+ *
  * @param credentials - `{ pointers }` from readCredentialValues.
+ * @returns No value is returned.
  */
 const syncGitmounts = (credentials) => {
     step(".gitmounts")
@@ -1449,8 +1563,10 @@ const syncGitmounts = (credentials) => {
  * empty one crashes the parser instead of the reader, which is a worse error
  * than the honest ENOENT. Those must come from the migration, so they are
  * reported by name instead.
+ *
  * @param table - the loaded credential table (extra filenames, if any).
  * @param dataMountPath - repo-relative POSIX path of the `data` gitmount.
+ * @returns No value is returned.
  */
 const ensureRuntimeFiles = (table, dataMountPath) => {
     step("runtime placeholders")
@@ -1534,7 +1650,9 @@ const ensureRuntimeFiles = (table, dataMountPath) => {
  * Reads `.stacks/dev/runtime/env/KEYS.md` -- the human-maintained roster of what
  * the dev stack is supposed to supply -- and reports, BY NAME ONLY, anything it
  * lists that the generated env bridge did not end up carrying.
+ *
  * @param emitted - key names written in step 5.
+ * @returns No value is returned.
  */
 const crossCheckKeysDoc = (emitted) => {
     step("cross-check KEYS.md")
@@ -1614,8 +1732,10 @@ const crossCheckKeysDoc = (emitted) => {
 /**
  * Prints the resolved ports and the commands to run next. Infra is deliberately
  * NOT started here -- `npm run compose` owns that.
+ *
  * @param ports - resolved port map.
  * @param target - `{ path, mode }` the env bridge was written to.
+ * @returns No value is returned.
  */
 const printSummary = (ports, target) => {
     step("summary")
@@ -1656,6 +1776,11 @@ Ports come from metadata.json. Secrets come from the shared master age key at
 ${MASTER_KEY_PATH} -- never from the repo, never from CI.
 `
 
+/**
+ * Run the main flow of the sync script.
+ *
+ * @returns No value is returned.
+ */
 const main = async () => {
     const args = process.argv.slice(2)
     if (args.includes("--help") || args.includes("-h")) {

@@ -1,0 +1,28 @@
+meta {
+  name: calendar/blocked-times/affected
+  type: http
+  seq: 150
+}
+
+docs {
+  Xem trước yêu cầu bị ảnh hưởng khi chặn lịch
+  Handler: blockPreview
+  Authentication: role 'photographer'
+  Query: CalendarBlockPreviewQueryQueryDto
+}
+
+get {
+  url: {{baseUrl}}/calendar/blocked-times/affected?from={{fromDateTime}}&to={{toDateTime}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{photographerToken}}
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

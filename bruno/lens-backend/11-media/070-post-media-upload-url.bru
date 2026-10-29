@@ -1,0 +1,37 @@
+meta {
+  name: media/upload-url
+  type: http
+  seq: 170
+}
+
+docs {
+  Tạo signed upload URL
+  Handler: upload
+  Authentication: Bearer token
+  Body: MediaUploadCommandBodyDto
+}
+
+post {
+  url: {{baseUrl}}/media/upload-url
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "content_type": "image/jpeg",
+    "file_size": 1024,
+    "visibility": "private"
+  }
+}
+
+tests {
+  test("responds without a server error", function () {
+    expect(res.getStatus()).to.be.below(500);
+  });
+}

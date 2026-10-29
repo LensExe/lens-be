@@ -1,22 +1,51 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import type { EntityManager } from 'typeorm';
-import { PaymentUseCases } from '../src/modules/payment/payment.use-case';
-import type { PaymentGateway } from '../src/shared/integrations/payment/payment.port';
+import { TransactionUseCases } from '../src/modules/payment/transaction/transaction.use-case';
 
 test('paid amounts sum deposit and remaining per booking, 0 when nothing is paid', async () => {
   let queries = 0;
   const s = {
-    findBy: async () => {
+    findBy: async (_entity: unknown, where: Record<string, unknown>) => {
       queries++;
       return [
-        { reference_id: 'b1', type: 'deposit', amount: 300000 },
-        { reference_id: 'b1', type: 'remaining', amount: 700000 },
-        { reference_id: 'b2', type: 'deposit', amount: 300000 },
+        {
+          id: 't1',
+          reference_id: 'b1',
+          type: 'deposit',
+          status: 'paid',
+          amount: 300000,
+        },
+        {
+          id: 't2',
+          reference_id: 'b1',
+          type: 'remaining',
+          status: 'paid',
+          amount: 700000,
+        },
+        {
+          id: 't3',
+          reference_id: 'b2',
+          type: 'deposit',
+          status: 'paid',
+          amount: 300000,
+        },
       ];
     },
+    createQueryBuilder: () => ({
+      innerJoin() {
+        return this;
+      },
+      where() {
+        return this;
+      },
+      andWhere() {
+        return this;
+      },
+      getMany: async () => [],
+    }),
   } as unknown as EntityManager;
-  const paid = await new PaymentUseCases({} as PaymentGateway).paidAmounts(s, [
+  const paid = await new TransactionUseCases().paidAmounts(s, [
     'b1',
     'b2',
     'b3',
