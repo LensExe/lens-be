@@ -75,7 +75,7 @@ services:
         }
 
         {$$PORTAINER_DOMAIN:portainer.localhost} {
-          reverse_proxy {$$PORTAINER_UPSTREAM:portainer:9000}
+          reverse_proxy portainer:9000
         }
 
         {$$HORSE_FE_DOMAIN:horse.io.vn} {
