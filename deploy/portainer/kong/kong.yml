@@ -253,6 +253,17 @@ services:
     # Avoid retrying payment and other non-idempotent writes at the gateway.
     retries: 0
     routes:
+      # Publish the read-only Swagger UI and OpenAPI documents. API operations
+      # remain subject to their own route policies, including JWT on core-api-v1.
+      - name: core-swagger-docs
+        paths:
+          - /docs
+          - /docs-json
+          - /docs-yaml
+        methods: [GET, HEAD]
+        protocols: [http, https]
+        strip_path: false
+
       # These public routes are deliberately method- and path-specific. They
       # take precedence over core-api-v1, which requires JWT for everything else.
       - name: core-public-get-static

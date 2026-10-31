@@ -37,8 +37,11 @@ theo các port được expose trong `.docker/lens-backend/compose.yaml`.
 Lệnh và script có trong [`package.json`](../package.json). Migration không tự chạy khi ứng dụng khởi động; local có thể bật TypeORM auto-sync bằng `DB_SYNCHRONIZE=true`. `001_lens.sql` chỉ khởi tạo database mới, không phải migration nâng cấp database đã có dữ liệu.
 
 Swagger UI ở `/docs`, OpenAPI JSON ở `/docs-json`; mặc định server lắng nghe
-`PORT=3000`. API public được version hóa dưới `/api/v1`, ví dụ `POST
-/api/v1/bookings`. Khi chạy sau Kong, đặt `API_PUBLIC_URL` bằng URL proxy để
+`PORT=3000`, nên local có thể mở `http://localhost:3000/docs`. Cấu hình Kong
+Portainer cũng expose các path tài liệu này qua `https://api.lens.id.vn/docs`
+và `https://api.lens.id.vn/docs-json`. API public được version hóa dưới
+`/api/v1`, ví dụ `POST /api/v1/bookings`; các thao tác API vẫn chịu chính sách
+xác thực của route. Khi chạy sau Kong, đặt `API_PUBLIC_URL` bằng URL proxy để
 Swagger “Try it out” gọi đúng gateway. `CORS_ORIGINS` vẫn dùng cho direct mode;
 Kong là lớp CORS khi `API_GATEWAY_ENABLED=true`. Request và response dùng
 snake_case; tiền là số nguyên VND; thời gian gửi vào API là ISO 8601 có múi giờ.
