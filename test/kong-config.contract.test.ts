@@ -37,7 +37,6 @@ test('Kong declarative config covers every Core API route family', () => {
 
   for (const plugin of [
     'cors',
-    'correlation-id',
     'request-transformer',
     'request-size-limiting',
     'rate-limiting',
@@ -46,6 +45,8 @@ test('Kong declarative config covers every Core API route family', () => {
     assert.match(config, new RegExp(`name: ${plugin.replace('-', '\\-')}`));
   }
 
+  assert.match(config, /X-Kong-Request-ID/);
+  assert.doesNotMatch(config, /name:\s*correlation-id/);
   assert.match(config, /strip_path: false/);
   assert.doesNotMatch(config, /^\s+- \/\s*$/m);
 });

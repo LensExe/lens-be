@@ -1,4 +1,4 @@
-# Ví dụ cấu hình plugin Kong cho Lens
+# Cấu hình plugin và tính năng Kong cho Lens
 
 **Mục đích:** ghi lại chính sách plugin và cấu hình gateway đang dùng. Template
 nằm tại [`.docker/kong/kong.yml`](../../.docker/kong/kong.yml); Compose mount file
@@ -7,15 +7,15 @@ chưa được thêm cho tới khi contract của service hoàn tất.
 
 ## 1. Plugin nào nên có ở v1?
 
-| Plugin / tính năng      | Mức độ                                   | Dùng để làm gì                                                  | Giới hạn cần nhớ                                                                                                            |
-| ----------------------- | ---------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `cors`                  | Cần cho Web chạy khác origin             | Trả CORS headers và xử lý preflight cho browser                 | Dùng origin cụ thể theo môi trường; không dùng `*` khi bật credentials. Mobile native thường không cần CORS.                |
-| `rate-limiting`         | Nên có                                   | Hạn chế burst/abuse theo IP hoặc service ở edge                 | `local` đếm riêng trên từng Kong instance. Giới hạn theo tài khoản/email/số điện thoại vẫn phải làm trong service.          |
-| `request-size-limiting` | Nên có                                   | Chặn body quá lớn trước khi vào backend                         | Giới hạn mẫu dưới đây là 2 MB cho API JSON; điều chỉnh theo DTO thực tế. Upload file nên dùng object storage có URL ký sẵn. |
-| `request-transformer`   | Nên có như lớp phòng thủ phụ             | Loại các header danh tính giả do client tự gửi                  | Backend vẫn phải bỏ qua các header đó và xác thực JWT. Plugin này không thay guard.                                         |
-| `jwt`                   | Đã bật cho Core protected routes và Chat | Kiểm tra chữ ký RS256 theo `kid` và claim `exp` tại edge        | Issuer/audience/role và quyền trên resource vẫn do backend xác minh; public routes không gắn plugin.                        |
-| `correlation-id`        | Nên có                                   | Gắn request ID để nối log Kong với log service                  | Request ID chỉ dùng tracing, không được dùng làm danh tính hay bằng chứng bảo mật.                                          |
-| `prometheus`            | Khuyến nghị cho staging/production       | Xuất metric request, status, latency, bandwidth/upstream health | Chỉ cho Prometheus scrape qua mạng quản trị riêng; không tạo public route `/metrics`.                                       |
+| Plugin / tính năng       | Mức độ                                   | Dùng để làm gì                                                  | Giới hạn cần nhớ                                                                                                            |
+| ------------------------ | ---------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `cors`                   | Cần cho Web chạy khác origin             | Trả CORS headers và xử lý preflight cho browser                 | Dùng origin cụ thể theo môi trường; không dùng `*` khi bật credentials. Mobile native thường không cần CORS.                |
+| `rate-limiting`          | Nên có                                   | Hạn chế burst/abuse theo IP hoặc service ở edge                 | `local` đếm riêng trên từng Kong instance. Giới hạn theo tài khoản/email/số điện thoại vẫn phải làm trong service.          |
+| `request-size-limiting`  | Nên có                                   | Chặn body quá lớn trước khi vào backend                         | Giới hạn mẫu dưới đây là 2 MB cho API JSON; điều chỉnh theo DTO thực tế. Upload file nên dùng object storage có URL ký sẵn. |
+| `request-transformer`    | Nên có như lớp phòng thủ phụ             | Loại các header danh tính giả do client tự gửi                  | Backend vẫn phải bỏ qua các header đó và xác thực JWT. Plugin này không thay guard.                                         |
+| `jwt`                    | Đã bật cho Core protected routes và Chat | Kiểm tra chữ ký RS256 theo `kid` và claim `exp` tại edge        | Issuer/audience/role và quyền trên resource vẫn do backend xác minh; public routes không gắn plugin.                        |
+| Request ID tích hợp Kong | Đã có sẵn từ Kong 3.5+                   | Gửi `X-Kong-Request-Id` tới client, upstream và log             | Giữ tên header mặc định; không bật thêm `correlation-id` trên cùng header.                                                  |
+| `prometheus`             | Khuyến nghị cho staging/production       | Xuất metric request, status, latency, bandwidth/upstream health | Chỉ cho Prometheus scrape qua mạng quản trị riêng; không tạo public route `/metrics`.                                       |
 
 ### Không bật trong baseline hiện tại
 
@@ -67,19 +67,11 @@ plugins:
         - Accept
         - Authorization
         - Content-Type
-        - X-Kong-Request-ID
       exposed_headers:
         - X-Kong-Request-ID
       credentials: true
       max_age: 3600
       preflight_continue: false
-
-  # Gắn một ID xuyên suốt Kong -> service.
-  - name: correlation-id
-    config:
-      header_name: X-Kong-Request-ID
-      generator: uuid
-      echo_downstream: true
 
   # Xóa identity header do client tự khai. Không xóa Authorization.
   - name: request-transformer
@@ -224,9 +216,13 @@ Mẫu 2 MB phù hợp để bắt đầu với JSON API, không phải quota đ�
 
 Loại một số header identity thường bị giả mạo. Core/Notification/Chat vẫn phải lấy danh tính từ JWT đã xác thực và phải bỏ qua header này kể cả khi request tới thẳng service trong môi trường dev. Không cấu hình plugin này để tự thêm `X-User-ID` từ JWT nếu Kong chưa xác thực token và chưa có thiết kế tin cậy header xuyên suốt.
 
-### Correlation ID
+### Request ID tích hợp của Kong
 
-`X-Kong-Request-ID` chỉ để đối chiếu log. Có thể trả header này về client và ghi cùng ID tại service. Không đặt dữ liệu nhạy cảm vào ID. Nếu muốn bảo đảm client không tự chọn ID, phải strip header do client gửi trước khi plugin correlation-id tạo ID; dù vậy, ID vẫn chỉ là tracing metadata.
+Kong Gateway 3.5+ tự tạo `X-Kong-Request-Id` cho mỗi request, ghi ID vào log và gửi cùng ID tới upstream. Mặc định, `headers` bật header này ở response và `headers_upstream` bật ở request tới service; các Compose gateway trong repo khai báo rõ hai giá trị đó. CORS đã cho phép trình duyệt đọc header này qua `exposed_headers`.
+
+Sau khi đổi template local, `pnpm docker:gateway` sẽ render lại file Kong bị ignore và recreate gateway. Với production, cập nhật stack Portainer để nạp declarative config mới.
+
+Không bật `correlation-id` với `header_name: X-Kong-Request-ID`: plugin và core Kong sẽ cùng ghi vào một header, trong khi Kong core dùng ID nội bộ để nối log với request upstream. Header name không phân biệt chữ hoa/chữ thường. Nếu cần một ID tuỳ chỉnh riêng, dùng tên khác như `X-Correlation-ID` và cập nhật CORS tương ứng.
 
 ### Prometheus
 
@@ -246,6 +242,7 @@ Bật các metric cơ bản để quan sát status, latency, bandwidth và upstr
 - [Rate Limiting plugin và policy](https://docs.konghq.com/hub/kong-inc/rate-limiting/)
 - [Request Size Limiting plugin](https://docs.konghq.com/hub/kong-inc/request-size-limiting/)
 - [Request Transformer plugin](https://docs.konghq.com/hub/kong-inc/request-transformer/)
-- [Correlation ID plugin](https://docs.konghq.com/hub/kong-inc/correlation-id/)
+- [Request IDs trong Kong logs](https://developer.konghq.com/gateway/logs/)
+- [Debug Kong Gateway requests](https://developer.konghq.com/gateway/debug-requests/)
 - [Prometheus plugin](https://docs.konghq.com/hub/kong-inc/prometheus/)
 - [Declarative configuration và cách gắn plugin](https://docs.konghq.com/gateway/latest/production/deployment-topologies/db-less-and-declarative-config/)
