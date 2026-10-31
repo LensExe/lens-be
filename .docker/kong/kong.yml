@@ -29,7 +29,6 @@ plugins:
         - Content-Type
         - X-Lens-Auth-Mode
         - X-CSRF-Token
-        - X-Kong-Request-ID
       exposed_headers:
         - X-Kong-Request-ID
         - RateLimit-Limit
@@ -45,13 +44,6 @@ plugins:
       credentials: true
       max_age: 3600
       preflight_continue: false
-
-  # The ID is tracing metadata only. It is never used as an identity claim.
-  - name: correlation-id
-    config:
-      header_name: X-Kong-Request-ID
-      generator: uuid
-      echo_downstream: true
 
   # Defense in depth: services still must ignore these headers and verify JWTs.
   - name: request-transformer
