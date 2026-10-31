@@ -210,6 +210,10 @@ PORTAINER_UPSTREAM=portainer:9000
 `api.example.com` is the only public API route and points to Kong.
 `KONG_UPSTREAM` must resolve to the Kong container on `lens-proxy`; change it
 if your Kong service has a different Docker network alias or proxy port.
+After deploying the updated Kong config, the read-only Swagger UI and OpenAPI
+documents are available at `https://api.example.com/docs` and
+`https://api.example.com/docs-json`. API operations remain protected by their
+existing Kong route policies.
 Missing domain variables default to `.localhost` hostnames for testing. Point
 real domain A records to the VPS IP and allow inbound TCP `80` and `443` in
 the VPS firewall. The Ollama route is intentionally optional and should be
