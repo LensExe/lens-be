@@ -1,0 +1,31 @@
+---
+name: photographers/me/portfolios
+'$kind': http-request
+url: '{{baseUrl}}/photographers/me/portfolios'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Postman test portfolio",
+      "category": "portrait",
+      "description": "Created by Postman API tests"
+    }
+auth:
+  type: noauth
+description: |-
+  Tạo portfolio
+  Handler: create
+  Authentication: role 'photographer'
+  Body: PortfolioCreateCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

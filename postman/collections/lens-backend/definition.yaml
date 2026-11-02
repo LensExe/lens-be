@@ -1,0 +1,6 @@
+---
+'$kind': collection
+name: Lens Backend API
+description:
+  Postman Collection v3 for the Lens Backend NestJS API. Includes the former
+  request hierarchy, documentation, smoke checks, and token-saving scripts.

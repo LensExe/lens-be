@@ -1,0 +1,31 @@
+---
+name: payments/:payment_id/refund
+'$kind': http-request
+url: '{{baseUrl}}/payments/{{paymentId}}/refund'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "amount": 1000,
+      "reason": "Postman API test refund",
+      "idempotency_key": "postman-local-refund-001"
+    }
+auth:
+  type: noauth
+description: |-
+  Yêu cầu hoàn tiền
+  Handler: refund
+  Authentication: role 'admin', 'system'
+  Body: PaymentRefundCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

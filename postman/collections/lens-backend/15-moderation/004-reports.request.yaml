@@ -1,0 +1,32 @@
+---
+name: reports
+'$kind': http-request
+url: '{{baseUrl}}/reports'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "target_type": "photographer",
+      "target_id": "{{photographerId}}",
+      "reason": "Postman API test report",
+      "evidence_media_ids": []
+    }
+auth:
+  type: noauth
+description: |-
+  Tạo report
+  Handler: create
+  Authentication: Bearer token
+  Body: ModerationCreateCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

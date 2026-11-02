@@ -1,0 +1,22 @@
+---
+name: calendar/blocked-times/:offline_slot_id
+'$kind': http-request
+url: '{{baseUrl}}/calendar/blocked-times/{{offlineSlotId}}'
+method: DELETE
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Mở khóa thời gian
+  Handler: unblock
+  Authentication: role 'photographer'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

@@ -1,0 +1,20 @@
+---
+name: photographers/:photographer_id/booking-plans
+'$kind': http-request
+url: '{{baseUrl}}/photographers/{{bookingPlanId}}/booking-plans'
+method: GET
+headers: []
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Gói chụp của thợ
+  Handler: list
+  Authentication: public
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

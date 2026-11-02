@@ -1,0 +1,22 @@
+---
+name: bookings/:booking_id/accept
+'$kind': http-request
+url: '{{baseUrl}}/bookings/{{bookingId}}/accept'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Chấp nhận booking
+  Handler: accept
+  Authentication: role 'photographer'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

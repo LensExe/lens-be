@@ -1,0 +1,23 @@
+---
+name: admin/reports
+'$kind': http-request
+url: '{{baseUrl}}/admin/reports?limit=20&offset=0'
+method: GET
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Danh sách report
+  Handler: list
+  Authentication: role 'admin'
+  Query: ModerationListQueryQueryDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

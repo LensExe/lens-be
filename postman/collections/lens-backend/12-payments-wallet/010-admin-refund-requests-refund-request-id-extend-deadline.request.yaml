@@ -1,0 +1,30 @@
+---
+name: admin/refund-requests/:refund_request_id/extend-deadline
+'$kind': http-request
+url: '{{baseUrl}}/admin/refund-requests/{{refundRequestId}}/extend-deadline'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "hours": 24,
+      "reason": "Postman API test deadline extension"
+    }
+auth:
+  type: noauth
+description: |-
+  Gia hạn thời gian xử lý refund/rút tiền
+  Handler: extendPaymentRequestDeadline
+  Authentication: role 'admin'
+  Body: PaymentDeadlineExtensionBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

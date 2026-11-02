@@ -1,0 +1,33 @@
+---
+name: photographers/me
+'$kind': http-request
+url: '{{baseUrl}}/photographers/me'
+method: PATCH
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "styles": [
+        "portrait"
+      ],
+      "started_career_at": 2021,
+      "description": "Postman API test photographer profile"
+    }
+auth:
+  type: noauth
+description: |-
+  Cập nhật hồ sơ photographer
+  Handler: update
+  Authentication: role 'photographer'
+  Body: PhotographerUpdateCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

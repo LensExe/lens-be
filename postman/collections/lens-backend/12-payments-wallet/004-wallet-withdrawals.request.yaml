@@ -1,0 +1,31 @@
+---
+name: wallet/withdrawals
+'$kind': http-request
+url: '{{baseUrl}}/wallet/withdrawals'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "amount": 10000,
+      "reason": "Postman API test withdrawal",
+      "idempotency_key": "postman-local-withdrawal-001"
+    }
+auth:
+  type: noauth
+description: |-
+  Yêu cầu rút tiền từ ví
+  Handler: withdrawal
+  Authentication: role 'customer', 'photographer'
+  Body: PaymentWithdrawalCommandBodyDto; register a payout destination first with PUT /wallet/payout-destination
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

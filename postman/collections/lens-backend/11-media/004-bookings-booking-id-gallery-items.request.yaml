@@ -1,0 +1,29 @@
+---
+name: bookings/:booking_id/gallery/items
+'$kind': http-request
+url: '{{baseUrl}}/bookings/{{bookingId}}/gallery/items'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "media_id": "{{mediaId}}"
+    }
+auth:
+  type: noauth
+description: |-
+  Thêm ảnh vào gallery
+  Handler: addGallery
+  Authentication: role 'photographer'
+  Body: MediaAddGalleryCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

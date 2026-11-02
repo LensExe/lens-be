@@ -1,0 +1,27 @@
+---
+name: auth/logout
+'$kind': http-request
+url: '{{baseUrl}}/auth/logout'
+method: POST
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "refresh_token": "{{refreshToken}}"
+    }
+auth:
+  type: noauth
+description: |-
+  Đăng xuất
+  Handler: logout
+  Authentication: public
+  Body: AuthLogoutDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

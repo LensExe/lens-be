@@ -1,0 +1,14 @@
+---
+name: photographers/styles/featured
+'$kind': http-request
+url: '{{baseUrl}}/photographers/styles/featured'
+method: GET
+headers: []
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Danh sách toàn bộ style chụp ảnh và photographer nổi bật đại diện cho từng style.
+  Handler: featuredStyles
+  Authentication: public

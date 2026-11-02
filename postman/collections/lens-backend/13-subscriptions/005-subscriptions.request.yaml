@@ -1,0 +1,30 @@
+---
+name: subscriptions
+'$kind': http-request
+url: '{{baseUrl}}/subscriptions'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "photographer_plan_id": "{{photographerPlanId}}",
+      "idempotency_key": "postman-local-subscription-001"
+    }
+auth:
+  type: noauth
+description: |-
+  Đăng ký gói VIP
+  Handler: create
+  Authentication: role 'photographer'
+  Body: SubscriptionCreateCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

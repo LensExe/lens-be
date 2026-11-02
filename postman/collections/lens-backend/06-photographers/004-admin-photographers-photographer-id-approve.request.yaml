@@ -1,0 +1,22 @@
+---
+name: admin/photographers/:photographer_id/approve
+'$kind': http-request
+url: '{{baseUrl}}/admin/photographers/{{photographerId}}/approve'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Duyệt hồ sơ photographer
+  Handler: approve
+  Authentication: role 'admin'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

@@ -1,0 +1,32 @@
+---
+name: calendar/blocked-times
+'$kind': http-request
+url: '{{baseUrl}}/calendar/blocked-times'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "from": "{{fromDateTime}}",
+      "to": "{{toDateTime}}",
+      "reason": "Postman API test",
+      "decline_pending": false
+    }
+auth:
+  type: noauth
+description: |-
+  Chặn lịch
+  Handler: block
+  Authentication: role 'photographer'
+  Body: CalendarBlockCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

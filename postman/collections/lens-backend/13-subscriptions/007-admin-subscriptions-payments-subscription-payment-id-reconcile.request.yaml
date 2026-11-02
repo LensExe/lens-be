@@ -1,0 +1,30 @@
+---
+name: admin/subscriptions/payments/:subscription_payment_id/reconcile
+'$kind': http-request
+url: '{{baseUrl}}/admin/subscriptions/payments/{{subscriptionPaymentId}}/reconcile'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "outcome": "unpaid",
+      "note": "Postman API test resolution"
+    }
+auth:
+  type: noauth
+description: |-
+  Đối soát payment subscription
+  Handler: resolvePaymentReview
+  Authentication: role 'admin'
+  Body: SubscriptionPaymentReviewResolutionBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

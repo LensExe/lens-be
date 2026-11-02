@@ -1,0 +1,41 @@
+---
+name: auth/login
+'$kind': http-request
+url: '{{baseUrl}}/api/v1/auth/login'
+method: POST
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "{{registrationEmail}}",
+      "password": "{{registrationPassword}}"
+    }
+auth:
+  type: noauth
+description: |-
+  Đăng nhập tài khoản
+  Handler: login
+  Authentication: public
+  Body: AuthLoginQueryDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });
+      if (pm.response.code < 300) {
+        let body;
+        try {
+          body = pm.response.json();
+        } catch (error) {
+          body = undefined;
+        }
+        if (body && body.access_token) {
+          pm.environment.set("accessToken", body.access_token);
+          pm.environment.set("customerToken", body.access_token);
+          if (body.refresh_token) pm.environment.set("refreshToken", body.refresh_token);
+        }
+      }

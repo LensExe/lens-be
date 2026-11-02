@@ -1,0 +1,31 @@
+---
+name: portfolios/:portfolio_id/items/reorder
+'$kind': http-request
+url: '{{baseUrl}}/portfolios/{{portfolioId}}/items/reorder'
+method: PATCH
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "portfolio_item_ids": [
+        "{{portfolioItemId}}"
+      ]
+    }
+auth:
+  type: noauth
+description: |-
+  Sắp xếp ảnh portfolio
+  Handler: reorder
+  Authentication: role 'photographer'
+  Body: PortfolioReorderCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

@@ -1,0 +1,22 @@
+---
+name: users/me
+'$kind': http-request
+url: '{{baseUrl}}/users/me'
+method: GET
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Lấy hồ sơ cá nhân
+  Handler: me
+  Authentication: Bearer token
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

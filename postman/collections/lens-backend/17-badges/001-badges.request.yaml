@@ -1,0 +1,20 @@
+---
+name: badges
+'$kind': http-request
+url: '{{baseUrl}}/badges'
+method: GET
+headers: []
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Danh sách huy hiệu thợ
+  Handler: list
+  Authentication: public
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

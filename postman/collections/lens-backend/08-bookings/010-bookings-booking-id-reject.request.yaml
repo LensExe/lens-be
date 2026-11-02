@@ -1,0 +1,29 @@
+---
+name: bookings/:booking_id/reject
+'$kind': http-request
+url: '{{baseUrl}}/bookings/{{bookingId}}/reject'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "reason": "Postman API test rejection"
+    }
+auth:
+  type: noauth
+description: |-
+  Từ chối booking
+  Handler: reject
+  Authentication: role 'photographer'
+  Body: BookingRejectCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

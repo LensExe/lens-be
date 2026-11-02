@@ -1,0 +1,31 @@
+---
+name: bookings/:booking_id/refund-requests
+'$kind': http-request
+url: '{{baseUrl}}/bookings/{{bookingId}}/refund-requests'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{customerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "amount": 1000,
+      "reason": "Postman API test refund",
+      "idempotency_key": "postman-local-refund-001"
+    }
+auth:
+  type: noauth
+description: |-
+  Customer gửi yêu cầu hoàn tiền booking
+  Handler: customerRefund
+  Authentication: role 'customer'
+  Body: PaymentRefundCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

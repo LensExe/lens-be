@@ -1,0 +1,21 @@
+---
+name: photographers/:photographer_id/availability
+'$kind': http-request
+url: '{{baseUrl}}/photographers/{{photographerId}}/availability?from={{fromDateTime}}&to={{toDateTime}}'
+method: GET
+headers: []
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Xem lịch trống
+  Handler: availability
+  Authentication: public
+  Query: CalendarAvailabilityQueryQueryDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

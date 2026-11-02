@@ -1,0 +1,41 @@
+---
+name: Create or resume a Keycloak-backed account
+'$kind': http-request
+url: '{{baseUrl}}/auth/register'
+method: POST
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "role": "customer",
+      "fullname": "Postman Test User",
+      "email": "{{registrationEmail}}",
+      "password": "{{registrationPassword}}"
+    }
+auth:
+  type: noauth
+description: |-
+  Create or resume a Keycloak-backed account.
+  Dùng biến Lens Backend Local Postman environment; request này gọi Keycloak và có thể tạo account thật trong realm local.
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("returns expected status 200", function () {
+        pm.expect(pm.response.code).to.equal(200);
+      });
+      if (pm.response.code < 300) {
+        let body;
+        try {
+          body = pm.response.json();
+        } catch (error) {
+          body = undefined;
+        }
+        if (body && body.access_token) {
+          pm.environment.set("accessToken", body.access_token);
+          pm.environment.set("customerToken", body.access_token);
+          if (body.refresh_token) pm.environment.set("refreshToken", body.refresh_token);
+        }
+      }

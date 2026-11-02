@@ -1,0 +1,31 @@
+---
+name: portfolios/:portfolio_id
+'$kind': http-request
+url: '{{baseUrl}}/portfolios/{{portfolioId}}'
+method: PATCH
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Postman test portfolio updated",
+      "category": "portrait",
+      "description": "Updated by Postman API tests"
+    }
+auth:
+  type: noauth
+description: |-
+  Cập nhật portfolio
+  Handler: update
+  Authentication: role 'photographer'
+  Body: PortfolioUpdateCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

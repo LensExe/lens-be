@@ -1,0 +1,30 @@
+---
+name: photographers/:photographer_id/portfolios
+'$kind': http-request
+url: '{{baseUrl}}/photographers/{{resourceId}}/portfolios'
+method: GET
+headers: []
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Danh sách portfolio
+  Handler: list
+  Authentication: public
+  Query: PortfolioListQueryQueryDto
+queryParams:
+  - key: limit
+    value: '20'
+    disabled: true
+  - key: offset
+    value: '0'
+    disabled: true
+scripts:
+  - type: beforeRequest
+    code: pm.variables.set("resourceId", "30000000-0000-4000-8000-000000000001");
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

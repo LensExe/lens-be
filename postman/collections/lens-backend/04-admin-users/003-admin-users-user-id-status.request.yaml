@@ -1,0 +1,29 @@
+---
+name: admin/users/:user_id/status
+'$kind': http-request
+url: '{{baseUrl}}/admin/users/{{userId}}/status'
+method: PATCH
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "suspended"
+    }
+auth:
+  type: noauth
+description: |-
+  Cập nhật trạng thái user
+  Handler: status
+  Authentication: role 'admin'
+  Body: IdentityStatusCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

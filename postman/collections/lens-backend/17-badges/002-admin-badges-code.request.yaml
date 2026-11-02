@@ -1,0 +1,33 @@
+---
+name: admin/badges/:code
+'$kind': http-request
+url: '{{baseUrl}}/admin/badges/{{code}}'
+method: PATCH
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Postman test badge",
+      "description": "Updated by Postman API tests",
+      "min_value": 4.8,
+      "min_reviews": 10,
+      "is_active": true
+    }
+auth:
+  type: noauth
+description: |-
+  Sửa huy hiệu thợ
+  Handler: update
+  Authentication: role 'admin'
+  Body: BadgeUpdateCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

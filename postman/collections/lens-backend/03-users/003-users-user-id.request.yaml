@@ -1,0 +1,22 @@
+---
+name: users/:user_id
+'$kind': http-request
+url: '{{baseUrl}}/users/{{userId}}'
+method: GET
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Lấy thông tin người dùng
+  Handler: getUser
+  Authentication: Bearer token
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

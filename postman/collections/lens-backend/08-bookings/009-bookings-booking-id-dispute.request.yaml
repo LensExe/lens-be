@@ -1,0 +1,29 @@
+---
+name: bookings/:booking_id/dispute
+'$kind': http-request
+url: '{{baseUrl}}/bookings/{{bookingId}}/dispute'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "reason": "Postman API test dispute"
+    }
+auth:
+  type: noauth
+description: |-
+  Tạo tranh chấp booking
+  Handler: dispute
+  Authentication: role 'customer', 'photographer'
+  Body: BookingDisputeCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

@@ -1,0 +1,29 @@
+---
+name: photographers/me/status
+'$kind': http-request
+url: '{{baseUrl}}/photographers/me/status'
+method: PATCH
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "is_available": true
+    }
+auth:
+  type: noauth
+description: |-
+  Cập nhật trạng thái hoạt động
+  Handler: status
+  Authentication: role 'photographer'
+  Body: PhotographerStatusCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

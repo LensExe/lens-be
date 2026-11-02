@@ -1,0 +1,22 @@
+---
+name: subscriptions/:subscription_id/cancel
+'$kind': http-request
+url: '{{baseUrl}}/subscriptions/{{subscriptionId}}/cancel'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Hủy gia hạn subscription
+  Handler: cancel
+  Authentication: role 'photographer'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

@@ -1,0 +1,32 @@
+---
+name: bookings/:booking_id/reviews
+'$kind': http-request
+url: '{{baseUrl}}/bookings/{{bookingId}}/reviews'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{customerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "rating": 5,
+      "punctuality_rating": 5,
+      "attitude_rating": 5,
+      "comment": "Postman API test review"
+    }
+auth:
+  type: noauth
+description: |-
+  Tạo đánh giá
+  Handler: create
+  Authentication: role 'customer'
+  Body: ReviewCreateCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

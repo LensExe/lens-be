@@ -1,0 +1,21 @@
+---
+name: photographers/:photographer_id/reviews
+'$kind': http-request
+url: '{{baseUrl}}/photographers/{{photographerId}}/reviews?limit=20&offset=0'
+method: GET
+headers: []
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Danh sách đánh giá
+  Handler: list
+  Authentication: public
+  Query: ReviewListQueryQueryDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

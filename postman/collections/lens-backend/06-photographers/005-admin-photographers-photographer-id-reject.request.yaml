@@ -1,0 +1,29 @@
+---
+name: admin/photographers/:photographer_id/reject
+'$kind': http-request
+url: '{{baseUrl}}/admin/photographers/{{photographerId}}/reject'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "reason": "Postman API test rejection"
+    }
+auth:
+  type: noauth
+description: |-
+  Từ chối hồ sơ photographer
+  Handler: reject
+  Authentication: role 'admin'
+  Body: PhotographerRejectCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

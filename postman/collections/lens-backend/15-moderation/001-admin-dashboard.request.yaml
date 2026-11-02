@@ -1,0 +1,22 @@
+---
+name: admin/dashboard
+'$kind': http-request
+url: '{{baseUrl}}/admin/dashboard'
+method: GET
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Dashboard tổng quan
+  Handler: dashboard
+  Authentication: role 'admin'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

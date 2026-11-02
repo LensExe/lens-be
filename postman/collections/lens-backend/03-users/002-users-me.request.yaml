@@ -1,0 +1,33 @@
+---
+name: users/me
+'$kind': http-request
+url: '{{baseUrl}}/users/me'
+method: PATCH
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "fullname": "Anh Đỗ Nguyễn Nhĩ",
+      "avatar_url": "https://example.test/avatar.png",
+      "phone_number": "+84901234567",
+      "gender": "other",
+      "dob": "1995-01-01"
+    }
+auth:
+  type: noauth
+description: |-
+  Cập nhật hồ sơ cá nhân
+  Handler: updateMe
+  Authentication: Bearer token
+  Body: IdentityUpdateMeCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

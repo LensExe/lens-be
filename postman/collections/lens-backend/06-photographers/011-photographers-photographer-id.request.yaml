@@ -1,0 +1,20 @@
+---
+name: photographers/:photographer_id
+'$kind': http-request
+url: '{{baseUrl}}/photographers/{{photographerId}}'
+method: GET
+headers: []
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Xem hồ sơ photographer
+  Handler: get
+  Authentication: public
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

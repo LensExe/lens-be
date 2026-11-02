@@ -1,0 +1,29 @@
+---
+name: reviews/:feedback_id/reply
+'$kind': http-request
+url: '{{baseUrl}}/reviews/{{feedbackId}}/reply'
+method: PUT
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "reply": "Thanks for your feedback."
+    }
+auth:
+  type: noauth
+description: |-
+  Thợ trả lời đánh giá
+  Handler: reply
+  Authentication: role 'photographer'
+  Body: ReviewReplyCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

@@ -1,0 +1,22 @@
+---
+name: payments/:payment_id/qr
+'$kind': http-request
+url: '{{baseUrl}}/payments/{{paymentId}}/qr'
+method: GET
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Lấy QR thanh toán
+  Handler: qr
+  Authentication: role 'customer', 'photographer'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

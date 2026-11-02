@@ -1,0 +1,31 @@
+---
+name: admin/ranks/:code
+'$kind': http-request
+url: '{{baseUrl}}/admin/ranks/{{code}}'
+method: PATCH
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Postman test rank",
+      "min_completed": 60,
+      "commission_percent": 7
+    }
+auth:
+  type: noauth
+description: |-
+  Sửa hạng thợ
+  Handler: update
+  Authentication: role 'admin'
+  Body: RankUpdateCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

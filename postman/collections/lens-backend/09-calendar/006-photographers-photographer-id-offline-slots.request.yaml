@@ -1,0 +1,21 @@
+---
+name: photographers/:photographer_id/offline-slots
+'$kind': http-request
+url: '{{baseUrl}}/photographers/{{photographerId}}/offline-slots?from={{fromDateTime}}&to={{toDateTime}}'
+method: GET
+headers: []
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Xem offline-slot trong tương lai cho luồng đặt lịch khách hàng
+  Handler: offlineSlots
+  Authentication: public
+  Query: CalendarAvailabilityQueryQueryDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

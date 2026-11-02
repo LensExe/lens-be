@@ -1,0 +1,29 @@
+---
+name: admin/reviews/:feedback_id/hide
+'$kind': http-request
+url: '{{baseUrl}}/admin/reviews/{{feedbackId}}/hide'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "reason": "Postman API test moderation"
+    }
+auth:
+  type: noauth
+description: |-
+  Admin ẩn đánh giá
+  Handler: hide
+  Authentication: role 'admin'
+  Body: ReviewHideCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

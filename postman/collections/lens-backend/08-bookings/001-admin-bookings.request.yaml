@@ -1,0 +1,24 @@
+---
+name: admin/bookings
+'$kind': http-request
+url: '{{baseUrl}}/admin/bookings?limit=20&offset=0'
+method: GET
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Theo dõi booking
+  Handler: admin
+  Authentication: role 'admin'
+  Query: BookingAdminQueryQueryDto
+  Query `user_id` (optional): lọc booking của một khách hàng hoặc nhiếp ảnh gia
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

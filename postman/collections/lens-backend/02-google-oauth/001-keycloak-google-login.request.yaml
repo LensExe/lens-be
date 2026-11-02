@@ -1,0 +1,21 @@
+---
+name: keycloak/google/login
+'$kind': http-request
+url: '{{baseUrl}}/keycloak/google/login?code={{googleCode}}&state={{googleState}}'
+method: GET
+headers: []
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Đăng nhập Google thông qua Keycloak
+  Handler: login
+  Authentication: public
+  Query: GoogleCallbackQuery
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

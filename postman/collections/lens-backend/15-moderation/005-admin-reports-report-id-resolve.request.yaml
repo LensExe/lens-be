@@ -1,0 +1,30 @@
+---
+name: admin/reports/:report_id/resolve
+'$kind': http-request
+url: '{{baseUrl}}/admin/reports/{{reportId}}/resolve'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "status": "resolved",
+      "resolution": "Postman API test resolution"
+    }
+auth:
+  type: noauth
+description: |-
+  Xử lý report
+  Handler: resolve
+  Authentication: role 'admin'
+  Body: ModerationResolveCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

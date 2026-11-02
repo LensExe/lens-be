@@ -1,0 +1,21 @@
+---
+name: photographers
+'$kind': http-request
+url: '{{baseUrl}}/photographers?limit=20&offset=0&location=Ha%20Noi'
+method: GET
+headers: []
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Tìm kiếm photographer
+  Handler: search
+  Authentication: public
+  Query: PhotographerSearchQueryQueryDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

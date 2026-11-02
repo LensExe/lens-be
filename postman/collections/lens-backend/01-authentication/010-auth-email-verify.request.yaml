@@ -1,0 +1,30 @@
+---
+name: auth/email/verify
+'$kind': http-request
+url: '{{baseUrl}}/auth/email/verify'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "{{registrationEmail}}",
+      "otp": "287138"
+    }
+auth:
+  type: noauth
+description: |-
+  Xác minh Email
+  Handler: verifyEmail
+  Authentication: Bearer token
+  Body: AuthVerifyEmailDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

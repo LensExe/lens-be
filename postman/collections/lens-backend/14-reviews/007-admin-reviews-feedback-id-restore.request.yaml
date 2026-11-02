@@ -1,0 +1,22 @@
+---
+name: admin/reviews/:feedback_id/restore
+'$kind': http-request
+url: '{{baseUrl}}/admin/reviews/{{feedbackId}}/restore'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Admin hiện lại đánh giá
+  Handler: restore
+  Authentication: role 'admin'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

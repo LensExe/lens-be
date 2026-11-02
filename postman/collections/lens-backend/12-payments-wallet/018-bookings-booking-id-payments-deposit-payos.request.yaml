@@ -1,0 +1,32 @@
+---
+name: bookings/:booking_id/payments/deposit (PayOS)
+'$kind': http-request
+url: '{{baseUrl}}/bookings/{{bookingId}}/payments/deposit'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{customerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "idempotency_key": "postman-payos-deposit-change-me",
+      "payment_method": "gateway"
+    }
+auth:
+  type: noauth
+description: |-
+  Tạo thanh toán cọc bằng PayOS cho booking.
+  Authentication: customer access token còn hạn.
+  bookingId phải là booking thuộc customer và đang ở trạng thái có thể thanh toán cọc.
+  Backend tự tính số tiền cọc; không gửi amount.
+  Trước khi chạy, cấu hình PAYMENT_PROVIDER=payos cùng PAYOS_CLIENT_ID, PAYOS_API_KEY, PAYOS_CHECKSUM_KEY, PAYOS_RETURN_URL và PAYOS_CANCEL_URL.
+  Đổi idempotency_key mỗi khi muốn tạo một yêu cầu thanh toán mới; dùng lại key cũ để retry an toàn.
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("creates the PayOS deposit payment intent", function () {
+        pm.expect(pm.response.code).to.equal(200);
+      });

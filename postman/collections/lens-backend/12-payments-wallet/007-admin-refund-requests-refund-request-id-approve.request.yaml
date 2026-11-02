@@ -1,0 +1,34 @@
+---
+name: admin/refund-requests/:refund_request_id/approve
+'$kind': http-request
+url: '{{baseUrl}}/admin/refund-requests/{{refundRequestId}}/approve'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "reason": "Postman API test decision",
+      "payout_destination": {
+        "bank_code": "VCB",
+        "account_number": "0123456789",
+        "account_name": "POSTMAN TEST"
+      }
+    }
+auth:
+  type: noauth
+description: |-
+  Duyệt refund/rút tiền
+  Handler: approveRefund
+  Authentication: role 'admin'
+  Body: PaymentRefundReviewBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

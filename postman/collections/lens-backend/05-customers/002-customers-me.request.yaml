@@ -1,0 +1,33 @@
+---
+name: customers/me
+'$kind': http-request
+url: '{{baseUrl}}/customers/me'
+method: PATCH
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "description": "Postman API test profile",
+      "preferred_styles": [
+        "portrait"
+      ],
+      "location": "Ha Noi"
+    }
+auth:
+  type: noauth
+description: |-
+  Cập nhật customer profile
+  Handler: update
+  Authentication: Bearer token
+  Body: CustomerUpdateCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

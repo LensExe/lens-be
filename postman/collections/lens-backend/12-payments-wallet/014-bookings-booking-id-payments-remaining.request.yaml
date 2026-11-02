@@ -1,0 +1,30 @@
+---
+name: bookings/:booking_id/payments/remaining
+'$kind': http-request
+url: '{{baseUrl}}/bookings/{{bookingId}}/payments/remaining'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{customerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "idempotency_key": "postman-local-remaining-001",
+      "payment_method": "gateway"
+    }
+auth:
+  type: noauth
+description: |-
+  Tạo thanh toán còn lại
+  Handler: remaining
+  Authentication: role 'customer'
+  Body: PaymentRemainingCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

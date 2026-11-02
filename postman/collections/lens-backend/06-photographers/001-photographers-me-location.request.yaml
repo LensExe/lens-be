@@ -1,0 +1,29 @@
+---
+name: photographers/me/location
+'$kind': http-request
+url: '{{baseUrl}}/photographers/me/location'
+method: PATCH
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "location": "Ha Noi"
+    }
+auth:
+  type: noauth
+description: |-
+  Cập nhật khu vực phục vụ
+  Handler: location
+  Authentication: role 'photographer'
+  Body: PhotographerLocationCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

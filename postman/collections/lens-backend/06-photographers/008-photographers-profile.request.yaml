@@ -1,0 +1,34 @@
+---
+name: photographers/profile
+'$kind': http-request
+url: '{{baseUrl}}/photographers/profile'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{customerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "styles": [
+        "portrait"
+      ],
+      "started_career_at": 2021,
+      "location": "Ha Noi",
+      "description": "Postman API test photographer profile"
+    }
+auth:
+  type: noauth
+description: |-
+  Đăng ký làm photographer
+  Handler: create
+  Authentication: role 'customer'
+  Body: PhotographerCreateCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

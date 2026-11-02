@@ -1,0 +1,31 @@
+---
+name: subscriptions/webhooks/:provider
+'$kind': http-request
+url: '{{baseUrl}}/subscriptions/webhooks/{{provider}}'
+method: POST
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "code": "TEST",
+      "desc": "Postman smoke test",
+      "success": false,
+      "data": {},
+      "signature": "invalid"
+    }
+auth:
+  type: noauth
+description: |-
+  Webhook subscription payment
+  Handler: webhook
+  Authentication: public
+  Body: SubscriptionWebhookCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

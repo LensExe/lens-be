@@ -1,0 +1,21 @@
+---
+name: photographers/top-rated
+'$kind': http-request
+url: '{{baseUrl}}/photographers/top-rated?limit=20&offset=0'
+method: GET
+headers: []
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Danh sách photographer nổi bật
+  Handler: top
+  Authentication: public
+  Query: PhotographerTopQueryQueryDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

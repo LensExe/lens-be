@@ -1,0 +1,37 @@
+---
+name: photographers/me/booking-plans
+'$kind': http-request
+url: '{{baseUrl}}/photographers/me/booking-plans'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Postman test plan",
+      "description": "Temporary API test plan",
+      "price": 1000000,
+      "duration_minutes": 90,
+      "photo_count": 50,
+      "retouched_photo_count": 10,
+      "features": [
+        "Edited photos"
+      ]
+    }
+auth:
+  type: noauth
+description: |-
+  Tạo gói chụp
+  Handler: create
+  Authentication: role 'photographer'
+  Body: BookingPlanCreateCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

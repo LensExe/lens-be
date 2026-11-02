@@ -1,0 +1,29 @@
+---
+name: portfolios/:portfolio_id/items
+'$kind': http-request
+url: '{{baseUrl}}/portfolios/{{portfolioId}}/items'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "media_id": "{{mediaId}}"
+    }
+auth:
+  type: noauth
+description: |-
+  Thêm ảnh vào portfolio
+  Handler: add
+  Authentication: role 'photographer'
+  Body: PortfolioAddCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

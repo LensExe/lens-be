@@ -1,0 +1,22 @@
+---
+name: bookings/:booking_id/confirm-receipt
+'$kind': http-request
+url: '{{baseUrl}}/bookings/{{bookingId}}/confirm-receipt'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{customerToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Khách xác nhận đã nhận ảnh
+  Handler: confirmReceipt
+  Authentication: role 'customer'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

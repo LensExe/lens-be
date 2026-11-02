@@ -1,0 +1,30 @@
+---
+name: wallet/topups
+'$kind': http-request
+url: '{{baseUrl}}/wallet/topups'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "amount": 1000,
+      "idempotency_key": "postman-local-topup-001"
+    }
+auth:
+  type: noauth
+description: |-
+  Nạp tiền vào ví
+  Handler: topUp
+  Authentication: role 'customer', 'photographer'
+  Body: PaymentTopUpCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

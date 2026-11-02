@@ -1,0 +1,23 @@
+---
+name: admin/users
+'$kind': http-request
+url: '{{baseUrl}}/admin/users?limit=20&offset=0'
+method: GET
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Quản lý danh sách user
+  Handler: adminUsers
+  Authentication: role 'admin'
+  Query: IdentityAdminUsersQueryQueryDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

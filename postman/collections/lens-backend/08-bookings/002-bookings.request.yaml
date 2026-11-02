@@ -1,0 +1,33 @@
+---
+name: bookings
+'$kind': http-request
+url: '{{baseUrl}}/bookings'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{customerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "photographer_id": "{{photographerId}}",
+      "booking_plan_id": "{{bookingPlanId}}",
+      "location": "Ha Noi",
+      "from": "{{fromDateTime}}",
+      "to": "{{toDateTime}}"
+    }
+auth:
+  type: noauth
+description: |-
+  Tạo booking
+  Handler: create
+  Authentication: role 'customer'
+  Body: BookingCreateCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

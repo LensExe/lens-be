@@ -1,0 +1,29 @@
+---
+name: payments/test/payos
+'$kind': http-request
+url: '{{baseUrl}}/payments/test/payos'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "amount": 1000
+    }
+auth:
+  type: noauth
+description: |-
+  Tạo link/QR PayOS độc lập: không booking, ví, subscription và không ghi transaction vào DB.
+  Chỉ admin được gọi; chỉ hoạt động ngoài production khi PAYOS_STANDALONE_TEST_ENABLED=true.
+  Link vẫn có thể thanh toán thật; webhook không được Lens đối soát.
+  Yêu cầu PAYOS_CLIENT_ID, PAYOS_API_KEY, PAYOS_CHECKSUM_KEY, PAYOS_RETURN_URL và PAYOS_CANCEL_URL.
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("creates a standalone PayOS checkout", function () {
+        pm.expect(pm.response.code).to.equal(200);
+      });

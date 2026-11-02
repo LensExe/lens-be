@@ -1,0 +1,31 @@
+---
+name: media/upload-url
+'$kind': http-request
+url: '{{baseUrl}}/media/upload-url'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "content_type": "image/jpeg",
+      "file_size": 1024,
+      "visibility": "private"
+    }
+auth:
+  type: noauth
+description: |-
+  Tạo signed upload URL
+  Handler: upload
+  Authentication: Bearer token
+  Body: MediaUploadCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

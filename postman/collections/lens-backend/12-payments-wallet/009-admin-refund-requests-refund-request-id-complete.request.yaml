@@ -1,0 +1,29 @@
+---
+name: admin/refund-requests/:refund_request_id/complete
+'$kind': http-request
+url: '{{baseUrl}}/admin/refund-requests/{{refundRequestId}}/complete'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "payout_reference": "postman-local-payout-001"
+    }
+auth:
+  type: noauth
+description: |-
+  Ghi nhận payout/refund đã chuyển thành công
+  Handler: completeRefund
+  Authentication: role 'admin'
+  Body: PaymentRefundCompleteBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

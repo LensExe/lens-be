@@ -1,0 +1,29 @@
+---
+name: bookings/:booking_id/cancel
+'$kind': http-request
+url: '{{baseUrl}}/bookings/{{bookingId}}/cancel'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "reason": "Postman API test cancellation"
+    }
+auth:
+  type: noauth
+description: |-
+  Hủy booking
+  Handler: cancel
+  Authentication: role 'customer', 'photographer'
+  Body: BookingCancelCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

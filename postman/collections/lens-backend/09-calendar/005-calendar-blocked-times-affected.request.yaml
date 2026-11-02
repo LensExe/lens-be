@@ -1,0 +1,23 @@
+---
+name: calendar/blocked-times/affected
+'$kind': http-request
+url: '{{baseUrl}}/calendar/blocked-times/affected?from={{fromDateTime}}&to={{toDateTime}}'
+method: GET
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Xem trước yêu cầu bị ảnh hưởng khi chặn lịch
+  Handler: blockPreview
+  Authentication: role 'photographer'
+  Query: CalendarBlockPreviewQueryQueryDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

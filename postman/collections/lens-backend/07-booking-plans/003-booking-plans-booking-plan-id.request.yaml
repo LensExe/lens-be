@@ -1,0 +1,34 @@
+---
+name: booking-plans/:booking_plan_id
+'$kind': http-request
+url: '{{baseUrl}}/booking-plans/{{bookingPlanId}}'
+method: PATCH
+headers:
+  - key: Authorization
+    value: Bearer {{photographerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Postman test plan updated",
+      "price": 1000000,
+      "duration_minutes": 90,
+      "photo_count": 50,
+      "retouched_photo_count": 10,
+      "is_active": true
+    }
+auth:
+  type: noauth
+description: |-
+  Sửa gói chụp
+  Handler: update
+  Authentication: role 'photographer'
+  Body: BookingPlanUpdateCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

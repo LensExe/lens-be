@@ -1,0 +1,22 @@
+---
+name: reviews/:feedback_id
+'$kind': http-request
+url: '{{baseUrl}}/reviews/{{feedbackId}}'
+method: DELETE
+headers:
+  - key: Authorization
+    value: Bearer {{customerToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Xóa đánh giá
+  Handler: remove
+  Authentication: role 'customer'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

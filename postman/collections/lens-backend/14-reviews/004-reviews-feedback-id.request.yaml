@@ -1,0 +1,32 @@
+---
+name: reviews/:feedback_id
+'$kind': http-request
+url: '{{baseUrl}}/reviews/{{feedbackId}}'
+method: PATCH
+headers:
+  - key: Authorization
+    value: Bearer {{customerToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "rating": 5,
+      "punctuality_rating": 5,
+      "attitude_rating": 5,
+      "comment": "Updated by Postman API tests"
+    }
+auth:
+  type: noauth
+description: |-
+  Cập nhật đánh giá
+  Handler: update
+  Authentication: role 'customer'
+  Body: ReviewUpdateCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

@@ -1,0 +1,75 @@
+---
+name: Lens Backend Local
+values:
+  - key: baseUrl
+    value: http://localhost:3000
+  - key: registrationEmail
+    value: postman-test@example.test
+  - key: registrationPassword
+    value: replace-me
+  - key: newPassword
+    value: replace-me
+  - key: wrongPassword
+    value: replace-me
+  - key: usernameCollisionEmail
+    value: postman-collision@example.test
+  - key: accessToken
+    value: replace-me
+  - key: customerToken
+    value: replace-me
+  - key: photographerToken
+    value: replace-me
+  - key: adminToken
+    value: replace-me
+  - key: moderatorToken
+    value: replace-me
+  - key: systemToken
+    value: replace-me
+  - key: refreshToken
+    value: replace-me
+  - key: resetToken
+    value: replace-me
+  - key: userId
+    value: 74cb7ab9-4cd1-4a2e-a3cf-631cdffa8d50
+  - key: customerId
+    value: 74cb7ab9-4cd1-4a2e-a3cf-631cdffa8d50
+  - key: bookingId
+    value: 7fe991cf-3844-431c-ab70-0749f87e4b9b
+  - key: bookingPlanId
+    value: 00000000-0000-4000-8000-000000000005
+  - key: portfolioId
+    value: 74cb7ab9-4cd1-4a2e-a3cf-631cdffa8d50
+  - key: portfolioItemId
+    value: 00000000-0000-4000-8000-000000000001
+  - key: offlineSlotId
+    value: 74cb7ab9-4cd1-4a2e-a3cf-631cdffa8d50
+  - key: mediaId
+    value: 00000000-0000-4000-8000-000000000002
+  - key: photographerId
+    value: 00000000-0000-4000-8000-000000000003
+  - key: paymentId
+    value: 74cb7ab9-4cd1-4a2e-a3cf-631cdffa8d50
+  - key: refundRequestId
+    value: 74cb7ab9-4cd1-4a2e-a3cf-631cdffa8d50
+  - key: subscriptionId
+    value: 74cb7ab9-4cd1-4a2e-a3cf-631cdffa8d50
+  - key: subscriptionPaymentId
+    value: 74cb7ab9-4cd1-4a2e-a3cf-631cdffa8d50
+  - key: reportId
+    value: 74cb7ab9-4cd1-4a2e-a3cf-631cdffa8d50
+  - key: photographerPlanId
+    value: 00000000-0000-4000-8000-000000000005
+  - key: code
+    value: postman-test
+  - key: provider
+    value: payos
+  - key: fromDateTime
+    value: '2027-02-01T09:00:00Z'
+  - key: toDateTime
+    value: '2027-02-01T11:00:00Z'
+  - key: googleCode
+    value: replace-with-google-auth-code
+  - key: googleState
+    value: replace-with-google-state
+  - key: feedbackId
+    value: 00000000-0000-4000-8000-000000000006

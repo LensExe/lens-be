@@ -1,0 +1,29 @@
+---
+name: media/complete-upload
+'$kind': http-request
+url: '{{baseUrl}}/media/complete-upload'
+method: POST
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "media_id": "{{mediaId}}"
+    }
+auth:
+  type: noauth
+description: |-
+  Xác nhận upload hoàn tất
+  Handler: complete
+  Authentication: Bearer token
+  Body: MediaCompleteCommandBodyDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

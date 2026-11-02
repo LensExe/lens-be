@@ -1,0 +1,12 @@
+---
+name: Test Kafka Websocket
+'$kind': websocket-request
+url: ws://localhost:3001/api/v1/socket.io/?EIO=4&transport=websocket
+headers:
+  - key: Authorization
+    value: Bearer {{accessToken}}
+auth:
+  type: noauth
+description:
+  Raw WebSocket connection to the Socket.IO Engine.IO endpoint. The source
+  request had no message payload configured.

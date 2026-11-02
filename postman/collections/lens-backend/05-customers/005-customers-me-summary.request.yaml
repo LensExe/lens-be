@@ -1,0 +1,22 @@
+---
+name: customers/me/summary
+'$kind': http-request
+url: '{{baseUrl}}/customers/me/summary'
+method: GET
+headers:
+  - key: Authorization
+    value: Bearer {{customerToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Khách hàng xem thống kê booking của mình
+  Handler: myBookingSummary
+  Authentication: role 'customer'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });

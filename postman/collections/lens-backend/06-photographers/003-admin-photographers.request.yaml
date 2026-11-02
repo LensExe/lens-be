@@ -1,0 +1,23 @@
+---
+name: admin/photographers
+'$kind': http-request
+url: '{{baseUrl}}/admin/photographers?limit=20&offset=0&verification_status=pending'
+method: GET
+headers:
+  - key: Authorization
+    value: Bearer {{adminToken}}
+body:
+  type: none
+auth:
+  type: noauth
+description: |-
+  Theo dõi photographer
+  Handler: admin
+  Authentication: role 'admin'
+  Query: PhotographerAdminQueryQueryDto
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("responds without a server error", function () {
+        pm.expect(pm.response.code).to.be.below(500);
+      });
