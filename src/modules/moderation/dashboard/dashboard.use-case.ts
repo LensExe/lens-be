@@ -9,7 +9,7 @@ import { Subscription } from '@modules/subscription/subscription.domain';
 /** Admin dashboard read model, kept separate from report case processing. */
 @Injectable()
 export class ModerationDashboardUseCases {
-  /** Summarize platform counts and paid volume for the admin dashboard. */
+  /** Summarize platform counts and collected payments for current bookings. */
   async dashboard(s: EntityManager, a: Actor) {
     role(a, 'admin');
     await currentUser(s, a);
@@ -24,7 +24,16 @@ export class ModerationDashboardUseCases {
       .createQueryBuilder()
       .select('COALESCE(SUM(transaction.amount), 0)', 'paid_volume_vnd')
       .from(EntitySchemas.transactions, 'transaction')
+      .innerJoin(
+        EntitySchemas.bookings,
+        'booking',
+        'booking.id = transaction.reference_id',
+      )
       .where('transaction.status = :status', { status: 'paid' })
+      .andWhere('transaction.direction = :direction', { direction: 'in' })
+      .andWhere('transaction.type IN (:...types)', {
+        types: ['deposit', 'remaining'],
+      })
       .getRawOne<{ paid_volume_vnd: string | number }>();
 
     return {

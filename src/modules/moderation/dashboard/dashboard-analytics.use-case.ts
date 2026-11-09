@@ -86,6 +86,8 @@ export class AdminDashboardAnalyticsUseCases {
              ) AS month,
              COALESCE(SUM(txn.amount), 0)::text AS paid_volume_vnd
            FROM transactions txn
+           INNER JOIN bookings booking
+             ON booking.id = txn.reference_id
            LEFT JOIN LATERAL (
              SELECT MIN(webhook.created_at) AS received_at
              FROM payment_webhooks webhook
@@ -104,6 +106,7 @@ export class AdminDashboardAnalyticsUseCases {
                txn.created_at
              ) < $2
              AND txn.status = 'paid'
+             AND txn.direction = 'in'
              AND txn.type IN ('deposit', 'remaining')
            GROUP BY 1
            ORDER BY 1`,
