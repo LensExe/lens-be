@@ -2,8 +2,8 @@ import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class GoogleLoginQuery {
   @IsOptional()
-  @IsIn(['web', 'creator_mobile'])
-  client?: 'web' | 'creator_mobile';
+  @IsIn(['web', 'creator_mobile', 'client_mobile'])
+  client?: 'web' | 'creator_mobile' | 'client_mobile';
 }
 
 export class GoogleCallbackQuery {

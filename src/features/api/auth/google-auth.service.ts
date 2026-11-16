@@ -34,7 +34,7 @@ const GOOGLE_HANDOFF_TTL_SECONDS = 60;
 const GOOGLE_CLIENT_TTL_SECONDS = 10 * 60;
 const GOOGLE_AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 const GOOGLE_AVATAR_HOSTS = new Set(['googleusercontent.com']);
-export type GoogleLoginClient = 'web' | 'creator_mobile';
+export type GoogleLoginClient = 'web' | 'creator_mobile' | 'client_mobile';
 
 @Injectable()
 export class GoogleAuthService {
@@ -60,7 +60,7 @@ export class GoogleAuthService {
       KeycloakIdentityProvider.Google,
       this.redirectUri(),
     );
-    if (client === 'creator_mobile') {
+    if (client !== 'web') {
       const state = new URL(authorizationUrl).searchParams.get('state');
       if (!state) {
         throw new ServiceUnavailableException(
@@ -186,12 +186,17 @@ export class GoogleAuthService {
 
   async consumeLoginClient(state: string): Promise<GoogleLoginClient> {
     const client = await this.redis.getAndDelete(this.clientKey(state));
-    return client === 'creator_mobile' ? 'creator_mobile' : 'web';
+    if (client === 'creator_mobile' || client === 'client_mobile') {
+      return client;
+    }
+    return 'web';
   }
 
   frontendRedirectUri(code: string, client: GoogleLoginClient = 'web'): string {
-    if (client === 'creator_mobile') {
-      const url = new URL('lenscreator://auth/callback');
+    if (client !== 'web') {
+      const scheme =
+        client === 'creator_mobile' ? 'lenscreator' : 'lenscustomer';
+      const url = new URL(`${scheme}://auth/callback`);
       url.searchParams.set('code', code);
       return url.toString();
     }

@@ -71,7 +71,7 @@ export class GoogleAuthController {
   @ApiQuery({
     name: 'client',
     required: false,
-    enum: ['web', 'creator_mobile'],
+    enum: ['web', 'creator_mobile', 'client_mobile'],
   })
   async login(
     @Query() query: GoogleLoginQuery,
