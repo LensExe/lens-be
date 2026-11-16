@@ -10,6 +10,8 @@ export enum CookieName {
   CsrfToken = 'csrf_token',
   /** The name of the single-session id cookie (HttpOnly, bound to the active session). */
   SessionId = 'session_id',
+  /** Opaque session for a mobile-originated, booking-scoped web checkout. */
+  MobileCheckoutSession = 'lens_mobile_checkout_session',
   /**
    * JS-readable "a refresh session exists" hint, issued in PARALLEL with the refresh
    * token (same lifetime, parent-domain scope). The refresh token is HttpOnly +

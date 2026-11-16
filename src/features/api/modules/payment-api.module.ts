@@ -1,6 +1,11 @@
 import { Module } from '@nestjs/common';
 import { PaymentController } from '../http/payments.controller';
+import { MobileCheckoutController } from '../http/mobile-checkout.controller';
 import { PayOsStandaloneTestController } from '../http/payos-standalone-test.controller';
+import { MobileCheckoutSessionGuard } from '../payment-handoff/mobile-checkout-session.guard';
+import { MobileCheckoutHandoffService } from '../payment-handoff/mobile-checkout-handoff.service';
+import { RedisModule } from '@shared/database/redis/redis.module';
+import { CookieModule } from '@shared/platform/cookie';
 import {
   PaymentDepositCommandHandler,
   PaymentExtendEscrowReleaseCommandHandler,
@@ -44,8 +49,15 @@ import {
 } from '@modules/payment/refund/refund.query';
 
 @Module({
-  controllers: [PaymentController, PayOsStandaloneTestController],
+  imports: [RedisModule, CookieModule],
+  controllers: [
+    PaymentController,
+    MobileCheckoutController,
+    PayOsStandaloneTestController,
+  ],
   providers: [
+    MobileCheckoutHandoffService,
+    MobileCheckoutSessionGuard,
     PaymentDepositCommandHandler,
     PaymentExtendEscrowReleaseCommandHandler,
     PaymentExpireDueCheckoutsCommandHandler,

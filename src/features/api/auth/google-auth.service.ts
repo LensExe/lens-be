@@ -31,8 +31,10 @@ export interface GoogleFrontendHandoff {
 }
 
 const GOOGLE_HANDOFF_TTL_SECONDS = 60;
+const GOOGLE_CLIENT_TTL_SECONDS = 10 * 60;
 const GOOGLE_AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 const GOOGLE_AVATAR_HOSTS = new Set(['googleusercontent.com']);
+export type GoogleLoginClient = 'web' | 'creator_mobile';
 
 @Injectable()
 export class GoogleAuthService {
@@ -53,11 +55,25 @@ export class GoogleAuthService {
    *
    * @returns Result returned by `buildAuthorizeRedirectUrl`.
    */
-  async buildLoginUrl(): Promise<string> {
-    return this.oidc.buildAuthorizeRedirectUrl(
+  async buildLoginUrl(client: GoogleLoginClient = 'web'): Promise<string> {
+    const authorizationUrl = await this.oidc.buildAuthorizeRedirectUrl(
       KeycloakIdentityProvider.Google,
       this.redirectUri(),
     );
+    if (client === 'creator_mobile') {
+      const state = new URL(authorizationUrl).searchParams.get('state');
+      if (!state) {
+        throw new ServiceUnavailableException(
+          'Google authorization URL is missing its state',
+        );
+      }
+      await this.redis.set(
+        this.clientKey(state),
+        client,
+        GOOGLE_CLIENT_TTL_SECONDS,
+      );
+    }
+    return authorizationUrl;
   }
 
   /**
@@ -168,7 +184,17 @@ export class GoogleAuthService {
     }
   }
 
-  frontendRedirectUri(code: string): string {
+  async consumeLoginClient(state: string): Promise<GoogleLoginClient> {
+    const client = await this.redis.getAndDelete(this.clientKey(state));
+    return client === 'creator_mobile' ? 'creator_mobile' : 'web';
+  }
+
+  frontendRedirectUri(code: string, client: GoogleLoginClient = 'web'): string {
+    if (client === 'creator_mobile') {
+      const url = new URL('lenscreator://auth/callback');
+      url.searchParams.set('code', code);
+      return url.toString();
+    }
     const redirectUri = this.config.get<string>(
       'auth.keycloakGoogleFrontendRedirectUri',
     );
@@ -204,6 +230,11 @@ export class GoogleAuthService {
   private handoffKey(code: string): string {
     const digest = createHash('sha256').update(code).digest('hex');
     return `keycloak:google-handoff:${digest}`;
+  }
+
+  private clientKey(state: string): string {
+    const digest = createHash('sha256').update(state).digest('hex');
+    return `keycloak:google-client:${digest}`;
   }
 
   private googlePictureUrl(value: unknown): string | undefined {

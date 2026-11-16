@@ -1116,6 +1116,78 @@
     "kind": "Command"
   },
   {
+    "id": "PAY-027",
+    "module": "Payment",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/api/v1/mobile-checkout/handoff",
+    "summary": "Tạo handoff từ mobile sang checkout web",
+    "description": "Mã chỉ gắn với booking, khoản cần thanh toán và tài khoản customer đang đăng nhập. Không thay đổi API thanh toán hiện có.",
+    "role": "Customer",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
+    "id": "PAY-028",
+    "module": "Payment",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/api/v1/mobile-checkout/handoff/exchange",
+    "summary": "Đổi mã handoff lấy phiên checkout giới hạn",
+    "description": "Mã dùng một lần; phiên checkout bị giới hạn vào đúng booking.",
+    "role": "Public",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
+    "id": "PAY-029",
+    "module": "Payment",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/api/v1/mobile-checkout/context",
+    "summary": "Lấy booking cho checkout mobile",
+    "description": "Lấy booking, mục đích thanh toán và số dư Ví Lens bằng phiên handoff giới hạn.",
+    "role": "Public",
+    "priority": "Must",
+    "kind": "Query"
+  },
+  {
+    "id": "PAY-030",
+    "module": "Payment",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/api/v1/mobile-checkout/payment-intent",
+    "summary": "Tạo payment intent theo phiên checkout mobile",
+    "description": "Tạo thanh toán cọc hoặc phần còn lại theo booking và tài khoản đã xác thực bằng handoff.",
+    "role": "Public",
+    "priority": "Must",
+    "kind": "Command"
+  },
+  {
+    "id": "PAY-031",
+    "module": "Payment",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/api/v1/mobile-checkout/payment-status",
+    "summary": "Kiểm tra trạng thái thanh toán mobile checkout",
+    "description": "Lấy trạng thái giao dịch đã tạo trong phiên checkout; không có intent thì trả trạng thái not_created.",
+    "role": "Public",
+    "priority": "Must",
+    "kind": "Query"
+  },
+  {
+    "id": "PAY-032",
+    "module": "Payment",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/api/v1/mobile-checkout/payment-qr",
+    "summary": "Lấy QR/cổng thanh toán của mobile checkout",
+    "description": "Lấy mã QR hoặc URL checkout cho payment intent thuộc phiên handoff.",
+    "role": "Public",
+    "priority": "Must",
+    "kind": "Query"
+  },
+  {
     "id": "MEDIA-001",
     "module": "Media & Gallery",
     "service": "Core Backend",
