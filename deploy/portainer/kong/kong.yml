@@ -118,6 +118,15 @@ plugins:
       limit_by: ip
       policy: local
 
+  # Mobile checkout session routes use a one-time code and a short-lived,
+  # booking-scoped cookie rather than the mobile JWT.
+  - name: rate-limiting
+    route: core-mobile-checkout-session
+    config:
+      minute: 60
+      limit_by: ip
+      policy: local
+
   - name: rate-limiting
     route: core-auth-login
     config:
@@ -298,6 +307,19 @@ services:
         protocols: [http, https]
         strip_path: false
 
+      # Checkout exchange/session endpoints authenticate through the
+      # one-time handoff code or the scoped checkout cookie in the API.
+      - name: core-mobile-checkout-session
+        paths:
+          - /api/v1/mobile-checkout/handoff/exchange
+          - /api/v1/mobile-checkout/context
+          - /api/v1/mobile-checkout/payment-intent
+          - /api/v1/mobile-checkout/payment-status
+          - /api/v1/mobile-checkout/payment-qr
+        methods: [GET, POST]
+        protocols: [http, https]
+        strip_path: false
+
       - name: core-auth-password-recovery
         paths:
           - /api/v1/auth/forgot-password/send-otp
@@ -348,6 +370,7 @@ services:
           - /api/v1/calendar
           - /api/v1/bookings
           - /api/v1/payments
+          - /api/v1/mobile-checkout
           - /api/v1/wallet
           - /api/v1/me
           - /api/v1/media

@@ -552,6 +552,33 @@ const schemas: Record<string, SchemaObject> = {
     completed: num,
     total_spent_vnd: num,
   }),
+  'PAY-027': obj({ checkout_url: str, expires_in: num }),
+  'PAY-028': obj({ expires_in: num }),
+  'PAY-029': obj({
+    booking: records.bookings,
+    payment_purpose: str,
+    return_target: str,
+    payment_id: { ...str, nullable: true },
+    wallet: obj({ balance: num }),
+  }),
+  'PAY-030': records.transactions,
+  'PAY-031': {
+    oneOf: [records.transactions, obj({ status: str })],
+  },
+  'PAY-032': {
+    oneOf: [
+      obj({
+        id: str,
+        status: str,
+        qr_code: { ...str, nullable: true },
+        checkout_url: { ...str, nullable: true },
+        checkout_expires_at: { ...str, nullable: true },
+        checkout_expired: bool,
+        checkout_review_required_at: { ...str, nullable: true },
+      }),
+      obj({ status: str }),
+    ],
+  },
   'CUST-006': paged(photographer),
 };
 

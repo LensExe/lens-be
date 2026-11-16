@@ -8,6 +8,7 @@ export * from './identity.dto';
 export * from './media.dto';
 export * from './moderation.dto';
 export * from './payment.dto';
+export * from './mobile-checkout.dto';
 export * from './photographer.dto';
 export * from './rank.dto';
 export * from './badge.dto';

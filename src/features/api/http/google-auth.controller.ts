@@ -21,6 +21,7 @@ import { Public } from '../auth/keycloak.guard';
 import { AuthService } from '../auth/auth.service';
 import { GoogleAuthService } from '../auth/google-auth.service';
 import {
+  GoogleLoginQuery,
   GoogleCallbackQuery,
   GoogleExchangeQuery,
 } from '../dto/google-auth.dto';
@@ -67,8 +68,19 @@ export class GoogleAuthController {
   @ApiServiceUnavailableResponse({
     description: 'Keycloak hoặc Google callback chưa được cấu hình',
   })
-  async login(): Promise<{ authorization_url: string }> {
-    return { authorization_url: await this.googleAuth.buildLoginUrl() };
+  @ApiQuery({
+    name: 'client',
+    required: false,
+    enum: ['web', 'creator_mobile'],
+  })
+  async login(
+    @Query() query: GoogleLoginQuery,
+  ): Promise<{ authorization_url: string }> {
+    return {
+      authorization_url: await this.googleAuth.buildLoginUrl(
+        query.client ?? 'web',
+      ),
+    };
   }
 
   /**
@@ -144,7 +156,11 @@ export class GoogleAuthController {
       roles: actor.roles,
       email_verified: actor.email_verified,
     });
-    return response.redirect(302, this.googleAuth.frontendRedirectUri(code));
+    const client = await this.googleAuth.consumeLoginClient(query.state);
+    return response.redirect(
+      302,
+      this.googleAuth.frontendRedirectUri(code, client),
+    );
   }
 
   @Get('exchange')
