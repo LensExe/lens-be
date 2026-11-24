@@ -79,8 +79,8 @@ export class KeycloakTokenService {
       console.log('error: ', error);
 
       if (
-        error instanceof BadGatewayException &&
-        error.getResponse() === 'Keycloak request failed with status 401'
+        error instanceof KeycloakUpstreamException &&
+        error.upstreamStatus === 401
       ) {
         throw new UnauthorizedException('Invalid username or password');
       }

@@ -215,7 +215,8 @@ export class ModerationDashboardUseCases {
       );
       const activeSubscription =
         subscription?.status === 'active' &&
-        Date.parse(subscription.end_at) > Date.parse(now);
+        (!subscription.end_at ||
+          Date.parse(subscription.end_at) > Date.parse(now));
       const snapshot = (
         activeSubscription ? subscription?.plan_snapshot : undefined
       ) as { code?: string; features?: unknown[] } | undefined;

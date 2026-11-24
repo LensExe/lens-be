@@ -28,4 +28,6 @@ export interface PhotographerPlanSnapshot {
   price: number;
   billing_cycle: number;
   features: PlanFeatureValue[];
+  /** True when this snapshot represents the automatically assigned free plan. */
+  is_default?: boolean;
 }

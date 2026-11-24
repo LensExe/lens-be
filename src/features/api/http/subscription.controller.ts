@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Param,
   Req,
   HttpCode,
@@ -31,7 +32,10 @@ import { SubscriptionUsageQuery } from '@modules/subscription/subscriptions.quer
 import { SubscriptionMeQuery } from '@modules/subscription/subscriptions.query';
 import { SubscriptionHistoryQuery } from '@modules/subscription/subscriptions.query';
 import { SubscriptionPlansQuery } from '@modules/subscription/subscriptions.query';
+import { SubscriptionAdminPlansQuery } from '@modules/subscription/subscriptions.query';
 import { SubscriptionCreateCommand } from '@modules/subscription/subscriptions.command';
+import { SubscriptionPlanCreateCommand } from '@modules/subscription/subscriptions.command';
+import { SubscriptionPlanUpdateCommand } from '@modules/subscription/subscriptions.command';
 import { SubscriptionCancelCommand } from '@modules/subscription/subscriptions.command';
 import { SubscriptionWebhookCommand } from '@modules/subscription/subscriptions.command';
 import { SubscriptionResolvePaymentReviewCommand } from '@modules/subscription/subscriptions.command';
@@ -187,6 +191,113 @@ export class SubscriptionController {
     );
   }
 
+  /** List all platform subscription plans for admin management. */
+  @Get('admin/subscriptions/plans')
+  @ApiOperation({
+    operationId: 'SUB-009',
+    summary: 'Admin xem các gói subscription',
+    description:
+      'Xem toàn bộ gói subscription của nền tảng, gồm cả gói đã ngừng bán. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'All platform subscription plans',
+    schema: responseSchema('SUB-009'),
+  })
+  adminPlans(@Req() req: { actor?: Actor }) {
+    return this.queries.execute(
+      new SubscriptionAdminPlansQuery(req.actor ?? { sub: '', roles: [] }, {}),
+    );
+  }
+
+  /** Create a paid plan or configure the free default plan for photographers. */
+  @Post('admin/subscriptions/plans')
+  @HttpCode(200)
+  @ApiOperation({
+    operationId: 'SUB-010',
+    summary: 'Admin tạo gói subscription',
+    description:
+      'Tạo gói cho photographer; is_default=true chọn một gói miễn phí để tự gán khi admin duyệt hồ sơ. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiConflictResponse({ description: 'Plan code already exists' })
+  @ApiBody({ type: Dto.SubscriptionPlanCreateBodyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Platform subscription plan created',
+    schema: responseSchema('SUB-010'),
+  })
+  createPlan(
+    @Req() req: { actor?: Actor },
+    @Body() body: Dto.SubscriptionPlanCreateBodyDto,
+  ) {
+    return this.commands.execute(
+      new SubscriptionPlanCreateCommand(
+        req.actor ?? { sub: '', roles: [] },
+        body,
+      ),
+    );
+  }
+
+  /** Update plan details or deactivate the plan for future purchases. */
+  @Patch('admin/subscriptions/plans/:plan_id')
+  @ApiOperation({
+    operationId: 'SUB-011',
+    summary: 'Admin sửa gói subscription',
+    description:
+      'Sửa gói hoặc chọn gói miễn phí mặc định; gói mặc định phải đang hoạt động và giá 0. Subscription đã tạo giữ snapshot cũ. Role: Admin',
+  })
+  @Access(['admin'])
+  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Missing or invalid Keycloak access token',
+  })
+  @ApiForbiddenResponse({
+    description: 'Role, ownership or account status denied',
+  })
+  @ApiBadRequestResponse({
+    description: 'DTO validation or business constraint failed',
+  })
+  @ApiNotFoundResponse({ description: 'Subscription plan not found' })
+  @ApiConflictResponse({ description: 'Plan code already exists' })
+  @ApiParam({ name: 'plan_id', type: String, description: 'Plan UUID' })
+  @ApiBody({ type: Dto.SubscriptionPlanUpdateBodyDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Platform subscription plan updated',
+    schema: responseSchema('SUB-011'),
+  })
+  updatePlan(
+    @Req() req: { actor?: Actor },
+    @Param('plan_id', new ParseUUIDPipe()) plan_id: string,
+    @Body() body: Dto.SubscriptionPlanUpdateBodyDto,
+  ) {
+    return this.commands.execute(
+      new SubscriptionPlanUpdateCommand(req.actor ?? { sub: '', roles: [] }, {
+        ...body,
+        plan_id,
+      }),
+    );
+  }
+
   /**
    * Create a subscription after validating the input and business rules.
    *
@@ -198,7 +309,8 @@ export class SubscriptionController {
   @ApiOperation({
     operationId: 'SUB-002',
     summary: 'Đăng ký gói VIP',
-    description: 'Khởi tạo subscription/payment. Role: Photographer',
+    description:
+      'Khởi tạo subscription/payment. Chọn gateway hoặc Ví Lens nếu số dư khả dụng đủ. Role: Photographer',
   })
   @Access(['photographer'])
   @ApiBearerAuth()
@@ -233,6 +345,7 @@ export class SubscriptionController {
       new SubscriptionCreateCommand(req.actor ?? { sub: '', roles: [] }, {
         photographer_plan_id: body.photographer_plan_id,
         idempotency_key: body.idempotency_key,
+        payment_method: body.payment_method,
       }),
     );
   }

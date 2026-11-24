@@ -1434,7 +1434,7 @@
     "method": "POST",
     "path": "/api/v1/subscriptions",
     "summary": "Đăng ký gói VIP",
-    "description": "Khởi tạo subscription/payment.",
+    "description": "Khởi tạo subscription/payment cho gói trả phí qua gateway hoặc Ví Lens khi đủ số dư khả dụng; gói mặc định miễn phí được hệ thống tự gán.",
     "role": "Photographer",
     "priority": "Should",
     "kind": "Command"
@@ -1446,7 +1446,7 @@
     "method": "GET",
     "path": "/api/v1/subscriptions/me",
     "summary": "Subscription hiện tại",
-    "description": "Lấy gói, trạng thái, ngày hết hạn và entitlement.",
+    "description": "Lấy gói, trạng thái, ngày hết hạn (null với gói miễn phí mặc định) và entitlement.",
     "role": "Photographer",
     "priority": "Should",
     "kind": "Query"
@@ -1458,7 +1458,7 @@
     "method": "POST",
     "path": "/api/v1/subscriptions/:subscription_id/cancel",
     "summary": "Hủy gia hạn subscription",
-    "description": "Ngừng gia hạn sau kỳ đã thanh toán; quyền lợi còn đến end_at.",
+    "description": "Ngừng gia hạn sau kỳ đã thanh toán; hết kỳ worker tự gán gói miễn phí mặc định.",
     "role": "Photographer",
     "priority": "Could",
     "kind": "Command"
@@ -1507,6 +1507,42 @@
     "path": "/api/v1/admin/subscriptions/payments/:subscription_payment_id/reconcile",
     "summary": "Đối soát payment subscription",
     "description": "Admin xác nhận payment để kích hoạt subscription hoặc tạo yêu cầu refund, hoặc xác nhận chưa thu tiền để đóng checkout.",
+    "role": "Admin",
+    "priority": "Should",
+    "kind": "Command"
+  },
+  {
+    "id": "SUB-009",
+    "module": "Subscription & VIP",
+    "service": "Core Backend",
+    "method": "GET",
+    "path": "/api/v1/admin/subscriptions/plans",
+    "summary": "Admin xem các gói subscription",
+    "description": "Xem toàn bộ gói subscription của nền tảng, gồm cả gói đã ngừng bán.",
+    "role": "Admin",
+    "priority": "Should",
+    "kind": "Query"
+  },
+  {
+    "id": "SUB-010",
+    "module": "Subscription & VIP",
+    "service": "Core Backend",
+    "method": "POST",
+    "path": "/api/v1/admin/subscriptions/plans",
+    "summary": "Admin tạo gói subscription",
+    "description": "Tạo gói nền tảng; có thể chọn làm gói mặc định miễn phí bằng is_default=true.",
+    "role": "Admin",
+    "priority": "Should",
+    "kind": "Command"
+  },
+  {
+    "id": "SUB-011",
+    "module": "Subscription & VIP",
+    "service": "Core Backend",
+    "method": "PATCH",
+    "path": "/api/v1/admin/subscriptions/plans/:plan_id",
+    "summary": "Admin sửa gói subscription",
+    "description": "Sửa gói hoặc chọn gói mặc định miễn phí; chỉ cho phép một gói mặc định đang hoạt động, giá 0.",
     "role": "Admin",
     "priority": "Should",
     "kind": "Command"

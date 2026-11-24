@@ -6,6 +6,8 @@ import { DataSource } from 'typeorm';
 import type * as Inputs from '@shared/contracts/contracts';
 import { SubscriptionUseCases } from './subscription.use-case';
 
+export const SUBSCRIPTION_PLANS_CACHE_KEY = 'catalog:subscription-plans:v1';
+
 export class SubscriptionUsageQuery {
   constructor(
     public readonly actor: Actor,
@@ -66,7 +68,6 @@ export class SubscriptionPlansQuery {
 }
 @QueryHandler(SubscriptionPlansQuery)
 export class SubscriptionPlansQueryHandler implements IQueryHandler<SubscriptionPlansQuery> {
-  private static readonly CACHE_KEY = 'catalog:subscription-plans:v1';
   private static readonly CACHE_TTL_SECONDS = 3600;
 
   private readonly logger = new Logger(SubscriptionPlansQueryHandler.name);
@@ -86,7 +87,7 @@ export class SubscriptionPlansQueryHandler implements IQueryHandler<Subscription
     try {
       const cached = await this.redis.getJson<
         Awaited<ReturnType<SubscriptionUseCases['plans']>>
-      >(SubscriptionPlansQueryHandler.CACHE_KEY);
+      >(SUBSCRIPTION_PLANS_CACHE_KEY);
       if (cached) return cached;
     } catch (error) {
       this.logger.warn(
@@ -99,7 +100,7 @@ export class SubscriptionPlansQueryHandler implements IQueryHandler<Subscription
     );
     try {
       await this.redis.setJson(
-        SubscriptionPlansQueryHandler.CACHE_KEY,
+        SUBSCRIPTION_PLANS_CACHE_KEY,
         result,
         SubscriptionPlansQueryHandler.CACHE_TTL_SECONDS,
       );
@@ -113,6 +114,28 @@ export class SubscriptionPlansQueryHandler implements IQueryHandler<Subscription
 
   private errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
+  }
+}
+
+export class SubscriptionAdminPlansQuery {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.SubscriptionAdminPlansQueryInput,
+  ) {}
+}
+
+@QueryHandler(SubscriptionAdminPlansQuery)
+export class SubscriptionAdminPlansQueryHandler implements IQueryHandler<SubscriptionAdminPlansQuery> {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: SubscriptionUseCases,
+  ) {}
+
+  /** Run the admin subscription plan catalog query in a transaction. */
+  execute(message: SubscriptionAdminPlansQuery) {
+    return this.dataSource.transaction((s) =>
+      this.useCases.adminPlans(s, message.actor),
+    );
   }
 }
 

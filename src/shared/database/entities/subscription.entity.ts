@@ -32,11 +32,12 @@ export class SubscriptionEntity extends BaseEntity {
   })
   start_at!: string;
 
-  /** Time when the subscription expires (ISO timestamptz string). */
+  /** Time when the subscription expires; null for a permanent free default plan. */
   @Column('timestamptz', {
+    nullable: true,
     transformer: timestampTransformer,
   })
-  end_at!: string;
+  end_at!: string | null;
 
   /** Subscription status ('pending' | 'active' | 'expired' | 'cancelled'). */
   @Column({ default: SubscriptionStatus.PENDING })

@@ -2,7 +2,7 @@ import { In, type EntityManager } from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import { chatPeerForUser } from '@shared/common/chat-peer';
 import type * as Inputs from '@shared/contracts/contracts';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { Actor } from '@shared/platform/auth/actor';
 import {
   currentUser,
@@ -27,6 +27,7 @@ import { Rank } from './rank/rank.domain';
 import { Badge } from './badge/badge.domain';
 import { PhotographerRolePort } from './ports/photographer-role.port';
 import { PhotographerRatingsPort } from './ports/photographer-ratings.port';
+import { SubscriptionDefaultPlanPort } from '@modules/subscription/ports/subscription-default-plan.port';
 import {
   PhotographerAchievementsCache,
   type PhotographerAchievementSnapshot,
@@ -47,6 +48,9 @@ export class PhotographerUseCases implements PhotographerSearchPort {
     private readonly storage: ObjectStorage,
     private readonly achievementsCache: PhotographerAchievementsCache,
     private readonly publicBookingPlansCache: PublicBookingPlansCache,
+    @Optional()
+    @Inject(SubscriptionDefaultPlanPort)
+    private readonly defaultSubscription?: SubscriptionDefaultPlanPort,
   ) {}
 
   /**
@@ -119,6 +123,19 @@ export class PhotographerUseCases implements PhotographerSearchPort {
       reviewed_at: new Date().toISOString(),
     });
     const u = await required(s, 'users', p.user_id);
+    if (this.defaultSubscription) {
+      const assigned = await this.defaultSubscription.assignDefault(
+        s,
+        p.id,
+        u.id,
+        'admin',
+      );
+      ensure(
+        assigned,
+        'An active free default plan must be configured before photographer approval',
+        'conflict',
+      );
+    }
     await this.roles.grant(u.keycloak_id);
     await emit(s, 'photographer.verified', [u.id], { photographer_id: p.id });
     return this.details(s, p.id, true);

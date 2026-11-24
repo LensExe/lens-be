@@ -218,6 +218,7 @@ const portfolio = obj({
 
 const subscription = obj({
   subscription: { ...records.subscriptions, nullable: true },
+  pending_subscription: { ...records.subscriptions, nullable: true },
   features: array(planFeature),
 });
 
@@ -470,6 +471,16 @@ const schemas: Record<string, SchemaObject> = {
     subscription: records.subscriptions,
     refund: { oneOf: [records.refund_requests, { type: 'null' }] },
   }),
+  'SUB-009': obj({
+    items: array(
+      obj({
+        ...records.photographer_plans.properties,
+        features: array(planFeature),
+      }),
+    ),
+  }),
+  'SUB-010': records.photographer_plans,
+  'SUB-011': records.photographer_plans,
   'MOD-001': records.reports,
   'MOD-002': paged(reportMine),
   'MOD-003': paged(records.reports),
