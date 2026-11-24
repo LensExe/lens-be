@@ -4,11 +4,12 @@ import {
   type DataSource,
   type EntityManager,
 } from 'typeorm';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   EntitySchemas,
   updateEntity,
   type BookingEntity,
+  type SubscriptionEntity,
   type TransactionEntity,
 } from '@shared/database';
 import type * as Inputs from '@shared/contracts/contracts';
@@ -34,6 +35,7 @@ import { RefundUseCases } from './refund/refund.use-case';
 import type { SubscriptionPaymentsPort } from '@modules/subscription/ports/subscription-payments.port';
 import { Subscription } from '@modules/subscription/subscription.domain';
 import type { BookingPaymentSettlementPort } from '@modules/booking/ports/booking-payment-settlement.port';
+import { SubscriptionDefaultPlanPort } from '@modules/subscription/ports/subscription-default-plan.port';
 
 type PaymentInput =
   Inputs.PaymentDepositCommandInput | Inputs.PaymentRemainingCommandInput;
@@ -67,6 +69,9 @@ export class PaymentUseCases
     private readonly gateway: PaymentGateway,
     private readonly wallets: WalletUseCases,
     private readonly refunds: RefundUseCases,
+    @Optional()
+    @Inject(SubscriptionDefaultPlanPort)
+    private readonly defaultSubscription?: SubscriptionDefaultPlanPort,
   ) {}
 
   /**
@@ -631,39 +636,12 @@ export class PaymentUseCases
         );
         return { received: true, duplicate: false };
       }
-      const periodLengthMs =
-        Date.parse(subscription.end_at) - Date.parse(subscription.start_at);
-      const billingCycleDays =
-        subscription.plan_snapshot?.billing_cycle ?? periodLengthMs / 864e5;
-      ensure(
-        Number.isSafeInteger(billingCycleDays) && billingCycleDays > 0,
-        'Subscription billing period is invalid',
-        'conflict',
-      );
-      const activePeriod = Subscription.period(
-        new Date().toISOString(),
-        billingCycleDays,
-      );
-      await updateEntity(
+      await this.activateSubscriptionPayment(
         manager,
-        EntitySchemas.subscriptions,
-        subscription.id,
-        { ...activePeriod, status: 'active' },
+        subscription,
+        transaction,
+        'Activated after provider payment verification.',
       );
-      await manager.save(EntitySchemas.subscription_status_history, {
-        subscription_id: subscription.id,
-        event_type: SubscriptionHistoryEvent.PAYMENT_ACTIVATED,
-        from_status: 'pending',
-        to_status: 'active',
-        actor_user_id: null,
-        actor_role: 'system',
-        transaction_id: transaction.id,
-        note: 'Activated after provider payment verification.',
-      });
-      await emit(manager, 'payment.subscription', [transaction.user_id], {
-        subscription_id: subscription.id,
-        transaction_id: transaction.id,
-      });
       return { received: true, duplicate: false };
     }
 
@@ -693,6 +671,60 @@ export class PaymentUseCases
         'Payment arrived after booking ended; refund requires review',
       );
     return { received: true, duplicate: false };
+  }
+
+  /** Activate a pending subscription after its payment has been recorded. */
+  private async activateSubscriptionPayment(
+    manager: EntityManager,
+    subscription: SubscriptionEntity,
+    transaction: TransactionEntity,
+    note: string,
+  ) {
+    ensure(
+      subscription.status === 'pending',
+      'Only a pending subscription can be activated by payment',
+      'conflict',
+    );
+    const periodLengthMs = subscription.end_at
+      ? Date.parse(subscription.end_at) - Date.parse(subscription.start_at)
+      : Number.NaN;
+    const billingCycleDays =
+      subscription.plan_snapshot?.billing_cycle ?? periodLengthMs / 864e5;
+    ensure(
+      Number.isSafeInteger(billingCycleDays) && billingCycleDays > 0,
+      'Subscription billing period is invalid',
+      'conflict',
+    );
+    const activePeriod = Subscription.period(
+      new Date().toISOString(),
+      billingCycleDays,
+    );
+    await this.defaultSubscription?.replaceDefaultWithPaid(
+      manager,
+      subscription.photographer_id,
+      transaction.id,
+    );
+    // The subscription was loaded under a write lock immediately before
+    // activation, so update that entity directly within the same transaction.
+    await manager.save(EntitySchemas.subscriptions, {
+      ...subscription,
+      ...activePeriod,
+      status: 'active',
+    });
+    await manager.save(EntitySchemas.subscription_status_history, {
+      subscription_id: subscription.id,
+      event_type: SubscriptionHistoryEvent.PAYMENT_ACTIVATED,
+      from_status: 'pending',
+      to_status: 'active',
+      actor_user_id: null,
+      actor_role: 'system',
+      transaction_id: transaction.id,
+      note,
+    });
+    await emit(manager, 'payment.subscription', [transaction.user_id], {
+      subscription_id: subscription.id,
+      transaction_id: transaction.id,
+    });
   }
 
   /**
@@ -1104,6 +1136,7 @@ export class PaymentUseCases
     subscriptionId: string,
     price: number,
     idempotencyKey: string,
+    paymentMethod: 'gateway' | 'wallet' = 'gateway',
   ) {
     Payment.assertAmount(price);
     const existing = await manager.findOneBy(EntitySchemas.transactions, {
@@ -1116,18 +1149,64 @@ export class PaymentUseCases
         'Existing subscription payment does not match current subscription',
         'conflict',
       );
+      ensure(
+        (existing.payment_gateway ===
+          TransactionPaymentGateway.WALLET_INTERNAL) ===
+          (paymentMethod === 'wallet'),
+        'Payment method cannot change after a subscription checkout has started',
+        'conflict',
+      );
+      const existingOrderCode = Number(existing.provider_order_code);
+      if (
+        existing.status === 'pending' &&
+        (!Number.isSafeInteger(existingOrderCode) || existingOrderCode <= 0) &&
+        !existing.checkout_url &&
+        !existing.qr_code
+      ) {
+        const providerOrderCode = await this.nextProviderOrderCode(manager);
+        const updated = await updateEntity(
+          manager,
+          EntitySchemas.transactions,
+          existing.id,
+          { provider_order_code: providerOrderCode },
+        );
+        Object.assign(existing, updated);
+      }
       return existing;
     }
-    return manager.save(EntitySchemas.transactions, {
+    const payFromWallet = paymentMethod === 'wallet';
+    const transaction = await manager.save(EntitySchemas.transactions, {
       user_id: userId,
       transaction_code: `subscription:${subscriptionId}`,
       type: 'subscription',
       reference_id: subscriptionId,
+      direction: payFromWallet ? 'out' : 'in',
       amount: price,
       idempotency_key: idempotencyKey,
-      payment_gateway: this.gateway.activeProvider,
-      checkout_expires_at: Payment.checkoutExpiresAt(),
+      payment_gateway: payFromWallet
+        ? TransactionPaymentGateway.WALLET_INTERNAL
+        : this.gateway.activeProvider,
+      provider_order_code: payFromWallet
+        ? null
+        : await this.nextProviderOrderCode(manager),
+      status: payFromWallet ? 'paid' : 'pending',
+      checkout_expires_at: payFromWallet ? null : Payment.checkoutExpiresAt(),
     });
+    if (payFromWallet) {
+      await this.wallets.paySubscription(manager, transaction, userId);
+      const subscription = await manager.findOne(EntitySchemas.subscriptions, {
+        where: { id: subscriptionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      ensure(subscription, 'Subscription not found', 'missing');
+      await this.activateSubscriptionPayment(
+        manager,
+        subscription,
+        transaction,
+        'Activated after payment from the photographer Lens wallet.',
+      );
+    }
+    return transaction;
   }
 
   /**

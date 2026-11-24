@@ -215,16 +215,17 @@ Report có thể nhắm tới user, booking, photographer, portfolio hoặc feed
 
 ### Flow 9 — Subscription/VIP cho photographer
 
-Đây là flow mở rộng sau MVP:
-
 ```text
-Photographer xem plans
+Admin cấu hình một plan miễn phí làm mặc định
+  → Admin duyệt hồ sơ và cấp role photographer
+  → Gán subscription mặc định không hết hạn
   → Tạo subscription
   → Tạo transaction subscription
   → PayOS webhook
   → Kích hoạt subscription
   → Theo dõi usage/quota
-  → Hủy auto-renew hoặc hết hạn
+  → Hủy gia hạn hoặc hết kỳ
+  → Worker gán lại subscription miễn phí mặc định
 ```
 
 ### Flow 10 — Realtime notification
@@ -422,11 +423,11 @@ Khi một nghiệp vụ tạo event realtime:
 
 Cơ chế này tránh tình trạng database đã commit nhưng notification bị mất do ghi database và gửi realtime ở hai thao tác độc lập.
 
-Lens ánh xạ `booking.created` thành `order_placed` và một số event thanh toán thành `payment_success`, rồi gửi từng recipient qua `notification.events` với Keycloak `sub` làm user ID. Các event chưa có notification type tương ứng sẽ được retry rồi dead-letter. Worker chỉ đánh dấu event đã xử lý sau khi publisher thành công, retry tối đa năm lần rồi dead-letter. Giao nhận là at-least-once; notification-service dùng `eventId` làm BullMQ job ID để deduplicate khi job còn được giữ lại.
+Lens ánh xạ `booking.created` thành `order_placed`, event thanh toán thành `payment_success` và `subscription.expired` thành `booking_update`, rồi gửi từng recipient qua `notification.events` với Keycloak `sub` làm user ID. Các event chưa có notification type tương ứng sẽ được retry rồi dead-letter. Worker chỉ đánh dấu event đã xử lý sau khi publisher thành công, retry tối đa năm lần rồi dead-letter. Giao nhận là at-least-once; notification-service dùng `eventId` làm BullMQ job ID để deduplicate khi job còn được giữ lại.
 
 ## 10. API overview
 
-API hiện được theo dõi trong docs/api-tracker.json với **129 operations**. Public
+API hiện được theo dõi trong docs/api-tracker.json với **132 operations**. Public
 HTTP paths dùng prefix `/api/v1`; các flow minh họa bên dưới có thể lược bỏ
 prefix để dễ đọc.
 

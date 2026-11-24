@@ -1,8 +1,24 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+import { Logger } from '@nestjs/common';
 import type { Actor } from '@shared/platform/auth/actor';
 import { DataSource } from 'typeorm';
 import type * as Inputs from '@shared/contracts/contracts';
+import { RedisService } from '@shared/database/redis/redis.service';
 import { SubscriptionUseCases } from './subscription.use-case';
+import { SUBSCRIPTION_PLANS_CACHE_KEY } from './subscriptions.query';
+
+async function invalidateSubscriptionPlansCache(
+  redis: RedisService,
+  logger: Logger,
+) {
+  try {
+    await redis.del(SUBSCRIPTION_PLANS_CACHE_KEY);
+  } catch (error) {
+    logger.warn(
+      `Subscription plan cache invalidation failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
 
 export class SubscriptionCreateCommand {
   constructor(
@@ -27,6 +43,62 @@ export class SubscriptionCreateCommandHandler implements ICommandHandler<Subscri
     return this.dataSource
       .transaction((s) => this.useCases.create(s, message.actor, message.input))
       .then((result) => this.useCases.fulfill(this.dataSource, result));
+  }
+}
+
+export class SubscriptionPlanCreateCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.SubscriptionPlanCreateCommandInput,
+  ) {}
+}
+
+@CommandHandler(SubscriptionPlanCreateCommand)
+export class SubscriptionPlanCreateCommandHandler implements ICommandHandler<SubscriptionPlanCreateCommand> {
+  private readonly logger = new Logger(
+    SubscriptionPlanCreateCommandHandler.name,
+  );
+
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: SubscriptionUseCases,
+    private readonly redis: RedisService,
+  ) {}
+
+  async execute(message: SubscriptionPlanCreateCommand) {
+    const result = await this.dataSource.transaction((s) =>
+      this.useCases.createPlan(s, message.actor, message.input),
+    );
+    await invalidateSubscriptionPlansCache(this.redis, this.logger);
+    return result;
+  }
+}
+
+export class SubscriptionPlanUpdateCommand {
+  constructor(
+    public readonly actor: Actor,
+    public readonly input: Inputs.SubscriptionPlanUpdateCommandInput,
+  ) {}
+}
+
+@CommandHandler(SubscriptionPlanUpdateCommand)
+export class SubscriptionPlanUpdateCommandHandler implements ICommandHandler<SubscriptionPlanUpdateCommand> {
+  private readonly logger = new Logger(
+    SubscriptionPlanUpdateCommandHandler.name,
+  );
+
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly useCases: SubscriptionUseCases,
+    private readonly redis: RedisService,
+  ) {}
+
+  async execute(message: SubscriptionPlanUpdateCommand) {
+    const result = await this.dataSource.transaction((s) =>
+      this.useCases.updatePlan(s, message.actor, message.input),
+    );
+    await invalidateSubscriptionPlansCache(this.redis, this.logger);
+    return result;
   }
 }
 

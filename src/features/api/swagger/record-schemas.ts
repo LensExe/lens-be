@@ -391,6 +391,10 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'boolean',
         description: 'is active',
       },
+      is_default: {
+        type: 'boolean',
+        description: 'Automatically assigned free default plan',
+      },
       billing_cycle: {
         type: 'number',
         description: 'billing cycle',
@@ -426,6 +430,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
       'name',
       'price',
       'is_active',
+      'is_default',
       'billing_cycle',
       'features',
       'created_at',
@@ -464,6 +469,7 @@ export const recordSchemas: Record<string, SchemaObject> = {
         type: 'string',
         description: 'end at',
         format: 'date-time',
+        nullable: true,
       },
       status: {
         type: 'string',

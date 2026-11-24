@@ -29,6 +29,10 @@ export class PhotographerPlanEntity extends BaseEntity {
   @Column({ default: true })
   is_active!: boolean;
 
+  /** Whether this is the platform's automatically assigned free plan. */
+  @Column({ default: false })
+  is_default!: boolean;
+
   /** Billing cycle in days (for example, 30 or 365 days). */
   @Column()
   billing_cycle!: number;

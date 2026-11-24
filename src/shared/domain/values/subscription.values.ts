@@ -19,6 +19,8 @@ export const SubscriptionHistoryEvent = {
   PAYMENT_RECONCILED: 'payment_reconciled',
   PAYMENT_REFUNDED: 'payment_refunded',
   EXPIRED: 'expired',
+  DEFAULT_ASSIGNED: 'default_assigned',
+  DEFAULT_REPLACED: 'default_replaced',
   IMPORTED: 'imported',
 } as const;
 

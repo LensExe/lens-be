@@ -255,6 +255,20 @@ export class NotificationOutboxPublisher extends RealtimePublisher {
           message: 'Thanh toán cho gói photographer đã được ghi nhận.',
           data: this.pick(payload, ['subscription_id', 'transaction_id']),
         };
+      case 'subscription.expired':
+        return {
+          type: 'booking_update',
+          title: 'Gói subscription đã hết hạn',
+          message: `Gói ${typeof payload.plan_name === 'string' ? payload.plan_name : 'subscription'} của bạn đã hết hạn. Hãy chọn gói mới để tiếp tục sử dụng quyền lợi.`,
+          data: this.pick(payload, [
+            'subscription_id',
+            'plan_id',
+            'plan_code',
+            'plan_name',
+            'end_at',
+          ]),
+          realtimeEventType: 'subscription.expired',
+        };
       default:
         return undefined;
     }

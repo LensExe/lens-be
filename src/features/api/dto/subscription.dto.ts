@@ -1,14 +1,134 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsString,
   IsUUID,
   IsBoolean,
   IsObject,
   IsIn,
+  IsInt,
+  Matches,
+  Max,
   MinLength,
   MaxLength,
+  Min,
   ValidateIf,
 } from 'class-validator';
+import type { PlanFeatureValue } from '@shared/domain/types/plan.types';
+
+export class SubscriptionPlanCreateBodyDto {
+  @ApiProperty({ example: 'MONTHLY_PRO', maxLength: 64 })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(64)
+  @Matches(/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/)
+  code!: string;
+
+  @ApiProperty({ example: 'Pro hàng tháng', maxLength: 100 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  name!: string;
+
+  @ApiPropertyOptional({ nullable: true, maxLength: 2000 })
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
+  @IsString()
+  @MaxLength(2000)
+  description?: string | null;
+
+  @ApiProperty({ description: 'Giá subscription (VND)', example: 199000 })
+  @IsInt()
+  @Min(0)
+  @Max(Number.MAX_SAFE_INTEGER)
+  price!: number;
+
+  @ApiProperty({ description: 'Chu kỳ tính phí theo ngày', example: 30 })
+  @IsInt()
+  @Min(1)
+  @Max(3650)
+  billing_cycle!: number;
+
+  @ApiPropertyOptional({ type: 'array', example: [] })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsArray()
+  @ArrayMaxSize(50)
+  features?: PlanFeatureValue[];
+
+  @ApiPropertyOptional({ default: true })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  is_active?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Đặt đây làm gói miễn phí mặc định tự gán cho photographer',
+    default: false,
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  is_default?: boolean;
+}
+
+export class SubscriptionPlanUpdateBodyDto {
+  @ApiPropertyOptional({ example: 'MONTHLY_PRO', maxLength: 64 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(64)
+  @Matches(/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/)
+  code?: string;
+
+  @ApiPropertyOptional({ example: 'Pro hàng tháng', maxLength: 100 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  name?: string;
+
+  @ApiPropertyOptional({ nullable: true, maxLength: 2000 })
+  @ValidateIf((_object, value) => value !== undefined && value !== null)
+  @IsString()
+  @MaxLength(2000)
+  description?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Giá subscription (VND)',
+    example: 199000,
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsInt()
+  @Min(0)
+  @Max(Number.MAX_SAFE_INTEGER)
+  price?: number;
+
+  @ApiPropertyOptional({
+    description: 'Chu kỳ tính phí theo ngày',
+    example: 30,
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsInt()
+  @Min(1)
+  @Max(3650)
+  billing_cycle?: number;
+
+  @ApiPropertyOptional({ type: 'array', example: [] })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsArray()
+  @ArrayMaxSize(50)
+  features?: PlanFeatureValue[];
+
+  @ApiPropertyOptional()
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  is_active?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Chọn làm gói miễn phí mặc định tự gán cho photographer',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  is_default?: boolean;
+}
 
 export class SubscriptionCreateCommandBodyDto {
   @ApiProperty({
@@ -24,6 +144,16 @@ export class SubscriptionCreateCommandBodyDto {
   @MinLength(1)
   @MaxLength(128)
   idempotency_key!: string;
+
+  @ApiPropertyOptional({
+    enum: ['gateway', 'wallet'],
+    description:
+      'gateway mở checkout QR; wallet trừ số dư khả dụng của Ví Lens',
+    default: 'gateway',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsIn(['gateway', 'wallet'])
+  payment_method?: 'gateway' | 'wallet';
 }
 
 export class SubscriptionPaymentReviewResolutionBodyDto {

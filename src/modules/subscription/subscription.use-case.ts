@@ -6,7 +6,7 @@ import {
 } from 'typeorm';
 import { EntitySchemas, updateEntity } from '@shared/database';
 import type * as Inputs from '@shared/contracts/contracts';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { Actor } from '@shared/platform/auth/actor';
 import {
   currentUser,
@@ -27,6 +27,17 @@ import type {
 import { SubscriptionStorageQuotaPort } from '@modules/media/ports/subscription-storage-quota.port';
 import { SubscriptionStorageUsagePort } from './ports/subscription-storage-usage.port';
 import { SubscriptionPortfolioQuotaPort } from '@modules/photographer/ports/subscription-portfolio-quota.port';
+import type { PhotographerPlanEntity } from '@shared/database/entities/photographer-plan.entity';
+import { SubscriptionDefaultPlanPort } from './ports/subscription-default-plan.port';
+
+function normalizeSubscriptionPlanCode(value: string) {
+  const code = value.trim().toUpperCase();
+  ensure(
+    /^[A-Z0-9][A-Z0-9_-]*$/.test(code),
+    'Subscription plan code is invalid',
+  );
+  return code;
+}
 
 @Injectable()
 export class SubscriptionUseCases
@@ -35,6 +46,9 @@ export class SubscriptionUseCases
   constructor(
     private readonly payments: SubscriptionPaymentsPort,
     private readonly storageUsage: SubscriptionStorageUsagePort,
+    @Optional()
+    @Inject(SubscriptionDefaultPlanPort)
+    private readonly defaultPlan?: SubscriptionDefaultPlanPort,
   ) {}
 
   /**
@@ -69,6 +83,131 @@ export class SubscriptionUseCases
     };
   }
 
+  /** List all platform subscription plans for an admin, including inactive plans. */
+  async adminPlans(s: EntityManager, a: Actor) {
+    role(a, 'admin');
+    await currentUser(s, a);
+    return {
+      items: await s.find(EntitySchemas.photographer_plans, {
+        order: { created_at: 'ASC', id: 'ASC' },
+      }),
+    };
+  }
+
+  /** Create a platform subscription plan that photographers can purchase. */
+  async createPlan(
+    s: EntityManager,
+    a: Actor,
+    input: Inputs.SubscriptionPlanCreateCommandInput,
+  ) {
+    role(a, 'admin');
+    await currentUser(s, a);
+    const code = normalizeSubscriptionPlanCode(input.code);
+    ensure(input.name.trim().length > 0, 'Subscription plan name is required');
+    ensure(
+      Number.isSafeInteger(input.price) && input.price >= 0,
+      'Subscription plan price is invalid',
+    );
+    ensure(
+      Number.isInteger(input.billing_cycle) && input.billing_cycle > 0,
+      'Subscription plan billing cycle is invalid',
+    );
+    ensure(
+      !(await s.findOneBy(EntitySchemas.photographer_plans, { code })),
+      'Subscription plan code already exists',
+      'conflict',
+    );
+    const isActive = input.is_active ?? true;
+    const isDefault = input.is_default ?? false;
+    this.assertDefaultPlan(input.price, isActive, isDefault);
+    const features = input.features ?? [];
+    Subscription.assertFeaturesValid(features);
+    if (isDefault) await this.clearDefaultPlan(s);
+    return s.save(EntitySchemas.photographer_plans, {
+      code,
+      name: input.name.trim(),
+      description: input.description?.trim() || null,
+      price: input.price,
+      billing_cycle: input.billing_cycle,
+      features,
+      is_active: isActive,
+      is_default: isDefault,
+    });
+  }
+
+  /** Update a platform subscription plan without changing existing purchase snapshots. */
+  async updatePlan(
+    s: EntityManager,
+    a: Actor,
+    input: Inputs.SubscriptionPlanUpdateCommandInput,
+  ) {
+    role(a, 'admin');
+    await currentUser(s, a);
+    const plan = await s.findOne(EntitySchemas.photographer_plans, {
+      where: { id: input.plan_id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    ensure(plan, 'Subscription plan not found', 'missing');
+
+    const changes: Partial<PhotographerPlanEntity> = {};
+    if (input.code !== undefined) {
+      const code = normalizeSubscriptionPlanCode(input.code);
+      ensure(
+        code === plan.code ||
+          !(await s.findOneBy(EntitySchemas.photographer_plans, { code })),
+        'Subscription plan code already exists',
+        'conflict',
+      );
+      changes.code = code;
+    }
+    if (input.name !== undefined) {
+      ensure(
+        input.name.trim().length > 0,
+        'Subscription plan name is required',
+      );
+      changes.name = input.name.trim();
+    }
+    if (input.description !== undefined)
+      changes.description = input.description?.trim() || null;
+    if (input.price !== undefined) {
+      ensure(
+        Number.isSafeInteger(input.price) && input.price >= 0,
+        'Subscription plan price is invalid',
+      );
+      changes.price = input.price;
+    }
+    if (input.billing_cycle !== undefined) {
+      ensure(
+        Number.isInteger(input.billing_cycle) && input.billing_cycle > 0,
+        'Subscription plan billing cycle is invalid',
+      );
+      changes.billing_cycle = input.billing_cycle;
+    }
+    if (input.features !== undefined) {
+      Subscription.assertFeaturesValid(input.features);
+      changes.features = input.features;
+    }
+    if (input.is_active !== undefined) changes.is_active = input.is_active;
+    if (input.is_default !== undefined) {
+      ensure(
+        input.is_default || !plan.is_default,
+        'Choose another default plan before unsetting this one',
+        'conflict',
+      );
+      changes.is_default = input.is_default;
+    }
+    ensure(
+      Object.keys(changes).length > 0,
+      'At least one subscription plan field must be provided',
+    );
+    const nextPrice = changes.price ?? Number(plan.price);
+    const nextActive = changes.is_active ?? plan.is_active;
+    const nextDefault = changes.is_default ?? plan.is_default;
+    this.assertDefaultPlan(nextPrice, nextActive, nextDefault);
+    if (input.is_default === true) await this.clearDefaultPlan(s, plan.id);
+    return updateEntity(s, EntitySchemas.photographer_plans, plan.id, changes);
+  }
+
   /**
    * Create a subscription after validating the input and business rules.
    *
@@ -86,6 +225,8 @@ export class SubscriptionUseCases
     const u = await currentUser(s, a),
       owner = await photographer(s, a),
       p = await required(s, 'photographer_plans', i.photographer_plan_id);
+    ensure(p.is_active, 'Plan inactive', 'conflict');
+    ensure(!p.is_default, 'The default free plan is assigned automatically');
     // Serialize create attempts for the same photographer before checking the one-live invariant.
     await s.findOne(EntitySchemas.photographers, {
       where: { id: owner.id },
@@ -95,30 +236,36 @@ export class SubscriptionUseCases
       photographer_id: owner.id,
       status: 'active',
     }))
-      if (Date.parse(old.end_at) <= Date.now()) await this.expire(s, old.id);
-    const [live] = (
-      await s.findBy(EntitySchemas.subscriptions, {
-        photographer_id: owner.id,
-      })
-    ).filter((x) => ['pending', 'active'].includes(x.status));
-    if (live) {
+      if (old.end_at && Date.parse(old.end_at) <= Date.now())
+        await this.expire(s, old.id);
+    const subscriptions = await s.findBy(EntitySchemas.subscriptions, {
+      photographer_id: owner.id,
+    });
+    const pending = subscriptions.find((x) => x.status === 'pending');
+    if (pending) {
       ensure(
-        live.status === 'pending' && live.plan_id === p.id,
-        'Existing subscription must expire first',
+        pending.plan_id === p.id,
+        'Another subscription checkout is already pending',
         'conflict',
       );
       return {
-        subscription: live,
+        subscription: pending,
         payment: await this.payments.subscriptionIntent(
           s,
           u.id,
-          live.id,
-          Number(live.price),
+          pending.id,
+          Number(pending.price),
           i.idempotency_key,
+          i.payment_method,
         ),
       };
     }
-    ensure(p.is_active, 'Plan inactive', 'conflict');
+    for (const active of subscriptions.filter((x) => x.status === 'active'))
+      ensure(
+        await this.isDefaultSubscription(s, active),
+        'An active paid subscription must expire before another plan can be purchased',
+        'conflict',
+      );
     Subscription.assertFeaturesValid(p.features);
     const startAt = new Date().toISOString();
     const planSnapshot = {
@@ -129,6 +276,7 @@ export class SubscriptionUseCases
       price: Number(p.price),
       billing_cycle: p.billing_cycle,
       features: p.features,
+      is_default: false,
     };
     const sub = await s.save(EntitySchemas.subscriptions, {
       photographer_id: owner.id,
@@ -147,15 +295,20 @@ export class SubscriptionUseCases
       transaction_id: null,
       note: `Subscribed to ${p.code}`,
     });
+    const payment = await this.payments.subscriptionIntent(
+      s,
+      u.id,
+      sub.id,
+      Number(sub.price),
+      i.idempotency_key,
+      i.payment_method,
+    );
     return {
-      subscription: sub,
-      payment: await this.payments.subscriptionIntent(
-        s,
-        u.id,
-        sub.id,
-        Number(sub.price),
-        i.idempotency_key,
-      ),
+      subscription:
+        payment.status === 'paid'
+          ? await required(s, 'subscriptions', sub.id)
+          : sub,
+      payment,
     };
   }
 
@@ -168,12 +321,29 @@ export class SubscriptionUseCases
    */
   async me(s: EntityManager, a: Actor) {
     const owner = await photographer(s, a),
-      [sub] = await s.find(EntitySchemas.subscriptions, {
+      subscriptions = await s.find(EntitySchemas.subscriptions, {
         where: { photographer_id: owner.id },
         order: { created_at: 'DESC', id: 'ASC' },
-        take: 1,
       });
-    if (!sub) return { subscription: null, features: [] };
+    const pending = subscriptions.find(
+      (candidate) => candidate.status === 'pending',
+    );
+    const sub =
+      subscriptions.find(
+        (candidate) =>
+          new Subscription(
+            candidate.status,
+            candidate.end_at,
+          ).effectiveStatus() === 'active',
+      ) ??
+      pending ??
+      subscriptions[0];
+    if (!sub)
+      return {
+        subscription: null,
+        pending_subscription: null,
+        features: [],
+      };
     const effectiveStatus = new Subscription(
       sub.status,
       sub.end_at,
@@ -182,6 +352,15 @@ export class SubscriptionUseCases
       effectiveStatus === 'active' ? await this.features(s, sub) : [];
     return {
       subscription: { ...sub, status: effectiveStatus },
+      pending_subscription: pending
+        ? {
+            ...pending,
+            status: new Subscription(
+              pending.status,
+              pending.end_at,
+            ).effectiveStatus(),
+          }
+        : null,
       features,
     };
   }
@@ -333,7 +512,7 @@ export class SubscriptionUseCases
         'Failed transactions cannot be resolved as paid',
         'conflict',
       );
-      const anotherLiveSubscription = await s
+      const otherLiveSubscriptions = await s
         .createQueryBuilder(EntitySchemas.subscriptions, 'subscription')
         .where('subscription.photographer_id = :photographerId', {
           photographerId: subscription.photographer_id,
@@ -344,15 +523,32 @@ export class SubscriptionUseCases
         .andWhere('subscription.status IN (:...statuses)', {
           statuses: ['pending', 'active'],
         })
-        .getOne();
+        .getMany();
+      let hasAnotherPaidSubscription = false;
+      for (const other of otherLiveSubscriptions) {
+        if (
+          other.status === 'active' &&
+          (await this.isDefaultSubscription(s, other))
+        )
+          continue;
+        hasAnotherPaidSubscription = true;
+        break;
+      }
       ensure(
-        !anotherLiveSubscription,
+        !hasAnotherPaidSubscription,
         'Photographer already has another live subscription; refund this payment instead',
         'conflict',
       );
-      const previousPeriodDays =
-        (Date.parse(subscription.end_at) - Date.parse(subscription.start_at)) /
-        86_400_000;
+      await this.defaultPlan?.replaceDefaultWithPaid(
+        s,
+        subscription.photographer_id,
+        transaction.id,
+      );
+      const previousPeriodDays = subscription.end_at
+        ? (Date.parse(subscription.end_at) -
+            Date.parse(subscription.start_at)) /
+          86_400_000
+        : Number.NaN;
       const billingCycleDays =
         subscription.plan_snapshot?.billing_cycle ?? previousPeriodDays;
       ensure(
@@ -445,6 +641,13 @@ export class SubscriptionUseCases
       sub.photographer_id === owner.id,
       'Subscription access denied',
       'forbidden',
+    );
+    const plan = await required(s, 'photographer_plans', sub.plan_id);
+    ensure(
+      !sub.plan_snapshot?.is_default &&
+        !(plan.is_default && Number(sub.price) === 0),
+      'The default free plan cannot be cancelled',
+      'conflict',
     );
     ensure(
       new Subscription(sub.status, sub.end_at).effectiveStatus() === 'active',
@@ -633,7 +836,8 @@ export class SubscriptionUseCases
     });
     ensure(sub, 'subscriptions not found', 'missing');
     if (sub.status !== 'active') return sub;
-    const updated = await updateEntity(s, EntitySchemas.subscriptions, sub.id, {
+    const updated = await s.save(EntitySchemas.subscriptions, {
+      ...sub,
       status: 'expired',
     });
     await this.recordHistory(s, {
@@ -647,11 +851,59 @@ export class SubscriptionUseCases
       note: 'Paid subscription period ended.',
     });
     const owner = await required(s, 'photographers', sub.photographer_id);
+    await this.defaultPlan?.assignDefault(s, owner.id, null, 'system');
     await emit(s, 'subscription.expired', [owner.user_id], {
       subscription_id: sub.id,
+      plan_id: sub.plan_id,
+      plan_code: sub.plan_snapshot?.code,
+      plan_name: sub.plan_snapshot?.name,
       end_at: sub.end_at,
     });
     return updated;
+  }
+
+  private assertDefaultPlan(
+    price: number,
+    isActive: boolean,
+    isDefault: boolean,
+  ) {
+    if (!isDefault) return;
+    ensure(
+      price === 0,
+      'The default photographer plan must be free',
+      'conflict',
+    );
+    ensure(
+      isActive,
+      'The default photographer plan must be active',
+      'conflict',
+    );
+  }
+
+  private async clearDefaultPlan(s: EntityManager, exceptPlanId?: string) {
+    const currentDefaults = await s.findBy(EntitySchemas.photographer_plans, {
+      is_default: true,
+    });
+    for (const current of currentDefaults) {
+      if (current.id === exceptPlanId) continue;
+      await updateEntity(s, EntitySchemas.photographer_plans, current.id, {
+        is_default: false,
+      });
+    }
+  }
+
+  private async isDefaultSubscription(
+    s: EntityManager,
+    subscription: {
+      plan_id: string;
+      plan_snapshot: { is_default?: boolean } | null;
+    },
+  ) {
+    if (subscription.plan_snapshot?.is_default === true) return true;
+    const plan = await s.findOneBy(EntitySchemas.photographer_plans, {
+      id: subscription.plan_id,
+    });
+    return plan?.is_default === true;
   }
 
   private recordHistory(

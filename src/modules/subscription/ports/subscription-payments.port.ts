@@ -21,6 +21,7 @@ export abstract class SubscriptionPaymentsPort {
     subscriptionId: string,
     price: number,
     idempotencyKey: string,
+    paymentMethod?: 'gateway' | 'wallet',
   ): Promise<TransactionEntity>;
 
   /**

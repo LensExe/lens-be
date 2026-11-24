@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 import { SubscriptionExpireDueCommand } from '@modules/subscription/subscriptions.command';
 import { runExclusive, SYSTEM_ACTOR } from './scheduled-job';
 
-/** Every five minutes, expire paid subscription periods that have ended. */
+/** Every five minutes, expire paid periods and queue photographer notifications. */
 @Injectable()
 export class SubscriptionExpireDueJob {
   constructor(

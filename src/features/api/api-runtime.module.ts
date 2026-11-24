@@ -43,6 +43,8 @@ import { PublicBookingPlansCache } from '@modules/photographer/booking-plan/publ
 import { RankUseCases } from '@modules/photographer/rank/rank.use-case';
 import { BadgeUseCases } from '@modules/photographer/badge/badge.use-case';
 import { SubscriptionUseCases } from '@modules/subscription/subscription.use-case';
+import { DefaultSubscriptionLifecycleService } from '@modules/subscription/default-subscription-lifecycle.service';
+import { SubscriptionDefaultPlanPort } from '@modules/subscription/ports/subscription-default-plan.port';
 import { IdentityUseCases } from '@modules/identity/identity.use-case';
 import { RatingUpdaterPort } from '@modules/booking/ports/rating-updater.port';
 import { CustomerBookingStatsPort } from '@modules/customer/ports/customer-booking-stats.port';
@@ -95,6 +97,7 @@ const applicationServices = [
   RankUseCases,
   BadgeUseCases,
   SubscriptionUseCases,
+  DefaultSubscriptionLifecycleService,
   IdentityUseCases,
 ];
 
@@ -185,6 +188,10 @@ const applicationServices = [
     {
       provide: SubscriptionPaymentsPort,
       useExisting: PaymentUseCases,
+    },
+    {
+      provide: SubscriptionDefaultPlanPort,
+      useExisting: DefaultSubscriptionLifecycleService,
     },
     {
       provide: SubscriptionStorageQuotaPort,

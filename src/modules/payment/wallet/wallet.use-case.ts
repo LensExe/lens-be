@@ -1,6 +1,6 @@
 import { In, type EntityManager } from 'typeorm';
 import { Injectable } from '@nestjs/common';
-import { EntitySchemas, updateEntity } from '@shared/database';
+import { EntitySchemas } from '@shared/database';
 import type { TransactionEntity } from '@shared/database/entities/transaction.entity';
 import type { WalletEntity } from '@shared/database/entities/wallet.entity';
 import { ensure } from '@shared/platform/exceptions/domain.error';
@@ -10,6 +10,7 @@ import { emit } from '@shared/common/access';
 import {
   RefundRequestType,
   RefundStatus,
+  TransactionPaymentGateway,
 } from '@shared/domain/values/payment.values';
 import type { RefundRequestEntity } from '@shared/database/entities/refund-request.entity';
 import type { WalletPayoutDestinationEntity } from '@shared/database/entities/wallet-payout-destination.entity';
@@ -426,6 +427,38 @@ export class WalletUseCases {
       refund_request_id: null,
       idempotency_key: `booking-escrow-hold:${transaction.id}`,
       description: 'Booking funds held until booking completion',
+    });
+  }
+
+  /** Debit the photographer's available wallet balance for a subscription. */
+  async paySubscription(
+    s: EntityManager,
+    transaction: TransactionEntity,
+    userId: string,
+  ) {
+    ensure(
+      transaction.type === 'subscription' &&
+        transaction.user_id === userId &&
+        transaction.payment_gateway ===
+          TransactionPaymentGateway.WALLET_INTERNAL,
+      'Subscription wallet payment is invalid',
+      'conflict',
+    );
+    const wallet = await this.lockWallet(s, userId);
+    const amount = Number(transaction.amount);
+    Wallet.assertAvailableBalance(
+      Number(wallet.balance),
+      amount,
+      'Insufficient wallet balance',
+    );
+    await this.post(s, wallet, {
+      entry_type: 'subscription_payment',
+      available_delta: -amount,
+      frozen_delta: 0,
+      transaction_id: transaction.id,
+      refund_request_id: null,
+      idempotency_key: `wallet-subscription-debit:${transaction.id}`,
+      description: 'Subscription payment from Lens wallet',
     });
   }
 
@@ -872,7 +905,10 @@ export class WalletUseCases {
     const balance = Number(wallet.balance) + entry.available_delta;
     const frozenBalance = Number(wallet.frozen_balance) + entry.frozen_delta;
     Wallet.assertNonNegativeBalances(balance, frozenBalance);
-    const updated = await updateEntity(s, EntitySchemas.wallets, wallet.id, {
+    // This row was just loaded and locked by lockWallet; save the same entity
+    // directly so a wallet checkout never has to reload it through preload().
+    const updated = await s.save(EntitySchemas.wallets, {
+      ...wallet,
       balance,
       frozen_balance: frozenBalance,
     });
